@@ -8,6 +8,7 @@ import ThreadTab from "@/components/tabs/ThreadTab";
 import BuildTab from "@/components/tabs/BuildTab";
 import AgentTab from "@/components/tabs/AgentTab";
 import { useLayer1Collision } from "@/hooks/useLayer1Collision";
+import { MAP_TILES } from "@/constants/game";
 
 export default function Home() {
   const {
@@ -24,6 +25,7 @@ export default function Home() {
     lastCommentary,
     playerDirection,
     isPlayerMoving,
+    collisionMap,
   } = useGameState();
   const { isBlocked: isLayer1Blocked } = useLayer1Collision("/map/layer_1.png");
   const [activeTab, setActiveTab] = useState<"map" | "thread" | "build" | "agent">("map");
@@ -461,9 +463,6 @@ export default function Home() {
             const newX = agent.x + direction.dx;
             const newY = agent.y + direction.dy;
 
-            // Map boundaries (4200x4200 pixels, 40px tile size = 105 tiles)
-            const MAP_TILES = 105;
-
             // Check map boundaries
             if (newX < 0 || newX >= MAP_TILES || newY < 0 || newY >= MAP_TILES) {
               return; // Skip this agent's movement
@@ -546,6 +545,7 @@ export default function Home() {
             toggleAutonomous={toggleAutonomous}
             playerDirection={playerDirection}
             playerIsMoving={isPlayerMoving}
+            collisionMap={collisionMap}
           />
           {/* <ThreadTab
             isActive={activeTab === 'thread'}

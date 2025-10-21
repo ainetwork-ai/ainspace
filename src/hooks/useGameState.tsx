@@ -5,29 +5,25 @@ import { useMapData } from '@/providers/MapDataProvider';
 import { useSession } from '@/hooks/useSession';
 import { useAgents } from '@/hooks/useAgents';
 import { useLayer1Collision } from '@/hooks/useLayer1Collision';
+import {
+  MAP_WIDTH,
+  MAP_HEIGHT,
+  VIEW_RADIUS,
+  MIN_WORLD_X,
+  MAX_WORLD_X,
+  MIN_WORLD_Y,
+  MAX_WORLD_Y
+} from '@/constants/game';
 
 interface Position {
   x: number;
   y: number;
 }
 
-const MAP_WIDTH = 16;
-const MAP_HEIGHT = 12;
-const VIEW_RADIUS = 6; // Circular view radius
-
-// Background image boundaries (4200x4200 pixels, 40px tile size in MapTab)
-const BACKGROUND_IMAGE_SIZE = 4200;
-const MAP_TILE_SIZE = 40;
-const BACKGROUND_TILES = BACKGROUND_IMAGE_SIZE / MAP_TILE_SIZE; // 105 tiles
-const MIN_WORLD_X = Math.floor(MAP_WIDTH / 2);
-const MAX_WORLD_X = BACKGROUND_TILES - Math.ceil(MAP_WIDTH / 2);
-const MIN_WORLD_Y = Math.floor(MAP_HEIGHT / 2);
-const MAX_WORLD_Y = BACKGROUND_TILES - Math.ceil(MAP_HEIGHT / 2);
-
 export function useGameState() {
   const { getMapData, generateTileAt } = useMapData();
   const { userId } = useSession();
-  const { isBlocked: isLayer1Blocked } = useLayer1Collision('/map/layer_1.png');
+  const { isBlocked: isLayer1Blocked, collisionMap } = useLayer1Collision('/map/layer_1.png');
 
   // Character starts at the center of the map
   const initialPosition: Position = {
@@ -344,6 +340,7 @@ export function useGameState() {
     toggleAutonomous,
     lastCommentary,
     playerDirection,
-    isPlayerMoving
+    isPlayerMoving,
+    collisionMap
   };
 }

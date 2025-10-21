@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { TILE_SIZE } from '@/constants/game';
 
 interface CollisionMap {
   [key: string]: boolean; // "x,y" -> true if blocked
@@ -35,43 +36,45 @@ export function useLayer1Collision(layer1ImageSrc: string) {
         const imageData = ctx.getImageData(0, 0, img.width, img.height);
         const data = imageData.data;
 
-        // Tile size in the background image (40px)
-        const TILE_SIZE = 40;
+        // Use game tile size for collision detection
         const tilesX = Math.floor(img.width / TILE_SIZE);
         const tilesY = Math.floor(img.height / TILE_SIZE);
 
         const newCollisionMap: CollisionMap = {};
 
-        // Check each tile
+        // Check each 40px tile
         for (let tileY = 0; tileY < tilesY; tileY++) {
           for (let tileX = 0; tileX < tilesX; tileX++) {
-            let hasOpaquePixel = false;
+            // Calculate pixel bounds for this 40px tile
+            const startX = tileX * TILE_SIZE;
+            const startY = tileY * TILE_SIZE;
+            const endX = Math.min(startX + TILE_SIZE, img.width);
+            const endY = Math.min(startY + TILE_SIZE, img.height);
 
-            // Sample multiple points in the tile to check for opacity
-            const samplePoints = 5; // Sample 5x5 grid within each tile
-            const sampleSize = Math.floor(TILE_SIZE / samplePoints);
+            let opaquePixelCount = 0;
+            let totalPixelCount = 0;
 
-            for (let sy = 0; sy < samplePoints && !hasOpaquePixel; sy++) {
-              for (let sx = 0; sx < samplePoints && !hasOpaquePixel; sx++) {
-                const pixelX = tileX * TILE_SIZE + sx * sampleSize + Math.floor(sampleSize / 2);
-                const pixelY = tileY * TILE_SIZE + sy * sampleSize + Math.floor(sampleSize / 2);
+            // Count all pixels in this tile
+            for (let py = startY; py < endY; py++) {
+              for (let px = startX; px < endX; px++) {
+                const index = (py * img.width + px) * 4;
+                const alpha = data[index + 3];
 
-                if (pixelX < img.width && pixelY < img.height) {
-                  const index = (pixelY * img.width + pixelX) * 4;
-                  const alpha = data[index + 3];
-
-                  // If alpha is greater than a threshold, consider it opaque
-                  if (alpha > 50) { // Threshold: 50/255
-                    hasOpaquePixel = true;
-                  }
+                totalPixelCount++;
+                // Consider pixel opaque if alpha > 50 (threshold)
+                if (alpha > 50) {
+                  opaquePixelCount++;
                 }
               }
             }
 
-            // If tile has opaque pixels, mark as blocked
-            if (hasOpaquePixel) {
-              const key = `${tileX},${tileY}`;
-              newCollisionMap[key] = true;
+            // Block if 30% or more pixels are opaque
+            if (totalPixelCount > 0) {
+              const opaqueRatio = opaquePixelCount / totalPixelCount;
+              if (opaqueRatio >= 0.3) {
+                const key = `${tileX},${tileY}`;
+                newCollisionMap[key] = true;
+              }
             }
           }
         }
@@ -97,6 +100,7 @@ export function useLayer1Collision(layer1ImageSrc: string) {
   }, [layer1ImageSrc]);
 
   const isBlocked = (worldX: number, worldY: number): boolean => {
+    // Direct lookup - both systems now use 40px tiles (0-104 grid)
     const key = `${worldX},${worldY}`;
     return collisionMap[key] === true;
   };

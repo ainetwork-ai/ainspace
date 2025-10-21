@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useMapData } from "@/providers/MapDataProvider";
 import { Agent } from "@/lib/world";
 import { useLayer1Collision } from "@/hooks/useLayer1Collision";
+import { MAP_TILES, TILE_SIZE } from "@/constants/game";
 
 export interface AgentInternal extends Agent {
   direction: "up" | "down" | "left" | "right";
@@ -37,7 +38,7 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
       behavior: "random",
       spriteUrl: "/sprite/sprite_sungryong.png",
       spriteHeight: 86,
-      spriteWidth: 32,
+      spriteWidth: TILE_SIZE,
     },
     {
       id: "agent-2",
@@ -51,7 +52,7 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
       behavior: "patrol",
       spriteUrl: "/sprite/sprite_unryong.png",
       spriteHeight: 86,
-      spriteWidth: 32,
+      spriteWidth: TILE_SIZE,
     },
     {
       id: "agent-3",
@@ -64,16 +65,13 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
       moveInterval: 600,
       behavior: "explorer",
       spriteUrl: "/sprite/sprite_horaeng.png",
-      spriteHeight: 40,
-      spriteWidth: 32,
+      spriteHeight: TILE_SIZE,
+      spriteWidth: TILE_SIZE,
     },
   ]);
 
   const isWalkable = useCallback(
     (x: number, y: number, currentAgents: AgentInternal[], checkingAgentId?: string): boolean => {
-      //
-      const MAP_TILES = 105;
-
       if (x < 0 || x >= MAP_TILES || y < 0 || y >= MAP_TILES) {
         return false;
       }

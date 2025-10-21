@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { SpriteAnimator } from "react-sprite-animator";
+import { TILE_SIZE, MAP_TILES } from "@/constants/game";
 
 interface Agent {
   id: string;
@@ -40,6 +41,7 @@ interface TileMapProps {
   layer1ImageSrc?: string;
   playerDirection?: "up" | "down" | "left" | "right";
   playerIsMoving?: boolean;
+  collisionMap?: { [key: string]: boolean };
 }
 
 export default function TileMap({
@@ -57,6 +59,7 @@ export default function TileMap({
   layer1ImageSrc,
   playerDirection = "down",
   playerIsMoving = false,
+  collisionMap = {},
 }: TileMapProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -71,6 +74,7 @@ export default function TileMap({
   >(null);
   const moveIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
+  const [showCollisionMap, setShowCollisionMap] = useState(false);
 
   // Load background image
   useEffect(() => {
@@ -128,6 +132,19 @@ export default function TileMap({
     checkMobile();
     window.addEventListener("resize", checkMobile);
     return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  // Toggle collision map display with Ctrl+J
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey && event.key === "j") {
+        event.preventDefault();
+        setShowCollisionMap((prev) => !prev);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
   // Check if customTiles is using layer structure
@@ -194,9 +211,6 @@ export default function TileMap({
     const tilesY = Math.ceil(canvasSize.height / tileSize);
     const halfTilesX = Math.floor(tilesX / 2);
     const halfTilesY = Math.floor(tilesY / 2);
-
-    // Map boundaries
-    const MAP_TILES = 105;
 
     // Calculate camera position
     let cameraTileX = worldPosition.x - halfTilesX;
@@ -401,9 +415,6 @@ export default function TileMap({
       const halfTilesX = Math.floor(tilesX / 2);
       const halfTilesY = Math.floor(tilesY / 2);
 
-      // Map boundaries
-      const MAP_TILES = 105;
-
       // Calculate camera position
       let cameraTileX = worldPosition.x - halfTilesX;
       let cameraTileY = worldPosition.y - halfTilesY;
@@ -443,9 +454,6 @@ export default function TileMap({
     const tilesY = Math.ceil(canvasSize.height / tileSize);
     const halfTilesX = Math.floor(tilesX / 2);
     const halfTilesY = Math.floor(tilesY / 2);
-
-    // Map boundaries
-    const MAP_TILES = 105;
 
     // Calculate camera position
     let cameraTileX = worldPosition.x - halfTilesX;
@@ -491,8 +499,7 @@ export default function TileMap({
 
     // Map boundaries (4200x4200 pixels at 40px per tile = 105 tiles)
     const MAP_SIZE_PIXELS = 4200;
-    const ORIGINAL_TILE_SIZE = 40;
-    const MAP_TILES = MAP_SIZE_PIXELS / ORIGINAL_TILE_SIZE; // 105 tiles
+    const ORIGINAL_TILE_SIZE = TILE_SIZE;
 
     // Calculate camera position in world coordinates (tiles)
     // Player is at worldPosition, we want to center the view on the player
@@ -633,6 +640,81 @@ export default function TileMap({
       }
     }
 
+    // Draw collision map overlay (red tiles for blocked areas) - only if enabled
+    if (showCollisionMap) {
+      // Calculate actual screen tile size to match background image rendering
+      const screenTileWidth = canvas.width / tilesX;
+      const screenTileHeight = canvas.height / tilesY;
+
+      for (let y = 0; y < tilesY; y++) {
+        for (let x = 0; x < tilesX; x++) {
+          const worldTileX = Math.floor(cameraTileX + x);
+          const worldTileY = Math.floor(cameraTileY + y);
+
+          // Check if player is at this position
+          const hasPlayer = worldTileX === worldPosition.x && worldTileY === worldPosition.y;
+
+          // Check if any agent is at this position
+          const agentAtPosition = agents.find(
+            (agent) => agent.x === worldTileX && agent.y === worldTileY
+          );
+
+          if (hasPlayer) {
+            // Black for player tile
+            ctx.fillStyle = "rgba(0, 0, 0, 0.5)"; // Black with 50% opacity
+            ctx.fillRect(
+              x * screenTileWidth,
+              y * screenTileHeight,
+              screenTileWidth,
+              screenTileHeight
+            );
+          } else if (agentAtPosition) {
+            // Use agent's unique color
+            const agentColor = agentAtPosition.color;
+            // Convert hex to rgba with 50% opacity
+            const r = parseInt(agentColor.slice(1, 3), 16);
+            const g = parseInt(agentColor.slice(3, 5), 16);
+            const b = parseInt(agentColor.slice(5, 7), 16);
+            ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.5)`;
+            ctx.fillRect(
+              x * screenTileWidth,
+              y * screenTileHeight,
+              screenTileWidth,
+              screenTileHeight
+            );
+          } else {
+            // Check collision map for blocked tiles
+            const tileKey = `${worldTileX},${worldTileY}`;
+            if (collisionMap[tileKey]) {
+              ctx.fillStyle = "rgba(255, 0, 0, 0.5)"; // Red with 50% opacity
+              ctx.fillRect(
+                x * screenTileWidth,
+                y * screenTileHeight,
+                screenTileWidth,
+                screenTileHeight
+              );
+            }
+          }
+        }
+      }
+
+      // Draw tile grid (outline for all tiles)
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.3)"; // Black with 30% opacity
+      ctx.lineWidth = 1;
+      for (let y = 0; y <= tilesY; y++) {
+        ctx.beginPath();
+        ctx.moveTo(0, y * screenTileHeight);
+        ctx.lineTo(canvas.width, y * screenTileHeight);
+        ctx.stroke();
+      }
+      for (let x = 0; x <= tilesX; x++) {
+        ctx.beginPath();
+        ctx.moveTo(x * screenTileWidth, 0);
+        ctx.lineTo(x * screenTileWidth, canvas.height);
+        ctx.stroke();
+      }
+    }
+
     // Agents and player are now rendered as DOM elements using SpriteAnimator
     // Canvas only renders background, tiles, and layers
   }, [
@@ -646,6 +728,8 @@ export default function TileMap({
     backgroundImage,
     layer1Image,
     canvasSize,
+    collisionMap,
+    showCollisionMap,
   ]);
 
   // Calculate camera position for sprite positioning
@@ -653,7 +737,6 @@ export default function TileMap({
   const tilesY = Math.ceil(canvasSize.height / tileSize);
   const halfTilesX = Math.floor(tilesX / 2);
   const halfTilesY = Math.floor(tilesY / 2);
-  const MAP_TILES = 105;
 
   let cameraTileX = worldPosition.x - halfTilesX;
   let cameraTileY = worldPosition.y - halfTilesY;
@@ -722,16 +805,19 @@ export default function TileMap({
         const agentDirection = agent.direction || "down";
         const agentStartFrame = getStartFrame(agentDirection);
         const agentSpriteUrl = agent.spriteUrl || "/sprite/sprite_kkaebi.png";
-        const agentSpriteHeight = agent.spriteHeight || 32;
-        const agentSpriteWidth = agent.spriteWidth || 32;
+        const agentSpriteHeight = agent.spriteHeight || TILE_SIZE;
+        const agentSpriteWidth = agent.spriteWidth || TILE_SIZE;
+
+        const topOffset =
+          agentSpriteHeight === TILE_SIZE ? agentSpriteHeight / 4 : agentSpriteHeight / 1.5;
 
         return (
           <div
             key={agent.id}
             style={{
               position: "absolute",
-              left: `${agentScreenX * tileSize}px`,
-              top: `${agentScreenY * tileSize}px`,
+              left: `${agentScreenX * tileSize - TILE_SIZE / 4}px`,
+              top: `${agentScreenY * tileSize - topOffset}px`,
               width: `${tileSize}px`,
               height: `${tileSize}px`,
               pointerEvents: "none",
@@ -739,9 +825,9 @@ export default function TileMap({
             <SpriteAnimator
               key={`${agent.id}-${agentDirection}`}
               sprite={agentSpriteUrl}
-              width={40}
+              width={TILE_SIZE}
               height={agentSpriteHeight}
-              scale={agentSpriteWidth / tileSize}
+              scale={1}
               fps={6}
               frameCount={agentStartFrame + 3}
               direction={"horizontal"}
@@ -762,8 +848,8 @@ export default function TileMap({
           <div
             style={{
               position: "absolute",
-              left: `${playerScreenTileX * tileSize}px`,
-              top: `${playerScreenTileY * tileSize}px`,
+              left: `${playerScreenTileX * tileSize - TILE_SIZE / 4}px`,
+              top: `${playerScreenTileY * tileSize - TILE_SIZE / 4}px`,
               width: `${tileSize}px`,
               height: `${tileSize}px`,
               pointerEvents: "none",
@@ -772,8 +858,8 @@ export default function TileMap({
             <SpriteAnimator
               key={`player-${playerDirection}`}
               sprite="/sprite/sprite_kkaebi.png"
-              width={32}
-              height={32}
+              width={TILE_SIZE}
+              height={TILE_SIZE}
               scale={1}
               fps={6}
               frameCount={playerStartFrame + 3}

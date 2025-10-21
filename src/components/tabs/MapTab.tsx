@@ -1,6 +1,7 @@
 import React from "react";
 import TileMap from "@/components/TileMap";
 import BaseTabContent from "./BaseTabContent";
+import { TILE_SIZE } from "@/constants/game";
 
 interface MapTabProps {
   isActive: boolean;
@@ -47,6 +48,7 @@ interface MapTabProps {
   toggleAutonomous: () => void;
   playerDirection: "up" | "down" | "left" | "right";
   playerIsMoving?: boolean;
+  collisionMap: { [key: string]: boolean };
 }
 
 export default function MapTab({
@@ -70,8 +72,8 @@ export default function MapTab({
   toggleAutonomous,
   playerDirection,
   playerIsMoving = false,
+  collisionMap,
 }: MapTabProps) {
-  const tileSize = 32;
   return (
     <BaseTabContent isActive={isActive} withPadding={false}>
       {/* Game Area */}
@@ -79,7 +81,7 @@ export default function MapTab({
         <div className="w-full h-full flex items-center justify-center">
           <TileMap
             mapData={mapData}
-            tileSize={tileSize}
+            tileSize={TILE_SIZE}
             playerPosition={playerPosition}
             worldPosition={worldPosition}
             agents={visibleAgents}
@@ -94,6 +96,7 @@ export default function MapTab({
             onMobileMove={onMobileMove}
             playerDirection={playerDirection}
             playerIsMoving={playerIsMoving}
+            collisionMap={collisionMap}
           />
         </div>
 
