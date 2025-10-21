@@ -7,6 +7,7 @@ import MapTab from "@/components/tabs/MapTab";
 import ThreadTab from "@/components/tabs/ThreadTab";
 import BuildTab from "@/components/tabs/BuildTab";
 import AgentTab from "@/components/tabs/AgentTab";
+import Footer from "@/components/Footer";
 import { useLayer1Collision } from "@/hooks/useLayer1Collision";
 import { MAP_TILES } from "@/constants/game";
 
@@ -112,39 +113,42 @@ export default function Home() {
     loadCustomTiles();
   }, [userId]);
 
-  const handleMobileMove = useCallback((direction: "up" | "down" | "left" | "right") => {
-    if (isAutonomous) return;
+  const handleMobileMove = useCallback(
+    (direction: "up" | "down" | "left" | "right") => {
+      if (isAutonomous) return;
 
-    // Calculate new position
-    let newX = worldPosition.x;
-    let newY = worldPosition.y;
-    switch (direction) {
-      case 'up':
-        newY -= 1;
-        break;
-      case 'down':
-        newY += 1;
-        break;
-      case 'left':
-        newX -= 1;
-        break;
-      case 'right':
-        newX += 1;
-        break;
-    }
+      // Calculate new position
+      let newX = worldPosition.x;
+      let newY = worldPosition.y;
+      switch (direction) {
+        case "up":
+          newY -= 1;
+          break;
+        case "down":
+          newY += 1;
+          break;
+        case "left":
+          newX -= 1;
+          break;
+        case "right":
+          newX += 1;
+          break;
+      }
 
-    // Check if A2A agent is at this position
-    const isOccupiedByA2A = Object.values(spawnedA2AAgents).some(
-      agent => agent.x === newX && agent.y === newY
-    );
+      // Check if A2A agent is at this position
+      const isOccupiedByA2A = Object.values(spawnedA2AAgents).some(
+        (agent) => agent.x === newX && agent.y === newY
+      );
 
-    if (isOccupiedByA2A) {
-      return;
-    }
+      if (isOccupiedByA2A) {
+        return;
+      }
 
-    // Move player (this will also check worldAgents in useGameState)
-    movePlayer(direction);
-  }, [isAutonomous, worldPosition, spawnedA2AAgents, movePlayer]);
+      // Move player (this will also check worldAgents in useGameState)
+      movePlayer(direction);
+    },
+    [isAutonomous, worldPosition, spawnedA2AAgents, movePlayer]
+  );
 
   // Keyboard handling for player movement (works alongside joystick)
   useEffect(() => {
@@ -152,27 +156,27 @@ export default function Home() {
       if (isLoading || isAutonomous) return;
 
       switch (event.key) {
-        case 'ArrowUp':
+        case "ArrowUp":
           event.preventDefault();
-          handleMobileMove('up');
+          handleMobileMove("up");
           break;
-        case 'ArrowDown':
+        case "ArrowDown":
           event.preventDefault();
-          handleMobileMove('down');
+          handleMobileMove("down");
           break;
-        case 'ArrowLeft':
+        case "ArrowLeft":
           event.preventDefault();
-          handleMobileMove('left');
+          handleMobileMove("left");
           break;
-        case 'ArrowRight':
+        case "ArrowRight":
           event.preventDefault();
-          handleMobileMove('right');
+          handleMobileMove("right");
           break;
       }
     };
 
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
+    window.addEventListener("keydown", handleKeyPress);
+    return () => window.removeEventListener("keydown", handleKeyPress);
   }, [handleMobileMove, isLoading, isAutonomous]);
 
   const handleBroadcast = async () => {
@@ -475,10 +479,11 @@ export default function Home() {
 
             // Check if another agent (A2A or world agent) is at this position
             const isOccupiedByA2A = Object.values(updated).some(
-              otherAgent => otherAgent.id !== agent.id && otherAgent.x === newX && otherAgent.y === newY
+              (otherAgent) =>
+                otherAgent.id !== agent.id && otherAgent.x === newX && otherAgent.y === newY
             );
             const isOccupiedByWorldAgent = worldAgents.some(
-              worldAgent => worldAgent.x === newX && worldAgent.y === newY
+              (worldAgent) => worldAgent.x === newX && worldAgent.y === newY
             );
             if (isOccupiedByA2A || isOccupiedByWorldAgent) {
               return; // Skip this agent's movement
@@ -521,111 +526,70 @@ export default function Home() {
   }, [isLayer1Blocked]);
 
   return (
-    <div className="w-full h-screen bg-gray-100 flex flex-col overflow-hidden">
-      <div className="w-full h-full flex-1 flex flex-col">
-        <div className="flex-1 bg-white relative overflow-hidden">
-          <MapTab
-            isActive={activeTab === "map"}
-            playerPosition={playerPosition}
-            mapData={mapData}
-            worldPosition={worldPosition}
-            visibleAgents={combinedVisibleAgents}
-            publishedTiles={publishedTiles}
-            customTiles={customTiles}
-            isAutonomous={isAutonomous}
-            onMobileMove={handleMobileMove}
-            broadcastMessage={broadcastMessage}
-            setBroadcastMessage={setBroadcastMessage}
-            onBroadcast={handleBroadcast}
-            broadcastStatus={broadcastStatus}
-            threads={threads}
-            onViewThread={handleViewThread}
-            userId={userId}
-            isLoading={isLoading}
-            toggleAutonomous={toggleAutonomous}
-            playerDirection={playerDirection}
-            playerIsMoving={isPlayerMoving}
-            collisionMap={collisionMap}
-          />
-          {/* <ThreadTab
-            isActive={activeTab === 'thread'}
-            chatBoxRef={chatBoxRef}
-            lastCommentary={lastCommentary}
-            worldAgents={combinedWorldAgents}
-            worldPosition={worldPosition}
-            currentThreadId={currentThreadId || undefined}
-            threads={threads}
-            onThreadSelect={setCurrentThreadId}
-          />
-          <BuildTab
-            isActive={activeTab === 'build'}
-            mapData={mapData}
-            playerPosition={playerPosition}
-            worldPosition={worldPosition}
-            visibleAgents={combinedVisibleAgents}
-            publishedTiles={publishedTiles}
-            customTiles={customTiles}
-            selectedImage={selectedImage}
-            setSelectedImage={setSelectedImage}
-            buildMode={buildMode}
-            setBuildMode={setBuildMode}
-            setCustomTiles={setCustomTiles}
-            isPublishing={isPublishing}
-            publishStatus={publishStatus}
-            userId={userId}
-            onPublishTiles={handlePublishTiles}
-            onMobileMove={handleMobileMove}
-          />
-          <AgentTab
-            isActive={activeTab === 'agent'}
-            onSpawnAgent={handleSpawnAgent}
-            onRemoveAgentFromMap={handleRemoveAgentFromMap}
-            spawnedAgents={Object.keys(spawnedA2AAgents)}
-            onUploadCharacterImage={handleUploadCharacterImage}
-          /> */}
-
-          <div className="bg-white border-t border-gray-200">
-            <div className="flex w-full">
-              <button
-                onClick={() => setActiveTab("map")}
-                className={`flex-1 py-3 text-sm font-medium transition-colors ${
-                  activeTab === "map"
-                    ? "bg-blue-600 text-white border-b-2 border-blue-600"
-                    : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
-                }`}>
-                🗺️ Map
-              </button>
-              <button
-                onClick={() => setActiveTab("thread")}
-                className={`flex-1 py-3 text-sm font-medium transition-colors ${
-                  activeTab === "thread"
-                    ? "bg-blue-600 text-white border-b-2 border-blue-600"
-                    : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
-                }`}>
-                💬 Thread
-              </button>
-              <button
-                onClick={() => setActiveTab("build")}
-                className={`flex-1 py-3 text-sm font-medium transition-colors ${
-                  activeTab === "build"
-                    ? "bg-orange-600 text-white border-b-2 border-orange-600"
-                    : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
-                }`}>
-                🔨 Build
-              </button>
-              <button
-                onClick={() => setActiveTab("agent")}
-                className={`flex-1 py-3 text-sm font-medium transition-colors ${
-                  activeTab === "agent"
-                    ? "bg-purple-600 text-white border-b-2 border-purple-600"
-                    : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
-                }`}>
-                🤖 Agent
-              </button>
-            </div>
-          </div>
-        </div>
+    <div className="w-full h-screen bg-gray-100 flex flex-col">
+      <div className="flex-1 overflow-hidden">
+        <MapTab
+          isActive={activeTab === "map"}
+          playerPosition={playerPosition}
+          mapData={mapData}
+          worldPosition={worldPosition}
+          visibleAgents={combinedVisibleAgents}
+          publishedTiles={publishedTiles}
+          customTiles={customTiles}
+          isAutonomous={isAutonomous}
+          onMobileMove={handleMobileMove}
+          broadcastMessage={broadcastMessage}
+          setBroadcastMessage={setBroadcastMessage}
+          onBroadcast={handleBroadcast}
+          broadcastStatus={broadcastStatus}
+          threads={threads}
+          onViewThread={handleViewThread}
+          userId={userId}
+          isLoading={isLoading}
+          toggleAutonomous={toggleAutonomous}
+          playerDirection={playerDirection}
+          playerIsMoving={isPlayerMoving}
+          collisionMap={collisionMap}
+        />
+        <ThreadTab
+          isActive={activeTab === "thread"}
+          chatBoxRef={chatBoxRef}
+          lastCommentary={lastCommentary}
+          worldAgents={combinedWorldAgents}
+          worldPosition={worldPosition}
+          currentThreadId={currentThreadId || undefined}
+          threads={threads}
+          onThreadSelect={setCurrentThreadId}
+        />
+        <BuildTab
+          isActive={activeTab === "build"}
+          mapData={mapData}
+          playerPosition={playerPosition}
+          worldPosition={worldPosition}
+          visibleAgents={combinedVisibleAgents}
+          publishedTiles={publishedTiles}
+          customTiles={customTiles}
+          selectedImage={selectedImage}
+          setSelectedImage={setSelectedImage}
+          buildMode={buildMode}
+          setBuildMode={setBuildMode}
+          setCustomTiles={setCustomTiles}
+          isPublishing={isPublishing}
+          publishStatus={publishStatus}
+          userId={userId}
+          onPublishTiles={handlePublishTiles}
+          onMobileMove={handleMobileMove}
+        />
+        <AgentTab
+          isActive={activeTab === "agent"}
+          onSpawnAgent={handleSpawnAgent}
+          onRemoveAgentFromMap={handleRemoveAgentFromMap}
+          spawnedAgents={Object.keys(spawnedA2AAgents)}
+          onUploadCharacterImage={handleUploadCharacterImage}
+        />
       </div>
+
+      <Footer activeTab={activeTab} onTabChange={setActiveTab} />
     </div>
   );
 }

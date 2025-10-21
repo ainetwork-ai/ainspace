@@ -25,7 +25,6 @@ export default function PlayerJoystick({
   const handleMove = (event: IJoystickUpdateEvent) => {
     if (disabled || !event.direction) return;
 
-    // Map IJoystickUpdateEvent direction to our direction type
     let direction: "up" | "down" | "left" | "right" | null = null;
 
     switch (event.direction) {
@@ -45,20 +44,16 @@ export default function PlayerJoystick({
 
     if (!direction) return;
 
-    // If direction changed or first move, update and move immediately
     if (lastDirectionRef.current !== direction) {
       lastDirectionRef.current = direction;
 
-      // Clear any existing interval
       if (moveIntervalRef.current) {
         clearInterval(moveIntervalRef.current);
         moveIntervalRef.current = null;
       }
 
-      // Move immediately
       onMove(direction);
 
-      // Start continuous movement interval (move every 200ms while holding)
       moveIntervalRef.current = setInterval(() => {
         if (lastDirectionRef.current) {
           onMove(lastDirectionRef.current);
@@ -68,7 +63,6 @@ export default function PlayerJoystick({
   };
 
   const handleStop = () => {
-    // Clear movement interval
     if (moveIntervalRef.current) {
       clearInterval(moveIntervalRef.current);
       moveIntervalRef.current = null;
