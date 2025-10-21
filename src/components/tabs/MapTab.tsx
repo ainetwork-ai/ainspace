@@ -1,116 +1,116 @@
-import React from "react";
-import TileMap from "@/components/TileMap";
-import BaseTabContent from "./BaseTabContent";
-import PlayerJoystick from "@/components/controls/PlayerJoystick";
-import { TILE_SIZE } from "@/constants/game";
+import React from 'react';
+import TileMap from '@/components/TileMap';
+import BaseTabContent from './BaseTabContent';
+import PlayerJoystick from '@/components/controls/PlayerJoystick';
+import { TILE_SIZE } from '@/constants/game';
 
 interface MapTabProps {
-  isActive: boolean;
-  playerPosition: { x: number; y: number };
-  mapData: number[][];
-  worldPosition: { x: number; y: number };
-  visibleAgents: Array<{
-    id: string;
-    screenX: number;
-    screenY: number;
-    color: string;
-    name: string;
-  }>;
-  publishedTiles: {
-    layer0: { [key: string]: string };
-    layer1: { [key: string]: string };
-    layer2: { [key: string]: string };
-  };
-  customTiles: {
-    layer0: { [key: string]: string };
-    layer1: { [key: string]: string };
-    layer2: { [key: string]: string };
-  };
-  isAutonomous: boolean;
-  onMobileMove: (direction: "up" | "down" | "left" | "right") => void;
-  broadcastMessage: string;
-  setBroadcastMessage: (message: string) => void;
-  onBroadcast: () => void;
-  broadcastStatus: {
-    range: number;
-    agentsReached: number;
-    agentNames: string[];
-  } | null;
-  threads: {
-    id: string;
-    message: string;
-    timestamp: Date;
-    agentsReached: number;
-    agentNames: string[];
-  }[];
-  onViewThread: (threadId?: string) => void;
-  userId: string | null;
-  isLoading: boolean;
-  toggleAutonomous: () => void;
-  playerDirection: "up" | "down" | "left" | "right";
-  playerIsMoving?: boolean;
-  collisionMap: { [key: string]: boolean };
+    isActive: boolean;
+    playerPosition: { x: number; y: number };
+    mapData: number[][];
+    worldPosition: { x: number; y: number };
+    visibleAgents: Array<{
+        id: string;
+        screenX: number;
+        screenY: number;
+        color: string;
+        name: string;
+    }>;
+    publishedTiles: {
+        layer0: { [key: string]: string };
+        layer1: { [key: string]: string };
+        layer2: { [key: string]: string };
+    };
+    customTiles: {
+        layer0: { [key: string]: string };
+        layer1: { [key: string]: string };
+        layer2: { [key: string]: string };
+    };
+    isAutonomous: boolean;
+    onMobileMove: (direction: 'up' | 'down' | 'left' | 'right') => void;
+    broadcastMessage: string;
+    setBroadcastMessage: (message: string) => void;
+    onBroadcast: () => void;
+    broadcastStatus: {
+        range: number;
+        agentsReached: number;
+        agentNames: string[];
+    } | null;
+    threads: {
+        id: string;
+        message: string;
+        timestamp: Date;
+        agentsReached: number;
+        agentNames: string[];
+    }[];
+    onViewThread: (threadId?: string) => void;
+    userId: string | null;
+    isLoading: boolean;
+    toggleAutonomous: () => void;
+    playerDirection: 'up' | 'down' | 'left' | 'right';
+    playerIsMoving?: boolean;
+    collisionMap: { [key: string]: boolean };
 }
 
 export default function MapTab({
-  isActive,
-  playerPosition,
-  mapData,
-  worldPosition,
-  visibleAgents,
-  publishedTiles,
-  customTiles,
-  isAutonomous,
-  onMobileMove,
-  broadcastMessage,
-  setBroadcastMessage,
-  onBroadcast,
-  broadcastStatus,
-  threads,
-  onViewThread,
-  userId,
-  isLoading,
-  toggleAutonomous,
-  playerDirection,
-  playerIsMoving = false,
-  collisionMap,
+    isActive,
+    playerPosition,
+    mapData,
+    worldPosition,
+    visibleAgents,
+    publishedTiles,
+    customTiles,
+    isAutonomous,
+    onMobileMove,
+    broadcastMessage,
+    setBroadcastMessage,
+    onBroadcast,
+    broadcastStatus,
+    threads,
+    onViewThread,
+    userId,
+    isLoading,
+    toggleAutonomous,
+    playerDirection,
+    playerIsMoving = false,
+    collisionMap
 }: MapTabProps) {
-  return (
-    <BaseTabContent isActive={isActive} withPadding={false}>
-      {/* Game Area */}
-      <div className="w-full h-full flex flex-col relative">
-        <div className="w-full h-full flex items-center justify-center">
-          <TileMap
-            mapData={mapData}
-            tileSize={TILE_SIZE}
-            playerPosition={playerPosition}
-            worldPosition={worldPosition}
-            agents={visibleAgents}
-            customTiles={{
-              layer0: { ...(publishedTiles.layer0 || {}), ...(customTiles.layer0 || {}) },
-              layer1: { ...(publishedTiles.layer1 || {}), ...(customTiles.layer1 || {}) },
-              layer2: { ...(publishedTiles.layer2 || {}), ...(customTiles.layer2 || {}) },
-            }}
-            layerVisibility={{ 0: true, 1: true, 2: true }}
-            backgroundImageSrc="/map/layer_0.png"
-            layer1ImageSrc="/map/layer_1.png"
-            playerDirection={playerDirection}
-            playerIsMoving={playerIsMoving}
-            collisionMap={collisionMap}
-          />
-        </div>
+    return (
+        <BaseTabContent isActive={isActive} withPadding={false}>
+            {/* Game Area */}
+            <div className="relative flex h-full w-full flex-col">
+                <div className="flex h-full w-full items-center justify-center">
+                    <TileMap
+                        mapData={mapData}
+                        tileSize={TILE_SIZE}
+                        playerPosition={playerPosition}
+                        worldPosition={worldPosition}
+                        agents={visibleAgents}
+                        customTiles={{
+                            layer0: { ...(publishedTiles.layer0 || {}), ...(customTiles.layer0 || {}) },
+                            layer1: { ...(publishedTiles.layer1 || {}), ...(customTiles.layer1 || {}) },
+                            layer2: { ...(publishedTiles.layer2 || {}), ...(customTiles.layer2 || {}) }
+                        }}
+                        layerVisibility={{ 0: true, 1: true, 2: true }}
+                        backgroundImageSrc="/map/layer_0.png"
+                        layer1ImageSrc="/map/layer_1.png"
+                        playerDirection={playerDirection}
+                        playerIsMoving={playerIsMoving}
+                        collisionMap={collisionMap}
+                    />
+                </div>
 
-        {/* Joystick Control - Bottom Center */}
-        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20">
-          <PlayerJoystick
-            onMove={onMobileMove}
-            disabled={isAutonomous}
-            baseColor="#00000050"
-            stickColor="#FFF"
-          />
-        </div>
+                {/* Joystick Control - Bottom Center */}
+                <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 transform">
+                    <PlayerJoystick
+                        onMove={onMobileMove}
+                        disabled={isAutonomous}
+                        baseColor="#00000050"
+                        stickColor="#FFF"
+                    />
+                </div>
 
-        {/* <div className="flex flex-col items-center mb-4">
+                {/* <div className="flex flex-col items-center mb-4">
           <div className="flex justify-center mb-2">
             <button
               onClick={() => onMobileMove('up')}
@@ -264,7 +264,7 @@ export default function MapTab({
             {isAutonomous ? 'Moving autonomously...' : 'Use arrow keys to move'}
           </div>
         </div> */}
-      </div>
-    </BaseTabContent>
-  );
+            </div>
+        </BaseTabContent>
+    );
 }
