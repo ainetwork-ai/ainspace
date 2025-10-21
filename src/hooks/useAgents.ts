@@ -28,7 +28,7 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
     const [agents, setAgents] = useState<AgentInternal[]>([
         {
             id: 'agent-1',
-            x: 50,
+            x: 52,
             y: 48,
             color: '#00FF00',
             name: 'Explorer Bot',

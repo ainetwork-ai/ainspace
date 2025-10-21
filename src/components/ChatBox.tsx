@@ -302,15 +302,36 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         <div className={cn('flex h-full w-full flex-col bg-transparent', className)}>
             <div className="max-h-full min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
                 {threadMessages.slice().map((message) => (
-                    <div
-                        key={message.id}
-                        className={cn('flex flex-col', message.sender === 'user' ? 'items-end' : 'items-start')}
-                    >
+                    <div key={message.id} className={cn('flex flex-col items-start gap-1')}>
+                        <div className="flex flex-row items-center gap-2">
+                            <Image
+                                src={
+                                    message.sender === 'user'
+                                        ? '/footer/bottomSheet/avatar_player.png'
+                                        : '/footer/bottomSheet/avatar_agent_1.png'
+                                }
+                                alt="User"
+                                width={24}
+                                height={24}
+                            />
+                            <span className="text-xs font-semibold text-white">
+                                {message.sender === 'user' ? 'You' : 'AI'}
+                            </span>
+                            {message.sender === 'user' ? (
+                                <div className="inline-flex flex-col items-start justify-center gap-2 rounded-lg bg-[#7f4fe8]/50 px-2 py-0.5">
+                                    <p className="justify-start text-xs leading-5 font-normal text-[#eae0ff]">Me</p>
+                                </div>
+                            ) : (
+                                <div className="Ta inline-flex flex-col items-start justify-center gap-2 rounded-lg bg-[#4a5057] px-2 py-0.5">
+                                    <p className="justify-start text-xs leading-5 font-normal text-[#dfe2e6]">AI</p>
+                                </div>
+                            )}
+                        </div>
                         <div
                             className={cn(
                                 'max-w-[85%] rounded-lg px-3 py-2 text-sm',
                                 message.sender === 'user'
-                                    ? 'rounded-br-sm bg-blue-600 text-white'
+                                    ? 'rounded-br-sm text-white'
                                     : message.sender === 'ai'
                                       ? 'rounded-bl-sm border border-green-300 bg-green-100 text-green-800'
                                       : 'rounded-bl-sm bg-gray-200 text-gray-800'
@@ -336,7 +357,9 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                                     </span>
                                 </div>
                             )}
-                            <p className="break-words">{message.text}</p>
+                            <p className="leading-[25px]break-words justify-start text-base text-white">
+                                {message.text}
+                            </p>
                         </div>
                     </div>
                 ))}
