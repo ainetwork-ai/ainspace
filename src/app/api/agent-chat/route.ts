@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     console.log('Agent-chat API received:', JSON.stringify(body, null, 2));
     
-    const { agentUrl, message, contextId } = body;
+    const { agentUrl, message, contextId, metadata } = body;
     
     if (!agentUrl || !message) {
       console.log('Missing required fields:', { agentUrl: !!agentUrl, message: !!message });
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
       role: 'user',
       parts: [{ kind: 'text', text: message }],
       // FIXME(yoojin): ain adk a2a needs agentId and type. User Id (address) can be used as agentId.
-      metadata: { agentId: '123', type: 'CHAT' }
+      metadata: { agentId: '123', type: 'CHAT', ...(metadata || {}) }
     };
 
     // Add contextId if provided for continuing conversations (중요: 유지된 contextId 사용)

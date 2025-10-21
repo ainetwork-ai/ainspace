@@ -11,6 +11,8 @@ import Footer from '@/components/Footer';
 import BottomSheet from '@/components/BottomSheet';
 import { useLayer1Collision } from '@/hooks/useLayer1Collision';
 import { MAP_TILES } from '@/constants/game';
+import { AgentState } from '@/lib/agent';
+import { AgentCard } from '@a2a-js/sdk';
 
 export default function Home() {
     const {
@@ -77,16 +79,7 @@ export default function Home() {
 
     // A2A Agent management state
     const [spawnedA2AAgents, setSpawnedA2AAgents] = useState<{
-        [agentUrl: string]: {
-            id: string;
-            name: string;
-            x: number;
-            y: number;
-            color: string;
-            agentUrl: string;
-            lastMoved: number;
-            characterImage?: string;
-        };
+        [agentUrl: string]: AgentState;
     }>({});
 
     // Load custom tiles when userId is available
@@ -329,7 +322,7 @@ export default function Home() {
     };
 
     // A2A Agent handlers - now integrated into worldAgents
-    const handleSpawnAgent = (importedAgent: { url: string; card: { name?: string }; characterImage?: string }) => {
+    const handleSpawnAgent = (importedAgent: { url: string; card: AgentCard; characterImage?: string }) => {
         const agentId = `a2a-${Date.now()}`;
         const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8'];
         const randomColor = colors[Math.floor(Math.random() * colors.length)];
@@ -349,6 +342,8 @@ export default function Home() {
                 color: randomColor,
                 agentUrl: importedAgent.url,
                 lastMoved: Date.now(),
+                behavior: 'A2A Agent',
+                skills: importedAgent.card.skills || [],
                 characterImage: importedAgent.characterImage
             }
         }));
@@ -449,7 +444,7 @@ export default function Home() {
 
                 Object.values(updated).forEach((agent) => {
                     // Move agents every 5-10 seconds randomly
-                    if (now - agent.lastMoved > 5000 + Math.random() * 5000) {
+                    if (agent.lastMoved && now - agent.lastMoved > 5000 + Math.random() * 5000) {
                         const directions = [
                             { dx: 0, dy: -1 }, // up
                             { dx: 0, dy: 1 }, // down
@@ -591,7 +586,7 @@ export default function Home() {
                     lastCommentary={lastCommentary}
                     worldAgents={combinedWorldAgents}
                     worldPosition={worldPosition}
-                    currentThreadId={currentThreadId}
+                    currentThreadId={currentThreadId || undefined}
                     threads={threads}
                     onThreadSelect={setCurrentThreadId}
                 />

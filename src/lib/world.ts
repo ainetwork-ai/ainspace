@@ -1,3 +1,4 @@
+import { AgentSkill } from '@a2a-js/sdk';
 import { BaseAgent, createAgent, AgentState, Message as AgentMessage } from './agent';
 
 export interface Agent {
@@ -7,7 +8,9 @@ export interface Agent {
     x: number;
     y: number;
     behavior: string;
-    agentUrl?: string; // For A2A agents
+    // For A2A agents
+    agentUrl?: string;
+    skills?: AgentSkill[];
 }
 
 export interface Player {
@@ -53,7 +56,8 @@ export class World {
                 x: agent.x,
                 y: agent.y,
                 behavior: agent.behavior,
-                agentUrl: agent.agentUrl // Include agentUrl for A2A agents
+                agentUrl: agent.agentUrl, // Include agentUrl for A2A agents
+                skills: agent.skills
             };
             return createAgent(agent.behavior, agentState);
         });
@@ -135,7 +139,18 @@ export class World {
     // Process incoming message and deliver to each agent
     async processMessage(content: string, broadcastRadius?: number, threadId?: string): Promise<AgentResponse[]> {
         const mentions = this.extractMentions(content);
-
+        const agentSkills = this.agents.filter(agent => agent.skills).map(agent => {
+            return {
+                name: agent.name,
+                skills: agent.skills?.map(skill => {
+                    return {
+                        name: skill.name,
+                        description: skill.description,
+                        tags: skill.tags,
+                    }
+                })
+            }
+        });
         let respondingAgentInstances: BaseAgent[];
 
         if (mentions.length > 0) {
@@ -189,7 +204,7 @@ export class World {
             const totalDelay = this.calculateResponseDelay(distance, 500 + staggerDelay);
 
             // Let agent process the message
-            const agentResponse = await agentInstance.processMessage(agentMessage, totalDelay);
+            const agentResponse = await agentInstance.processMessage(agentMessage, totalDelay, { agentSkills });
 
             if (agentResponse) {
                 return {

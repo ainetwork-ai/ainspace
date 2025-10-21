@@ -1,3 +1,4 @@
+import { AgentSkill } from '@a2a-js/sdk';
 // Removed direct gemini import to ensure server-side only calls
 
 export interface AgentState {
@@ -11,6 +12,8 @@ export interface AgentState {
     lastMoved?: number;
     moveInterval?: number;
     agentUrl?: string; // For A2A agents
+    skills?: AgentSkill[];
+    characterImage?: string; // FIXME(yoojin): type automatically
 }
 
 export interface Message {
@@ -86,14 +89,18 @@ export abstract class BaseAgent {
     }
 
     // Process incoming message and generate response if appropriate
-    async processMessage(message: Message, totalDelay: number): Promise<AgentResponse | null> {
+    async processMessage(message: Message, totalDelay: number, metadata?: { [key: string]: unknown }): Promise<AgentResponse | null> {
         console.log(`Agent ${this.name} processing message:`, {
             threadId: message.threadId,
+            metadata,
             isMentioned: message.isMentioned,
             isInThread: message.threadId ? this.isInThread(message.threadId) : 'N/A',
             activeThreads: Array.from(this.activeThreads)
         });
 
+        if (metadata?.agentSkills) {
+            metadata.agentSkills = (metadata.agentSkills as AgentSkill[]).filter(agent => agent.name !== this.name);
+        }
         // Check thread participation
         if (message.threadId) {
             // If this is a threaded message, only respond if we're in the thread OR being mentioned
@@ -220,7 +227,7 @@ export class A2AAgent extends BaseAgent {
         return;
     }
 
-    async processMessage(message: Message): Promise<AgentResponse | null> {
+    async processMessage(message: Message, totalDelay: number, metadata?: { [key: string]: unknown }): Promise<AgentResponse | null> {
         if (!this.shouldRespondToMessage(message)) {
             return null;
         }
@@ -235,7 +242,8 @@ export class A2AAgent extends BaseAgent {
         try {
             const requestBody = {
                 agentUrl: this.agentUrl,
-                message: `[From player at (${message.playerPosition.x}, ${message.playerPosition.y})]: ${message.content}`
+                message: `[From player at (${message.playerPosition.x}, ${message.playerPosition.y})]: ${message.content}`,
+                metadata: metadata
             };
 
             console.log(`Sending to agent-chat API:`, requestBody);
