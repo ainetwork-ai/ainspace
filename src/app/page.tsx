@@ -8,6 +8,7 @@ import ThreadTab from '@/components/tabs/ThreadTab';
 import BuildTab from '@/components/tabs/BuildTab';
 import AgentTab from '@/components/tabs/AgentTab';
 import Footer from '@/components/Footer';
+import BottomSheet from '@/components/BottomSheet';
 import { useLayer1Collision } from '@/hooks/useLayer1Collision';
 import { MAP_TILES } from '@/constants/game';
 
@@ -47,6 +48,7 @@ export default function Home() {
         agentNames: string[];
     } | null>(null);
     const chatBoxRef = useRef<ChatBoxRef>(null);
+    const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
 
     // Build mode state
     type TileLayers = {
@@ -571,7 +573,29 @@ export default function Home() {
                     onUploadCharacterImage={handleUploadCharacterImage}
                 />
             </div>
-            <Footer activeTab={activeTab} onTabChange={setActiveTab} />
+            <Footer
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+                onClickDialogueBox={() => setIsBottomSheetOpen(true)}
+            />
+
+            {/* Bottom Sheet for Thread */}
+            <BottomSheet
+                isOpen={isBottomSheetOpen}
+                onClose={() => setIsBottomSheetOpen(false)}
+                title="대화 스레드"
+            >
+                <ThreadTab
+                    isActive={true}
+                    chatBoxRef={chatBoxRef}
+                    lastCommentary={lastCommentary}
+                    worldAgents={combinedWorldAgents}
+                    worldPosition={worldPosition}
+                    currentThreadId={currentThreadId}
+                    threads={threads}
+                    onThreadSelect={setCurrentThreadId}
+                />
+            </BottomSheet>
         </div>
     );
 }

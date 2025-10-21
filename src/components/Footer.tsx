@@ -6,10 +6,10 @@ import Image from 'next/image';
 interface FooterProps {
     activeTab: 'map' | 'thread' | 'build' | 'agent';
     onTabChange: (tab: 'map' | 'thread' | 'build' | 'agent') => void;
+    onClickDialogueBox: () => void;
 }
 
-export default function Footer({ activeTab, onTabChange }: FooterProps) {
-    const onClickDialogueBox = () => {};
+export default function Footer({ activeTab, onTabChange, onClickDialogueBox }: FooterProps) {
     return (
         <div className="fixed right-0 bottom-0 left-0">
             <div className="inline-flex h-8 w-full items-center justify-center gap-2 self-stretch rounded-tl-lg rounded-tr-lg bg-black/80 p-2">
