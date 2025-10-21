@@ -1,3 +1,5 @@
+'use client';
+
 import React from 'react';
 import ChatBox, { ChatBoxRef } from '@/components/ChatBox';
 import BaseTabContent from './BaseTabContent';

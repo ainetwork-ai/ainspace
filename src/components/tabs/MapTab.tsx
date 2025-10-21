@@ -1,3 +1,5 @@
+'use client';
+
 import React from 'react';
 import TileMap from '@/components/TileMap';
 import BaseTabContent from './BaseTabContent';

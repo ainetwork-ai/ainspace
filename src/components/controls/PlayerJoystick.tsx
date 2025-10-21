@@ -71,7 +71,7 @@ export default function PlayerJoystick({
     };
 
     return (
-        <div className="mb-4 flex items-center justify-center">
+        <div className="mb-30 flex items-center justify-center">
             <Joystick
                 size={size}
                 stickSize={50}

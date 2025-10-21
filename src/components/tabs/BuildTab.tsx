@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState, useRef, useEffect } from 'react';
 import NextImage from 'next/image';
 import TileMap from '@/components/TileMap';
@@ -616,7 +618,6 @@ export default function BuildTab({
                             }}
                             layerVisibility={layerVisibility}
                             buildMode={buildMode === 'paint' && (selectedImage || selectedTiles) ? 'paint' : 'view'}
-                            onMobileMove={onMobileMove}
                             backgroundImageSrc="/map/layer_0.png"
                             layer1ImageSrc="/map/layer_1.png"
                             onTileClick={(worldX, worldY) => {

@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState } from 'react';
 import { AgentCard } from '@a2a-js/sdk';
 import BaseTabContent from './BaseTabContent';
