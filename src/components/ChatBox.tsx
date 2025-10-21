@@ -362,21 +362,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                             inputValue.trim() ? 'bg-white' : 'bg-white/30'
                         )}
                     >
-                        <svg
-                            className={cn('absolute left-[9px] top-[10px]', inputValue.trim() ? 'text-black' : 'text-white/50')}
-                            width="12"
-                            height="9"
-                            viewBox="0 0 12 9"
-                            fill="none"
-                        >
-                            <path
-                                d="M1 4.5L11 4.5M11 4.5L7.5 1M11 4.5L7.5 8"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                            />
-                        </svg>
+                        <Image src="/footer/bottomSheet/send.svg" alt="Send" width={30} height={30} />
                     </button>
                 </div>
             </div>

@@ -94,8 +94,8 @@ export default function MapTab({
                             layer2: { ...(publishedTiles.layer2 || {}), ...(customTiles.layer2 || {}) }
                         }}
                         layerVisibility={{ 0: true, 1: true, 2: true }}
-                        backgroundImageSrc="/map/layer_0.png"
-                        layer1ImageSrc="/map/layer_1.png"
+                        backgroundImageSrc="/map/land_layer_0.png"
+                        layer1ImageSrc="/map/land_layer_1.png"
                         playerDirection={playerDirection}
                         playerIsMoving={playerIsMoving}
                         collisionMap={collisionMap}

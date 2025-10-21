@@ -30,7 +30,7 @@ export default function Home() {
         isPlayerMoving,
         collisionMap
     } = useGameState();
-    const { isBlocked: isLayer1Blocked } = useLayer1Collision('/map/layer_1.png');
+    const { isBlocked: isLayer1Blocked } = useLayer1Collision('/map/land_layer_1.png');
 
     // Global stores
     const { activeTab, isBottomSheetOpen, setActiveTab, openBottomSheet, closeBottomSheet } = useUIStore();
@@ -402,69 +402,69 @@ export default function Home() {
             const now = Date.now();
             const updated = { ...spawnedA2AAgents };
 
-                Object.values(updated).forEach((agent) => {
-                    // Move agents every 5-10 seconds randomly
-                    if (now - agent.lastMoved > 5000 + Math.random() * 5000) {
-                        const directions = [
-                            { dx: 0, dy: -1 }, // up
-                            { dx: 0, dy: 1 }, // down
-                            { dx: -1, dy: 0 }, // left
-                            { dx: 1, dy: 0 } // right
-                        ];
+            Object.values(updated).forEach((agent) => {
+                // Move agents every 5-10 seconds randomly
+                if (now - agent.lastMoved > 5000 + Math.random() * 5000) {
+                    const directions = [
+                        { dx: 0, dy: -1 }, // up
+                        { dx: 0, dy: 1 }, // down
+                        { dx: -1, dy: 0 }, // left
+                        { dx: 1, dy: 0 } // right
+                    ];
 
-                        const direction = directions[Math.floor(Math.random() * directions.length)];
-                        const oldX = agent.x;
-                        const oldY = agent.y;
-                        const newX = agent.x + direction.dx;
-                        const newY = agent.y + direction.dy;
+                    const direction = directions[Math.floor(Math.random() * directions.length)];
+                    const oldX = agent.x;
+                    const oldY = agent.y;
+                    const newX = agent.x + direction.dx;
+                    const newY = agent.y + direction.dy;
 
-                        // Check map boundaries
-                        if (newX < 0 || newX >= MAP_TILES || newY < 0 || newY >= MAP_TILES) {
-                            return; // Skip this agent's movement
-                        }
-
-                        // Check if player is at this position
-                        if (newX === worldPosition.x && newY === worldPosition.y) {
-                            return; // Skip this agent's movement
-                        }
-
-                        // Check if another agent (A2A or world agent) is at this position
-                        const isOccupiedByA2A = Object.values(updated).some(
-                            (otherAgent) => otherAgent.id !== agent.id && otherAgent.x === newX && otherAgent.y === newY
-                        );
-                        const isOccupiedByWorldAgent = worldAgents.some(
-                            (worldAgent) => worldAgent.x === newX && worldAgent.y === newY
-                        );
-                        if (isOccupiedByA2A || isOccupiedByWorldAgent) {
-                            return; // Skip this agent's movement
-                        }
-
-                        // Check layer1 collision - don't move if blocked
-                        if (isLayer1Blocked(newX, newY)) {
-                            return; // Skip this agent's movement
-                        }
-
-                        // Update character image position on layer2 if it exists
-                        if (agent.characterImage) {
-                            setCustomTiles((prevTiles) => {
-                                const newLayer2 = { ...prevTiles.layer2 };
-                                // Remove from old position
-                                delete newLayer2[`${oldX},${oldY}`];
-                                // Add to new position
-                                newLayer2[`${newX},${newY}`] = agent.characterImage!;
-
-                                return {
-                                    ...prevTiles,
-                                    layer2: newLayer2
-                                };
-                            });
-                        }
-
-                        // Simple boundary check (agents can move anywhere not blocked by layer1)
-                        agent.x = newX;
-                        agent.y = newY;
-                        agent.lastMoved = now;
+                    // Check map boundaries
+                    if (newX < 0 || newX >= MAP_TILES || newY < 0 || newY >= MAP_TILES) {
+                        return; // Skip this agent's movement
                     }
+
+                    // Check if player is at this position
+                    if (newX === worldPosition.x && newY === worldPosition.y) {
+                        return; // Skip this agent's movement
+                    }
+
+                    // Check if another agent (A2A or world agent) is at this position
+                    const isOccupiedByA2A = Object.values(updated).some(
+                        (otherAgent) => otherAgent.id !== agent.id && otherAgent.x === newX && otherAgent.y === newY
+                    );
+                    const isOccupiedByWorldAgent = worldAgents.some(
+                        (worldAgent) => worldAgent.x === newX && worldAgent.y === newY
+                    );
+                    if (isOccupiedByA2A || isOccupiedByWorldAgent) {
+                        return; // Skip this agent's movement
+                    }
+
+                    // Check layer1 collision - don't move if blocked
+                    if (isLayer1Blocked(newX, newY)) {
+                        return; // Skip this agent's movement
+                    }
+
+                    // Update character image position on layer2 if it exists
+                    if (agent.characterImage) {
+                        setCustomTiles((prevTiles) => {
+                            const newLayer2 = { ...prevTiles.layer2 };
+                            // Remove from old position
+                            delete newLayer2[`${oldX},${oldY}`];
+                            // Add to new position
+                            newLayer2[`${newX},${newY}`] = agent.characterImage!;
+
+                            return {
+                                ...prevTiles,
+                                layer2: newLayer2
+                            };
+                        });
+                    }
+
+                    // Simple boundary check (agents can move anywhere not blocked by layer1)
+                    agent.x = newX;
+                    agent.y = newY;
+                    agent.lastMoved = now;
+                }
             });
 
             setAgents(updated);

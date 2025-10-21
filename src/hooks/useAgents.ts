@@ -23,7 +23,7 @@ interface UseAgentsProps {
 
 export function useAgents({ playerWorldPosition }: UseAgentsProps) {
     const { generateTileAt } = useMapData();
-    const { isBlocked: isLayer1Blocked } = useLayer1Collision('/map/layer_1.png');
+    const { isBlocked: isLayer1Blocked } = useLayer1Collision('/map/land_layer_1.png');
 
     const [agents, setAgents] = useState<AgentInternal[]>([
         {
