@@ -151,6 +151,7 @@ export class World {
                 })
             }
         });
+        console.log('agentSkills :>> ', agentSkills);
         let respondingAgentInstances: BaseAgent[];
 
         if (mentions.length > 0) {

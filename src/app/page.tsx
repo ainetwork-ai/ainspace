@@ -318,6 +318,7 @@ export default function Home() {
             color: randomColor,
             agentUrl: importedAgent.url,
             lastMoved: Date.now(),
+            skills: importedAgent.card.skills || [],
             characterImage: importedAgent.characterImage
         });
 
@@ -366,7 +367,8 @@ export default function Home() {
             color: agent.color,
             name: agent.name,
             behavior: 'A2A Agent',
-            agentUrl: agent.agentUrl // Include agentUrl for A2A agents
+            agentUrl: agent.agentUrl, // Include agentUrl for A2A agents
+            skills: agent.skills,
         }))
     ];
 

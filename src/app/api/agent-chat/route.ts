@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
     console.log('Agent-chat API received:', JSON.stringify(body, null, 2));
     
     const { agentUrl, message, contextId, metadata } = body;
-    
+
     if (!agentUrl || !message) {
       console.log('Missing required fields:', { agentUrl: !!agentUrl, message: !!message });
       return NextResponse.json(
