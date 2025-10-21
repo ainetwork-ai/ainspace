@@ -31,7 +31,7 @@ interface ThreadState {
 
 export const useThreadStore = create<ThreadState>((set, get) => ({
     threads: [],
-    currentThreadId: undefined,
+    currentThreadId: '0',
     broadcastMessage: '',
     broadcastStatus: null,
 
