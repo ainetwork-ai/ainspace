@@ -10,6 +10,9 @@ export interface AgentInternal extends Agent {
   lastMoved: number;
   moveInterval: number;
   isMoving?: boolean;
+  spriteUrl?: string;
+  spriteHeight?: number;
+  spriteWidth?: number;
 }
 
 interface UseAgentsProps {
@@ -32,6 +35,9 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
       lastMoved: Date.now(),
       moveInterval: 800,
       behavior: "random",
+      spriteUrl: "/sprite/sprite_sungryong.png",
+      spriteHeight: 86,
+      spriteWidth: 32,
     },
     {
       id: "agent-2",
@@ -43,6 +49,9 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
       lastMoved: Date.now(),
       moveInterval: 1000,
       behavior: "patrol",
+      spriteUrl: "/sprite/sprite_unryong.png",
+      spriteHeight: 86,
+      spriteWidth: 32,
     },
     {
       id: "agent-3",
@@ -54,6 +63,9 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
       lastMoved: Date.now(),
       moveInterval: 600,
       behavior: "explorer",
+      spriteUrl: "/sprite/sprite_horaeng.png",
+      spriteHeight: 40,
+      spriteWidth: 32,
     },
   ]);
 
@@ -235,6 +247,9 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
       screenY: 0,
       direction: agent.direction,
       isMoving: agent.isMoving,
+      spriteUrl: agent.spriteUrl,
+      spriteHeight: agent.spriteHeight,
+      spriteWidth: agent.spriteWidth,
     }));
   }, [agents]);
 

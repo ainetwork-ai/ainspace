@@ -14,6 +14,9 @@ interface Agent {
   hasCharacterImage?: boolean;
   direction?: "up" | "down" | "left" | "right";
   isMoving?: boolean;
+  spriteUrl?: string;
+  spriteHeight?: number;
+  spriteWidth?: number;
 }
 
 type TileLayers = {
@@ -718,6 +721,9 @@ export default function TileMap({
         const agentIsMoving = agent.isMoving || false;
         const agentDirection = agent.direction || "down";
         const agentStartFrame = getStartFrame(agentDirection);
+        const agentSpriteUrl = agent.spriteUrl || "/sprite/sprite_kkaebi.png";
+        const agentSpriteHeight = agent.spriteHeight || 32;
+        const agentSpriteWidth = agent.spriteWidth || 32;
 
         return (
           <div
@@ -732,12 +738,13 @@ export default function TileMap({
             }}>
             <SpriteAnimator
               key={`${agent.id}-${agentDirection}`}
-              sprite="/sprite/sprite_kkaebi.png"
-              width={32}
-              height={32}
-              scale={1}
-              fps={10}
-              frameCount={3}
+              sprite={agentSpriteUrl}
+              width={40}
+              height={agentSpriteHeight}
+              scale={agentSpriteWidth / tileSize}
+              fps={6}
+              frameCount={agentStartFrame + 3}
+              direction={"horizontal"}
               shouldAnimate={agentIsMoving}
               startFrame={agentStartFrame}
             />
