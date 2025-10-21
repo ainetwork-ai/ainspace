@@ -40,6 +40,8 @@ export function useGameState() {
   const [playerDirection, setPlayerDirection] = useState<'up' | 'down' | 'left' | 'right'>('right');
   const [recentMovements, setRecentMovements] = useState<string[]>([]);
   const [lastCommentary, setLastCommentary] = useState<string>('');
+  const [lastMoveTime, setLastMoveTime] = useState<number>(0);
+  const [isPlayerMoving, setIsPlayerMoving] = useState(false);
   
   // Get the current map data centered on the player's world position with full square view
   const mapData = getMapData(worldPosition.x, worldPosition.y, MAP_WIDTH, MAP_HEIGHT);
@@ -76,6 +78,10 @@ export function useGameState() {
   }, [userId]);
 
   const movePlayer = useCallback((direction: 'up' | 'down' | 'left' | 'right') => {
+    // Update player direction immediately
+    setPlayerDirection(direction);
+
+    // Try to move and track if successful
     setWorldPosition(prevWorldPos => {
       const newWorldPosition = { ...prevWorldPos };
 
@@ -122,11 +128,14 @@ export function useGameState() {
       // Save new position to Redis
       savePositionToRedis(newWorldPosition);
 
+      // Position changed - trigger animation
+      setLastMoveTime(Date.now());
+      setIsPlayerMoving(true);
+
       return newWorldPosition;
     });
 
-    // Update player direction and track recent movements
-    setPlayerDirection(direction);
+    // Track recent movements
     setRecentMovements(prev => {
       const newMovements = [...prev, direction];
       return newMovements.slice(-5); // Keep last 5 movements
@@ -308,6 +317,17 @@ export function useGameState() {
     return () => clearInterval(commentaryInterval);
   }, [isAutonomous, generateAICommentary]);
 
+  // Reset player moving state after animation duration
+  useEffect(() => {
+    if (!isPlayerMoving) return;
+
+    const timer = setTimeout(() => {
+      setIsPlayerMoving(false);
+    }, 800); // Reset after 800ms (matching agent animation duration)
+
+    return () => clearTimeout(timer);
+  }, [lastMoveTime]);
+
   // Keyboard handling moved to page.tsx to allow A2A agent collision checking
 
   return {
@@ -322,6 +342,8 @@ export function useGameState() {
     visibleAgents,
     isAutonomous,
     toggleAutonomous,
-    lastCommentary
+    lastCommentary,
+    playerDirection,
+    isPlayerMoving
   };
 }

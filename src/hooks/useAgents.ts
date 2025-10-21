@@ -9,6 +9,7 @@ export interface AgentInternal extends Agent {
   direction: "up" | "down" | "left" | "right";
   lastMoved: number;
   moveInterval: number;
+  isMoving?: boolean;
 }
 
 interface UseAgentsProps {
@@ -198,20 +199,20 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
 
     setAgents((prevAgents) =>
       prevAgents.map((agent) => {
+        // Check if agent is currently in animation state (within 800ms of last move)
+        const isCurrentlyAnimating = currentTime - agent.lastMoved < 800;
+
         if (currentTime - agent.lastMoved < agent.moveInterval) {
-          return agent;
+          return {
+            ...agent,
+            isMoving: isCurrentlyAnimating,
+          };
         }
 
         const { newX, newY, newDirection } = getAgentBehavior(agent, prevAgents);
 
-        const moved = newX !== agent.x || newY !== agent.y;
-        if (!moved) {
-          console.log(
-            `${agent.name} stuck at (${agent.x}, ${agent.y}), behavior: ${agent.behavior}, direction: ${agent.direction}`
-          );
-        } else {
-          console.log(`${agent.name} moved from (${agent.x}, ${agent.y}) to (${newX}, ${newY})`);
-        }
+        // Check if agent actually moved
+        const didMove = newX !== agent.x || newY !== agent.y;
 
         return {
           ...agent,
@@ -219,6 +220,7 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
           y: newY,
           direction: newDirection,
           lastMoved: currentTime,
+          isMoving: didMove,
         };
       })
     );
@@ -231,6 +233,8 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
       y: agent.y,
       screenX: 0,
       screenY: 0,
+      direction: agent.direction,
+      isMoving: agent.isMoving,
     }));
   }, [agents]);
 

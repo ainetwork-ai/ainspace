@@ -22,6 +22,8 @@ export default function Home() {
     isAutonomous,
     toggleAutonomous,
     lastCommentary,
+    playerDirection,
+    isPlayerMoving,
   } = useGameState();
   const { isBlocked: isLayer1Blocked } = useLayer1Collision("/map/layer_1.png");
   const [activeTab, setActiveTab] = useState<"map" | "thread" | "build" | "agent">("map");
@@ -542,6 +544,8 @@ export default function Home() {
             userId={userId}
             isLoading={isLoading}
             toggleAutonomous={toggleAutonomous}
+            playerDirection={playerDirection}
+            playerIsMoving={isPlayerMoving}
           />
           {/* <ThreadTab
             isActive={activeTab === 'thread'}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { SpriteAnimator } from "react-sprite-animator";
 
 interface Agent {
   id: string;
@@ -11,6 +12,8 @@ interface Agent {
   color: string;
   name: string;
   hasCharacterImage?: boolean;
+  direction?: "up" | "down" | "left" | "right";
+  isMoving?: boolean;
 }
 
 type TileLayers = {
@@ -32,6 +35,8 @@ interface TileMapProps {
   onMobileMove?: (direction: "up" | "down" | "left" | "right") => void;
   backgroundImageSrc?: string;
   layer1ImageSrc?: string;
+  playerDirection?: "up" | "down" | "left" | "right";
+  playerIsMoving?: boolean;
 }
 
 export default function TileMap({
@@ -47,6 +52,8 @@ export default function TileMap({
   onMobileMove,
   backgroundImageSrc,
   layer1ImageSrc,
+  playerDirection = "down",
+  playerIsMoving = false,
 }: TileMapProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -400,12 +407,7 @@ export default function TileMap({
       cameraTileX = Math.max(0, Math.min(MAP_TILES - tilesX, cameraTileX));
       cameraTileY = Math.max(0, Math.min(MAP_TILES - tilesY, cameraTileY));
 
-      if (
-        screenTileX >= 0 &&
-        screenTileX < tilesX &&
-        screenTileY >= 0 &&
-        screenTileY < tilesY
-      ) {
+      if (screenTileX >= 0 && screenTileX < tilesX && screenTileY >= 0 && screenTileY < tilesY) {
         const worldX = Math.floor(cameraTileX + screenTileX);
         const worldY = Math.floor(cameraTileY + screenTileY);
 
@@ -556,32 +558,32 @@ export default function TileMap({
             tileType = 0; // Default to grass
           }
 
-        // Render void tiles as light background
-        if (tileType === -1) {
-          ctx.fillStyle = "#f0f8ff"; // Same as background
+          // Render void tiles as light background
+          if (tileType === -1) {
+            ctx.fillStyle = "#f0f8ff"; // Same as background
+            ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
+            continue;
+          }
+
+          // Set tile color based on type
+          switch (tileType) {
+            case 0:
+              ctx.fillStyle = "#90EE90"; // Light green for grass
+              break;
+            case 1:
+              ctx.fillStyle = "#8B4513"; // Brown for dirt
+              break;
+            case 2:
+              ctx.fillStyle = "#4169E1"; // Blue for water
+              break;
+            case 3:
+              ctx.fillStyle = "#696969"; // Gray for stone
+              break;
+            default:
+              ctx.fillStyle = "#FFFFFF"; // White for unknown
+          }
+
           ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
-          continue;
-        }
-
-        // Set tile color based on type
-        switch (tileType) {
-          case 0:
-            ctx.fillStyle = "#90EE90"; // Light green for grass
-            break;
-          case 1:
-            ctx.fillStyle = "#8B4513"; // Brown for dirt
-            break;
-          case 2:
-            ctx.fillStyle = "#4169E1"; // Blue for water
-            break;
-          case 3:
-            ctx.fillStyle = "#696969"; // Gray for stone
-            break;
-          default:
-            ctx.fillStyle = "#FFFFFF"; // White for unknown
-        }
-
-        ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
         }
       }
     }
@@ -628,75 +630,13 @@ export default function TileMap({
       }
     }
 
-    // Draw agents
-    agents.forEach((agent) => {
-      // Calculate screen position based on world position if available
-      let agentScreenX: number;
-      let agentScreenY: number;
-
-      if (agent.x !== undefined && agent.y !== undefined) {
-        // Use world position and camera to calculate screen position
-        agentScreenX = agent.x - cameraTileX;
-        agentScreenY = agent.y - cameraTileY;
-      } else {
-        // Fallback to legacy screenX/screenY
-        agentScreenX = agent.screenX;
-        agentScreenY = agent.screenY;
-      }
-
-      // Only draw if agent is within visible area (with some buffer for partial visibility)
-      if (agentScreenX < -1 || agentScreenX > tilesX || agentScreenY < -1 || agentScreenY > tilesY) {
-        return;
-      }
-
-      ctx.fillStyle = agent.color;
-      ctx.fillRect(
-        agentScreenX * tileSize + 4,
-        agentScreenY * tileSize + 4,
-        tileSize - 8,
-        tileSize - 8
-      );
-
-      // Draw agent border
-      ctx.strokeStyle = "#000000";
-      ctx.lineWidth = 1;
-      ctx.strokeRect(
-        agentScreenX * tileSize + 4,
-        agentScreenY * tileSize + 4,
-        tileSize - 8,
-        tileSize - 8
-      );
-    });
-
-    // Draw player (on top of agents) - ALWAYS at screen center
-    // Calculate player screen position based on their world position and camera
-    const playerScreenTileX = worldPosition.x - cameraTileX;
-    const playerScreenTileY = worldPosition.y - cameraTileY;
-
-    ctx.fillStyle = "#FF0000"; // Red for player
-    ctx.fillRect(
-      playerScreenTileX * tileSize + 4,
-      playerScreenTileY * tileSize + 4,
-      tileSize - 8,
-      tileSize - 8
-    );
-
-    // Draw player border
-    ctx.strokeStyle = "#000000";
-    ctx.lineWidth = 1;
-    ctx.strokeRect(
-      playerScreenTileX * tileSize + 4,
-      playerScreenTileY * tileSize + 4,
-      tileSize - 8,
-      tileSize - 8
-    );
+    // Agents and player are now rendered as DOM elements using SpriteAnimator
+    // Canvas only renders background, tiles, and layers
   }, [
     mapData,
     tileSize,
-    playerPosition,
     worldPosition.x,
     worldPosition.y,
-    agents,
     customTiles,
     loadedImages,
     layerVisibility,
@@ -705,8 +645,31 @@ export default function TileMap({
     canvasSize,
   ]);
 
+  // Calculate camera position for sprite positioning
+  const tilesX = Math.ceil(canvasSize.width / tileSize);
+  const tilesY = Math.ceil(canvasSize.height / tileSize);
+  const halfTilesX = Math.floor(tilesX / 2);
+  const halfTilesY = Math.floor(tilesY / 2);
+  const MAP_TILES = 105;
+
+  let cameraTileX = worldPosition.x - halfTilesX;
+  let cameraTileY = worldPosition.y - halfTilesY;
+  cameraTileX = Math.max(0, Math.min(MAP_TILES - tilesX, cameraTileX));
+  cameraTileY = Math.max(0, Math.min(MAP_TILES - tilesY, cameraTileY));
+
+  // Helper function to get startFrame based on direction
+  const getStartFrame = (direction: "up" | "down" | "left" | "right") => {
+    const directionMap = {
+      down: 0,
+      left: 3,
+      up: 6,
+      right: 9,
+    };
+    return directionMap[direction];
+  };
+
   return (
-    <div ref={containerRef} className="w-full h-full">
+    <div ref={containerRef} className="w-full h-full relative">
       <canvas
         ref={canvasRef}
         width={canvasSize.width}
@@ -728,6 +691,92 @@ export default function TileMap({
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       />
+
+      {/* Render Agents using SpriteAnimator */}
+      {agents.map((agent) => {
+        let agentScreenX: number;
+        let agentScreenY: number;
+
+        if (agent.x !== undefined && agent.y !== undefined) {
+          agentScreenX = agent.x - cameraTileX;
+          agentScreenY = agent.y - cameraTileY;
+        } else {
+          agentScreenX = agent.screenX;
+          agentScreenY = agent.screenY;
+        }
+
+        // Only render if agent is within visible area
+        if (
+          agentScreenX < -1 ||
+          agentScreenX > tilesX ||
+          agentScreenY < -1 ||
+          agentScreenY > tilesY
+        ) {
+          return null;
+        }
+
+        const agentIsMoving = agent.isMoving || false;
+        const agentDirection = agent.direction || "down";
+        const agentStartFrame = getStartFrame(agentDirection);
+
+        return (
+          <div
+            key={agent.id}
+            style={{
+              position: "absolute",
+              left: `${agentScreenX * tileSize}px`,
+              top: `${agentScreenY * tileSize}px`,
+              width: `${tileSize}px`,
+              height: `${tileSize}px`,
+              pointerEvents: "none",
+            }}>
+            <SpriteAnimator
+              key={`${agent.id}-${agentDirection}`}
+              sprite="/sprite/sprite_kkaebi.png"
+              width={32}
+              height={32}
+              scale={1}
+              fps={10}
+              frameCount={3}
+              shouldAnimate={agentIsMoving}
+              startFrame={agentStartFrame}
+            />
+          </div>
+        );
+      })}
+
+      {/* Render Player using SpriteAnimator */}
+      {(() => {
+        const playerScreenTileX = worldPosition.x - cameraTileX;
+        const playerScreenTileY = worldPosition.y - cameraTileY;
+        const playerStartFrame = getStartFrame(playerDirection);
+
+        return (
+          <div
+            style={{
+              position: "absolute",
+              left: `${playerScreenTileX * tileSize}px`,
+              top: `${playerScreenTileY * tileSize}px`,
+              width: `${tileSize}px`,
+              height: `${tileSize}px`,
+              pointerEvents: "none",
+              zIndex: 10,
+            }}>
+            <SpriteAnimator
+              key={`player-${playerDirection}`}
+              sprite="/sprite/sprite_kkaebi.png"
+              width={32}
+              height={32}
+              scale={1}
+              fps={6}
+              frameCount={playerStartFrame + 3}
+              direction={"horizontal"}
+              shouldAnimate={playerIsMoving}
+              startFrame={playerStartFrame}
+            />
+          </div>
+        );
+      })()}
     </div>
   );
 }

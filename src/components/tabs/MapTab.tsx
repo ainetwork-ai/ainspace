@@ -45,6 +45,8 @@ interface MapTabProps {
   userId: string | null;
   isLoading: boolean;
   toggleAutonomous: () => void;
+  playerDirection: "up" | "down" | "left" | "right";
+  playerIsMoving?: boolean;
 }
 
 export default function MapTab({
@@ -66,8 +68,10 @@ export default function MapTab({
   userId,
   isLoading,
   toggleAutonomous,
+  playerDirection,
+  playerIsMoving = false,
 }: MapTabProps) {
-  const tileSize = 25;
+  const tileSize = 32;
   return (
     <BaseTabContent isActive={isActive} withPadding={false}>
       {/* Game Area */}
@@ -88,6 +92,8 @@ export default function MapTab({
             backgroundImageSrc="/map/layer_0.png"
             layer1ImageSrc="/map/layer_1.png"
             onMobileMove={onMobileMove}
+            playerDirection={playerDirection}
+            playerIsMoving={playerIsMoving}
           />
         </div>
 
