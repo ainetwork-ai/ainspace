@@ -59,42 +59,25 @@ export default function BottomSheet({ isOpen, onClose, children, title }: Bottom
 
     return (
         <>
-            {/* Backdrop */}
             <div
                 className="fixed inset-0 z-40 bg-black/50 transition-opacity"
                 style={{ opacity: isOpen ? 1 : 0 }}
                 onClick={onClose}
             />
-
-            {/* Bottom Sheet */}
             <div
                 ref={sheetRef}
-                className="fixed bottom-0 left-0 right-0 z-50 flex max-h-[85vh] flex-col rounded-t-3xl bg-white shadow-2xl transition-transform"
+                className="fixed right-0 bottom-0 left-0 z-50 flex max-h-[85vh] flex-col rounded-t-3xl bg-white shadow-2xl transition-transform"
                 style={{
-                    transform: isDragging
-                        ? `translateY(${currentY}px)`
-                        : isOpen
-                          ? 'translateY(0)'
-                          : 'translateY(100%)',
+                    transform: isDragging ? `translateY(${currentY}px)` : isOpen ? 'translateY(0)' : 'translateY(100%)',
                     transition: isDragging ? 'none' : 'transform 0.3s ease-out'
                 }}
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
             >
-                {/* Handle */}
                 <div className="flex w-full items-center justify-center py-3">
                     <div className="h-1.5 w-12 rounded-full bg-gray-300" />
                 </div>
-
-                {/* Header */}
-                {title && (
-                    <div className="border-b border-gray-200 px-6 pb-3">
-                        <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-                    </div>
-                )}
-
-                {/* Content */}
                 <div className="flex-1 overflow-auto">{children}</div>
             </div>
         </>

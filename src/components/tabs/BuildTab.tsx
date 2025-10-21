@@ -5,6 +5,7 @@ import NextImage from 'next/image';
 import TileMap from '@/components/TileMap';
 import BaseTabContent from './BaseTabContent';
 import { TILE_SIZE } from '@/constants/game';
+import { cn } from '@/lib/utils';
 
 type TileLayers = {
     layer0: { [key: string]: string };
@@ -340,11 +341,12 @@ export default function BuildTab({
                                     <button
                                         key={layer}
                                         onClick={() => setActiveLayer(layer as 0 | 1 | 2)}
-                                        className={`flex-1 rounded px-2 py-1 text-xs font-medium transition-colors ${
+                                        className={cn(
+                                            'flex-1 rounded px-2 py-1 text-xs font-medium transition-colors',
                                             activeLayer === layer
                                                 ? 'bg-blue-500 text-white'
                                                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                                        }`}
+                                        )}
                                     >
                                         Layer {layer}
                                     </button>
@@ -357,11 +359,12 @@ export default function BuildTab({
                                         onClick={() =>
                                             setLayerVisibility((prev) => ({ ...prev, [layer]: !prev[layer] }))
                                         }
-                                        className={`rounded px-2 py-1 text-xs transition-colors ${
+                                        className={cn(
+                                            'rounded px-2 py-1 text-xs transition-colors',
                                             layerVisibility[layer]
                                                 ? 'bg-green-100 text-green-700 hover:bg-green-200'
                                                 : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
-                                        }`}
+                                        )}
                                         title={`Toggle layer ${layer} visibility`}
                                     >
                                         👁️
@@ -770,11 +773,12 @@ export default function BuildTab({
                     {/* Publish Status - Below Map */}
                     {publishStatus && (
                         <div
-                            className={`rounded border p-3 text-sm ${
+                            className={cn(
+                                'rounded border p-3 text-sm',
                                 publishStatus.type === 'success'
                                     ? 'border-green-200 bg-green-50 text-green-700'
                                     : 'border-red-200 bg-red-50 text-red-700'
-                            }`}
+                            )}
                         >
                             <div className="flex items-center justify-center">
                                 <span className="mr-2 text-lg">{publishStatus.type === 'success' ? '✅' : '❌'}</span>

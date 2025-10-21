@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { useWorld } from '@/hooks/useWorld';
 import { Agent, AgentResponse } from '@/lib/world';
+import { cn } from '@/lib/utils';
 
 interface Message {
     id: string;
@@ -26,7 +27,7 @@ interface ChatBoxProps {
         agentsReached: number;
         agentNames: string[];
     }>;
-    onThreadSelect?: (threadId: string) => void;
+    onThreadSelect?: (threadId: string | undefined) => void;
 }
 
 export interface ChatBoxRef {
@@ -255,42 +256,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     };
 
     return (
-        <div className={`flex h-full w-full flex-col bg-white ${className}`}>
-            {/* Chat Header */}
-            <div className="flex-shrink-0 bg-blue-600 p-3 text-white">
-                <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-semibold">Thread Messages</h3>
-                    {threads.length > 0 && (
-                        <select
-                            value={currentThreadId || ''}
-                            onChange={(e) => onThreadSelect?.(e.target.value)}
-                            className="max-w-40 truncate rounded border border-blue-500 bg-blue-700 px-2 py-1 text-xs text-white"
-                        >
-                            <option value="">All Messages</option>
-                            {threads.map((thread) => (
-                                <option key={thread.id} value={thread.id}>
-                                    {thread.message.slice(0, 20)}... ({thread.agentsReached})
-                                </option>
-                            ))}
-                        </select>
-                    )}
-                </div>
-                {currentThreadId && (
-                    <div className="mt-1 truncate text-xs text-blue-200">
-                        {(() => {
-                            const thread = threads.find((t) => t.id === currentThreadId);
-                            if (!thread) return '';
-                            const agentNamesText =
-                                thread.agentNames.length > 3
-                                    ? `${thread.agentNames.slice(0, 2).join(', ')} +${thread.agentNames.length - 2} more`
-                                    : thread.agentNames.join(', ');
-                            return `${thread.agentsReached} agent${thread.agentsReached !== 1 ? 's' : ''}: ${agentNamesText}`;
-                        })()}
-                    </div>
-                )}
-            </div>
-
-            {/* Input Area */}
+        <div className={cn('flex h-full w-full flex-col bg-white', className)}>
             <div className="relative flex-shrink-0 border-b p-3">
                 {/* Agent Suggestions Dropdown */}
                 {showSuggestions && filteredAgents.length > 0 && (
@@ -309,9 +275,10 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                                 <button
                                     key={agent.id}
                                     onClick={() => selectSuggestion(agent)}
-                                    className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm focus:outline-none ${
+                                    className={cn(
+                                        'flex w-full items-center justify-between px-3 py-2 text-left text-sm focus:outline-none',
                                         isSelected ? 'bg-blue-100 text-blue-900' : 'text-gray-900 hover:bg-gray-100'
-                                    }`}
+                                    )}
                                 >
                                     <div className="flex items-center">
                                         <div
@@ -320,7 +287,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                                         ></div>
                                         <span className="font-medium">{agent.name}</span>
                                     </div>
-                                    <div className={`text-xs ${isSelected ? 'text-blue-700' : 'text-gray-500'}`}>
+                                    <div className={cn('text-xs', isSelected ? 'text-blue-700' : 'text-gray-500')}>
                                         ({agent.x}, {agent.y}) [{distance.toFixed(1)}u]
                                     </div>
                                 </button>
@@ -357,16 +324,17 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     .map((message) => (
                         <div
                             key={message.id}
-                            className={`flex flex-col ${message.sender === 'user' ? 'items-end' : 'items-start'}`}
+                            className={cn('flex flex-col', message.sender === 'user' ? 'items-end' : 'items-start')}
                         >
                             <div
-                                className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
+                                className={cn(
+                                    'max-w-[85%] rounded-lg px-3 py-2 text-sm',
                                     message.sender === 'user'
                                         ? 'rounded-br-sm bg-blue-600 text-white'
                                         : message.sender === 'ai'
                                           ? 'rounded-bl-sm border border-green-300 bg-green-100 text-green-800'
                                           : 'rounded-bl-sm bg-gray-200 text-gray-800'
-                                }`}
+                                )}
                             >
                                 {message.sender === 'ai' && (
                                     <div className="mb-1 flex items-center">

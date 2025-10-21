@@ -25,7 +25,7 @@ interface ThreadTabProps {
         agentsReached: number;
         agentNames: string[];
     }[];
-    onThreadSelect: (threadId: string | null) => void;
+    onThreadSelect: (threadId: string | undefined) => void;
 }
 
 export default function ThreadTab({
