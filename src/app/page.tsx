@@ -12,6 +12,7 @@ import BottomSheet from '@/components/BottomSheet';
 import { MAP_TILES } from '@/constants/game';
 import { AgentCard } from '@a2a-js/sdk';
 import { useUIStore, useThreadStore, useBuildStore, useAgentStore } from '@/stores';
+import TempBuildTab from '@/components/tabs/TempBuildTab';
 
 export default function Home() {
     const {
@@ -515,7 +516,8 @@ export default function Home() {
                     playerIsMoving={isPlayerMoving}
                     collisionMap={globalCollisionMap}
                 />
-                <BuildTab
+                <TempBuildTab isActive={activeTab === 'build'} />
+                {/* <BuildTab
                     isActive={activeTab === 'build'}
                     mapData={mapData}
                     playerPosition={playerPosition}
@@ -533,7 +535,7 @@ export default function Home() {
                     userId={userId}
                     onPublishTiles={handlePublishTiles}
                     onMobileMove={handleMobileMove}
-                />
+                /> */}
                 <AgentTab
                     isActive={activeTab === 'agent'}
                     onSpawnAgent={handleSpawnAgent}
