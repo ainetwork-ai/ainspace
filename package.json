@@ -17,6 +17,7 @@
     "openai": "^6.2.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
+    "react-sprite-animator": "^2.0.2",
     "redis": "^5.8.2",
     "uuid": "^13.0.0"
   },
