@@ -57,13 +57,13 @@ export default function BottomSheet({ isOpen, onClose, children, title }: Bottom
     return (
         <>
             <div
-                className="fixed inset-0 z-40 bg-black/50 transition-opacity"
+                className="fixed inset-0 z-40 bg-transparent transition-opacity"
                 style={{ opacity: isOpen ? 1 : 0 }}
                 onClick={onClose}
             />
             <div
                 ref={sheetRef}
-                className="fixed right-0 bottom-0 left-0 z-50 flex max-h-[85vh] flex-col rounded-t-3xl bg-black/90 shadow-2xl transition-opacity"
+                className="fixed right-0 bottom-0 left-0 z-50 flex max-h-[85vh] flex-col rounded-t-3xl bg-black/70 shadow-2xl transition-opacity"
                 style={{
                     transform: isDragging ? `translateY(${currentY}px)` : isOpen ? 'translateY(0)' : 'translateY(100%)',
                     transition: isDragging ? 'none' : 'transform 0.3s ease-out'

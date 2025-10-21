@@ -5,6 +5,7 @@ import { useWorld } from '@/hooks/useWorld';
 import { Agent, AgentResponse } from '@/lib/world';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
+import { useBuildStore } from '@/stores';
 
 interface Message {
     id: string;
@@ -45,6 +46,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     const [filteredAgents, setFilteredAgents] = useState<Agent[]>([]);
     const [cursorPosition, setCursorPosition] = useState(0);
     const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
+    const { showCollisionMap, setShowCollisionMap, updateCollisionMapFromImage } = useBuildStore();
     const inputRef = useRef<HTMLInputElement>(null);
 
     // Initialize world system
@@ -138,7 +140,44 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     }, [aiCommentary]);
 
     const handleSendMessage = async () => {
-        if (inputValue.trim()) {
+        if (inputValue.trim() === 'show me grid') {
+            setShowCollisionMap(true);
+            setInputValue('');
+        } else if (inputValue.trim() === 'exit') {
+            setShowCollisionMap(false);
+            setInputValue('');
+        } else if (inputValue.trim() === 'update layer1') {
+            setInputValue('');
+            const systemMessage: Message = {
+                id: `system-${Date.now()}`,
+                text: 'Updating collision map from land_layer_1.png...',
+                timestamp: new Date(),
+                sender: 'system',
+                threadId: undefined
+            };
+            setMessages((prev) => [...prev, systemMessage]);
+
+            try {
+                await updateCollisionMapFromImage('/map/land_layer_1.png');
+                const successMessage: Message = {
+                    id: `system-${Date.now()}`,
+                    text: 'Collision map updated successfully! Use "show me grid" to view.',
+                    timestamp: new Date(),
+                    sender: 'system',
+                    threadId: undefined
+                };
+                setMessages((prev) => [...prev, successMessage]);
+            } catch (error) {
+                const errorMessage: Message = {
+                    id: `system-${Date.now()}`,
+                    text: `Failed to update collision map: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                    timestamp: new Date(),
+                    sender: 'system',
+                    threadId: undefined
+                };
+                setMessages((prev) => [...prev, errorMessage]);
+            }
+        } else if (inputValue.trim()) {
             const newMessage: Message = {
                 id: Date.now().toString(),
                 text: inputValue.trim(),
@@ -303,9 +342,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 ))}
             </div>
 
-            {/* Input Area - iOS Style */}
-            <div className="relative flex-shrink-0 bg-[#1c1c1e] p-3">
-                {/* Agent Suggestions Dropdown */}
+            <div className="relative flex-shrink-0 bg-transparent p-3">
                 {showSuggestions && filteredAgents.length > 0 && (
                     <div className="absolute right-3 bottom-full left-3 z-10 mb-1 max-h-32 overflow-y-auto rounded-md border border-gray-600 bg-gray-800 shadow-lg">
                         {filteredAgents.map((agent, index) => {
@@ -343,8 +380,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     </div>
                 )}
 
-                {/* iOS Style Input Container */}
-                <div className="inline-flex w-full items-center justify-start gap-2.5 rounded-[10px] px-2.5 py-2 outline-1 outline-offset-[-1px] outline-white/20">
+                <div className="inline-flex w-full items-center justify-start gap-2.5 rounded-[10px] px-2.5 py-2 outline-1 outline-offset-[-1px] outline-white">
                     <input
                         ref={inputRef}
                         type="text"
@@ -352,13 +388,13 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                         onChange={handleInputChange}
                         onKeyDown={handleKeyPress}
                         placeholder="Typing Message..."
-                        className="flex-1 bg-transparent text-sm leading-tight text-white/80 placeholder-white/40 focus:outline-none"
+                        className="flex-1 bg-transparent text-sm leading-tight text-white placeholder-white/40 focus:outline-none"
                     />
                     <button
                         onClick={handleSendMessage}
                         disabled={!inputValue.trim()}
                         className={cn(
-                            'relative h-[30px] w-[30px] cursor-pointer overflow-hidden rounded-lg shadow-[inset_2px_2px_10px_0px_rgba(255,255,255,0.40)] transition-all',
+                            'relative h-[30px] w-[30px] cursor-pointer overflow-hidden rounded-lg transition-all',
                             inputValue.trim() ? 'bg-white' : 'bg-white/30'
                         )}
                     >

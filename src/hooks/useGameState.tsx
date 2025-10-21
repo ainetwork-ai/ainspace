@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useMapData } from '@/providers/MapDataProvider';
 import { useSession } from '@/hooks/useSession';
 import { useAgents } from '@/hooks/useAgents';
-import { useLayer1Collision } from '@/hooks/useLayer1Collision';
+import { useBuildStore } from '@/stores';
 import {
     MAP_WIDTH,
     MAP_HEIGHT,
@@ -23,7 +23,7 @@ interface Position {
 export function useGameState() {
     const { getMapData, generateTileAt } = useMapData();
     const { userId } = useSession();
-    const { isBlocked: isLayer1Blocked, collisionMap } = useLayer1Collision('/map/land_layer_1.png');
+    const { isBlocked: isLayer1Blocked, collisionMap } = useBuildStore();
 
     // Character starts at the center of the map
     const initialPosition: Position = {

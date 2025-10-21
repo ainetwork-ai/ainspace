@@ -9,7 +9,6 @@ import BuildTab from '@/components/tabs/BuildTab';
 import AgentTab from '@/components/tabs/AgentTab';
 import Footer from '@/components/Footer';
 import BottomSheet from '@/components/BottomSheet';
-import { useLayer1Collision } from '@/hooks/useLayer1Collision';
 import { MAP_TILES } from '@/constants/game';
 import { AgentCard } from '@a2a-js/sdk';
 import { useUIStore, useThreadStore, useBuildStore, useAgentStore } from '@/stores';
@@ -28,11 +27,8 @@ export default function Home() {
         toggleAutonomous,
         lastCommentary,
         playerDirection,
-        isPlayerMoving,
-        collisionMap
+        isPlayerMoving
     } = useGameState();
-    const { isBlocked: isLayer1Blocked } = useLayer1Collision('/map/land_layer_1.png');
-
     // Global stores
     const { activeTab, isBottomSheetOpen, setActiveTab, openBottomSheet, closeBottomSheet } = useUIStore();
     const {
@@ -54,17 +50,35 @@ export default function Home() {
         buildMode,
         isPublishing,
         publishStatus,
+        collisionMap: globalCollisionMap,
+        isBlocked: globalIsBlocked,
         setCustomTiles,
         setPublishedTiles,
         setSelectedImage,
         setBuildMode,
         setIsPublishing,
         setPublishStatus,
+        setCollisionMap,
         clearPublishStatusAfterDelay
     } = useBuildStore();
     const { spawnedA2AAgents, spawnAgent, removeAgent, updateAgent, setAgents } = useAgentStore();
 
     const chatBoxRef = useRef<ChatBoxRef>(null);
+
+    // Initialize collision map on first load
+    useEffect(() => {
+        const initCollisionMap = async () => {
+            if (Object.keys(globalCollisionMap).length === 0) {
+                try {
+                    const { updateCollisionMapFromImage } = useBuildStore.getState();
+                    await updateCollisionMapFromImage('/map/land_layer_1.png');
+                } catch (error) {
+                    console.error('Failed to initialize collision map:', error);
+                }
+            }
+        };
+        initCollisionMap();
+    }, []); // Run only once on mount
 
     // Load custom tiles when userId is available
     useEffect(() => {
@@ -441,7 +455,7 @@ export default function Home() {
                     }
 
                     // Check layer1 collision - don't move if blocked
-                    if (isLayer1Blocked(newX, newY)) {
+                    if (globalIsBlocked(newX, newY)) {
                         return; // Skip this agent's movement
                     }
 
@@ -473,7 +487,7 @@ export default function Home() {
 
         const interval = setInterval(moveA2AAgents, 2000); // Check every 2 seconds
         return () => clearInterval(interval);
-    }, [isLayer1Blocked, spawnedA2AAgents, worldAgents, worldPosition, setAgents, setCustomTiles]);
+    }, [globalIsBlocked, spawnedA2AAgents, worldAgents, worldPosition, setAgents, setCustomTiles]);
 
     return (
         <div className="flex h-screen w-full flex-col bg-gray-100">
@@ -499,7 +513,7 @@ export default function Home() {
                     toggleAutonomous={toggleAutonomous}
                     playerDirection={playerDirection}
                     playerIsMoving={isPlayerMoving}
-                    collisionMap={collisionMap}
+                    collisionMap={globalCollisionMap}
                 />
                 <BuildTab
                     isActive={activeTab === 'build'}
@@ -528,8 +542,9 @@ export default function Home() {
                     onUploadCharacterImage={handleUploadCharacterImage}
                 />
             </div>
-            <Footer activeTab={activeTab} onTabChange={setActiveTab} onClickDialogueBox={openBottomSheet} />
-
+            {!isBottomSheetOpen && (
+                <Footer activeTab={activeTab} onTabChange={setActiveTab} onClickDialogueBox={openBottomSheet} />
+            )}
             <BottomSheet isOpen={isBottomSheetOpen} onClose={closeBottomSheet}>
                 <ThreadTab
                     isActive={true}

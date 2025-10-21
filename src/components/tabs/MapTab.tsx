@@ -5,6 +5,7 @@ import TileMap from '@/components/TileMap';
 import BaseTabContent from './BaseTabContent';
 import PlayerJoystick from '@/components/controls/PlayerJoystick';
 import { TILE_SIZE } from '@/constants/game';
+import { useUIStore } from '@/stores';
 
 interface MapTabProps {
     isActive: boolean;
@@ -77,6 +78,8 @@ export default function MapTab({
     playerIsMoving = false,
     collisionMap
 }: MapTabProps) {
+    const { isBottomSheetOpen } = useUIStore();
+
     return (
         <BaseTabContent isActive={isActive} withPadding={false}>
             {/* Game Area */}
@@ -102,15 +105,16 @@ export default function MapTab({
                     />
                 </div>
 
-                {/* Joystick Control - Bottom Center */}
-                <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 transform">
-                    <PlayerJoystick
-                        onMove={onMobileMove}
-                        disabled={isAutonomous}
-                        baseColor="#00000050"
-                        stickColor="#FFF"
-                    />
-                </div>
+                {!isBottomSheetOpen && (
+                    <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 transform">
+                        <PlayerJoystick
+                            onMove={onMobileMove}
+                            disabled={isAutonomous}
+                            baseColor="#00000050"
+                            stickColor="#FFF"
+                        />
+                    </div>
+                )}
 
                 {/* <div className="flex flex-col items-center mb-4">
           <div className="flex justify-center mb-2">

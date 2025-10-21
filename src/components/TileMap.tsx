@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { SpriteAnimator } from 'react-sprite-animator';
 import { TILE_SIZE, MAP_TILES } from '@/constants/game';
+import { useBuildStore } from '@/stores';
 
 interface Agent {
     id: string;
@@ -67,7 +68,9 @@ export default function TileMap({
     const [isPainting, setIsPainting] = useState(false);
     const [lastPaintedTile, setLastPaintedTile] = useState<{ x: number; y: number } | null>(null);
     const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
-    const [showCollisionMap, setShowCollisionMap] = useState(false);
+
+    // Use global state for collision map visibility
+    const { showCollisionMap, toggleCollisionMap } = useBuildStore();
 
     // Load background image
     useEffect(() => {
@@ -119,13 +122,13 @@ export default function TileMap({
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.ctrlKey && event.key === 'j') {
                 event.preventDefault();
-                setShowCollisionMap((prev) => !prev);
+                toggleCollisionMap();
             }
         };
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, []);
+    }, [toggleCollisionMap]);
 
     // Check if customTiles is using layer structure
     const isLayeredTiles = (tiles: TileLayers | { [key: string]: string }): tiles is TileLayers => {
