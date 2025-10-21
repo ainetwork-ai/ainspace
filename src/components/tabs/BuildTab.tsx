@@ -621,8 +621,8 @@ export default function BuildTab({
                             }}
                             layerVisibility={layerVisibility}
                             buildMode={buildMode === 'paint' && (selectedImage || selectedTiles) ? 'paint' : 'view'}
-                            backgroundImageSrc="/map/layer_0.png"
-                            layer1ImageSrc="/map/layer_1.png"
+                            backgroundImageSrc="/map/land_layer_0.png"
+                            layer1ImageSrc="/map/land_layer_1.png"
                             onTileClick={(worldX, worldY) => {
                                 if (buildMode === 'paint') {
                                     const layerKey = `layer${activeLayer}` as keyof TileLayers;

@@ -23,7 +23,7 @@ interface Position {
 export function useGameState() {
     const { getMapData, generateTileAt } = useMapData();
     const { userId } = useSession();
-    const { isBlocked: isLayer1Blocked, collisionMap } = useLayer1Collision('/map/layer_1.png');
+    const { isBlocked: isLayer1Blocked, collisionMap } = useLayer1Collision('/map/land_layer_1.png');
 
     // Character starts at the center of the map
     const initialPosition: Position = {
