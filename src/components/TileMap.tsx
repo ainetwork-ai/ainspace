@@ -36,7 +36,6 @@ interface TileMapProps {
   layerVisibility?: { [key: number]: boolean };
   buildMode?: "view" | "paint";
   onTileClick?: (x: number, y: number) => void;
-  onMobileMove?: (direction: "up" | "down" | "left" | "right") => void;
   backgroundImageSrc?: string;
   layer1ImageSrc?: string;
   playerDirection?: "up" | "down" | "left" | "right";
@@ -54,7 +53,6 @@ export default function TileMap({
   layerVisibility = { 0: true, 1: true, 2: true },
   buildMode = "view",
   onTileClick,
-  onMobileMove,
   backgroundImageSrc,
   layer1ImageSrc,
   playerDirection = "down",
@@ -68,11 +66,6 @@ export default function TileMap({
   const [layer1Image, setLayer1Image] = useState<HTMLImageElement | null>(null);
   const [isPainting, setIsPainting] = useState(false);
   const [lastPaintedTile, setLastPaintedTile] = useState<{ x: number; y: number } | null>(null);
-  const [isMobile, setIsMobile] = useState(false);
-  const [isHoldingDirection, setIsHoldingDirection] = useState<
-    "up" | "down" | "left" | "right" | null
-  >(null);
-  const moveIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
   const [showCollisionMap, setShowCollisionMap] = useState(false);
 
@@ -121,18 +114,6 @@ export default function TileMap({
     return () => window.removeEventListener("resize", updateCanvasSize);
   }, []);
 
-  // Detect if device is mobile
-  useEffect(() => {
-    const checkMobile = () => {
-      const isTouchDevice = "ontouchstart" in window || navigator.maxTouchPoints > 0;
-      const isSmallScreen = window.innerWidth <= 768;
-      setIsMobile(isTouchDevice && isSmallScreen);
-    };
-
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
 
   // Toggle collision map display with Ctrl+J
   useEffect(() => {
@@ -243,99 +224,9 @@ export default function TileMap({
     onTileClick(worldX, worldY);
   };
 
-  // Detect which region of the map was clicked for mobile movement
-  const detectMapRegion = (
-    clientX: number,
-    clientY: number
-  ): "up" | "down" | "left" | "right" | null => {
-    const canvas = canvasRef.current;
-    if (!canvas) return null;
 
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-
-    // Get position relative to canvas, accounting for scaling
-    const canvasX = (clientX - rect.left) * scaleX;
-    const canvasY = (clientY - rect.top) * scaleY;
-
-    const width = canvas.width;
-    const height = canvas.height;
-
-    // Calculate relative positions
-    const relX = canvasX / width;
-    const relY = canvasY / height;
-
-    // Determine which region was clicked based on distance from edges
-    // Priority: check if closer to vertical edges or horizontal edges
-    const distFromLeft = relX;
-    const distFromRight = 1 - relX;
-    const distFromTop = relY;
-    const distFromBottom = 1 - relY;
-
-    // Find minimum distance to any edge
-    const minHorizontalDist = Math.min(distFromLeft, distFromRight);
-    const minVerticalDist = Math.min(distFromTop, distFromBottom);
-
-    // If click is closer to a horizontal edge than vertical edge
-    if (minVerticalDist < minHorizontalDist) {
-      return distFromTop < distFromBottom ? "up" : "down";
-    } else {
-      return distFromLeft < distFromRight ? "left" : "right";
-    }
-  };
-
-  // Start continuous movement in a direction
-  const startContinuousMove = (direction: "up" | "down" | "left" | "right") => {
-    // Clear any existing interval
-    if (moveIntervalRef.current) {
-      clearInterval(moveIntervalRef.current);
-    }
-
-    setIsHoldingDirection(direction);
-
-    // Move immediately
-    if (onMobileMove) {
-      onMobileMove(direction);
-    }
-
-    // Start interval for continuous movement (200ms interval for smooth movement)
-    moveIntervalRef.current = setInterval(() => {
-      if (onMobileMove) {
-        onMobileMove(direction);
-      }
-    }, 200);
-  };
-
-  // Stop continuous movement
-  const stopContinuousMove = () => {
-    if (moveIntervalRef.current) {
-      clearInterval(moveIntervalRef.current);
-      moveIntervalRef.current = null;
-    }
-    setIsHoldingDirection(null);
-  };
-
-  // Cleanup interval on unmount
-  useEffect(() => {
-    return () => {
-      if (moveIntervalRef.current) {
-        clearInterval(moveIntervalRef.current);
-      }
-    };
-  }, []);
-
-  // Handle mouse down - start painting or trigger mobile movement
+  // Handle mouse down - start painting
   const handleMouseDown = (event: React.MouseEvent<HTMLCanvasElement>) => {
-    // On mobile with onMobileMove handler and not in paint mode, detect region for movement
-    if (isMobile && onMobileMove && buildMode !== "paint") {
-      const region = detectMapRegion(event.clientX, event.clientY);
-      if (region) {
-        startContinuousMove(region);
-        return;
-      }
-    }
-
     // Paint mode behavior: only paint if explicitly in paint mode
     if (buildMode === "paint") {
       const coords = getWorldCoordinatesFromEvent(event);
@@ -356,43 +247,23 @@ export default function TileMap({
     }
   };
 
-  // Handle mouse up - stop painting or continuous movement
+  // Handle mouse up - stop painting
   const handleMouseUp = () => {
-    // Stop continuous movement if active
-    if (isHoldingDirection) {
-      stopContinuousMove();
-    }
-
     setIsPainting(false);
     setLastPaintedTile(null);
   };
 
-  // Handle mouse leave - stop painting and continuous movement when leaving canvas
+  // Handle mouse leave - stop painting when leaving canvas
   const handleMouseLeave = () => {
-    // Stop continuous movement if active
-    if (isHoldingDirection) {
-      stopContinuousMove();
-    }
-
     setIsPainting(false);
     setLastPaintedTile(null);
   };
 
-  // Handle touch start - for mobile touch support
+  // Handle touch start - for mobile touch painting
   const handleTouchStart = (event: React.TouchEvent<HTMLCanvasElement>) => {
     if (event.touches.length === 0) return;
 
     const touch = event.touches[0];
-
-    // On mobile with onMobileMove handler and not in paint mode, detect region for movement
-    if (isMobile && onMobileMove && buildMode !== "paint") {
-      const region = detectMapRegion(touch.clientX, touch.clientY);
-      if (region) {
-        event.preventDefault(); // Prevent scrolling while holding
-        startContinuousMove(region);
-        return;
-      }
-    }
 
     // Paint mode behavior: only paint if explicitly in paint mode
     if (buildMode === "paint") {
@@ -469,13 +340,8 @@ export default function TileMap({
     }
   };
 
-  // Handle touch end - stop painting or continuous movement
+  // Handle touch end - stop painting
   const handleTouchEnd = () => {
-    // Stop continuous movement if active
-    if (isHoldingDirection) {
-      stopContinuousMove();
-    }
-
     setIsPainting(false);
     setLastPaintedTile(null);
   };

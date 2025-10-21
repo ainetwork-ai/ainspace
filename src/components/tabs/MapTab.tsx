@@ -1,6 +1,7 @@
 import React from "react";
 import TileMap from "@/components/TileMap";
 import BaseTabContent from "./BaseTabContent";
+import PlayerJoystick from "@/components/controls/PlayerJoystick";
 import { TILE_SIZE } from "@/constants/game";
 
 interface MapTabProps {
@@ -77,7 +78,7 @@ export default function MapTab({
   return (
     <BaseTabContent isActive={isActive} withPadding={false}>
       {/* Game Area */}
-      <div className="w-full h-full flex flex-col">
+      <div className="w-full h-full flex flex-col relative">
         <div className="w-full h-full flex items-center justify-center">
           <TileMap
             mapData={mapData}
@@ -93,10 +94,19 @@ export default function MapTab({
             layerVisibility={{ 0: true, 1: true, 2: true }}
             backgroundImageSrc="/map/layer_0.png"
             layer1ImageSrc="/map/layer_1.png"
-            onMobileMove={onMobileMove}
             playerDirection={playerDirection}
             playerIsMoving={playerIsMoving}
             collisionMap={collisionMap}
+          />
+        </div>
+
+        {/* Joystick Control - Bottom Center */}
+        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20">
+          <PlayerJoystick
+            onMove={onMobileMove}
+            disabled={isAutonomous}
+            baseColor="#00000050"
+            stickColor="#FFF"
           />
         </div>
 

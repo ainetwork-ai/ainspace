@@ -146,7 +146,7 @@ export default function Home() {
     movePlayer(direction);
   }, [isAutonomous, worldPosition, spawnedA2AAgents, movePlayer]);
 
-  // Keyboard handling for player movement
+  // Keyboard handling for player movement (works alongside joystick)
   useEffect(() => {
     const handleKeyPress = (event: KeyboardEvent) => {
       if (isLoading || isAutonomous) return;
