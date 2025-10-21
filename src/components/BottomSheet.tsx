@@ -17,7 +17,6 @@ export default function BottomSheet({ isOpen, onClose, children, title }: Bottom
 
     useEffect(() => {
         if (isOpen) {
-            // Prevent body scroll when bottom sheet is open
             document.body.style.overflow = 'hidden';
         } else {
             document.body.style.overflow = '';
@@ -39,7 +38,6 @@ export default function BottomSheet({ isOpen, onClose, children, title }: Bottom
 
         const deltaY = e.touches[0].clientY - startY;
         if (deltaY > 0) {
-            // Only allow dragging down
             setCurrentY(deltaY);
         }
     };
@@ -47,7 +45,6 @@ export default function BottomSheet({ isOpen, onClose, children, title }: Bottom
     const handleTouchEnd = () => {
         setIsDragging(false);
 
-        // If dragged down more than 150px, close the sheet
         if (currentY > 150) {
             onClose();
         }
@@ -66,7 +63,7 @@ export default function BottomSheet({ isOpen, onClose, children, title }: Bottom
             />
             <div
                 ref={sheetRef}
-                className="fixed right-0 bottom-0 left-0 z-50 flex max-h-[85vh] flex-col rounded-t-3xl bg-white shadow-2xl transition-transform"
+                className="fixed right-0 bottom-0 left-0 z-50 flex max-h-[85vh] flex-col rounded-t-3xl bg-black/90 shadow-2xl transition-opacity"
                 style={{
                     transform: isDragging ? `translateY(${currentY}px)` : isOpen ? 'translateY(0)' : 'translateY(100%)',
                     transition: isDragging ? 'none' : 'transform 0.3s ease-out'

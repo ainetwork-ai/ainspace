@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHand
 import { useWorld } from '@/hooks/useWorld';
 import { Agent, AgentResponse } from '@/lib/world';
 import { cn } from '@/lib/utils';
+import Image from 'next/image';
 
 interface Message {
     id: string;
@@ -35,18 +36,10 @@ export interface ChatBoxRef {
 }
 
 const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
-    { className = '', aiCommentary, agents = [], playerWorldPosition, currentThreadId, threads = [], onThreadSelect },
+    { className = '', aiCommentary, agents = [], playerWorldPosition, currentThreadId },
     ref
 ) {
-    const [messages, setMessages] = useState<Message[]>([
-        {
-            id: '1',
-            text: 'Welcome to the Tile Map Game! Use arrow keys to move around.',
-            timestamp: new Date(),
-            sender: 'system',
-            threadId: undefined // Welcome message is not part of any thread
-        }
-    ]);
+    const [messages, setMessages] = useState<Message[]>([]);
     const [inputValue, setInputValue] = useState('');
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [filteredAgents, setFilteredAgents] = useState<Agent[]>([]);
@@ -103,6 +96,24 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         }),
         [worldSendMessage, currentThreadId]
     );
+
+    // Add welcome message on client side only to avoid hydration mismatch
+    useEffect(() => {
+        setMessages((prev) => {
+            if (prev.length === 0) {
+                return [
+                    {
+                        id: '1',
+                        text: 'Welcome to the Tile Map Game! Use arrow keys to move around.',
+                        timestamp: new Date(),
+                        sender: 'system',
+                        threadId: undefined
+                    }
+                ];
+            }
+            return prev;
+        });
+    }, []);
 
     // Add AI commentary to messages when it changes
     useEffect(() => {
@@ -248,19 +259,55 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         [inputValue, cursorPosition]
     );
 
-    const formatTime = (date: Date) => {
-        // Use consistent 24-hour format to avoid hydration mismatches
-        const hours = date.getHours().toString().padStart(2, '0');
-        const minutes = date.getMinutes().toString().padStart(2, '0');
-        return `${hours}:${minutes}`;
-    };
-
     return (
-        <div className={cn('flex h-full w-full flex-col bg-white', className)}>
-            <div className="relative flex-shrink-0 border-b p-3">
+        <div className={cn('flex h-full w-full flex-col bg-transparent', className)}>
+            <div className="max-h-full min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
+                {threadMessages.slice().map((message) => (
+                    <div
+                        key={message.id}
+                        className={cn('flex flex-col', message.sender === 'user' ? 'items-end' : 'items-start')}
+                    >
+                        <div
+                            className={cn(
+                                'max-w-[85%] rounded-lg px-3 py-2 text-sm',
+                                message.sender === 'user'
+                                    ? 'rounded-br-sm bg-blue-600 text-white'
+                                    : message.sender === 'ai'
+                                      ? 'rounded-bl-sm border border-green-300 bg-green-100 text-green-800'
+                                      : 'rounded-bl-sm bg-gray-200 text-gray-800'
+                            )}
+                        >
+                            {message.sender === 'ai' && (
+                                <div className="mb-1 flex items-center">
+                                    <span className="text-xs font-semibold text-green-600">
+                                        🤖{' '}
+                                        {message.id.includes('agent-')
+                                            ? (() => {
+                                                  const agent = agents.find((a) => message.id.includes(a.id));
+                                                  if (agent && playerWorldPosition) {
+                                                      const distance = Math.sqrt(
+                                                          Math.pow(agent.x - playerWorldPosition.x, 2) +
+                                                              Math.pow(agent.y - playerWorldPosition.y, 2)
+                                                      );
+                                                      return `${agent.name} (${agent.x}, ${agent.y}) [${distance.toFixed(1)}u]`;
+                                                  }
+                                                  return agent ? `${agent.name} (${agent.x}, ${agent.y})` : 'AI Agent';
+                                              })()
+                                            : 'AI Explorer'}
+                                    </span>
+                                </div>
+                            )}
+                            <p className="break-words">{message.text}</p>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Input Area - iOS Style */}
+            <div className="relative flex-shrink-0 bg-[#1c1c1e] p-3">
                 {/* Agent Suggestions Dropdown */}
                 {showSuggestions && filteredAgents.length > 0 && (
-                    <div className="absolute top-full right-3 left-3 z-10 mt-1 max-h-32 overflow-y-auto rounded-md border border-gray-300 bg-white shadow-lg">
+                    <div className="absolute right-3 bottom-full left-3 z-10 mb-1 max-h-32 overflow-y-auto rounded-md border border-gray-600 bg-gray-800 shadow-lg">
                         {filteredAgents.map((agent, index) => {
                             const distance = playerWorldPosition
                                 ? Math.sqrt(
@@ -277,7 +324,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                                     onClick={() => selectSuggestion(agent)}
                                     className={cn(
                                         'flex w-full items-center justify-between px-3 py-2 text-left text-sm focus:outline-none',
-                                        isSelected ? 'bg-blue-100 text-blue-900' : 'text-gray-900 hover:bg-gray-100'
+                                        isSelected ? 'bg-blue-600 text-white' : 'text-gray-200 hover:bg-gray-700'
                                     )}
                                 >
                                     <div className="flex items-center">
@@ -287,7 +334,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                                         ></div>
                                         <span className="font-medium">{agent.name}</span>
                                     </div>
-                                    <div className={cn('text-xs', isSelected ? 'text-blue-700' : 'text-gray-500')}>
+                                    <div className={cn('text-xs', isSelected ? 'text-blue-200' : 'text-gray-400')}>
                                         ({agent.x}, {agent.y}) [{distance.toFixed(1)}u]
                                     </div>
                                 </button>
@@ -296,73 +343,42 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     </div>
                 )}
 
-                <div className="flex space-x-2">
+                {/* iOS Style Input Container */}
+                <div className="inline-flex w-full items-center justify-start gap-2.5 rounded-[10px] px-2.5 py-2 outline-1 outline-offset-[-1px] outline-white/20">
                     <input
                         ref={inputRef}
                         type="text"
                         value={inputValue}
                         onChange={handleInputChange}
-                        onKeyPress={handleKeyPress}
-                        placeholder="Type your message... (use @ to mention agents)"
-                        className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        onKeyDown={handleKeyPress}
+                        placeholder="Typing Message..."
+                        className="flex-1 bg-transparent text-sm leading-tight text-white/80 placeholder-white/40 focus:outline-none"
                     />
                     <button
                         onClick={handleSendMessage}
                         disabled={!inputValue.trim()}
-                        className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-400"
+                        className={cn(
+                            'relative h-[30px] w-[30px] cursor-pointer overflow-hidden rounded-lg shadow-[inset_2px_2px_10px_0px_rgba(255,255,255,0.40)] transition-all',
+                            inputValue.trim() ? 'bg-white' : 'bg-white/30'
+                        )}
                     >
-                        Send
+                        <svg
+                            className={cn('absolute left-[9px] top-[10px]', inputValue.trim() ? 'text-black' : 'text-white/50')}
+                            width="12"
+                            height="9"
+                            viewBox="0 0 12 9"
+                            fill="none"
+                        >
+                            <path
+                                d="M1 4.5L11 4.5M11 4.5L7.5 1M11 4.5L7.5 8"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                            />
+                        </svg>
                     </button>
                 </div>
-            </div>
-
-            {/* Messages Area */}
-            <div className="max-h-full min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
-                {threadMessages
-                    .slice()
-                    .reverse()
-                    .map((message) => (
-                        <div
-                            key={message.id}
-                            className={cn('flex flex-col', message.sender === 'user' ? 'items-end' : 'items-start')}
-                        >
-                            <div
-                                className={cn(
-                                    'max-w-[85%] rounded-lg px-3 py-2 text-sm',
-                                    message.sender === 'user'
-                                        ? 'rounded-br-sm bg-blue-600 text-white'
-                                        : message.sender === 'ai'
-                                          ? 'rounded-bl-sm border border-green-300 bg-green-100 text-green-800'
-                                          : 'rounded-bl-sm bg-gray-200 text-gray-800'
-                                )}
-                            >
-                                {message.sender === 'ai' && (
-                                    <div className="mb-1 flex items-center">
-                                        <span className="text-xs font-semibold text-green-600">
-                                            🤖{' '}
-                                            {message.id.includes('agent-')
-                                                ? (() => {
-                                                      const agent = agents.find((a) => message.id.includes(a.id));
-                                                      if (agent && playerWorldPosition) {
-                                                          const distance = Math.sqrt(
-                                                              Math.pow(agent.x - playerWorldPosition.x, 2) +
-                                                                  Math.pow(agent.y - playerWorldPosition.y, 2)
-                                                          );
-                                                          return `${agent.name} (${agent.x}, ${agent.y}) [${distance.toFixed(1)}u]`;
-                                                      }
-                                                      return agent
-                                                          ? `${agent.name} (${agent.x}, ${agent.y})`
-                                                          : 'AI Agent';
-                                                  })()
-                                                : 'AI Explorer'}
-                                        </span>
-                                    </div>
-                                )}
-                                <p className="break-words">{message.text}</p>
-                            </div>
-                            <span className="mt-1 text-xs text-gray-500">{formatTime(message.timestamp)}</span>
-                        </div>
-                    ))}
             </div>
         </div>
     );

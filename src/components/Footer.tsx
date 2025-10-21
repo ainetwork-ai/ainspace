@@ -15,7 +15,7 @@ export default function Footer({ activeTab, onTabChange, onClickDialogueBox }: F
         <div className="fixed right-0 bottom-0 left-0">
             <div className="inline-flex h-8 w-full items-center justify-center gap-2 self-stretch rounded-tl-lg rounded-tr-lg bg-black/80 p-2">
                 <Image
-                    src="/footer/tabIcon/tab_icon_bubble.svg"
+                    src="/footer/bottomTab/tab_icon_bubble.svg"
                     className="h-4 w-4"
                     alt="Chat"
                     width={16}
@@ -32,12 +32,10 @@ export default function Footer({ activeTab, onTabChange, onClickDialogueBox }: F
                         onClick={() => onTabChange('build')}
                         className={cn(
                             'flex flex-1 cursor-pointer flex-col items-center justify-center gap-1 rounded font-medium transition-colors',
-                            activeTab === 'build'
-                                ? 'bg-[#424049] text-white'
-                                : 'text-gray-100 hover:bg-gray-800 hover:text-gray-200'
+                            activeTab === 'build' ? 'text-gray-100' : 'bg-[#424049] text-white'
                         )}
                     >
-                        <Image src="/footer/tabIcon/tab_icon_build.png" alt="Build" width={46} height={40} />
+                        <Image src="/footer/bottomTab/tab_icon_build.png" alt="Build" width={46} height={40} />
                         <p className={'text-xs font-bold text-white'}>Build</p>
                     </button>
 
@@ -45,24 +43,20 @@ export default function Footer({ activeTab, onTabChange, onClickDialogueBox }: F
                         onClick={() => onTabChange('map')}
                         className={cn(
                             'flex flex-1 cursor-pointer flex-col items-center justify-center gap-1 rounded font-medium transition-colors',
-                            activeTab === 'map'
-                                ? 'bg-[#424049] text-white'
-                                : 'text-gray-100 hover:bg-gray-800 hover:text-gray-200'
+                            activeTab === 'map' ? 'text-gray-100' : 'bg-[#424049] text-white'
                         )}
                     >
-                        <Image src="/footer/tabIcon/tab_icon_map.png" alt="Map" width={46} height={40} />
+                        <Image src="/footer/bottomTab/tab_icon_map.png" alt="Map" width={46} height={40} />
                         <p className={'text-xs font-bold text-white'}>Map</p>
                     </button>
                     <button
                         onClick={() => onTabChange('agent')}
                         className={cn(
                             'flex flex-1 cursor-pointer flex-col items-center justify-center gap-1 rounded font-medium transition-colors',
-                            activeTab === 'agent'
-                                ? 'bg-[#424049] text-white'
-                                : 'text-gray-100 hover:bg-gray-800 hover:text-gray-200'
+                            activeTab === 'agent' ? 'text-gray-100' : 'bg-[#424049] text-white'
                         )}
                     >
-                        <Image src="/footer/tabIcon/tab_icon_agent.png" alt="Agent" width={46} height={40} />
+                        <Image src="/footer/bottomTab/tab_icon_agent.png" alt="Agent" width={46} height={40} />
                         <p className={'text-xs font-bold text-white'}>Agent</p>
                     </button>
                 </div>
