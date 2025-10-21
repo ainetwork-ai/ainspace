@@ -1,7 +1,7 @@
 "use client";
 
 import { useGameState } from "@/hooks/useGameState";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { ChatBoxRef } from "@/components/ChatBox";
 import MapTab from "@/components/tabs/MapTab";
 import ThreadTab from "@/components/tabs/ThreadTab";
@@ -108,11 +108,68 @@ export default function Home() {
     loadCustomTiles();
   }, [userId]);
 
-  const handleMobileMove = (direction: "up" | "down" | "left" | "right") => {
-    if (!isAutonomous) {
-      movePlayer(direction);
+  const handleMobileMove = useCallback((direction: "up" | "down" | "left" | "right") => {
+    if (isAutonomous) return;
+
+    // Calculate new position
+    let newX = worldPosition.x;
+    let newY = worldPosition.y;
+    switch (direction) {
+      case 'up':
+        newY -= 1;
+        break;
+      case 'down':
+        newY += 1;
+        break;
+      case 'left':
+        newX -= 1;
+        break;
+      case 'right':
+        newX += 1;
+        break;
     }
-  };
+
+    // Check if A2A agent is at this position
+    const isOccupiedByA2A = Object.values(spawnedA2AAgents).some(
+      agent => agent.x === newX && agent.y === newY
+    );
+
+    if (isOccupiedByA2A) {
+      return;
+    }
+
+    // Move player (this will also check worldAgents in useGameState)
+    movePlayer(direction);
+  }, [isAutonomous, worldPosition, spawnedA2AAgents, movePlayer]);
+
+  // Keyboard handling for player movement
+  useEffect(() => {
+    const handleKeyPress = (event: KeyboardEvent) => {
+      if (isLoading || isAutonomous) return;
+
+      switch (event.key) {
+        case 'ArrowUp':
+          event.preventDefault();
+          handleMobileMove('up');
+          break;
+        case 'ArrowDown':
+          event.preventDefault();
+          handleMobileMove('down');
+          break;
+        case 'ArrowLeft':
+          event.preventDefault();
+          handleMobileMove('left');
+          break;
+        case 'ArrowRight':
+          event.preventDefault();
+          handleMobileMove('right');
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [handleMobileMove, isLoading, isAutonomous]);
 
   const handleBroadcast = async () => {
     if (broadcastMessage.trim()) {
@@ -355,29 +412,21 @@ export default function Home() {
   // Convert A2A agents to visible agents format for the map
   const a2aVisibleAgents = Object.values(spawnedA2AAgents)
     .map((agent) => {
-      const screenX = agent.x - worldPosition.x + Math.floor(mapData[0]?.length / 2);
-      const screenY = agent.y - worldPosition.y + Math.floor(mapData.length / 2);
-
-      // Only show if within visible area
-      if (
-        screenX >= 0 &&
-        screenX < mapData[0]?.length &&
-        screenY >= 0 &&
-        screenY < mapData.length
-      ) {
-        return {
-          id: agent.id,
-          screenX,
-          screenY,
-          color: agent.color,
-          name: agent.name,
-          hasCharacterImage: !!agent.characterImage,
-        };
-      }
-      return null;
+      return {
+        id: agent.id,
+        x: agent.x, // world position
+        y: agent.y, // world position
+        screenX: 0, // Will be calculated in TileMap based on camera position
+        screenY: 0, // Will be calculated in TileMap based on camera position
+        color: agent.color,
+        name: agent.name,
+        hasCharacterImage: !!agent.characterImage,
+      };
     })
     .filter(Boolean) as Array<{
     id: string;
+    x: number;
+    y: number;
     screenX: number;
     screenY: number;
     color: string;
@@ -409,6 +458,30 @@ export default function Home() {
             const oldY = agent.y;
             const newX = agent.x + direction.dx;
             const newY = agent.y + direction.dy;
+
+            // Map boundaries (4200x4200 pixels, 40px tile size = 105 tiles)
+            const MAP_TILES = 105;
+
+            // Check map boundaries
+            if (newX < 0 || newX >= MAP_TILES || newY < 0 || newY >= MAP_TILES) {
+              return; // Skip this agent's movement
+            }
+
+            // Check if player is at this position
+            if (newX === worldPosition.x && newY === worldPosition.y) {
+              return; // Skip this agent's movement
+            }
+
+            // Check if another agent (A2A or world agent) is at this position
+            const isOccupiedByA2A = Object.values(updated).some(
+              otherAgent => otherAgent.id !== agent.id && otherAgent.x === newX && otherAgent.y === newY
+            );
+            const isOccupiedByWorldAgent = worldAgents.some(
+              worldAgent => worldAgent.x === newX && worldAgent.y === newY
+            );
+            if (isOccupiedByA2A || isOccupiedByWorldAgent) {
+              return; // Skip this agent's movement
+            }
 
             // Check layer1 collision - don't move if blocked
             if (isLayer1Blocked(newX, newY)) {

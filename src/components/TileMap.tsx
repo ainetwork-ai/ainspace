@@ -6,6 +6,8 @@ interface Agent {
   id: string;
   screenX: number;
   screenY: number;
+  x?: number; // world position
+  y?: number; // world position
   color: string;
   name: string;
   hasCharacterImage?: boolean;
@@ -628,10 +630,29 @@ export default function TileMap({
 
     // Draw agents
     agents.forEach((agent) => {
+      // Calculate screen position based on world position if available
+      let agentScreenX: number;
+      let agentScreenY: number;
+
+      if (agent.x !== undefined && agent.y !== undefined) {
+        // Use world position and camera to calculate screen position
+        agentScreenX = agent.x - cameraTileX;
+        agentScreenY = agent.y - cameraTileY;
+      } else {
+        // Fallback to legacy screenX/screenY
+        agentScreenX = agent.screenX;
+        agentScreenY = agent.screenY;
+      }
+
+      // Only draw if agent is within visible area (with some buffer for partial visibility)
+      if (agentScreenX < -1 || agentScreenX > tilesX || agentScreenY < -1 || agentScreenY > tilesY) {
+        return;
+      }
+
       ctx.fillStyle = agent.color;
       ctx.fillRect(
-        agent.screenX * tileSize + 4,
-        agent.screenY * tileSize + 4,
+        agentScreenX * tileSize + 4,
+        agentScreenY * tileSize + 4,
         tileSize - 8,
         tileSize - 8
       );
@@ -640,8 +661,8 @@ export default function TileMap({
       ctx.strokeStyle = "#000000";
       ctx.lineWidth = 1;
       ctx.strokeRect(
-        agent.screenX * tileSize + 4,
-        agent.screenY * tileSize + 4,
+        agentScreenX * tileSize + 4,
+        agentScreenY * tileSize + 4,
         tileSize - 8,
         tileSize - 8
       );
@@ -654,20 +675,20 @@ export default function TileMap({
 
     ctx.fillStyle = "#FF0000"; // Red for player
     ctx.fillRect(
-      playerScreenTileX * tileSize + 2,
-      playerScreenTileY * tileSize + 2,
-      tileSize - 4,
-      tileSize - 4
+      playerScreenTileX * tileSize + 4,
+      playerScreenTileY * tileSize + 4,
+      tileSize - 8,
+      tileSize - 8
     );
 
     // Draw player border
     ctx.strokeStyle = "#000000";
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 1;
     ctx.strokeRect(
-      playerScreenTileX * tileSize + 2,
-      playerScreenTileY * tileSize + 2,
-      tileSize - 4,
-      tileSize - 4
+      playerScreenTileX * tileSize + 4,
+      playerScreenTileY * tileSize + 4,
+      tileSize - 8,
+      tileSize - 8
     );
   }, [
     mapData,

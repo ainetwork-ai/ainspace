@@ -53,8 +53,6 @@ export function useGameState() {
   // Initialize agents system
   const { agents, worldAgents, visibleAgents } = useAgents({
     playerWorldPosition: worldPosition,
-    mapWidth: MAP_WIDTH,
-    mapHeight: MAP_HEIGHT,
     viewRadius: VIEW_RADIUS
   });
 
@@ -113,6 +111,14 @@ export function useGameState() {
         return prevWorldPos;
       }
 
+      // Check if an agent is at this position
+      const isOccupiedByAgent = worldAgents.some(
+        agent => agent.x === newWorldPosition.x && agent.y === newWorldPosition.y
+      );
+      if (isOccupiedByAgent) {
+        return prevWorldPos;
+      }
+
       // Save new position to Redis
       savePositionToRedis(newWorldPosition);
 
@@ -125,7 +131,7 @@ export function useGameState() {
       const newMovements = [...prev, direction];
       return newMovements.slice(-5); // Keep last 5 movements
     });
-  }, [generateTileAt, savePositionToRedis, isLayer1Blocked]);
+  }, [generateTileAt, savePositionToRedis, isLayer1Blocked, worldAgents]);
 
   const toggleAutonomous = useCallback(() => {
     setIsAutonomous(prev => !prev);
@@ -211,7 +217,10 @@ export function useGameState() {
     const isOutOfBounds = nextPosition.x < MIN_WORLD_X || nextPosition.x > MAX_WORLD_X ||
                           nextPosition.y < MIN_WORLD_Y || nextPosition.y > MAX_WORLD_Y;
     const tileType = generateTileAt(nextPosition.x, nextPosition.y);
-    const isBlocked = isOutOfBounds || tileType === 3 || isLayer1Blocked(nextPosition.x, nextPosition.y);
+    const isOccupiedByAgent = worldAgents.some(
+      agent => agent.x === nextPosition.x && agent.y === nextPosition.y
+    );
+    const isBlocked = isOutOfBounds || tileType === 3 || isLayer1Blocked(nextPosition.x, nextPosition.y) || isOccupiedByAgent;
 
     if (isBlocked) {
       // Try different directions
@@ -234,7 +243,10 @@ export function useGameState() {
         }
         const outOfBounds = testPosition.x < MIN_WORLD_X || testPosition.x > MAX_WORLD_X ||
                            testPosition.y < MIN_WORLD_Y || testPosition.y > MAX_WORLD_Y;
-        return !outOfBounds && generateTileAt(testPosition.x, testPosition.y) !== 3 && !isLayer1Blocked(testPosition.x, testPosition.y);
+        const occupiedByAgent = worldAgents.some(
+          agent => agent.x === testPosition.x && agent.y === testPosition.y
+        );
+        return !outOfBounds && generateTileAt(testPosition.x, testPosition.y) !== 3 && !isLayer1Blocked(testPosition.x, testPosition.y) && !occupiedByAgent;
       });
 
       if (availableDirections.length > 0) {
@@ -245,7 +257,7 @@ export function useGameState() {
       // Move in current direction
       movePlayer(playerDirection);
     }
-  }, [isAutonomous, worldPosition, playerDirection, generateTileAt, movePlayer, isLayer1Blocked]);
+  }, [isAutonomous, worldPosition, playerDirection, generateTileAt, movePlayer, isLayer1Blocked, worldAgents]);
 
   // Load saved position from Redis when user session is available
   useEffect(() => {
@@ -296,33 +308,7 @@ export function useGameState() {
     return () => clearInterval(commentaryInterval);
   }, [isAutonomous, generateAICommentary]);
 
-  useEffect(() => {
-    const handleKeyPress = (event: KeyboardEvent) => {
-      if (isLoading || isAutonomous) return; // Don't allow manual movement while loading or in autonomous mode
-      
-      switch (event.key) {
-        case 'ArrowUp':
-          event.preventDefault();
-          movePlayer('up');
-          break;
-        case 'ArrowDown':
-          event.preventDefault();
-          movePlayer('down');
-          break;
-        case 'ArrowLeft':
-          event.preventDefault();
-          movePlayer('left');
-          break;
-        case 'ArrowRight':
-          event.preventDefault();
-          movePlayer('right');
-          break;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [movePlayer, isLoading, isAutonomous]);
+  // Keyboard handling moved to page.tsx to allow A2A agent collision checking
 
   return {
     playerPosition,
