@@ -11,7 +11,6 @@ import Footer from '@/components/Footer';
 import BottomSheet from '@/components/BottomSheet';
 import { useLayer1Collision } from '@/hooks/useLayer1Collision';
 import { MAP_TILES } from '@/constants/game';
-import { AgentState } from '@/lib/agent';
 import { AgentCard } from '@a2a-js/sdk';
 import { useUIStore, useThreadStore, useBuildStore, useAgentStore } from '@/stores';
 

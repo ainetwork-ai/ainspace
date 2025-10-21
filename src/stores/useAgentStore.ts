@@ -1,3 +1,4 @@
+import { AgentSkill } from '@a2a-js/sdk';
 import { create } from 'zustand';
 
 export interface SpawnedA2AAgent {
@@ -8,6 +9,7 @@ export interface SpawnedA2AAgent {
     color: string;
     agentUrl: string;
     lastMoved: number;
+    skills?: AgentSkill[];
     characterImage?: string;
 }
 
