@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { cn } from '@/lib/utils';
 
 interface BaseTabContentProps {
     isActive: boolean;
@@ -15,10 +16,8 @@ export default function BaseTabContent({
     className = '',
     withPadding = true
 }: BaseTabContentProps) {
-    const paddingClass = withPadding ? 'p-4' : '';
-
     return (
-        <div className={`h-full w-full ${paddingClass} flex flex-col ${!isActive ? 'hidden' : ''} ${className}`}>
+        <div className={cn('h-full w-full flex flex-col', withPadding && 'p-4', !isActive && 'hidden', className)}>
             {children}
         </div>
     );

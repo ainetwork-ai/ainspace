@@ -1,7 +1,7 @@
 'use client';
 
 import { useGameState } from '@/hooks/useGameState';
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
 import { ChatBoxRef } from '@/components/ChatBox';
 import MapTab from '@/components/tabs/MapTab';
 import ThreadTab from '@/components/tabs/ThreadTab';
@@ -13,6 +13,7 @@ import { useLayer1Collision } from '@/hooks/useLayer1Collision';
 import { MAP_TILES } from '@/constants/game';
 import { AgentState } from '@/lib/agent';
 import { AgentCard } from '@a2a-js/sdk';
+import { useUIStore, useThreadStore, useBuildStore, useAgentStore } from '@/stores';
 
 export default function Home() {
     const {
@@ -32,55 +33,39 @@ export default function Home() {
         collisionMap
     } = useGameState();
     const { isBlocked: isLayer1Blocked } = useLayer1Collision('/map/layer_1.png');
-    const [activeTab, setActiveTab] = useState<'map' | 'thread' | 'build' | 'agent'>('map');
-    const [broadcastMessage, setBroadcastMessage] = useState('');
-    const [threads, setThreads] = useState<
-        {
-            id: string;
-            message: string;
-            timestamp: Date;
-            agentsReached: number;
-            agentNames: string[];
-        }[]
-    >([]);
-    const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
-    const [broadcastStatus, setBroadcastStatus] = useState<{
-        range: number;
-        agentsReached: number;
-        agentNames: string[];
-    } | null>(null);
+
+    // Global stores
+    const { activeTab, isBottomSheetOpen, setActiveTab, openBottomSheet, closeBottomSheet } = useUIStore();
+    const {
+        threads,
+        currentThreadId,
+        broadcastMessage,
+        broadcastStatus,
+        addThread,
+        setCurrentThreadId,
+        setBroadcastMessage,
+        setBroadcastStatus,
+        clearBroadcastMessage,
+        clearBroadcastStatusAfterDelay
+    } = useThreadStore();
+    const {
+        customTiles,
+        publishedTiles,
+        selectedImage,
+        buildMode,
+        isPublishing,
+        publishStatus,
+        setCustomTiles,
+        setPublishedTiles,
+        setSelectedImage,
+        setBuildMode,
+        setIsPublishing,
+        setPublishStatus,
+        clearPublishStatusAfterDelay
+    } = useBuildStore();
+    const { spawnedA2AAgents, spawnAgent, removeAgent, updateAgent, setAgents } = useAgentStore();
+
     const chatBoxRef = useRef<ChatBoxRef>(null);
-    const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
-
-    // Build mode state
-    type TileLayers = {
-        layer0: { [key: string]: string };
-        layer1: { [key: string]: string };
-        layer2: { [key: string]: string };
-    };
-
-    const [customTiles, setCustomTiles] = useState<TileLayers>({
-        layer0: {},
-        layer1: {},
-        layer2: {}
-    });
-    const [selectedImage, setSelectedImage] = useState<string | null>(null);
-    const [buildMode, setBuildMode] = useState<'select' | 'paint'>('select');
-    const [isPublishing, setIsPublishing] = useState(false);
-    const [publishStatus, setPublishStatus] = useState<{
-        type: 'success' | 'error';
-        message: string;
-    } | null>(null);
-    const [publishedTiles, setPublishedTiles] = useState<TileLayers>({
-        layer0: {},
-        layer1: {},
-        layer2: {}
-    });
-
-    // A2A Agent management state
-    const [spawnedA2AAgents, setSpawnedA2AAgents] = useState<{
-        [agentUrl: string]: AgentState;
-    }>({});
 
     // Load custom tiles when userId is available
     useEffect(() => {
@@ -201,7 +186,7 @@ export default function Home() {
                 agentNames: agentsInRange.map((agent) => agent.name)
             });
 
-            setBroadcastMessage('');
+            clearBroadcastMessage();
 
             // Create thread and send message if there are agents in range
             if (agentsInRange.length > 0 && chatBoxRef.current) {
@@ -216,7 +201,7 @@ export default function Home() {
                 };
 
                 // Add to threads list and set as current thread
-                setThreads((prev) => [newThread, ...prev]);
+                addThread(newThread);
                 setCurrentThreadId(threadId);
 
                 try {
@@ -235,9 +220,7 @@ export default function Home() {
             }
 
             // Clear broadcast status after 5 seconds
-            setTimeout(() => {
-                setBroadcastStatus(null);
-            }, 5000);
+            clearBroadcastStatusAfterDelay(5000);
         }
     };
 
@@ -302,9 +285,7 @@ export default function Home() {
             setBuildMode('select');
 
             // Clear status after 5 seconds
-            setTimeout(() => {
-                setPublishStatus(null);
-            }, 5000);
+            clearPublishStatusAfterDelay(5000);
         } catch (error) {
             console.error('Failed to publish custom tiles:', error);
             setPublishStatus({
@@ -313,9 +294,7 @@ export default function Home() {
             });
 
             // Clear status after 5 seconds
-            setTimeout(() => {
-                setPublishStatus(null);
-            }, 5000);
+            clearPublishStatusAfterDelay(5000);
         } finally {
             setIsPublishing(false);
         }
@@ -332,21 +311,16 @@ export default function Home() {
         const spawnY = worldPosition.y + Math.floor(Math.random() * 6) - 3;
 
         // Add to spawned A2A agents for UI tracking
-        setSpawnedA2AAgents((prev) => ({
-            ...prev,
-            [importedAgent.url]: {
-                id: agentId,
-                name: importedAgent.card.name || 'A2A Agent',
-                x: spawnX,
-                y: spawnY,
-                color: randomColor,
-                agentUrl: importedAgent.url,
-                lastMoved: Date.now(),
-                behavior: 'A2A Agent',
-                skills: importedAgent.card.skills || [],
-                characterImage: importedAgent.characterImage
-            }
-        }));
+        spawnAgent(importedAgent.url, {
+            id: agentId,
+            name: importedAgent.card.name || 'A2A Agent',
+            x: spawnX,
+            y: spawnY,
+            color: randomColor,
+            agentUrl: importedAgent.url,
+            lastMoved: Date.now(),
+            characterImage: importedAgent.characterImage
+        });
 
         // If there's a character image, place it on layer2
         if (importedAgent.characterImage) {
@@ -363,35 +337,24 @@ export default function Home() {
 
     const handleUploadCharacterImage = (agentUrl: string, imageUrl: string) => {
         // Update the spawned agent's character image
-        setSpawnedA2AAgents((prev) => {
-            const agent = prev[agentUrl];
-            if (!agent) return prev;
+        const agent = spawnedA2AAgents[agentUrl];
+        if (!agent) return;
 
-            // Place character image on layer2 at agent's current position
-            setCustomTiles((prevTiles) => ({
-                ...prevTiles,
-                layer2: {
-                    ...prevTiles.layer2,
-                    [`${agent.x},${agent.y}`]: imageUrl
-                }
-            }));
+        // Place character image on layer2 at agent's current position
+        setCustomTiles((prevTiles) => ({
+            ...prevTiles,
+            layer2: {
+                ...prevTiles.layer2,
+                [`${agent.x},${agent.y}`]: imageUrl
+            }
+        }));
 
-            return {
-                ...prev,
-                [agentUrl]: {
-                    ...agent,
-                    characterImage: imageUrl
-                }
-            };
-        });
+        // Update agent with character image
+        updateAgent(agentUrl, { characterImage: imageUrl });
     };
 
     const handleRemoveAgentFromMap = (agentUrl: string) => {
-        setSpawnedA2AAgents((prev) => {
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            const { [agentUrl]: removed, ...rest } = prev;
-            return rest;
-        });
+        removeAgent(agentUrl);
     };
 
     // Combine existing world agents with spawned A2A agents
@@ -438,9 +401,8 @@ export default function Home() {
     // A2A Agent movement system
     useEffect(() => {
         const moveA2AAgents = () => {
-            setSpawnedA2AAgents((prev) => {
-                const now = Date.now();
-                const updated = { ...prev };
+            const now = Date.now();
+            const updated = { ...spawnedA2AAgents };
 
                 Object.values(updated).forEach((agent) => {
                     // Move agents every 5-10 seconds randomly
@@ -505,15 +467,14 @@ export default function Home() {
                         agent.y = newY;
                         agent.lastMoved = now;
                     }
-                });
-
-                return updated;
             });
+
+            setAgents(updated);
         };
 
         const interval = setInterval(moveA2AAgents, 2000); // Check every 2 seconds
         return () => clearInterval(interval);
-    }, [isLayer1Blocked]);
+    }, [isLayer1Blocked, spawnedA2AAgents, worldAgents, worldPosition, setAgents, setCustomTiles]);
 
     return (
         <div className="flex h-screen w-full flex-col bg-gray-100">
@@ -568,18 +529,9 @@ export default function Home() {
                     onUploadCharacterImage={handleUploadCharacterImage}
                 />
             </div>
-            <Footer
-                activeTab={activeTab}
-                onTabChange={setActiveTab}
-                onClickDialogueBox={() => setIsBottomSheetOpen(true)}
-            />
+            <Footer activeTab={activeTab} onTabChange={setActiveTab} onClickDialogueBox={openBottomSheet} />
 
-            {/* Bottom Sheet for Thread */}
-            <BottomSheet
-                isOpen={isBottomSheetOpen}
-                onClose={() => setIsBottomSheetOpen(false)}
-                title="대화 스레드"
-            >
+            <BottomSheet isOpen={isBottomSheetOpen} onClose={closeBottomSheet}>
                 <ThreadTab
                     isActive={true}
                     chatBoxRef={chatBoxRef}

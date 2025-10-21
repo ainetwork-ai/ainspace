@@ -1,6 +1,7 @@
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { MapDataProvider } from '@/providers/MapDataProvider';
+import type { Metadata } from 'next';
 
 const geistSans = Geist({
     variable: '--font-geist-sans',
@@ -12,6 +13,11 @@ const geistMono = Geist_Mono({
     subsets: ['latin']
 });
 
+export const metadata: Metadata = {
+    title: 'Ainspace',
+    description: 'AI-powered collaborative space'
+};
+
 export default function RootLayout({
     children
 }: Readonly<{
@@ -19,10 +25,6 @@ export default function RootLayout({
 }>) {
     return (
         <html lang="en" suppressHydrationWarning>
-            <head>
-                <title>Ainspace</title>
-                <meta name="description" content="AI-powered collaborative space" />
-            </head>
             <body className={`${geistSans.variable} ${geistMono.variable} antialiased`} suppressHydrationWarning>
                 <MapDataProvider>{children}</MapDataProvider>
             </body>
