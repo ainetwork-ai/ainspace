@@ -14,24 +14,22 @@ type TileLayers = {
     layer2: { [key: string]: string };
 };
 
-// Data structure for multi-tile items
 interface ItemTileData {
     image: string;
-    width: number;  // in tiles
-    height: number; // in tiles
-    topLeftX: number; // original placement X coordinate
-    topLeftY: number; // original placement Y coordinate
-    isSecondaryTile?: boolean; // true for tiles that are not the top-left anchor
+    width: number;
+    height: number;
+    topLeftX: number;
+    topLeftY: number;
+    isSecondaryTile?: boolean;
 }
 
-// Item dimensions mapping (width x height in tiles)
 const ITEM_DIMENSIONS: { [key: number]: { width: number; height: number } } = {
-    0: { width: 6, height: 4 }, // Item 1
-    1: { width: 7, height: 5 }, // Item 2
-    2: { width: 5, height: 3 }, // Item 3
-    3: { width: 4, height: 5 }, // Item 4
-    4: { width: 3, height: 5 }, // Item 5
-    5: { width: 4, height: 5 }  // Item 6
+    0: { width: 5, height: 3 },
+    1: { width: 5, height: 3 },
+    2: { width: 5, height: 3 },
+    3: { width: 3, height: 4 },
+    4: { width: 3, height: 5 },
+    5: { width: 3, height: 4 }
 };
 
 interface BuildTabProps {
@@ -84,9 +82,7 @@ export default function TempBuildTab({
 
     const { setShowCollisionMap, collisionMap, isBlocked, setCollisionMap } = useBuildStore();
 
-    // Preload background images as soon as component mounts for faster rendering
     useEffect(() => {
-        // Preload critical map images
         const preloadImages = ['/map/land_layer_0.png', '/map/land_layer_1.png'];
 
         preloadImages.forEach((src) => {
@@ -99,35 +95,30 @@ export default function TempBuildTab({
         if (isActive) {
             setShowCollisionMap(true);
         } else {
-            // Turn off collision map when leaving the tab
             setShowCollisionMap(false);
-            // Clear unpublished items when leaving the tab
+
             setCustomTiles((prev) => ({
                 layer0: prev.layer0 || {},
                 layer1: {},
                 layer2: prev.layer2 || {}
             }));
             setSelectedItem(null);
-            // Reset placed items tracking when leaving the tab
+
             setPlacedItems(new Set());
         }
     }, [isActive, setShowCollisionMap, setCustomTiles]);
 
-    // Force canvas resize when tab becomes active
     useEffect(() => {
         if (isActive) {
-            // Trigger a resize event to recalculate canvas dimensions
             window.dispatchEvent(new Event('resize'));
         }
     }, [isActive]);
 
-    // Initialize placed items from existing published tiles when component mounts or published tiles change
     useEffect(() => {
         if (!isActive) return;
 
         const placedItemIndices = new Set<number>();
 
-        // Helper function to extract item index from tile data
         const extractItemIndex = (tileData: string | ItemTileData): number | null => {
             let imagePath: string;
             if (typeof tileData === 'string') {
@@ -140,12 +131,11 @@ export default function TempBuildTab({
 
             const match = imagePath.match(/\/tempBuild\/item\/(\d+)\.png/);
             if (match) {
-                return parseInt(match[1]) - 1; // Convert from 1-based to 0-based index
+                return parseInt(match[1]) - 1;
             }
             return null;
         };
 
-        // Check publishedTiles layer1 for already placed items
         if (publishedTiles.layer1) {
             Object.values(publishedTiles.layer1).forEach((tileData) => {
                 const itemIndex = extractItemIndex(tileData);
@@ -155,7 +145,6 @@ export default function TempBuildTab({
             });
         }
 
-        // Check customTiles layer1 for already placed items
         if (customTiles.layer1) {
             Object.values(customTiles.layer1).forEach((tileData) => {
                 const itemIndex = extractItemIndex(tileData);
@@ -180,7 +169,6 @@ export default function TempBuildTab({
 
     const handleItemClick = (index: number) => {
         if (selectedTab === 'item') {
-            // Prevent selecting already placed items
             if (placedItems.has(index)) {
                 return;
             }
@@ -190,13 +178,11 @@ export default function TempBuildTab({
 
     const handleTileClick = (worldX: number, worldY: number) => {
         if (selectedTab === 'item' && selectedItem !== null) {
-            // Check if item is already placed
             if (placedItems.has(selectedItem)) {
                 console.warn(`Item ${selectedItem + 1} has already been placed`);
                 return;
             }
 
-            // Get item dimensions
             const itemDimensions = ITEM_DIMENSIONS[selectedItem];
             if (!itemDimensions) {
                 console.error(`No dimensions defined for item ${selectedItem}`);
@@ -205,7 +191,6 @@ export default function TempBuildTab({
 
             const { width, height } = itemDimensions;
 
-            // Check collision for ALL tiles the item will occupy
             let hasCollision = false;
             const blockedTiles: Array<{ x: number; y: number }> = [];
 
@@ -224,7 +209,7 @@ export default function TempBuildTab({
             if (hasCollision) {
                 console.warn(
                     `Cannot place item ${selectedItem + 1} (${width}x${height}) at (${worldX}, ${worldY}). ` +
-                    `Blocked tiles: ${blockedTiles.map(t => `(${t.x},${t.y})`).join(', ')}`
+                        `Blocked tiles: ${blockedTiles.map((t) => `(${t.x},${t.y})`).join(', ')}`
                 );
                 return;
             }
@@ -234,13 +219,10 @@ export default function TempBuildTab({
             setIsPlayerMoving(true);
             setLastMoveTime(Date.now());
 
-            // Mark this item as placed
             setPlacedItems((prev) => new Set(prev).add(selectedItem));
 
-            // Create item data for all occupied tiles
             const newLayer1Tiles: { [key: string]: ItemTileData } = {};
 
-            // Place the main tile (top-left) with full item data
             const mainKey = `${worldX},${worldY}`;
             newLayer1Tiles[mainKey] = {
                 image: itemImage,
@@ -251,10 +233,8 @@ export default function TempBuildTab({
                 isSecondaryTile: false
             };
 
-            // Place secondary tiles (all other tiles occupied by the item)
             for (let dy = 0; dy < height; dy++) {
                 for (let dx = 0; dx < width; dx++) {
-                    // Skip the top-left tile (already placed)
                     if (dx === 0 && dy === 0) continue;
 
                     const tileX = worldX + dx;
@@ -280,7 +260,6 @@ export default function TempBuildTab({
                 }
             }));
 
-            // Update collision map for all occupied tiles
             const newCollisionMap = { ...collisionMap };
             for (let dy = 0; dy < height; dy++) {
                 for (let dx = 0; dx < width; dx++) {
@@ -292,11 +271,8 @@ export default function TempBuildTab({
             }
             setCollisionMap(newCollisionMap);
 
-            console.log(
-                `Placed item ${selectedItem + 1} (${width}x${height}) at (${worldX}, ${worldY})`
-            );
+            console.log(`Placed item ${selectedItem + 1} (${width}x${height}) at (${worldX}, ${worldY})`);
 
-            // Deselect the item after placing
             setSelectedItem(null);
         }
     };
@@ -309,14 +285,13 @@ export default function TempBuildTab({
 
         const layerKey = `layer${layer}` as keyof TileLayers;
 
-        // Check if the tile is in customTiles
         const isInCustomTiles = customTiles[layerKey] && customTiles[layerKey][key];
 
-        // Check if the tile is in publishedTiles
         const isInPublishedTiles = publishedTiles[layerKey] && publishedTiles[layerKey][key];
 
-        // Helper function to extract item data from tile
-        const getItemDataFromTile = (tileData: string | ItemTileData): {
+        const getItemDataFromTile = (
+            tileData: string | ItemTileData
+        ): {
             itemIndex: number | null;
             itemInfo: ItemTileData | null;
         } => {
@@ -324,13 +299,11 @@ export default function TempBuildTab({
             let itemInfo: ItemTileData | null = null;
 
             if (typeof tileData === 'string') {
-                // Legacy string format
                 const match = tileData.match(/\/tempBuild\/item\/(\d+)\.png/);
                 if (match) {
                     itemIndex = parseInt(match[1]) - 1;
                 }
             } else if (tileData && typeof tileData === 'object') {
-                // New ItemTileData format
                 const match = tileData.image.match(/\/tempBuild\/item\/(\d+)\.png/);
                 if (match) {
                     itemIndex = parseInt(match[1]) - 1;
@@ -341,7 +314,6 @@ export default function TempBuildTab({
             return { itemIndex, itemInfo };
         };
 
-        // Extract item data
         let itemIndexToRelease: number | null = null;
         let itemInfo: ItemTileData | null = null;
 
@@ -355,14 +327,12 @@ export default function TempBuildTab({
             itemInfo = result.itemInfo;
         }
 
-        // Get all tile keys to delete (for multi-tile items)
         const keysToDelete: string[] = [key];
 
         if (itemInfo) {
-            // Multi-tile item - find all tiles occupied by this item
             const { topLeftX, topLeftY, width, height } = itemInfo;
 
-            keysToDelete.length = 0; // Clear the array
+            keysToDelete.length = 0;
             for (let dy = 0; dy < height; dy++) {
                 for (let dx = 0; dx < width; dx++) {
                     const tileX = topLeftX + dx;
@@ -376,7 +346,6 @@ export default function TempBuildTab({
             );
         }
 
-        // Delete from customTiles if it exists there
         if (isInCustomTiles) {
             setCustomTiles((prev) => {
                 const newLayer = { ...prev[layerKey] };
@@ -389,7 +358,6 @@ export default function TempBuildTab({
                 };
             });
 
-            // Make the item available again if it was deleted from customTiles
             if (itemIndexToRelease !== null) {
                 setPlacedItems((prev) => {
                     const newSet = new Set(prev);
@@ -399,7 +367,6 @@ export default function TempBuildTab({
                 console.log(`Item ${itemIndexToRelease + 1} is now available again`);
             }
 
-            // Update collision map to remove all occupied tiles
             if (layer === 1) {
                 const newCollisionMap = { ...collisionMap };
                 keysToDelete.forEach((k) => {
@@ -410,9 +377,7 @@ export default function TempBuildTab({
             }
         }
 
-        // Delete from publishedTiles if it exists there
         if (isInPublishedTiles) {
-            // Update local state first for immediate UI feedback
             setPublishedTiles((prev) => {
                 const newLayer = { ...prev[layerKey] };
                 keysToDelete.forEach((k) => {
@@ -424,7 +389,6 @@ export default function TempBuildTab({
                 };
             });
 
-            // Make the item available again if it was deleted from publishedTiles
             if (itemIndexToRelease !== null) {
                 setPlacedItems((prev) => {
                     const newSet = new Set(prev);
@@ -434,7 +398,6 @@ export default function TempBuildTab({
                 console.log(`Item ${itemIndexToRelease + 1} is now available again`);
             }
 
-            // If deleting a layer1 item from published tiles, update collision map
             if (layer === 1) {
                 const newCollisionMap = { ...collisionMap };
                 keysToDelete.forEach((k) => {
@@ -444,10 +407,8 @@ export default function TempBuildTab({
                 console.log(`Removed collision for ${keysToDelete.length} deleted published tiles`);
             }
 
-            // Persist the deletion to the database
             if (userId) {
                 try {
-                    // Create updated published tiles
                     const updatedPublishedTiles = {
                         layer0: { ...publishedTiles.layer0 },
                         layer1: { ...publishedTiles.layer1 },
@@ -520,9 +481,7 @@ export default function TempBuildTab({
                             playerDirection={playerDirection}
                             playerIsMoving={isPlayerMoving}
                             collisionMap={collisionMap}
-                            selectedItemDimensions={
-                                selectedItem !== null ? ITEM_DIMENSIONS[selectedItem] : null
-                            }
+                            selectedItemDimensions={selectedItem !== null ? ITEM_DIMENSIONS[selectedItem] : null}
                         />
                     </div>
 

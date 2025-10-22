@@ -187,10 +187,19 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             setMessages((prev) => [...prev, systemMessage]);
 
             try {
-                // Get current state from useBuildStore
+                // Call the clear-layer1 API endpoint
+                const response = await fetch('/api/clear-layer1');
+
+                if (!response.ok) {
+                    throw new Error('Failed to clear items from database');
+                }
+
+                const data = await response.json();
+
+                // Update local state from useBuildStore
                 const { setCustomTiles, setPublishedTiles, updateCollisionMapFromImage } = useBuildStore.getState();
 
-                // Step 1: Clear customTiles.layer1 and publishedTiles.layer1
+                // Clear customTiles.layer1 and publishedTiles.layer1
                 setCustomTiles((prev) => ({
                     ...prev,
                     layer1: {}
@@ -201,36 +210,12 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     layer1: {}
                 }));
 
-                // Step 2: Reset collision map to base land_layer_1.png only
+                // Reset collision map to base land_layer_1.png only
                 await updateCollisionMapFromImage('/map/land_layer_1.png');
-
-                // Step 3: Persist to database by sending empty layer1 to API
-                if (userId) {
-                    const response = await fetch('/api/custom-tiles', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            userId: userId,
-                            customTiles: {
-                                layer0: {},
-                                layer1: {}, // Empty layer1
-                                layer2: {}
-                            }
-                        })
-                    });
-
-                    if (!response.ok) {
-                        throw new Error('Failed to persist cleared items to database');
-                    }
-                } else {
-                    console.warn('No userId available, skipping database persistence');
-                }
 
                 const successMessage: Message = {
                     id: `system-${Date.now()}`,
-                    text: 'All items have been cleared! All 6 items are now available for placement again.',
+                    text: `All items have been cleared! Deleted ${data.deletedCount} tiles. All 6 items are now available for placement again.`,
                     timestamp: new Date(),
                     sender: 'system',
                     threadId: undefined
