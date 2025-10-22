@@ -1,26 +1,19 @@
-import { DIRECTION } from '@/constants/game';
 import { AgentSkill } from '@a2a-js/sdk';
 // Removed direct gemini import to ensure server-side only calls
 
 export interface AgentState {
     id: string;
     name: string;
+    color: string;
     x: number;
     y: number;
-    color: string;
     behavior: string;
-    agentUrl?: string; // For A2A agents
+    direction?: 'up' | 'down' | 'left' | 'right';
     lastMoved?: number;
-    direction?: DIRECTION;
     moveInterval?: number;
+    agentUrl?: string; // For A2A agents
     skills?: AgentSkill[];
     characterImage?: string; // FIXME(yoojin): type automatically
-}
-
-export interface A2AAgentState extends AgentState {
-  behavior: 'A2A Agent';
-  agentUrl: string;
-  skills: AgentSkill[];
 }
 
 export interface Message {
@@ -211,12 +204,18 @@ export class WandererAgent extends BaseAgent {
 
 // A2A Agent class - represents imported A2A protocol agents
 export class A2AAgent extends BaseAgent {
-    constructor(initialState: A2AAgentState) {
+    private agentUrl: string;
+
+    constructor(initialState: AgentState) {
         super(initialState);
+        this.agentUrl = initialState.agentUrl || '';
     }
 
-    updateState(newState: Partial<A2AAgentState>): void {
+    updateState(newState: Partial<AgentState>): void {
         super.updateState(newState);
+        if (newState.agentUrl !== undefined) {
+            this.agentUrl = newState.agentUrl;
+        }
     }
 
     async move(): Promise<void> {
@@ -230,20 +229,20 @@ export class A2AAgent extends BaseAgent {
             return null;
         }
 
-        console.log(`A2A Agent ${this.name} processing message with agentUrl:`, this.state.agentUrl || '');
+        console.log(`A2A Agent ${this.name} processing message with agentUrl:`, this.agentUrl);
 
         if (metadata?.agentSkills) {
             metadata.agentSkills = (metadata.agentSkills as AgentSkill[]).filter(agent => agent.name !== this.name);
         }
         
-        if (!this.state.agentUrl) {
+        if (!this.agentUrl) {
             console.error(`A2A Agent ${this.name} has no agentUrl configured`);
             return null;
         }
 
         try {
             const requestBody = {
-                agentUrl: this.state.agentUrl,
+                agentUrl: this.agentUrl,
                 message: `[From player at (${message.playerPosition.x}, ${message.playerPosition.y})]: ${message.content}`,
                 metadata: metadata
             };
@@ -283,16 +282,16 @@ export class A2AAgent extends BaseAgent {
     }
 
     getAgentUrl(): string {
-        return this.state.agentUrl || '';
+        return this.agentUrl;
     }
 
     setAgentUrl(url: string): void {
-        this.state.agentUrl = url;
+        this.agentUrl = url;
     }
 }
 
 // Agent factory function
-export function createAgent(type: string, initialState: AgentState | A2AAgentState): BaseAgent | A2AAgent {
+export function createAgent(type: string, initialState: AgentState): BaseAgent {
     switch (type) {
         case 'random':
             return new ExplorerAgent(initialState);
@@ -301,7 +300,7 @@ export function createAgent(type: string, initialState: AgentState | A2AAgentSta
         case 'explorer':
             return new WandererAgent(initialState);
         case 'A2A Agent':
-            return new A2AAgent(initialState as A2AAgentState);
+            return new A2AAgent(initialState);
         default:
             throw new Error(`Unknown agent type: ${type}`);
     }

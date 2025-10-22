@@ -1,72 +1,81 @@
+import { AgentSkill } from '@a2a-js/sdk';
 import { create } from 'zustand';
-import { A2AAgent, A2AAgentState } from '@/lib/agent';
 
-export interface AgentState {
-    a2aAgents: { [agentUrl: string]: A2AAgent };
+export interface SpawnedA2AAgent {
+    id: string;
+    name: string;
+    x: number;
+    y: number;
+    color: string;
+    agentUrl: string;
+    lastMoved: number;
+    skills?: AgentSkill[];
+    characterImage?: string;
+}
+
+interface AgentState {
+    spawnedA2AAgents: { [agentUrl: string]: SpawnedA2AAgent };
 
     // Actions
-    spawnAgent: (agentUrl: string, agent: A2AAgent) => void;
+    spawnAgent: (agentUrl: string, agent: SpawnedA2AAgent) => void;
     removeAgent: (agentUrl: string) => void;
     updateAgentPosition: (agentUrl: string, x: number, y: number) => void;
     updateAgentCharacterImage: (agentUrl: string, imageUrl: string) => void;
-    setAgents: (agents: { [agentUrl: string]: A2AAgent }) => void;
-    updateAgent: (agentUrl: string, updates: Partial<A2AAgentState>) => void;
+    setAgents: (agents: { [agentUrl: string]: SpawnedA2AAgent }) => void;
+    updateAgent: (agentUrl: string, updates: Partial<SpawnedA2AAgent>) => void;
 }
 
 export const useAgentStore = create<AgentState>((set, get) => ({
-    a2aAgents: {},
+    spawnedA2AAgents: {},
 
     spawnAgent: (agentUrl, agent) =>
         set((state) => ({
-            a2aAgents: {
-                ...state.a2aAgents,
+            spawnedA2AAgents: {
+                ...state.spawnedA2AAgents,
                 [agentUrl]: agent
             }
         })),
 
     removeAgent: (agentUrl) =>
         set((state) => {
-            const { [agentUrl]: removed, ...rest } = state.a2aAgents;
-            return { a2aAgents: rest };
+            const { [agentUrl]: removed, ...rest } = state.spawnedA2AAgents;
+            return { spawnedA2AAgents: rest };
         }),
 
     updateAgentPosition: (agentUrl, x, y) =>
         set((state) => {
-            const agent = state.a2aAgents[agentUrl];
+            const agent = state.spawnedA2AAgents[agentUrl];
             if (!agent) return state;
-            agent.updateState({ x, y, lastMoved: Date.now() });
             return {
-                a2aAgents: {
-                    ...state.a2aAgents,
-                    [agentUrl]: agent
+                spawnedA2AAgents: {
+                    ...state.spawnedA2AAgents,
+                    [agentUrl]: { ...agent, x, y, lastMoved: Date.now() }
                 }
             };
         }),
 
     updateAgentCharacterImage: (agentUrl, imageUrl) =>
         set((state) => {
-            const agent = state.a2aAgents[agentUrl];
+            const agent = state.spawnedA2AAgents[agentUrl];
             if (!agent) return state;
-            agent.updateState({ characterImage: imageUrl });
             return {
-                a2aAgents: {
-                    ...state.a2aAgents,
-                    [agentUrl]: agent
+                spawnedA2AAgents: {
+                    ...state.spawnedA2AAgents,
+                    [agentUrl]: { ...agent, characterImage: imageUrl }
                 }
             };
         }),
 
-    setAgents: (a2aAgents) => set({ a2aAgents: a2aAgents }),
+    setAgents: (agents) => set({ spawnedA2AAgents: agents }),
 
     updateAgent: (agentUrl, updates) =>
         set((state) => {
-            const agent = state.a2aAgents[agentUrl];
+            const agent = state.spawnedA2AAgents[agentUrl];
             if (!agent) return state;
-            agent.updateState({ ...updates });
             return {
-                a2aAgents: {
-                    ...state.a2aAgents,
-                    [agentUrl]: agent
+                spawnedA2AAgents: {
+                    ...state.spawnedA2AAgents,
+                    [agentUrl]: { ...agent, ...updates }
                 }
             };
         })
