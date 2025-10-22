@@ -30,6 +30,7 @@ interface ChatBoxProps {
         agentNames: string[];
     }>;
     onThreadSelect?: (threadId: string | undefined) => void;
+    onResetLocation?: () => void;
 }
 
 export interface ChatBoxRef {
@@ -37,7 +38,7 @@ export interface ChatBoxRef {
 }
 
 const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
-    { className = '', aiCommentary, agents = [], playerWorldPosition, currentThreadId },
+    { className = '', aiCommentary, agents = [], playerWorldPosition, currentThreadId, onResetLocation },
     ref
 ) {
     const [messages, setMessages] = useState<Message[]>([]);
@@ -151,6 +152,28 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         } else if (inputValue.trim() === 'exit') {
             setShowCollisionMap(false);
             setInputValue('');
+        } else if (inputValue.trim() === 'reset location') {
+            setInputValue('');
+            if (onResetLocation) {
+                onResetLocation();
+                const systemMessage: Message = {
+                    id: `system-${Date.now()}`,
+                    text: 'Player and agents have been reset to their initial positions (63, 58).',
+                    timestamp: new Date(),
+                    sender: 'system',
+                    threadId: undefined
+                };
+                setMessages((prev) => [...prev, systemMessage]);
+            } else {
+                const errorMessage: Message = {
+                    id: `system-${Date.now()}`,
+                    text: 'Reset location is not available.',
+                    timestamp: new Date(),
+                    sender: 'system',
+                    threadId: undefined
+                };
+                setMessages((prev) => [...prev, errorMessage]);
+            }
         } else if (inputValue.trim() === 'update layer1') {
             setInputValue('');
             const systemMessage: Message = {

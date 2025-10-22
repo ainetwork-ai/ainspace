@@ -26,6 +26,7 @@ export default function Home() {
         worldAgents,
         isAutonomous,
         toggleAutonomous,
+        resetLocation,
         lastCommentary,
         playerDirection,
         isPlayerMoving
@@ -147,6 +148,14 @@ export default function Home() {
     // Keyboard handling for player movement (works alongside joystick)
     useEffect(() => {
         const handleKeyPress = (event: KeyboardEvent) => {
+            // Reset location with Ctrl+R
+            if (event.ctrlKey && event.key.toLowerCase() === 'r') {
+                event.preventDefault();
+                resetLocation();
+                console.log('Location reset to initial position (63, 58)');
+                return;
+            }
+
             if (isLoading || isAutonomous) return;
 
             switch (event.key) {
@@ -171,7 +180,7 @@ export default function Home() {
 
         window.addEventListener('keydown', handleKeyPress);
         return () => window.removeEventListener('keydown', handleKeyPress);
-    }, [handleMobileMove, isLoading, isAutonomous]);
+    }, [handleMobileMove, isLoading, isAutonomous, resetLocation]);
 
     const handleBroadcast = async () => {
         if (broadcastMessage.trim()) {
@@ -514,6 +523,7 @@ export default function Home() {
                     userId={userId}
                     isLoading={isLoading}
                     toggleAutonomous={toggleAutonomous}
+                    resetLocation={resetLocation}
                     playerDirection={playerDirection}
                     playerIsMoving={isPlayerMoving}
                     collisionMap={globalCollisionMap}
@@ -559,6 +569,7 @@ export default function Home() {
                     currentThreadId={currentThreadId || undefined}
                     threads={threads}
                     onThreadSelect={setCurrentThreadId}
+                    onResetLocation={resetLocation}
                 />
             </BottomSheet>
         </div>

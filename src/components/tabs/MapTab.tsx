@@ -50,6 +50,7 @@ interface MapTabProps {
     userId: string | null;
     isLoading: boolean;
     toggleAutonomous: () => void;
+    resetLocation: () => void;
     playerDirection: 'up' | 'down' | 'left' | 'right';
     playerIsMoving?: boolean;
     collisionMap: { [key: string]: boolean };
@@ -74,6 +75,7 @@ export default function MapTab({
     userId,
     isLoading,
     toggleAutonomous,
+    resetLocation,
     playerDirection,
     playerIsMoving = false,
     collisionMap

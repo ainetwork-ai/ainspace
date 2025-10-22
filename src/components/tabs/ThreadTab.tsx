@@ -26,6 +26,7 @@ interface ThreadTabProps {
         agentNames: string[];
     }[];
     onThreadSelect: (threadId: string | undefined) => void;
+    onResetLocation?: () => void;
 }
 
 export default function ThreadTab({
@@ -36,7 +37,8 @@ export default function ThreadTab({
     worldPosition,
     currentThreadId,
     threads,
-    onThreadSelect
+    onThreadSelect,
+    onResetLocation
 }: ThreadTabProps) {
     return (
         <BaseTabContent isActive={isActive} withPadding={false}>
@@ -49,6 +51,7 @@ export default function ThreadTab({
                 currentThreadId={currentThreadId}
                 threads={threads}
                 onThreadSelect={onThreadSelect}
+                onResetLocation={onResetLocation}
             />
         </BaseTabContent>
     );

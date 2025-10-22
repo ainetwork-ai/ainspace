@@ -665,6 +665,28 @@ export default function TileMap({
                             shouldAnimate={agentIsMoving}
                             startFrame={agentStartFrame}
                         />
+                        {/* Show agent coordinates when grid is visible */}
+                        {showCollisionMap && agent.x !== undefined && agent.y !== undefined && (
+                            <div
+                                style={{
+                                    position: 'absolute',
+                                    bottom: '-18px',
+                                    left: '50%',
+                                    transform: 'translateX(-50%)',
+                                    fontSize: '11px',
+                                    fontWeight: 'bold',
+                                    color: '#fff',
+                                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                    whiteSpace: 'nowrap',
+                                    zIndex: 20,
+                                    pointerEvents: 'none'
+                                }}
+                            >
+                                ({agent.x}, {agent.y})
+                            </div>
+                        )}
                     </div>
                 );
             })}
@@ -699,6 +721,28 @@ export default function TileMap({
                             shouldAnimate={playerIsMoving}
                             startFrame={playerStartFrame}
                         />
+                        {/* Show player coordinates when grid is visible */}
+                        {showCollisionMap && (
+                            <div
+                                style={{
+                                    position: 'absolute',
+                                    bottom: '-18px',
+                                    left: '50%',
+                                    transform: 'translateX(-50%)',
+                                    fontSize: '11px',
+                                    fontWeight: 'bold',
+                                    color: '#fff',
+                                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                    whiteSpace: 'nowrap',
+                                    zIndex: 20,
+                                    pointerEvents: 'none'
+                                }}
+                            >
+                                ({worldPosition.x}, {worldPosition.y})
+                            </div>
+                        )}
                     </div>
                 );
             })()}
