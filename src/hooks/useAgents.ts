@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useMapData } from '@/providers/MapDataProvider';
 import { Agent } from '@/lib/world';
 import { useLayer1Collision } from '@/hooks/useLayer1Collision';
+import { useBuildStore } from '@/stores';
 import { MAP_TILES, TILE_SIZE } from '@/constants/game';
 
 export interface AgentInternal extends Agent {
@@ -24,13 +25,14 @@ interface UseAgentsProps {
 export function useAgents({ playerWorldPosition }: UseAgentsProps) {
     const { generateTileAt } = useMapData();
     const { isBlocked: isLayer1Blocked } = useLayer1Collision('/map/land_layer_1.png');
+    const { isBlocked: isBuildStoreBlocked } = useBuildStore();
 
     // Initial agent positions near player start location (63, 58)
     const initialAgents: AgentInternal[] = [
         {
             id: 'agent-1',
             x: 58,
-            y: 66,
+            y: 67,
             color: '#00FF00',
             name: 'Explorer Bot',
             direction: 'right',
@@ -44,7 +46,7 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
         {
             id: 'agent-2',
             x: 67,
-            y: 48,
+            y: 49,
             color: '#FF6600',
             name: 'Patrol Bot',
             direction: 'up',
@@ -58,7 +60,7 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
         {
             id: 'agent-3',
             x: 82,
-            y: 80,
+            y: 81,
             color: '#9933FF',
             name: 'Wanderer',
             direction: 'left',
@@ -93,9 +95,10 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
             const tileType = generateTileAt(x, y);
             if (tileType === 3) return false;
             if (isLayer1Blocked(x, y)) return false;
+            if (isBuildStoreBlocked(x, y)) return false;
             return true;
         },
-        [generateTileAt, isLayer1Blocked, playerWorldPosition]
+        [generateTileAt, isLayer1Blocked, isBuildStoreBlocked, playerWorldPosition]
     );
 
     const getRandomDirection = (): 'up' | 'down' | 'left' | 'right' => {

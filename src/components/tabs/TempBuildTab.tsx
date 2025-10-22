@@ -90,6 +90,14 @@ export default function TempBuildTab({
         }
     }, [isActive, setShowCollisionMap, setCustomTiles]);
 
+    // Force canvas resize when tab becomes active
+    useEffect(() => {
+        if (isActive) {
+            // Trigger a resize event to recalculate canvas dimensions
+            window.dispatchEvent(new Event('resize'));
+        }
+    }, [isActive]);
+
     useEffect(() => {
         if (!isPlayerMoving) return;
 
@@ -209,8 +217,6 @@ export default function TempBuildTab({
         }
     };
 
-    // Memoize the merged customTiles prop to prevent unnecessary TileMap re-renders
-    // This is a performance optimization as the object spread operation creates new objects on every render
     const mergedCustomTiles = useMemo(() => {
         return {
             layer0: { ...(publishedTiles.layer0 || {}), ...(customTiles.layer0 || {}) },
@@ -234,26 +240,24 @@ export default function TempBuildTab({
 
                     <div
                         className="mb-4 w-full overflow-hidden rounded-lg"
-                        style={{ minHeight: '500px', height: '70vh' }}
+                        style={{ height: '70vh', minHeight: '500px' }}
                     >
-                        <div className="h-full w-full">
-                            <TileMap
-                                mapData={mapData}
-                                tileSize={tileSize}
-                                playerPosition={playerPosition}
-                                worldPosition={worldPosition}
-                                agents={visibleAgents}
-                                customTiles={mergedCustomTiles}
-                                buildMode={selectedTab === 'item' ? 'paint' : 'view'}
-                                backgroundImageSrc="/map/land_layer_0.png"
-                                layer1ImageSrc="/map/land_layer_1.png"
-                                onTileClick={selectedTab === 'item' ? handleTileClick : undefined}
-                                onDeleteTile={selectedTab === 'item' ? handleDeleteTile : undefined}
-                                playerDirection={playerDirection}
-                                playerIsMoving={isPlayerMoving}
-                                collisionMap={collisionMap}
-                            />
-                        </div>
+                        <TileMap
+                            mapData={mapData}
+                            tileSize={tileSize}
+                            playerPosition={playerPosition}
+                            worldPosition={worldPosition}
+                            agents={visibleAgents}
+                            customTiles={mergedCustomTiles}
+                            buildMode={selectedTab === 'item' ? 'paint' : 'view'}
+                            backgroundImageSrc="/map/land_layer_0.png"
+                            layer1ImageSrc="/map/land_layer_1.png"
+                            onTileClick={selectedTab === 'item' ? handleTileClick : undefined}
+                            onDeleteTile={selectedTab === 'item' ? handleDeleteTile : undefined}
+                            playerDirection={playerDirection}
+                            playerIsMoving={isPlayerMoving}
+                            collisionMap={collisionMap}
+                        />
                     </div>
 
                     <div className="flex w-full flex-row gap-0 self-stretch">

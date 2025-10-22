@@ -104,24 +104,29 @@ function TileMap({
         img.src = layer1ImageSrc;
     }, [layer1ImageSrc]);
 
-    // Detect canvas size based on container
     useEffect(() => {
         const updateCanvasSize = () => {
             if (containerRef.current) {
                 const rect = containerRef.current.getBoundingClientRect();
-                setCanvasSize({
-                    width: rect.width,
-                    height: rect.height
-                });
+
+                if (rect.width > 0 && rect.height > 0) {
+                    setCanvasSize({
+                        width: rect.width,
+                        height: rect.height
+                    });
+                }
             }
         };
 
+        const timeoutId = setTimeout(updateCanvasSize, 100);
         updateCanvasSize();
         window.addEventListener('resize', updateCanvasSize);
-        return () => window.removeEventListener('resize', updateCanvasSize);
+        return () => {
+            clearTimeout(timeoutId);
+            window.removeEventListener('resize', updateCanvasSize);
+        };
     }, []);
 
-    // Toggle collision map display with Ctrl+J
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.ctrlKey && event.key === 'j') {
@@ -134,17 +139,14 @@ function TileMap({
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [toggleCollisionMap]);
 
-    // Check if customTiles is using layer structure
     const isLayeredTiles = (tiles: TileLayers | { [key: string]: string }): tiles is TileLayers => {
         return tiles && typeof tiles === 'object' && ('layer0' in tiles || 'layer1' in tiles || 'layer2' in tiles);
     };
 
-    // Load custom tile images
     useEffect(() => {
         let imagesToLoad: string[] = [];
 
         if (isLayeredTiles(customTiles)) {
-            // Extract images from all layers
             Object.keys(customTiles).forEach((layerKey) => {
                 const layer = customTiles[layerKey as keyof TileLayers];
                 if (layer) {
@@ -152,7 +154,6 @@ function TileMap({
                 }
             });
         } else {
-            // Legacy single layer support
             imagesToLoad = Object.values(customTiles);
         }
 
@@ -170,7 +171,6 @@ function TileMap({
         });
     }, [customTiles]);
 
-    // Convert mouse event to world coordinates
     const getWorldCoordinatesFromEvent = (event: React.MouseEvent<HTMLCanvasElement>) => {
         const canvas = canvasRef.current;
         if (!canvas) return null;
@@ -835,7 +835,7 @@ function TileMap({
                                                 e.stopPropagation();
                                                 onDeleteTile(layer1Tile.layer, layer1Tile.key);
                                             }}
-                                            className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center text-red-500 opacity-0 drop-shadow-lg transition-all hover:scale-125 hover:text-red-600 group-hover:opacity-100"
+                                            className="absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center text-red-500 opacity-0 drop-shadow-lg transition-all group-hover:opacity-100 hover:scale-125 hover:text-red-600"
                                             style={{
                                                 fontSize: '36px',
                                                 fontWeight: 'bold',
