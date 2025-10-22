@@ -147,12 +147,21 @@ export default function AgentTab({
                 <div className="inline-flex flex-col justify-start gap-2 self-stretch">
                     <p className="text-left text-sm text-[#838d9d]">Example Agent</p>
                     <div className="flex w-full flex-col items-start justify-start gap-2 rounded bg-[#faf4fe] px-2.5 py-2 outline-1 outline-offset-[-1px] outline-[#d7c1e5]">
-                        <div className="inline-flex items-center justify-between self-stretch">
-                            <p className="justify-start text-sm text-[#b58dd2]">https://ryu-seong-ryong.vercel...</p>
-                            <div className="flex items-center justify-center gap-1 rounded bg-white px-3 py-2 outline-1 outline-[#cdd4de]">
+                        <div className="inline-flex items-center justify-between gap-2 self-stretch">
+                            <p className="flex-1 justify-start truncate text-sm text-[#b58dd2]">
+                                https://a2a-agent-builder.vercel.app/api/agents/ryu-seong-ryong-1760653693783/.well-known/agent.json
+                            </p>
+                            <button
+                                onClick={() =>
+                                    navigator.clipboard.writeText(
+                                        'https://a2a-agent-builder.vercel.app/api/agents/ryu-seong-ryong-1760653693783/.well-known/agent.json'
+                                    )
+                                }
+                                className="flex cursor-pointer items-center justify-center gap-1 rounded bg-white px-3 py-2 outline-1 outline-[#cdd4de]"
+                            >
                                 <Image src="/agent/copy.svg" alt="Copy" width={16} height={16} />
                                 <p className="justify-start text-xs text-black">Copy Link</p>
-                            </div>
+                            </button>
                         </div>
                     </div>
                 </div>
