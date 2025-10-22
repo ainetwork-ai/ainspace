@@ -528,7 +528,20 @@ export default function Home() {
                     playerIsMoving={isPlayerMoving}
                     collisionMap={globalCollisionMap}
                 />
-                <TempBuildTab isActive={activeTab === 'build'} />
+                <TempBuildTab
+                    isActive={activeTab === 'build'}
+                    mapData={mapData}
+                    playerPosition={playerPosition}
+                    worldPosition={worldPosition}
+                    visibleAgents={combinedVisibleAgents}
+                    publishedTiles={publishedTiles}
+                    customTiles={customTiles}
+                    setCustomTiles={setCustomTiles}
+                    isPublishing={isPublishing}
+                    publishStatus={publishStatus}
+                    userId={userId}
+                    onPublishTiles={handlePublishTiles}
+                />
                 {/* <BuildTab
                     isActive={activeTab === 'build'}
                     mapData={mapData}
