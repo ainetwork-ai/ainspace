@@ -863,6 +863,24 @@ function TileMap({
 
                         const rect = canvas.getBoundingClientRect();
                         const scaleX = canvas.width / rect.width;
+                        const scaleY = canvas.height / rect.height;
+
+                        const canvasX = mousePosition.x * scaleX;
+                        const canvasY = mousePosition.y * scaleY;
+
+                        const screenTileX = Math.floor(canvasX / tileSize);
+                        const screenTileY = Math.floor(canvasY / tileSize);
+
+                        const worldX = Math.floor(cameraTileX + screenTileX);
+                        const worldY = Math.floor(cameraTileY + screenTileY);
+
+                        const isBlockedTile = collisionMap[`${worldX},${worldY}`] === true;
+
+                        if (!isBlockedTile) return null;
+
+                        // Calculate actual screen tile size to match grid alignment
+                        // This ensures the red border aligns perfectly with the grid, just like items do
+                        const screenTileWidth = canvas.width / tilesX;
                         const screenTileHeight = canvas.height / tilesY;
 
                         return (

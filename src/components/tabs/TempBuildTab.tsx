@@ -214,6 +214,7 @@ export default function TempBuildTab({
     const mergedCustomTiles = useMemo(() => {
         return {
             layer0: { ...(publishedTiles.layer0 || {}), ...(customTiles.layer0 || {}) },
+            layer1: { ...(publishedTiles.layer1 || {}), ...(customTiles.layer1 || {}) },
             layer2: { ...(publishedTiles.layer2 || {}), ...(customTiles.layer2 || {}) }
         };
     }, [publishedTiles, customTiles]);
