@@ -31,16 +31,15 @@ export default function Footer({ activeTab, onTabChange, onClickDialogueBox }: F
             <div className="border-t border-black bg-black">
                 <div className="flex h-[72px] w-full">
                     <button
-                        onClick={() => onTabChange('build')}
+                        onClick={() => onTabChange('agent')}
                         className={cn(
                             'flex flex-1 cursor-pointer flex-col items-center justify-center gap-1 rounded font-medium transition-colors',
-                            activeTab === 'build' ? 'text-gray-100' : 'bg-[#424049] text-white'
+                            activeTab === 'agent' ? 'text-gray-100' : 'bg-[#424049] text-white'
                         )}
                     >
-                        <Image src="/footer/bottomTab/tab_icon_build.png" alt="Build" width={46} height={40} />
-                        <p className={'text-xs font-bold text-white'}>Build</p>
+                        <Image src="/footer/bottomTab/tab_icon_agent.png" alt="Agent" width={46} height={40} />
+                        <p className={'text-xs font-bold text-white'}>Agent</p>
                     </button>
-
                     <button
                         onClick={() => onTabChange('map')}
                         className={cn(
@@ -52,14 +51,14 @@ export default function Footer({ activeTab, onTabChange, onClickDialogueBox }: F
                         <p className={'text-xs font-bold text-white'}>Map</p>
                     </button>
                     <button
-                        onClick={() => onTabChange('agent')}
+                        onClick={() => onTabChange('build')}
                         className={cn(
                             'flex flex-1 cursor-pointer flex-col items-center justify-center gap-1 rounded font-medium transition-colors',
-                            activeTab === 'agent' ? 'text-gray-100' : 'bg-[#424049] text-white'
+                            activeTab === 'build' ? 'text-gray-100' : 'bg-[#424049] text-white'
                         )}
                     >
-                        <Image src="/footer/bottomTab/tab_icon_agent.png" alt="Agent" width={46} height={40} />
-                        <p className={'text-xs font-bold text-white'}>Agent</p>
+                        <Image src="/footer/bottomTab/tab_icon_build.png" alt="Build" width={46} height={40} />
+                        <p className={'text-xs font-bold text-white'}>Build</p>
                     </button>
                 </div>
             </div>

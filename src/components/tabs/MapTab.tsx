@@ -7,6 +7,7 @@ import PlayerJoystick from '@/components/controls/PlayerJoystick';
 import { DIRECTION, TILE_SIZE } from '@/constants/game';
 import { useAgentStore, useUIStore } from '@/stores';
 import { useGameState } from '@/hooks/useGameState';
+import { TileLayers, useBuildStore } from '@/stores/useBuildStore';
 
 interface MapTabProps {
     isActive: boolean;
@@ -17,16 +18,10 @@ interface MapTabProps {
         color: string;
         name: string;
     }>;
-    publishedTiles: {
-        layer0: { [key: string]: string };
-        layer1: { [key: string]: string };
-        layer2: { [key: string]: string };
-    };
-    customTiles: {
-        layer0: { [key: string]: string };
-        layer1: { [key: string]: string };
-        layer2: { [key: string]: string };
-    };
+    publishedTiles: TileLayers;
+    customTiles: TileLayers;
+    isAutonomous: boolean;
+    onMobileMove: (direction: 'up' | 'down' | 'left' | 'right') => void;
     broadcastMessage: string;
     setBroadcastMessage: (message: string) => void;
     onBroadcast: () => void;
@@ -74,6 +69,8 @@ export default function MapTab({
         isPlayerMoving
     } = useGameState();
 
+    const { isBlocked: globalIsBlocked } = useBuildStore();
+
     const handleMobileMove = useCallback(
       (direction: DIRECTION) => {
           if (isAutonomous) return;
@@ -97,6 +94,12 @@ export default function MapTab({
               case DIRECTION.STOP:
               default:
                   break;
+          }
+
+          // Check if tile is blocked by collision map
+          if (globalIsBlocked(newX, newY)) {
+              console.log(`Movement blocked: tile (${newX}, ${newY}) is blocked by collision`);
+              return;
           }
 
           // Check if A2A agent is at this position

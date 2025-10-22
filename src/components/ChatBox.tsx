@@ -31,6 +31,7 @@ interface ChatBoxProps {
     }>;
     onThreadSelect?: (threadId: string | undefined) => void;
     onResetLocation?: () => void;
+    userId?: string | null;
 }
 
 export interface ChatBoxRef {
@@ -47,7 +48,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     const [filteredAgents, setFilteredAgents] = useState<Agent[]>([]);
     const [cursorPosition, setCursorPosition] = useState(0);
     const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
-    const { showCollisionMap, setShowCollisionMap, updateCollisionMapFromImage } = useBuildStore();
+    const { showCollisionMap, setShowCollisionMap, updateCollisionMapFromImage, publishedTiles, setCollisionMap } = useBuildStore();
     const inputRef = useRef<HTMLInputElement>(null);
 
     const { playerPosition } = useGameState();
@@ -78,7 +79,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
 
             nextAgentRequest.forEach(async (req) => {
                 worldSendMessage(req, agentMessage.threadId);
-            })
+            });
         }
     });
 
@@ -176,11 +177,11 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 };
                 setMessages((prev) => [...prev, errorMessage]);
             }
-        } else if (inputValue.trim() === 'update layer1') {
+        } else if (inputValue.trim() === 'clear items') {
             setInputValue('');
             const systemMessage: Message = {
                 id: `system-${Date.now()}`,
-                text: 'Updating collision map from land_layer_1.png...',
+                text: 'Clearing all placed items...',
                 timestamp: new Date(),
                 sender: 'system',
                 threadId: undefined
@@ -188,10 +189,100 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             setMessages((prev) => [...prev, systemMessage]);
 
             try {
+                // Get current state from useBuildStore
+                const { setCustomTiles, setPublishedTiles, updateCollisionMapFromImage } = useBuildStore.getState();
+
+                // Step 1: Clear customTiles.layer1 and publishedTiles.layer1
+                setCustomTiles((prev) => ({
+                    ...prev,
+                    layer1: {}
+                }));
+
+                setPublishedTiles((prev) => ({
+                    ...prev,
+                    layer1: {}
+                }));
+
+                // Step 2: Reset collision map to base land_layer_1.png only
                 await updateCollisionMapFromImage('/map/land_layer_1.png');
+
+                // Step 3: Persist to database by sending empty layer1 to API
+                if (userId) {
+                    const response = await fetch('/api/custom-tiles', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            userId: userId,
+                            customTiles: {
+                                layer0: {},
+                                layer1: {}, // Empty layer1
+                                layer2: {}
+                            }
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Failed to persist cleared items to database');
+                    }
+                } else {
+                    console.warn('No userId available, skipping database persistence');
+                }
+
                 const successMessage: Message = {
                     id: `system-${Date.now()}`,
-                    text: 'Collision map updated successfully! Use "show me grid" to view.',
+                    text: 'All items have been cleared! All 6 items are now available for placement again.',
+                    timestamp: new Date(),
+                    sender: 'system',
+                    threadId: undefined
+                };
+                setMessages((prev) => [...prev, successMessage]);
+            } catch (error) {
+                const errorMessage: Message = {
+                    id: `system-${Date.now()}`,
+                    text: `Failed to clear items: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                    timestamp: new Date(),
+                    sender: 'system',
+                    threadId: undefined
+                };
+                setMessages((prev) => [...prev, errorMessage]);
+            }
+        } else if (inputValue.trim() === 'update layer1') {
+            setInputValue('');
+            const systemMessage: Message = {
+                id: `system-${Date.now()}`,
+                text: 'Updating collision map from land_layer_1.png and published tiles...',
+                timestamp: new Date(),
+                sender: 'system',
+                threadId: undefined
+            };
+            setMessages((prev) => [...prev, systemMessage]);
+
+            try {
+                // Step 1: Update collision map from land_layer_1.png image
+                await updateCollisionMapFromImage('/map/land_layer_1.png');
+
+                // Step 2: Get the updated collision map and merge with published layer1 items
+                const currentCollisionMap = useBuildStore.getState().collisionMap;
+                const layer1Items = publishedTiles.layer1 || {};
+
+                // Combine both sources
+                const mergedCollisionMap: { [key: string]: boolean } = { ...currentCollisionMap };
+                Object.keys(layer1Items).forEach((key) => {
+                    mergedCollisionMap[key] = true;
+                });
+
+                // Update the collision map with merged data
+                setCollisionMap(mergedCollisionMap);
+
+                const imageBlockedCount = Object.keys(currentCollisionMap).length;
+                const layer1ItemsCount = Object.keys(layer1Items).length;
+                const totalBlockedCount = Object.keys(mergedCollisionMap).length;
+
+                const successMessage: Message = {
+                    id: `system-${Date.now()}`,
+                    text: `Collision map updated successfully! ${imageBlockedCount} tiles from image + ${layer1ItemsCount} published items = ${totalBlockedCount} total blocked tiles. Use "show me grid" to view.`,
                     timestamp: new Date(),
                     sender: 'system',
                     threadId: undefined
@@ -440,6 +531,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                         value={inputValue}
                         onChange={handleInputChange}
                         onKeyDown={handleKeyPress}
+                        autoFocus={true}
                         placeholder="Typing Message..."
                         className="flex-1 bg-transparent text-sm leading-tight text-white placeholder-white/40 focus:outline-none"
                     />

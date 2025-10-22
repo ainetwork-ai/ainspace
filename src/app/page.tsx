@@ -89,6 +89,20 @@ export default function Home() {
                             Object.keys(data.tiles.layer1 || {}).length +
                             Object.keys(data.tiles.layer2 || {}).length;
                         console.log(`Loaded ${totalTiles} published tiles from server`);
+
+                        // Also update collision map with existing layer1 items
+                        const layer1Items = data.tiles.layer1 || {};
+
+                        // Get current collision map from store to avoid dependency
+                        const currentCollisionMap = useBuildStore.getState().collisionMap;
+                        const existingCollisionTiles: { [key: string]: boolean } = { ...currentCollisionMap };
+
+                        Object.keys(layer1Items).forEach((key) => {
+                            existingCollisionTiles[key] = true;
+                        });
+
+                        setCollisionMap(existingCollisionTiles);
+                        console.log(`Updated collision map with ${Object.keys(layer1Items).length} existing blocked tiles`);
                     }
                 }
             } catch (error) {
@@ -97,7 +111,7 @@ export default function Home() {
         };
 
         loadCustomTiles();
-    }, [userId]);
+    }, [userId, setPublishedTiles, setCollisionMap]);
 
 
     const handleBroadcast = async () => {
@@ -210,10 +224,6 @@ export default function Home() {
             }
 
             const data = await response.json();
-            setPublishStatus({
-                type: 'success',
-                message: `Published ${data.tileCount} custom tiles successfully!`
-            });
 
             // Move custom tiles to published tiles and reset build state
             setPublishedTiles((prev) => ({
@@ -221,6 +231,28 @@ export default function Home() {
                 layer1: { ...(prev.layer1 || {}), ...(customTiles.layer1 || {}) },
                 layer2: { ...(prev.layer2 || {}), ...(customTiles.layer2 || {}) }
             }));
+
+            // Update collision map based on newly placed layer1 items
+            // For each placed item in layer1, we need to analyze its pixels to determine blocked tiles
+            const layer1Items = customTiles.layer1 || {};
+
+            // Get current collision map from store
+            const currentCollisionMap = useBuildStore.getState().collisionMap;
+            const newCollisionTiles: { [key: string]: boolean } = { ...currentCollisionMap };
+
+            // Mark all placed item positions as blocked
+            Object.keys(layer1Items).forEach((key) => {
+                newCollisionTiles[key] = true;
+            });
+
+            setCollisionMap(newCollisionTiles);
+            console.log(`Updated collision map with ${Object.keys(layer1Items).length} new blocked tiles from published items`);
+
+            setPublishStatus({
+                type: 'success',
+                message: `Published ${data.tileCount} custom tiles successfully!`
+            });
+
             setCustomTiles({ layer0: {}, layer1: {}, layer2: {} }); // Clear draft tiles since they're now published
             setSelectedImage(null);
             setBuildMode('select');
@@ -247,9 +279,69 @@ export default function Home() {
         const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8'];
         const randomColor = colors[Math.floor(Math.random() * colors.length)];
 
-        // Spawn near player position
-        const spawnX = worldPosition.x + Math.floor(Math.random() * 6) - 3;
-        const spawnY = worldPosition.y + Math.floor(Math.random() * 6) - 3;
+        // Find a non-blocked spawn position near player
+        const findNonBlockedPosition = (centerX: number, centerY: number, maxRadius: number = 5): { x: number; y: number } | null => {
+            // First try random positions in increasing radius
+            for (let radius = 0; radius <= maxRadius; radius++) {
+                const candidates: { x: number; y: number }[] = [];
+
+                // Generate all positions at this radius
+                for (let dx = -radius; dx <= radius; dx++) {
+                    for (let dy = -radius; dy <= radius; dy++) {
+                        // Only check positions at current radius (Manhattan distance)
+                        if (Math.abs(dx) + Math.abs(dy) <= radius) {
+                            const testX = centerX + dx;
+                            const testY = centerY + dy;
+
+                            // Check boundaries
+                            if (testX < 0 || testX >= MAP_TILES || testY < 0 || testY >= MAP_TILES) {
+                                continue;
+                            }
+
+                            // Check if position is blocked by collision map
+                            if (globalIsBlocked(testX, testY)) {
+                                continue;
+                            }
+
+                            // Check if position is occupied by player
+                            if (testX === worldPosition.x && testY === worldPosition.y) {
+                                continue;
+                            }
+
+                            // Check if position is occupied by another agent
+                            const isOccupied = combinedWorldAgents.some(
+                                (agent) => agent.x === testX && agent.y === testY
+                            );
+                            if (isOccupied) {
+                                continue;
+                            }
+
+                            candidates.push({ x: testX, y: testY });
+                        }
+                    }
+                }
+
+                // If we found any valid positions at this radius, pick one randomly
+                if (candidates.length > 0) {
+                    return candidates[Math.floor(Math.random() * candidates.length)];
+                }
+            }
+
+            return null; // No valid position found
+        };
+
+        // Try to find spawn position
+        const spawnPosition = findNonBlockedPosition(worldPosition.x, worldPosition.y);
+
+        if (!spawnPosition) {
+            // Show error if no valid spawn position found
+            console.error('Cannot spawn agent: no non-blocked tiles available near player');
+            alert('Cannot spawn agent: no available space near your position. Try moving to a different location or clearing some items.');
+            return;
+        }
+
+        const { x: spawnX, y: spawnY } = spawnPosition;
+        console.log(`Spawning agent at (${spawnX}, ${spawnY}) - checked collision map`);
 
         // Add to spawned A2A agents for UI tracking
         spawnAgent(importedAgent.url, {
@@ -435,7 +527,21 @@ export default function Home() {
                     onViewThread={handleViewThread}
                     collisionMap={globalCollisionMap}
                 />
-                {/* <TempBuildTab isActive={activeTab === 'build'} /> */}
+                <TempBuildTab
+                    isActive={activeTab === 'build'}
+                    mapData={mapData}
+                    playerPosition={playerPosition}
+                    worldPosition={worldPosition}
+                    visibleAgents={combinedVisibleAgents}
+                    publishedTiles={publishedTiles}
+                    customTiles={customTiles}
+                    setCustomTiles={setCustomTiles}
+                    setPublishedTiles={setPublishedTiles}
+                    isPublishing={isPublishing}
+                    publishStatus={publishStatus}
+                    userId={userId}
+                    onPublishTiles={handlePublishTiles}
+                />
                 {/* <BuildTab
                     isActive={activeTab === 'build'}
                     mapData={mapData}
@@ -476,6 +582,7 @@ export default function Home() {
                     threads={threads}
                     onThreadSelect={setCurrentThreadId}
                     onResetLocation={resetLocation}
+                    userId={userId}
                 />
             </BottomSheet>
         </div>

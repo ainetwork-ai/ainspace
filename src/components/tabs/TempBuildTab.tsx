@@ -1,31 +1,537 @@
 'use client';
 
 import Image from 'next/image';
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import BaseTabContent from './BaseTabContent';
+import TileMap from '@/components/TileMap';
 import { cn } from '@/lib/utils';
+import { TILE_SIZE } from '@/constants/game';
+import { useBuildStore } from '@/stores';
+
+type TileLayers = {
+    layer0: { [key: string]: string };
+    layer1: { [key: string]: string | ItemTileData };
+    layer2: { [key: string]: string };
+};
+
+// Data structure for multi-tile items
+interface ItemTileData {
+    image: string;
+    width: number;  // in tiles
+    height: number; // in tiles
+    topLeftX: number; // original placement X coordinate
+    topLeftY: number; // original placement Y coordinate
+    isSecondaryTile?: boolean; // true for tiles that are not the top-left anchor
+}
+
+// Item dimensions mapping (width x height in tiles)
+const ITEM_DIMENSIONS: { [key: number]: { width: number; height: number } } = {
+    0: { width: 6, height: 4 }, // Item 1
+    1: { width: 7, height: 5 }, // Item 2
+    2: { width: 5, height: 3 }, // Item 3
+    3: { width: 4, height: 5 }, // Item 4
+    4: { width: 3, height: 5 }, // Item 5
+    5: { width: 4, height: 5 }  // Item 6
+};
 
 interface BuildTabProps {
     isActive: boolean;
+    mapData: number[][];
+    playerPosition: { x: number; y: number };
+    worldPosition: { x: number; y: number };
+    visibleAgents: Array<{
+        id: string;
+        screenX: number;
+        screenY: number;
+        color: string;
+        name: string;
+    }>;
+    publishedTiles: TileLayers;
+    customTiles: TileLayers;
+    setCustomTiles: (tiles: TileLayers | ((prev: TileLayers) => TileLayers)) => void;
+    setPublishedTiles: (tiles: TileLayers | ((prev: TileLayers) => TileLayers)) => void;
+    isPublishing: boolean;
+    publishStatus: {
+        type: 'success' | 'error';
+        message: string;
+    } | null;
+    userId: string | null;
+    onPublishTiles: () => void;
 }
 
-export default function TempBuildTab({ isActive }: BuildTabProps) {
-    const [selectedTab, setSelectedTab] = useState<'map' | 'item'>('map');
+export default function TempBuildTab({
+    isActive,
+    mapData,
+    playerPosition,
+    worldPosition,
+    visibleAgents,
+    publishedTiles,
+    customTiles,
+    setCustomTiles,
+    setPublishedTiles,
+    isPublishing,
+    publishStatus,
+    userId,
+    onPublishTiles
+}: BuildTabProps) {
+    const [selectedTab, setSelectedTab] = useState<'map' | 'item'>('item');
+    const [selectedItem, setSelectedItem] = useState<number | null>(null);
+    const [playerDirection, setPlayerDirection] = useState<'up' | 'down' | 'left' | 'right'>('down');
+    const [isPlayerMoving, setIsPlayerMoving] = useState(false);
+    const [lastMoveTime, setLastMoveTime] = useState(0);
+    const [placedItems, setPlacedItems] = useState<Set<number>>(new Set());
+    const tileSize = TILE_SIZE;
+
+    const { setShowCollisionMap, collisionMap, isBlocked, setCollisionMap } = useBuildStore();
+
+    // Preload background images as soon as component mounts for faster rendering
+    useEffect(() => {
+        // Preload critical map images
+        const preloadImages = ['/map/land_layer_0.png', '/map/land_layer_1.png'];
+
+        preloadImages.forEach((src) => {
+            const img = document.createElement('img');
+            img.src = src;
+        });
+    }, []);
+
+    useEffect(() => {
+        if (isActive) {
+            setShowCollisionMap(true);
+        } else {
+            // Turn off collision map when leaving the tab
+            setShowCollisionMap(false);
+            // Clear unpublished items when leaving the tab
+            setCustomTiles((prev) => ({
+                layer0: prev.layer0 || {},
+                layer1: {},
+                layer2: prev.layer2 || {}
+            }));
+            setSelectedItem(null);
+            // Reset placed items tracking when leaving the tab
+            setPlacedItems(new Set());
+        }
+    }, [isActive, setShowCollisionMap, setCustomTiles]);
+
+    // Force canvas resize when tab becomes active
+    useEffect(() => {
+        if (isActive) {
+            // Trigger a resize event to recalculate canvas dimensions
+            window.dispatchEvent(new Event('resize'));
+        }
+    }, [isActive]);
+
+    // Initialize placed items from existing published tiles when component mounts or published tiles change
+    useEffect(() => {
+        if (!isActive) return;
+
+        const placedItemIndices = new Set<number>();
+
+        // Helper function to extract item index from tile data
+        const extractItemIndex = (tileData: string | ItemTileData): number | null => {
+            let imagePath: string;
+            if (typeof tileData === 'string') {
+                imagePath = tileData;
+            } else if (tileData && typeof tileData === 'object') {
+                imagePath = tileData.image;
+            } else {
+                return null;
+            }
+
+            const match = imagePath.match(/\/tempBuild\/item\/(\d+)\.png/);
+            if (match) {
+                return parseInt(match[1]) - 1; // Convert from 1-based to 0-based index
+            }
+            return null;
+        };
+
+        // Check publishedTiles layer1 for already placed items
+        if (publishedTiles.layer1) {
+            Object.values(publishedTiles.layer1).forEach((tileData) => {
+                const itemIndex = extractItemIndex(tileData);
+                if (itemIndex !== null) {
+                    placedItemIndices.add(itemIndex);
+                }
+            });
+        }
+
+        // Check customTiles layer1 for already placed items
+        if (customTiles.layer1) {
+            Object.values(customTiles.layer1).forEach((tileData) => {
+                const itemIndex = extractItemIndex(tileData);
+                if (itemIndex !== null) {
+                    placedItemIndices.add(itemIndex);
+                }
+            });
+        }
+
+        setPlacedItems(placedItemIndices);
+    }, [isActive, publishedTiles.layer1, customTiles.layer1]);
+
+    useEffect(() => {
+        if (!isPlayerMoving) return;
+
+        const timer = setTimeout(() => {
+            setIsPlayerMoving(false);
+        }, 800);
+
+        return () => clearTimeout(timer);
+    }, [lastMoveTime]);
+
+    const handleItemClick = (index: number) => {
+        if (selectedTab === 'item') {
+            // Prevent selecting already placed items
+            if (placedItems.has(index)) {
+                return;
+            }
+            setSelectedItem(index === selectedItem ? null : index);
+        }
+    };
+
+    const handleTileClick = (worldX: number, worldY: number) => {
+        if (selectedTab === 'item' && selectedItem !== null) {
+            // Check if item is already placed
+            if (placedItems.has(selectedItem)) {
+                console.warn(`Item ${selectedItem + 1} has already been placed`);
+                return;
+            }
+
+            // Get item dimensions
+            const itemDimensions = ITEM_DIMENSIONS[selectedItem];
+            if (!itemDimensions) {
+                console.error(`No dimensions defined for item ${selectedItem}`);
+                return;
+            }
+
+            const { width, height } = itemDimensions;
+
+            // Check collision for ALL tiles the item will occupy
+            let hasCollision = false;
+            const blockedTiles: Array<{ x: number; y: number }> = [];
+
+            for (let dy = 0; dy < height; dy++) {
+                for (let dx = 0; dx < width; dx++) {
+                    const checkX = worldX + dx;
+                    const checkY = worldY + dy;
+
+                    if (isBlocked(checkX, checkY)) {
+                        hasCollision = true;
+                        blockedTiles.push({ x: checkX, y: checkY });
+                    }
+                }
+            }
+
+            if (hasCollision) {
+                console.warn(
+                    `Cannot place item ${selectedItem + 1} (${width}x${height}) at (${worldX}, ${worldY}). ` +
+                    `Blocked tiles: ${blockedTiles.map(t => `(${t.x},${t.y})`).join(', ')}`
+                );
+                return;
+            }
+
+            const itemImage = `/tempBuild/item/${selectedItem + 1}.png`;
+
+            setIsPlayerMoving(true);
+            setLastMoveTime(Date.now());
+
+            // Mark this item as placed
+            setPlacedItems((prev) => new Set(prev).add(selectedItem));
+
+            // Create item data for all occupied tiles
+            const newLayer1Tiles: { [key: string]: ItemTileData } = {};
+
+            // Place the main tile (top-left) with full item data
+            const mainKey = `${worldX},${worldY}`;
+            newLayer1Tiles[mainKey] = {
+                image: itemImage,
+                width,
+                height,
+                topLeftX: worldX,
+                topLeftY: worldY,
+                isSecondaryTile: false
+            };
+
+            // Place secondary tiles (all other tiles occupied by the item)
+            for (let dy = 0; dy < height; dy++) {
+                for (let dx = 0; dx < width; dx++) {
+                    // Skip the top-left tile (already placed)
+                    if (dx === 0 && dy === 0) continue;
+
+                    const tileX = worldX + dx;
+                    const tileY = worldY + dy;
+                    const key = `${tileX},${tileY}`;
+
+                    newLayer1Tiles[key] = {
+                        image: itemImage,
+                        width,
+                        height,
+                        topLeftX: worldX,
+                        topLeftY: worldY,
+                        isSecondaryTile: true
+                    };
+                }
+            }
+
+            setCustomTiles((prev) => ({
+                ...prev,
+                layer1: {
+                    ...(prev.layer1 || {}),
+                    ...newLayer1Tiles
+                }
+            }));
+
+            // Update collision map for all occupied tiles
+            const newCollisionMap = { ...collisionMap };
+            for (let dy = 0; dy < height; dy++) {
+                for (let dx = 0; dx < width; dx++) {
+                    const tileX = worldX + dx;
+                    const tileY = worldY + dy;
+                    const key = `${tileX},${tileY}`;
+                    newCollisionMap[key] = true;
+                }
+            }
+            setCollisionMap(newCollisionMap);
+
+            console.log(
+                `Placed item ${selectedItem + 1} (${width}x${height}) at (${worldX}, ${worldY})`
+            );
+
+            // Deselect the item after placing
+            setSelectedItem(null);
+        }
+    };
+
+    const handleDeleteTile = async (layer: 0 | 1 | 2, key: string) => {
+        if (isPublishing) {
+            console.warn('Cannot delete tiles while publishing');
+            return;
+        }
+
+        const layerKey = `layer${layer}` as keyof TileLayers;
+
+        // Check if the tile is in customTiles
+        const isInCustomTiles = customTiles[layerKey] && customTiles[layerKey][key];
+
+        // Check if the tile is in publishedTiles
+        const isInPublishedTiles = publishedTiles[layerKey] && publishedTiles[layerKey][key];
+
+        // Helper function to extract item data from tile
+        const getItemDataFromTile = (tileData: string | ItemTileData): {
+            itemIndex: number | null;
+            itemInfo: ItemTileData | null;
+        } => {
+            let itemIndex: number | null = null;
+            let itemInfo: ItemTileData | null = null;
+
+            if (typeof tileData === 'string') {
+                // Legacy string format
+                const match = tileData.match(/\/tempBuild\/item\/(\d+)\.png/);
+                if (match) {
+                    itemIndex = parseInt(match[1]) - 1;
+                }
+            } else if (tileData && typeof tileData === 'object') {
+                // New ItemTileData format
+                const match = tileData.image.match(/\/tempBuild\/item\/(\d+)\.png/);
+                if (match) {
+                    itemIndex = parseInt(match[1]) - 1;
+                }
+                itemInfo = tileData;
+            }
+
+            return { itemIndex, itemInfo };
+        };
+
+        // Extract item data
+        let itemIndexToRelease: number | null = null;
+        let itemInfo: ItemTileData | null = null;
+
+        if (isInCustomTiles) {
+            const result = getItemDataFromTile(customTiles[layerKey][key]);
+            itemIndexToRelease = result.itemIndex;
+            itemInfo = result.itemInfo;
+        } else if (isInPublishedTiles) {
+            const result = getItemDataFromTile(publishedTiles[layerKey][key]);
+            itemIndexToRelease = result.itemIndex;
+            itemInfo = result.itemInfo;
+        }
+
+        // Get all tile keys to delete (for multi-tile items)
+        const keysToDelete: string[] = [key];
+
+        if (itemInfo) {
+            // Multi-tile item - find all tiles occupied by this item
+            const { topLeftX, topLeftY, width, height } = itemInfo;
+
+            keysToDelete.length = 0; // Clear the array
+            for (let dy = 0; dy < height; dy++) {
+                for (let dx = 0; dx < width; dx++) {
+                    const tileX = topLeftX + dx;
+                    const tileY = topLeftY + dy;
+                    keysToDelete.push(`${tileX},${tileY}`);
+                }
+            }
+
+            console.log(
+                `Deleting multi-tile item (${width}x${height}) from (${topLeftX}, ${topLeftY}), removing ${keysToDelete.length} tiles`
+            );
+        }
+
+        // Delete from customTiles if it exists there
+        if (isInCustomTiles) {
+            setCustomTiles((prev) => {
+                const newLayer = { ...prev[layerKey] };
+                keysToDelete.forEach((k) => {
+                    delete newLayer[k];
+                });
+                return {
+                    ...prev,
+                    [layerKey]: newLayer
+                };
+            });
+
+            // Make the item available again if it was deleted from customTiles
+            if (itemIndexToRelease !== null) {
+                setPlacedItems((prev) => {
+                    const newSet = new Set(prev);
+                    newSet.delete(itemIndexToRelease!);
+                    return newSet;
+                });
+                console.log(`Item ${itemIndexToRelease + 1} is now available again`);
+            }
+
+            // Update collision map to remove all occupied tiles
+            if (layer === 1) {
+                const newCollisionMap = { ...collisionMap };
+                keysToDelete.forEach((k) => {
+                    delete newCollisionMap[k];
+                });
+                setCollisionMap(newCollisionMap);
+                console.log(`Removed collision for ${keysToDelete.length} tiles`);
+            }
+        }
+
+        // Delete from publishedTiles if it exists there
+        if (isInPublishedTiles) {
+            // Update local state first for immediate UI feedback
+            setPublishedTiles((prev) => {
+                const newLayer = { ...prev[layerKey] };
+                keysToDelete.forEach((k) => {
+                    delete newLayer[k];
+                });
+                return {
+                    ...prev,
+                    [layerKey]: newLayer
+                };
+            });
+
+            // Make the item available again if it was deleted from publishedTiles
+            if (itemIndexToRelease !== null) {
+                setPlacedItems((prev) => {
+                    const newSet = new Set(prev);
+                    newSet.delete(itemIndexToRelease!);
+                    return newSet;
+                });
+                console.log(`Item ${itemIndexToRelease + 1} is now available again`);
+            }
+
+            // If deleting a layer1 item from published tiles, update collision map
+            if (layer === 1) {
+                const newCollisionMap = { ...collisionMap };
+                keysToDelete.forEach((k) => {
+                    delete newCollisionMap[k];
+                });
+                setCollisionMap(newCollisionMap);
+                console.log(`Removed collision for ${keysToDelete.length} deleted published tiles`);
+            }
+
+            // Persist the deletion to the database
+            if (userId) {
+                try {
+                    // Create updated published tiles
+                    const updatedPublishedTiles = {
+                        layer0: { ...publishedTiles.layer0 },
+                        layer1: { ...publishedTiles.layer1 },
+                        layer2: { ...publishedTiles.layer2 }
+                    };
+                    keysToDelete.forEach((k) => {
+                        delete updatedPublishedTiles[layerKey][k];
+                    });
+
+                    const response = await fetch('/api/custom-tiles', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            userId: userId,
+                            customTiles: updatedPublishedTiles
+                        })
+                    });
+
+                    if (!response.ok) {
+                        console.error('Failed to persist tile deletion to database');
+                    } else {
+                        console.log(`Successfully deleted ${keysToDelete.length} tiles from database`);
+                    }
+                } catch (error) {
+                    console.error('Error deleting published tile from database:', error);
+                }
+            }
+        }
+    };
+
+    const mergedCustomTiles = useMemo(() => {
+        return {
+            layer0: { ...(publishedTiles.layer0 || {}), ...(customTiles.layer0 || {}) },
+            layer1: { ...(publishedTiles.layer1 || {}), ...(customTiles.layer1 || {}) },
+            layer2: { ...(publishedTiles.layer2 || {}), ...(customTiles.layer2 || {}) }
+        };
+    }, [publishedTiles, customTiles]);
 
     return (
-        <BaseTabContent isActive={isActive} withPadding={false}>
+        <BaseTabContent isActive={isActive} withPadding={false} className="bg-white">
             <div className="flex h-full w-full flex-col items-center overflow-y-auto px-6">
                 <div className="mt-8 flex w-full max-w-4xl flex-col items-center gap-4 pb-8">
                     <div className="inline-flex flex-col items-start justify-start gap-1 self-stretch rounded bg-[#faf4fe] px-2.5 py-2 outline-1 outline-offset-[-1px] outline-[#d7c1e5]">
                         <p className="justify-start text-base font-bold text-[#87659e]">Build Mode</p>
                         <p className="justify-start text-sm font-normal text-[#b68ed2]">
-                            Click tiles to customize your map.
+                            {selectedTab === 'item'
+                                ? 'Select an item and click on the map to place it.'
+                                : 'Map editing coming soon!'}
                         </p>
                     </div>
-                    <Image src="/tempBuild/main.png" alt="main" width={800} height={800} className="rounded-lg" />
+
+                    <div
+                        className="mb-4 w-full overflow-hidden rounded-lg"
+                        style={{ height: '70vh', minHeight: '500px' }}
+                    >
+                        <TileMap
+                            mapData={mapData}
+                            tileSize={tileSize}
+                            playerPosition={playerPosition}
+                            worldPosition={worldPosition}
+                            agents={visibleAgents}
+                            customTiles={mergedCustomTiles}
+                            buildMode={selectedTab === 'item' ? 'paint' : 'view'}
+                            backgroundImageSrc="/map/land_layer_0.png"
+                            layer1ImageSrc="/map/land_layer_1.png"
+                            onTileClick={selectedTab === 'item' ? handleTileClick : undefined}
+                            onDeleteTile={selectedTab === 'item' ? handleDeleteTile : undefined}
+                            playerDirection={playerDirection}
+                            playerIsMoving={isPlayerMoving}
+                            collisionMap={collisionMap}
+                            selectedItemDimensions={
+                                selectedItem !== null ? ITEM_DIMENSIONS[selectedItem] : null
+                            }
+                        />
+                    </div>
+
                     <div className="flex w-full flex-row gap-0 self-stretch">
                         <div
-                            onClick={() => setSelectedTab('map')}
+                            onClick={() => {
+                                setSelectedTab('map');
+                                setSelectedItem(null);
+                            }}
                             className={cn(
                                 'flex flex-1 cursor-pointer items-center justify-center border-b-2 pb-2 font-semibold text-[#838d9d]',
                                 selectedTab === 'map' ? 'border-b-[#854CFF] text-[#2f333b]' : 'border-b-[#EAEAEA]'
@@ -44,22 +550,63 @@ export default function TempBuildTab({ isActive }: BuildTabProps) {
                         </div>
                     </div>
                     <div className="grid w-full grid-cols-3 gap-4">
-                        {Array.from({ length: 6 }).map((_, index) => (
-                            <Image
-                                key={index}
-                                src={`/tempBuild/${selectedTab}/${index + 1}.png`}
-                                alt="item"
-                                width={300}
-                                height={300}
-                                className="rounded-lg"
-                            />
-                        ))}
+                        {Array.from({ length: 6 }).map((_, index) => {
+                            const isPlaced = placedItems.has(index);
+                            const isDisabled = selectedTab !== 'item' || isPlaced;
+
+                            return (
+                                <div
+                                    key={index}
+                                    onClick={() => handleItemClick(index)}
+                                    className={cn(
+                                        'relative flex aspect-square items-center justify-center rounded-lg bg-[#EDEFF2] transition-all',
+                                        selectedTab === 'item' && !isPlaced
+                                            ? 'cursor-pointer hover:scale-105 hover:shadow-lg'
+                                            : 'cursor-not-allowed',
+                                        isDisabled && 'opacity-40',
+                                        selectedTab === 'item' && selectedItem === index && !isPlaced
+                                            ? 'ring-4 ring-[#854CFF] ring-offset-2'
+                                            : ''
+                                    )}
+                                >
+                                    <Image
+                                        src={`/tempBuild/${selectedTab}/${index + 1}.png`}
+                                        alt={`${selectedTab} ${index + 1}`}
+                                        width={300}
+                                        height={300}
+                                        className={cn(
+                                            'h-[30%] w-[30%] rounded-lg object-contain',
+                                            isPlaced && 'grayscale'
+                                        )}
+                                    />
+                                    {isPlaced && (
+                                        <div className="absolute inset-0 flex items-center justify-center">
+                                            <div className="rounded-full bg-black/70 px-3 py-1 text-xs font-semibold text-white">
+                                                Placed
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
-                    <div className="shadow-2sm mb-20 inline-flex h-14 w-full cursor-not-allowed items-center justify-center gap-2.5 rounded bg-[#99a1ae] px-3 py-2">
-                        <p data-layer="Import" className="Import justify-start text-xl text-white">
-                            Comming Soon
-                        </p>
-                    </div>
+                    {selectedTab === 'item' ? (
+                        <button
+                            onClick={onPublishTiles}
+                            className={cn(
+                                'shadow-2sm mb-20 inline-flex h-14 w-full items-center justify-center gap-2.5 rounded bg-[#854CFF] px-3 py-2',
+                                isPublishing ? 'cursor-not-allowed' : 'cursor-pointer'
+                            )}
+                        >
+                            <p className="justify-start text-xl text-white">
+                                {isPublishing ? 'Publishing...' : 'Publish Items'}
+                            </p>
+                        </button>
+                    ) : (
+                        <div className="shadow-2sm mb-20 inline-flex h-14 w-full cursor-not-allowed items-center justify-center gap-2.5 rounded bg-[#99a1ae] px-3 py-2">
+                            <p className="justify-start text-xl text-white">Coming Soon</p>
+                        </div>
+                    )}
                 </div>
             </div>
         </BaseTabContent>
