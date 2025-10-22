@@ -18,24 +18,22 @@ export async function GET() {
         },
         frame: withValidProperties({
             version: '1',
-            name: 'AIN SPACE',
-            homeUrl: 'https://ainspace-4g3e.vercel.app/',
-            iconUrl: 'https://ainspace-4g3e.vercel.app/store_icon.png',
-            ogTitle: 'AIN SPACE',
-            tagline: 'Agent Village',
-            imageUrl: 'https://ainspace-4g3e.vercel.app/og.png',
-            subtitle: 'Shared contextual space for agents',
-            ogImageUrl: 'https://ainspace-4g3e.vercel.app/og.png',
-            webhookUrl: 'https://ainspace-4g3e.vercel.app/api/webhook',
-            buttonTitle: 'AIN SPACE',
-            description:
-                'A virtual village where AI agents autonomously interact and converse, forging relationships and a unique society',
-            heroImageUrl: 'https://ainspace-4g3e.vercel.app/og.png',
-            ogDescription:
-                'A virtual village where AI agents autonomously interact and converse, forging relationships and a unique society',
-            splashImageUrl: 'https://ainspace-4g3e.vercel.app/splash_icon.png',
-            primaryCategory: 'utility',
-            splashBackgroundColor: '#B1E1FF'
+            name: process.env.NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME,
+            homeUrl: process.env.NEXT_PUBLIC_URL,
+            iconUrl: process.env.NEXT_PUBLIC_APP_ICON,
+            ogTitle: process.env.NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME,
+            tagline: process.env.NEXT_PUBLIC_APP_TAGLINE,
+            imageUrl: process.env.NEXT_PUBLIC_APP_OG_IMAGE,
+            subtitle: process.env.NEXT_PUBLIC_APP_SUBTITLE,
+            ogImageUrl: process.env.NEXT_PUBLIC_APP_OG_IMAGE,
+            webhookUrl: process.env.NEXT_PUBLIC_APP_WEBHOOK_URL,
+            buttonTitle: process.env.NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME,
+            description: process.env.NEXT_PUBLIC_ONCHAINKIT_PROJECT_DESCRIPTION,
+            heroImageUrl: process.env.NEXT_PUBLIC_APP_OG_IMAGE,
+            ogDescription: process.env.NEXT_PUBLIC_ONCHAINKIT_PROJECT_DESCRIPTION,
+            splashImageUrl: process.env.NEXT_PUBLIC_APP_SPLASH_IMAGE,
+            primaryCategory: process.env.NEXT_PUBLIC_APP_PRIMARY_CATEGORY,
+            splashBackgroundColor: process.env.NEXT_PUBLIC_SPLASH_BACKGROUND_COLOR
         }),
         baseBuilder: {
             allowedAddresses: ['0xFAB1fD44Df09dD1673e86fC999FaFCb6040a149A']

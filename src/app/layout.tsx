@@ -1,6 +1,6 @@
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
-import { MapDataProvider } from '@/providers/MapDataProvider';
+import { Providers } from '@/providers/Providers';
 import type { Metadata } from 'next';
 
 const geistSans = Geist({
@@ -26,7 +26,7 @@ export default function RootLayout({
     return (
         <html lang="en" suppressHydrationWarning>
             <body className={`${geistSans.variable} ${geistMono.variable} antialiased`} suppressHydrationWarning>
-                <MapDataProvider>{children}</MapDataProvider>
+                <Providers>{children}</Providers>
             </body>
         </html>
     );
