@@ -34,7 +34,7 @@ export function useGameState() {
     const [worldPosition, setWorldPosition] = useState<Position>(initialPosition);
     const [isLoading, setIsLoading] = useState(true);
     const [isAutonomous, setIsAutonomous] = useState(false);
-    const [playerDirection, setPlayerDirection] = useState<Omit<DIRECTION, 'stop'>>(DIRECTION.RIGHT);
+    const [playerDirection, setPlayerDirection] = useState<DIRECTION>(DIRECTION.RIGHT);
     const [recentMovements, setRecentMovements] = useState<string[]>([]);
     const [lastCommentary, setLastCommentary] = useState<string>('');
     const [lastMoveTime, setLastMoveTime] = useState<number>(0);
