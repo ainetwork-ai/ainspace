@@ -1,9 +1,19 @@
 import { create } from 'zustand';
 import { TILE_SIZE } from '@/constants/game';
 
+// Data structure for multi-tile items
+export interface ItemTileData {
+    image: string;
+    width: number;  // in tiles
+    height: number; // in tiles
+    topLeftX: number; // original placement X coordinate
+    topLeftY: number; // original placement Y coordinate
+    isSecondaryTile?: boolean; // true for tiles that are not the top-left anchor
+}
+
 export type TileLayers = {
     layer0: { [key: string]: string };
-    layer1: { [key: string]: string };
+    layer1: { [key: string]: string | ItemTileData };
     layer2: { [key: string]: string };
 };
 
@@ -157,6 +167,14 @@ export const useBuildStore = create<BuildState>((set, get) => ({
 
     isBlocked: (worldX: number, worldY: number) => {
         const state = get();
+
+        // Check map boundaries first (MAP_TILES = 105)
+        // Valid coordinates are 0 to 104 inclusive
+        const MAP_TILES = 105;
+        if (worldX < 0 || worldX >= MAP_TILES || worldY < 0 || worldY >= MAP_TILES) {
+            return true; // Out of bounds tiles are blocked
+        }
+
         const key = `${worldX},${worldY}`;
         return state.collisionMap[key] === true;
     },

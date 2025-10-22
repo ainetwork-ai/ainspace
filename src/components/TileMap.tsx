@@ -21,9 +21,19 @@ interface Agent {
     spriteWidth?: number;
 }
 
+// Data structure for multi-tile items
+interface ItemTileData {
+    image: string;
+    width: number;  // in tiles
+    height: number; // in tiles
+    topLeftX: number; // original placement X coordinate
+    topLeftY: number; // original placement Y coordinate
+    isSecondaryTile?: boolean; // true for tiles that are not the top-left anchor
+}
+
 type TileLayers = {
     layer0: { [key: string]: string };
-    layer1: { [key: string]: string };
+    layer1: { [key: string]: string | ItemTileData };
     layer2: { [key: string]: string };
 };
 
@@ -43,6 +53,7 @@ interface TileMapProps {
     playerDirection?: 'up' | 'down' | 'left' | 'right';
     playerIsMoving?: boolean;
     collisionMap?: { [key: string]: boolean };
+    selectedItemDimensions?: { width: number; height: number } | null;
 }
 
 function TileMap({
@@ -60,7 +71,8 @@ function TileMap({
     layer1ImageSrc,
     playerDirection = 'down',
     playerIsMoving = false,
-    collisionMap = {}
+    collisionMap = {},
+    selectedItemDimensions = null
 }: TileMapProps) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -72,6 +84,7 @@ function TileMap({
     const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
     const [hoveredTile, setHoveredTile] = useState<{ x: number; y: number; layer: 0 | 1 | 2 } | null>(null);
     const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
+    const [hoveredWorldCoords, setHoveredWorldCoords] = useState<{ worldX: number; worldY: number } | null>(null);
 
     // Use global state for collision map visibility
     const { showCollisionMap, toggleCollisionMap } = useBuildStore();
@@ -150,16 +163,26 @@ function TileMap({
             Object.keys(customTiles).forEach((layerKey) => {
                 const layer = customTiles[layerKey as keyof TileLayers];
                 if (layer) {
-                    imagesToLoad.push(...Object.values(layer));
+                    Object.values(layer).forEach((tileData) => {
+                        // Handle both string and ItemTileData formats
+                        if (typeof tileData === 'string') {
+                            imagesToLoad.push(tileData);
+                        } else if (tileData && typeof tileData === 'object' && tileData.image) {
+                            imagesToLoad.push(tileData.image);
+                        }
+                    });
                 }
             });
         } else {
-            imagesToLoad = Object.values(customTiles);
+            imagesToLoad = Object.values(customTiles) as string[];
         }
 
         const uniqueImages = [...new Set(imagesToLoad)];
 
         uniqueImages.forEach((imageUrl) => {
+            // Skip if already loaded
+            if (loadedImages[imageUrl]) return;
+
             const img = new Image();
             img.onload = () => {
                 setLoadedImages((prev) => ({
@@ -240,8 +263,8 @@ function TileMap({
     const handleMouseMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
         const coords = getWorldCoordinatesFromEvent(event);
 
-        // Update mouse position for visual feedback
-        if (coords && buildMode === 'paint') {
+        // Update mouse position and world coordinates for visual feedback
+        if (buildMode === 'paint') {
             const canvas = canvasRef.current;
             if (canvas) {
                 const rect = canvas.getBoundingClientRect();
@@ -250,6 +273,15 @@ function TileMap({
                     y: event.clientY - rect.top
                 });
             }
+
+            // Update hovered world coordinates for preview outline
+            if (coords) {
+                setHoveredWorldCoords({ worldX: coords.worldX, worldY: coords.worldY });
+            } else {
+                setHoveredWorldCoords(null);
+            }
+        } else {
+            setHoveredWorldCoords(null);
         }
 
         if (buildMode !== 'paint' || !isPainting) return;
@@ -269,6 +301,8 @@ function TileMap({
     const handleMouseLeave = () => {
         setIsPainting(false);
         setLastPaintedTile(null);
+        setHoveredWorldCoords(null);
+        setMousePosition(null);
     };
 
     // Handle touch start - for mobile touch painting
@@ -486,18 +520,37 @@ function TileMap({
                             const worldTileX = Math.floor(cameraTileX + x);
                             const worldTileY = Math.floor(cameraTileY + y);
                             const tileKey = `${worldTileX},${worldTileY}`;
-                            const customTileImage = layer[tileKey];
+                            const customTileData = layer[tileKey];
 
-                            if (customTileImage && loadedImages[customTileImage]) {
-                                const img = loadedImages[customTileImage];
-                                // Use actual screen tile dimensions for perfect grid alignment
-                                // This matches how the background image is rendered
-                                const pixelX = x * screenTileWidth;
-                                const pixelY = y * screenTileHeight;
+                            if (customTileData) {
+                                // Check if this is a string (legacy) or ItemTileData (new format)
+                                if (typeof customTileData === 'string') {
+                                    // Legacy single-tile rendering
+                                    if (loadedImages[customTileData]) {
+                                        const img = loadedImages[customTileData];
+                                        const pixelX = x * screenTileWidth;
+                                        const pixelY = y * screenTileHeight;
+                                        ctx.drawImage(img, pixelX, pixelY, screenTileWidth, screenTileHeight);
+                                    }
+                                } else if (customTileData && typeof customTileData === 'object') {
+                                    // New multi-tile rendering - only render at top-left position
+                                    if (!customTileData.isSecondaryTile) {
+                                        const { image, width, height } = customTileData;
+                                        if (loadedImages[image]) {
+                                            const img = loadedImages[image];
+                                            const pixelX = x * screenTileWidth;
+                                            const pixelY = y * screenTileHeight;
 
-                                // Render the item image at exactly one tile size
-                                // This ensures each item occupies exactly ONE tile and aligns with the grid
-                                ctx.drawImage(img, pixelX, pixelY, screenTileWidth, screenTileHeight);
+                                            // Calculate the size in pixels to span multiple tiles
+                                            const itemWidth = width * screenTileWidth;
+                                            const itemHeight = height * screenTileHeight;
+
+                                            // Draw the image spanning multiple tiles
+                                            ctx.drawImage(img, pixelX, pixelY, itemWidth, itemHeight);
+                                        }
+                                    }
+                                    // Skip rendering for secondary tiles - they're just markers for collision
+                                }
                             }
                         }
                     }
@@ -623,14 +676,33 @@ function TileMap({
     // Helper to get tile key and check for custom tiles
     const getCustomTilesAtPosition = (worldX: number, worldY: number) => {
         const key = `${worldX},${worldY}`;
-        const tiles: Array<{ layer: 0 | 1 | 2; image: string; key: string }> = [];
+        const tiles: Array<{ layer: 0 | 1 | 2; image: string; key: string; isSecondaryTile?: boolean }> = [];
 
         if (isLayeredTiles(customTiles)) {
             [0, 1, 2].forEach((layerIndex) => {
                 const layerKey = `layer${layerIndex}` as keyof TileLayers;
                 const layer = customTiles[layerKey];
                 if (layer && layer[key]) {
-                    tiles.push({ layer: layerIndex as 0 | 1 | 2, image: layer[key], key });
+                    const tileData = layer[key];
+                    let imageUrl: string;
+                    let isSecondary = false;
+
+                    // Handle both string and ItemTileData formats
+                    if (typeof tileData === 'string') {
+                        imageUrl = tileData;
+                    } else if (tileData && typeof tileData === 'object') {
+                        imageUrl = tileData.image;
+                        isSecondary = tileData.isSecondaryTile || false;
+                    } else {
+                        return; // Skip invalid data
+                    }
+
+                    tiles.push({
+                        layer: layerIndex as 0 | 1 | 2,
+                        image: imageUrl,
+                        key,
+                        isSecondaryTile: isSecondary
+                    });
                 }
             });
         }
@@ -854,8 +926,82 @@ function TileMap({
                 </>
             )}
 
-            {/* Visual feedback for blocked tiles when hovering */}
-            {buildMode === 'paint' && mousePosition && (
+            {/* Visual preview outline for multi-tile item placement */}
+            {buildMode === 'paint' && selectedItemDimensions && hoveredWorldCoords && (
+                <>
+                    {(() => {
+                        const canvas = canvasRef.current;
+                        if (!canvas) return null;
+
+                        const { worldX, worldY } = hoveredWorldCoords;
+                        const { width: itemWidth, height: itemHeight } = selectedItemDimensions;
+
+                        // Check if ALL tiles are free (collision detection)
+                        let hasCollision = false;
+                        const tilesStatus: Array<{ screenX: number; screenY: number; blocked: boolean }> = [];
+
+                        for (let dy = 0; dy < itemHeight; dy++) {
+                            for (let dx = 0; dx < itemWidth; dx++) {
+                                const checkX = worldX + dx;
+                                const checkY = worldY + dy;
+
+                                // Convert world coordinates to screen coordinates
+                                const screenTileX = checkX - cameraTileX;
+                                const screenTileY = checkY - cameraTileY;
+
+                                // Check if this tile is blocked
+                                const isBlockedTile = collisionMap[`${checkX},${checkY}`] === true;
+
+                                // Also check map boundaries
+                                const outOfBounds = checkX < 0 || checkX >= 105 || checkY < 0 || checkY >= 105;
+
+                                const blocked = isBlockedTile || outOfBounds;
+                                if (blocked) {
+                                    hasCollision = true;
+                                }
+
+                                // Only add tiles that are visible on screen
+                                if (screenTileX >= 0 && screenTileX < tilesX && screenTileY >= 0 && screenTileY < tilesY) {
+                                    tilesStatus.push({ screenX: screenTileX, screenY: screenTileY, blocked });
+                                }
+                            }
+                        }
+
+                        // Calculate actual screen tile size to match grid alignment
+                        const screenTileWidth = canvas.width / tilesX;
+                        const screenTileHeight = canvas.height / tilesY;
+
+                        // Determine outline color: green if all tiles are free, red if any tile is blocked
+                        const outlineColor = hasCollision ? 'rgba(255, 0, 0, 0.7)' : 'rgba(0, 255, 0, 0.7)';
+                        const fillColor = hasCollision ? 'rgba(255, 0, 0, 0.15)' : 'rgba(0, 255, 0, 0.15)';
+
+                        return (
+                            <>
+                                {tilesStatus.map((tile, index) => (
+                                    <div
+                                        key={`preview-${tile.screenX}-${tile.screenY}-${index}`}
+                                        style={{
+                                            position: 'absolute',
+                                            left: `${tile.screenX * screenTileWidth}px`,
+                                            top: `${tile.screenY * screenTileHeight}px`,
+                                            width: `${screenTileWidth}px`,
+                                            height: `${screenTileHeight}px`,
+                                            backgroundColor: tile.blocked ? 'rgba(255, 0, 0, 0.3)' : fillColor,
+                                            border: `2px solid ${tile.blocked ? 'rgba(255, 0, 0, 0.9)' : outlineColor}`,
+                                            pointerEvents: 'none',
+                                            zIndex: 25,
+                                            boxSizing: 'border-box'
+                                        }}
+                                    />
+                                ))}
+                            </>
+                        );
+                    })()}
+                </>
+            )}
+
+            {/* Visual feedback for blocked tiles when hovering (single tile - legacy) */}
+            {buildMode === 'paint' && !selectedItemDimensions && mousePosition && (
                 <>
                     {(() => {
                         const canvas = canvasRef.current;

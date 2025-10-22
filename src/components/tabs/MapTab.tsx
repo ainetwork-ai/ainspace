@@ -6,6 +6,7 @@ import BaseTabContent from './BaseTabContent';
 import PlayerJoystick from '@/components/controls/PlayerJoystick';
 import { TILE_SIZE } from '@/constants/game';
 import { useUIStore } from '@/stores';
+import { TileLayers } from '@/stores/useBuildStore';
 
 interface MapTabProps {
     isActive: boolean;
@@ -19,16 +20,8 @@ interface MapTabProps {
         color: string;
         name: string;
     }>;
-    publishedTiles: {
-        layer0: { [key: string]: string };
-        layer1: { [key: string]: string };
-        layer2: { [key: string]: string };
-    };
-    customTiles: {
-        layer0: { [key: string]: string };
-        layer1: { [key: string]: string };
-        layer2: { [key: string]: string };
-    };
+    publishedTiles: TileLayers;
+    customTiles: TileLayers;
     isAutonomous: boolean;
     onMobileMove: (direction: 'up' | 'down' | 'left' | 'right') => void;
     broadcastMessage: string;
