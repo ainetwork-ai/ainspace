@@ -6,10 +6,9 @@ import { v4 as uuidv4 } from 'uuid';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    console.log('Agent-chat API received:', JSON.stringify(body, null, 2));
     
     const { agentUrl, message, contextId, metadata } = body;
-    
+
     if (!agentUrl || !message) {
       console.log('Missing required fields:', { agentUrl: !!agentUrl, message: !!message });
       return NextResponse.json(
@@ -42,8 +41,6 @@ export async function POST(request: NextRequest) {
       message: userMessage,
     };
 
-    console.log('Sending message to agent...');
-    
     // A2A 클라이언트로 메시지 전송 (SDK가 폴링 및 응답 처리 자동화)
     const response = await client.sendMessage(sendParams);
     

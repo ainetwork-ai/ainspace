@@ -98,9 +98,6 @@ export abstract class BaseAgent {
             activeThreads: Array.from(this.activeThreads)
         });
 
-        if (metadata?.agentSkills) {
-            metadata.agentSkills = (metadata.agentSkills as AgentSkill[]).filter(agent => agent.name !== this.name);
-        }
         // Check thread participation
         if (message.threadId) {
             // If this is a threaded message, only respond if we're in the thread OR being mentioned
@@ -234,6 +231,10 @@ export class A2AAgent extends BaseAgent {
 
         console.log(`A2A Agent ${this.name} processing message with agentUrl:`, this.agentUrl);
 
+        if (metadata?.agentSkills) {
+            metadata.agentSkills = (metadata.agentSkills as AgentSkill[]).filter(agent => agent.name !== this.name);
+        }
+        
         if (!this.agentUrl) {
             console.error(`A2A Agent ${this.name} has no agentUrl configured`);
             return null;

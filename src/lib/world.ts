@@ -33,6 +33,7 @@ export interface AgentResponse {
     delay: number; // in milliseconds
     position: { x: number; y: number };
     distance: number;
+    nextAgentRequest: string[];
 }
 
 export class World {
@@ -125,6 +126,17 @@ export class World {
         return mentions;
     }
 
+    private extractMentionedAgentsAndTasks(content: string): string[] {
+      const regex = /@([^@]+?)\s*-\s*([^@]+?)(?=@|$)/g;
+      const result: string[] = [];
+      for (const [, name, req] of content.matchAll(regex)) {
+        console.log('name, req :>> ', name, req);
+        result.push(`@${name} ${req.trim()}`);
+      }
+      console.log(JSON.stringify(result, null, 2));
+      return result;
+    }
+
     // Find agents that are mentioned in the message
     private findMentionedAgents(mentions: string[]): Agent[] {
         return this.agents.filter((agent) =>
@@ -151,6 +163,7 @@ export class World {
                 })
             }
         });
+        console.log('agentSkills :>> ', agentSkills);
         let respondingAgentInstances: BaseAgent[];
 
         if (mentions.length > 0) {
@@ -205,15 +218,19 @@ export class World {
 
             // Let agent process the message
             const agentResponse = await agentInstance.processMessage(agentMessage, totalDelay, { agentSkills });
-
+            
             if (agentResponse) {
+                const nextAgentRequest = this.extractMentionedAgentsAndTasks(agentResponse?.message);
+                console.log('nextAgentRequest :>> ', nextAgentRequest);
+
                 return {
                     agentId: agentResponse.agentId,
                     agentName: agentInstance.name,
                     message: agentResponse.message,
                     delay: agentResponse.delay,
                     position: { x: agentInstance.x, y: agentInstance.y },
-                    distance: distance
+                    distance: distance,
+                    nextAgentRequest: nextAgentRequest || []
                 };
             }
 
