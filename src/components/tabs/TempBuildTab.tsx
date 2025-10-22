@@ -131,6 +131,7 @@ export default function TempBuildTab({
         const extractItemIndex = (tileData: string | ItemTileData): number | null => {
             let imagePath: string;
             if (typeof tileData === 'string') {
+                imagePath = tileData;
             } else if (tileData && typeof tileData === 'object') {
                 imagePath = tileData.image;
             } else {
