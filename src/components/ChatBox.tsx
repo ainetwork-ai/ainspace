@@ -328,7 +328,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
 
     return (
         <div className={cn('flex h-full w-full flex-col bg-transparent', className)}>
-            <div className="max-h-full min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
+            <div className="max-h-full min-h-[150px] flex-1 space-y-2 overflow-y-auto p-3">
                 {threadMessages.slice().map((message) => (
                     <div key={message.id} className={cn('flex flex-col items-start gap-1')}>
                         <div className="flex flex-row items-center gap-2">
@@ -431,7 +431,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     </div>
                 )}
 
-                <div className="inline-flex w-full items-center justify-start gap-2.5 rounded-[10px] px-2.5 py-2 outline-1 outline-offset-[-1px] outline-white">
+                <div className="inline-flex w-full items-center justify-start gap-2.5 rounded-[10px] px-2.5 py-2 outline-1 outline-offset-[-1px] outline-white my-auto">
                     <input
                         ref={inputRef}
                         type="text"
