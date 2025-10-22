@@ -472,7 +472,6 @@ export default function Home() {
                     chatBoxRef={chatBoxRef}
                     lastCommentary={lastCommentary}
                     worldAgents={combinedWorldAgents}
-                    worldPosition={worldPosition}
                     currentThreadId={currentThreadId || undefined}
                     threads={threads}
                     onThreadSelect={setCurrentThreadId}
