@@ -682,6 +682,7 @@ export default function Home() {
                     threads={threads}
                     onThreadSelect={setCurrentThreadId}
                     onResetLocation={resetLocation}
+                    userId={userId}
                 />
             </BottomSheet>
         </div>
