@@ -1,8 +1,10 @@
 'use client';
 
+import Image from 'next/image';
 import React, { useState } from 'react';
 import { AgentCard } from '@a2a-js/sdk';
 import BaseTabContent from './BaseTabContent';
+import Link from 'next/link';
 
 interface ImportedAgent {
     url: string;
@@ -119,51 +121,57 @@ export default function AgentTab({
     };
 
     return (
-        <BaseTabContent isActive={isActive}>
-            <div className="flex h-full w-full max-w-full flex-col overflow-hidden">
-                {/* Import Agent Section */}
-                <div className="mb-4 rounded-lg bg-purple-50 p-4">
-                    <h3 className="mb-3 text-lg font-semibold text-purple-800">Import Agent</h3>
-
-                    <div className="mb-2 flex space-x-2">
-                        <input
-                            type="url"
-                            value={agentUrl}
-                            onChange={(e) => setAgentUrl(e.target.value)}
-                            onKeyPress={(e) => e.key === 'Enter' && handleImportAgent()}
-                            placeholder="Enter agent card JSON URL"
-                            className="flex-1 rounded-md border border-purple-300 px-3 py-2 focus:border-purple-500 focus:ring-2 focus:ring-purple-500 focus:outline-none"
-                            disabled={isLoading}
-                        />
-                        <button
-                            onClick={handleImportAgent}
-                            disabled={isLoading || !agentUrl.trim()}
-                            className="rounded-md bg-purple-600 px-4 py-2 text-white transition-colors hover:bg-purple-700 disabled:cursor-not-allowed disabled:bg-gray-400"
-                        >
-                            {isLoading ? 'Importing...' : 'Import'}
-                        </button>
-                    </div>
-
-                    {error && <div className="mt-2 text-sm text-red-600">⚠️ {error}</div>}
-
-                    <div className="mt-3 text-xs text-gray-600">
-                        <div className="mb-1 font-medium">Example agent card JSON URLs:</div>
-                        <div className="space-y-1">
-                            <div className="break-all">
-                                • https://socratic-web3-ai-tutor.vercel.app/api/a2a/.well-known/agent.json
+        <BaseTabContent isActive={isActive} className="bg-white">
+            <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-4 overflow-hidden p-4">
+                <h3 className="mb-3 text-lg font-semibold text-black">Import Agent</h3>
+                <div className="flex space-x-2">
+                    <input
+                        type="url"
+                        autoFocus={true}
+                        value={agentUrl}
+                        onChange={(e) => setAgentUrl(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && handleImportAgent()}
+                        placeholder="Agent Card JSON URL"
+                        className="flex flex-1 rounded-md border border-[#cdd3de] bg-[#f2f4f5] px-3 py-2 text-black placeholder:text-[#C6CDD5]"
+                        disabled={isLoading}
+                    />
+                    <button
+                        onClick={handleImportAgent}
+                        disabled={isLoading || !agentUrl.trim()}
+                        className="rounded-md bg-purple-600 px-4 py-2 text-white transition-colors hover:bg-purple-700 disabled:cursor-not-allowed disabled:bg-gray-400"
+                    >
+                        {isLoading ? 'Importing...' : 'Import'}
+                    </button>
+                </div>
+                {error && <div className="mt-2 text-sm text-red-600">⚠️ {error}</div>}
+                <div className="inline-flex flex-col justify-start gap-2 self-stretch">
+                    <p className="text-left text-sm text-[#838d9d]">Example Agent</p>
+                    <div className="flex w-full flex-col items-start justify-start gap-2 rounded bg-[#faf4fe] px-2.5 py-2 outline-1 outline-offset-[-1px] outline-[#d7c1e5]">
+                        <div className="inline-flex items-center justify-between self-stretch">
+                            <p className="justify-start text-sm text-[#b58dd2]">https://ryu-seong-ryong.vercel...</p>
+                            <div className="flex items-center justify-center gap-1 rounded bg-white px-3 py-2 outline-1 outline-[#cdd4de]">
+                                <Image src="/agent/copy.svg" alt="Copy" width={16} height={16} />
+                                <p className="justify-start text-xs text-black">Copy Link</p>
                             </div>
-                            <div className="break-all">• http://localhost:4000/.well-known/agent-card.json</div>
                         </div>
                     </div>
                 </div>
-
-                {/* Imported Agents List */}
+                <h3 className="mt-2 text-lg font-semibold text-black">Imported Agents ({agents.length})</h3>
                 <div className="flex-1 overflow-auto">
-                    <h3 className="mb-3 text-lg font-semibold text-gray-800">Imported Agents ({agents.length})</h3>
-
                     {agents.length === 0 ? (
-                        <div className="py-8 text-center text-gray-500">
-                            No agents imported yet. Enter an agent URL above to get started.
+                        <div className="inline-flex h-[150px] w-full flex-col items-center justify-center gap-3.5 rounded-lg bg-[#eff1f4] p-3.5">
+                            <p className="justify-start self-stretch text-center font-['SF_Pro'] text-base text-[#838d9d]">
+                                No agent imported Yet.
+                                <br />
+                                Copy a Example agent or Create one using the Agent Builder button.
+                            </p>
+                            <a
+                                target="_blank"
+                                href="https://a2a-agent-builder-git-main-comcom-team.vercel.app?_vercel_share=0qHZq7N3C1Au0tZ4cCrduC8zMNEspwOi"
+                                className="inline-flex h-9 items-center justify-center gap-2.5 rounded bg-[#7f4fe8] px-3 py-2"
+                            >
+                                <p className="justify-start font-['SF_Pro'] text-sm text-white">Agent Builder</p>
+                            </a>
                         </div>
                     ) : (
                         <div className="space-y-3">

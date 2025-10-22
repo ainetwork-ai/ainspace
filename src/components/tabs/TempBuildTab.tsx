@@ -13,7 +13,7 @@ export default function TempBuildTab({ isActive }: BuildTabProps) {
     const [selectedTab, setSelectedTab] = useState<'map' | 'item'>('map');
 
     return (
-        <BaseTabContent isActive={isActive} withPadding={false}>
+        <BaseTabContent isActive={isActive} withPadding={false} className="bg-white">
             <div className="flex h-full w-full flex-col items-center overflow-y-auto px-6">
                 <div className="mt-8 flex w-full max-w-4xl flex-col items-center gap-4 pb-8">
                     <div className="inline-flex flex-col items-start justify-start gap-1 self-stretch rounded bg-[#faf4fe] px-2.5 py-2 outline-1 outline-offset-[-1px] outline-[#d7c1e5]">

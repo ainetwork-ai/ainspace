@@ -76,7 +76,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
 
             nextAgentRequest.forEach(async (req) => {
                 worldSendMessage(req, agentMessage.threadId);
-            })
+            });
         }
     });
 
@@ -438,6 +438,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                         value={inputValue}
                         onChange={handleInputChange}
                         onKeyDown={handleKeyPress}
+                        autoFocus={true}
                         placeholder="Typing Message..."
                         className="flex-1 bg-transparent text-sm leading-tight text-white placeholder-white/40 focus:outline-none"
                     />
