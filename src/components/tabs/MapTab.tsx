@@ -4,7 +4,7 @@ import React from 'react';
 import TileMap from '@/components/TileMap';
 import BaseTabContent from './BaseTabContent';
 import PlayerJoystick from '@/components/controls/PlayerJoystick';
-import { TILE_SIZE } from '@/constants/game';
+import { DIRECTION, TILE_SIZE } from '@/constants/game';
 import { useUIStore } from '@/stores';
 
 interface MapTabProps {
@@ -30,7 +30,7 @@ interface MapTabProps {
         layer2: { [key: string]: string };
     };
     isAutonomous: boolean;
-    onMobileMove: (direction: 'up' | 'down' | 'left' | 'right') => void;
+    onMobileMove: (direction: DIRECTION) => void;
     broadcastMessage: string;
     setBroadcastMessage: (message: string) => void;
     onBroadcast: () => void;
@@ -51,7 +51,7 @@ interface MapTabProps {
     isLoading: boolean;
     toggleAutonomous: () => void;
     resetLocation: () => void;
-    playerDirection: 'up' | 'down' | 'left' | 'right';
+    playerDirection: DIRECTION;
     playerIsMoving?: boolean;
     collisionMap: { [key: string]: boolean };
 }

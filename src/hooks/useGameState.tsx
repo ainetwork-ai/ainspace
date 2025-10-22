@@ -12,7 +12,8 @@ import {
     MIN_WORLD_X,
     MAX_WORLD_X,
     MIN_WORLD_Y,
-    MAX_WORLD_Y
+    MAX_WORLD_Y,
+    DIRECTION
 } from '@/constants/game';
 
 interface Position {
@@ -33,7 +34,7 @@ export function useGameState() {
     const [worldPosition, setWorldPosition] = useState<Position>(initialPosition);
     const [isLoading, setIsLoading] = useState(true);
     const [isAutonomous, setIsAutonomous] = useState(false);
-    const [playerDirection, setPlayerDirection] = useState<'up' | 'down' | 'left' | 'right'>('right');
+    const [playerDirection, setPlayerDirection] = useState<Omit<DIRECTION, 'stop'>>(DIRECTION.RIGHT);
     const [recentMovements, setRecentMovements] = useState<string[]>([]);
     const [lastCommentary, setLastCommentary] = useState<string>('');
     const [lastMoveTime, setLastMoveTime] = useState<number>(0);
@@ -77,7 +78,7 @@ export function useGameState() {
     );
 
     const movePlayer = useCallback(
-        (direction: 'up' | 'down' | 'left' | 'right') => {
+        (direction: DIRECTION) => {
             // Update player direction immediately
             setPlayerDirection(direction);
 
@@ -86,16 +87,16 @@ export function useGameState() {
                 const newWorldPosition = { ...prevWorldPos };
 
                 switch (direction) {
-                    case 'up':
+                    case DIRECTION.UP:
                         newWorldPosition.y -= 1;
                         break;
-                    case 'down':
+                    case DIRECTION.DOWN:
                         newWorldPosition.y += 1;
                         break;
-                    case 'left':
+                    case DIRECTION.LEFT:
                         newWorldPosition.x -= 1;
                         break;
-                    case 'right':
+                    case DIRECTION.RIGHT:
                         newWorldPosition.x += 1;
                         break;
                 }
@@ -157,7 +158,7 @@ export function useGameState() {
     const resetLocation = useCallback(() => {
         setWorldPosition(initialPosition);
         savePositionToRedis(initialPosition);
-        setPlayerDirection('right');
+        setPlayerDirection(DIRECTION.RIGHT);
         setRecentMovements([]);
         setIsPlayerMoving(false);
         resetAgents(); // Reset agents to their initial positions
@@ -230,16 +231,16 @@ export function useGameState() {
         // Try to move in current direction
         const nextPosition = { ...worldPosition };
         switch (playerDirection) {
-            case 'up':
+            case DIRECTION.UP:
                 nextPosition.y -= 1;
                 break;
-            case 'down':
+            case DIRECTION.DOWN:
                 nextPosition.y += 1;
                 break;
-            case 'left':
+            case DIRECTION.LEFT:
                 nextPosition.x -= 1;
                 break;
-            case 'right':
+            case DIRECTION.RIGHT:
                 nextPosition.x += 1;
                 break;
         }
@@ -257,21 +258,23 @@ export function useGameState() {
 
         if (isBlocked) {
             // Try different directions
-            const directions: ('up' | 'down' | 'left' | 'right')[] = ['up', 'down', 'left', 'right'];
+            const directions: DIRECTION[] = [DIRECTION.UP, DIRECTION.DOWN, DIRECTION.LEFT, DIRECTION.RIGHT];
             const availableDirections = directions.filter((dir) => {
                 const testPosition = { ...worldPosition };
                 switch (dir) {
-                    case 'up':
+                    case DIRECTION.UP:
                         testPosition.y -= 1;
                         break;
-                    case 'down':
+                    case DIRECTION.DOWN:
                         testPosition.y += 1;
                         break;
-                    case 'left':
+                    case DIRECTION.LEFT:
                         testPosition.x -= 1;
                         break;
-                    case 'right':
+                    case DIRECTION.RIGHT:
                         testPosition.x += 1;
+                        break;
+                    default:
                         break;
                 }
                 const outOfBounds =
@@ -292,11 +295,11 @@ export function useGameState() {
 
             if (availableDirections.length > 0) {
                 const randomDirection = availableDirections[Math.floor(Math.random() * availableDirections.length)];
-                movePlayer(randomDirection);
+                movePlayer(randomDirection as DIRECTION);
             }
         } else {
             // Move in current direction
-            movePlayer(playerDirection);
+            movePlayer(playerDirection as DIRECTION);
         }
     }, [isAutonomous, worldPosition, playerDirection, generateTileAt, movePlayer, isLayer1Blocked, worldAgents]);
 

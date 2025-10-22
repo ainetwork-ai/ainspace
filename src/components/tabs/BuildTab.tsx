@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import NextImage from 'next/image';
 import TileMap from '@/components/TileMap';
 import BaseTabContent from './BaseTabContent';
-import { TILE_SIZE } from '@/constants/game';
+import { DIRECTION, TILE_SIZE } from '@/constants/game';
 import { cn } from '@/lib/utils';
 
 type TileLayers = {
@@ -39,7 +39,7 @@ interface BuildTabProps {
     } | null;
     userId: string | null;
     onPublishTiles: () => void;
-    onMobileMove?: (direction: 'up' | 'down' | 'left' | 'right') => void;
+    onMobileMove?: (direction: DIRECTION) => void;
 }
 
 export default function BuildTab({

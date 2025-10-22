@@ -8,7 +8,7 @@ import ThreadTab from '@/components/tabs/ThreadTab';
 import AgentTab from '@/components/tabs/AgentTab';
 import Footer from '@/components/Footer';
 import BottomSheet from '@/components/BottomSheet';
-import { MAP_TILES } from '@/constants/game';
+import { DIRECTION, MAP_TILES } from '@/constants/game';
 import { AgentCard } from '@a2a-js/sdk';
 import { useUIStore, useThreadStore, useBuildStore, useAgentStore } from '@/stores';
 import TempBuildTab from '@/components/tabs/TempBuildTab';
@@ -108,24 +108,27 @@ export default function Home() {
     }, [userId]);
 
     const handleMobileMove = useCallback(
-        (direction: 'up' | 'down' | 'left' | 'right') => {
+        (direction: DIRECTION) => {
             if (isAutonomous) return;
 
             // Calculate new position
             let newX = worldPosition.x;
             let newY = worldPosition.y;
             switch (direction) {
-                case 'up':
+                case DIRECTION.UP:
                     newY -= 1;
                     break;
-                case 'down':
+                case DIRECTION.DOWN:
                     newY += 1;
                     break;
-                case 'left':
+                case DIRECTION.LEFT:
                     newX -= 1;
                     break;
-                case 'right':
+                case DIRECTION.RIGHT:
                     newX += 1;
+                    break;
+                case DIRECTION.STOP:
+                default:
                     break;
             }
 
@@ -160,19 +163,19 @@ export default function Home() {
             switch (event.key) {
                 case 'ArrowUp':
                     event.preventDefault();
-                    handleMobileMove('up');
+                    handleMobileMove(DIRECTION.UP);
                     break;
                 case 'ArrowDown':
                     event.preventDefault();
-                    handleMobileMove('down');
+                    handleMobileMove(DIRECTION.DOWN);
                     break;
                 case 'ArrowLeft':
                     event.preventDefault();
-                    handleMobileMove('left');
+                    handleMobileMove(DIRECTION.LEFT);
                     break;
                 case 'ArrowRight':
                     event.preventDefault();
-                    handleMobileMove('right');
+                    handleMobileMove(DIRECTION.RIGHT);
                     break;
             }
         };
