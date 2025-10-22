@@ -3,7 +3,7 @@
 import { WagmiProvider } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { base } from 'viem/chains';
-import { MiniKitProvider } from '@coinbase/onchainkit/minikit';
+import { OnchainKitProvider } from '@coinbase/onchainkit';
 import { config } from '@/lib/wagmi-config';
 import { MapDataProvider } from './MapDataProvider';
 
@@ -21,10 +21,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <WagmiProvider config={config}>
             <QueryClientProvider client={queryClient}>
                 <MapDataProvider>
-                    <MiniKitProvider
+                    <OnchainKitProvider
                         apiKey={process.env.NEXT_PUBLIC_ONCHAINKIT_API_KEY!}
                         chain={base}
-                        autoConnect={false}
+                        miniKit={{
+                            enabled: true,
+                            autoConnect: true
+                        }}
                         config={{
                             appearance: {
                                 mode: 'auto',
@@ -38,7 +41,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
                         }}
                     >
                         {children}
-                    </MiniKitProvider>
+                    </OnchainKitProvider>
                 </MapDataProvider>
             </QueryClientProvider>
         </WagmiProvider>

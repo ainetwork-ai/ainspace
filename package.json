@@ -10,7 +10,7 @@
     },
     "dependencies": {
         "@a2a-js/sdk": "^0.3.4",
-        "@coinbase/onchainkit": "^1.1.1",
+        "@coinbase/onchainkit": "latest",
         "@google/generative-ai": "^0.24.1",
         "@types/uuid": "^10.0.0",
         "@vercel/blob": "^2.0.0",

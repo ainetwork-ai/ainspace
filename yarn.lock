@@ -38,7 +38,7 @@
     viem "^2.31.7"
     zustand "5.0.3"
 
-"@coinbase/onchainkit@^1.1.1":
+"@coinbase/onchainkit@latest":
   version "1.1.1"
   resolved "https://registry.yarnpkg.com/@coinbase/onchainkit/-/onchainkit-1.1.1.tgz#b85921e3997b14a8c4febcbd13ad65f4c5805f04"
   integrity sha512-kQW852v5/SW0EXo2MY9uQCXrQLWmOOLObSUwAxsOLwL72GYfeg+GUzVKguydSwUEa08thBvdKFB/JvX4OA48Og==
