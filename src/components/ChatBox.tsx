@@ -47,7 +47,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     const [filteredAgents, setFilteredAgents] = useState<Agent[]>([]);
     const [cursorPosition, setCursorPosition] = useState(0);
     const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
-    const { showCollisionMap, setShowCollisionMap, updateCollisionMapFromImage } = useBuildStore();
+    const { showCollisionMap, setShowCollisionMap, updateCollisionMapFromImage, publishedTiles, setCollisionMap } = useBuildStore();
     const inputRef = useRef<HTMLInputElement>(null);
 
     // Initialize world system
@@ -178,7 +178,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             setInputValue('');
             const systemMessage: Message = {
                 id: `system-${Date.now()}`,
-                text: 'Updating collision map from land_layer_1.png...',
+                text: 'Updating collision map from land_layer_1.png and published tiles...',
                 timestamp: new Date(),
                 sender: 'system',
                 threadId: undefined
@@ -186,10 +186,29 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             setMessages((prev) => [...prev, systemMessage]);
 
             try {
+                // Step 1: Update collision map from land_layer_1.png image
                 await updateCollisionMapFromImage('/map/land_layer_1.png');
+
+                // Step 2: Get the updated collision map and merge with published layer1 items
+                const currentCollisionMap = useBuildStore.getState().collisionMap;
+                const layer1Items = publishedTiles.layer1 || {};
+
+                // Combine both sources
+                const mergedCollisionMap: { [key: string]: boolean } = { ...currentCollisionMap };
+                Object.keys(layer1Items).forEach((key) => {
+                    mergedCollisionMap[key] = true;
+                });
+
+                // Update the collision map with merged data
+                setCollisionMap(mergedCollisionMap);
+
+                const imageBlockedCount = Object.keys(currentCollisionMap).length;
+                const layer1ItemsCount = Object.keys(layer1Items).length;
+                const totalBlockedCount = Object.keys(mergedCollisionMap).length;
+
                 const successMessage: Message = {
                     id: `system-${Date.now()}`,
-                    text: 'Collision map updated successfully! Use "show me grid" to view.',
+                    text: `Collision map updated successfully! ${imageBlockedCount} tiles from image + ${layer1ItemsCount} published items = ${totalBlockedCount} total blocked tiles. Use "show me grid" to view.`,
                     timestamp: new Date(),
                     sender: 'system',
                     threadId: undefined

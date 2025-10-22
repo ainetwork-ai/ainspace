@@ -37,6 +37,7 @@ interface TileMapProps {
     layerVisibility?: { [key: number]: boolean };
     buildMode?: 'view' | 'paint';
     onTileClick?: (x: number, y: number) => void;
+    onDeleteTile?: (layer: 0 | 1 | 2, key: string) => void;
     backgroundImageSrc?: string;
     layer1ImageSrc?: string;
     playerDirection?: 'up' | 'down' | 'left' | 'right';
@@ -44,7 +45,7 @@ interface TileMapProps {
     collisionMap?: { [key: string]: boolean };
 }
 
-export default function TileMap({
+function TileMap({
     mapData,
     tileSize,
     playerPosition,
@@ -54,6 +55,7 @@ export default function TileMap({
     layerVisibility = { 0: true, 1: true, 2: true },
     buildMode = 'view',
     onTileClick,
+    onDeleteTile,
     backgroundImageSrc,
     layer1ImageSrc,
     playerDirection = 'down',
@@ -68,6 +70,8 @@ export default function TileMap({
     const [isPainting, setIsPainting] = useState(false);
     const [lastPaintedTile, setLastPaintedTile] = useState<{ x: number; y: number } | null>(null);
     const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
+    const [hoveredTile, setHoveredTile] = useState<{ x: number; y: number; layer: 0 | 1 | 2 } | null>(null);
+    const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
 
     // Use global state for collision map visibility
     const { showCollisionMap, toggleCollisionMap } = useBuildStore();
@@ -155,18 +159,16 @@ export default function TileMap({
         const uniqueImages = [...new Set(imagesToLoad)];
 
         uniqueImages.forEach((imageUrl) => {
-            if (!loadedImages[imageUrl]) {
-                const img = new Image();
-                img.onload = () => {
-                    setLoadedImages((prev) => ({
-                        ...prev,
-                        [imageUrl]: img
-                    }));
-                };
-                img.src = imageUrl;
-            }
+            const img = new Image();
+            img.onload = () => {
+                setLoadedImages((prev) => ({
+                    ...prev,
+                    [imageUrl]: img
+                }));
+            };
+            img.src = imageUrl;
         });
-    }, [customTiles, loadedImages]);
+    }, [customTiles]);
 
     // Convert mouse event to world coordinates
     const getWorldCoordinatesFromEvent = (event: React.MouseEvent<HTMLCanvasElement>) => {
@@ -234,11 +236,24 @@ export default function TileMap({
         }
     };
 
-    // Handle mouse move - continue painting if dragging
+    // Handle mouse move - continue painting if dragging and track mouse position
     const handleMouseMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
+        const coords = getWorldCoordinatesFromEvent(event);
+
+        // Update mouse position for visual feedback
+        if (coords && buildMode === 'paint') {
+            const canvas = canvasRef.current;
+            if (canvas) {
+                const rect = canvas.getBoundingClientRect();
+                setMousePosition({
+                    x: event.clientX - rect.left,
+                    y: event.clientY - rect.top
+                });
+            }
+        }
+
         if (buildMode !== 'paint' || !isPainting) return;
 
-        const coords = getWorldCoordinatesFromEvent(event);
         if (coords) {
             paintTileAt(coords.worldX, coords.worldY);
         }
@@ -451,6 +466,11 @@ export default function TileMap({
             }
         }
 
+        // Calculate actual screen tile size to match background image rendering
+        // This ensures perfect grid alignment for all layers
+        const screenTileWidth = canvas.width / tilesX;
+        const screenTileHeight = canvas.height / tilesY;
+
         // Draw custom tile layers
         if (isLayeredTiles(customTiles)) {
             // Draw each layer in order
@@ -470,7 +490,14 @@ export default function TileMap({
 
                             if (customTileImage && loadedImages[customTileImage]) {
                                 const img = loadedImages[customTileImage];
-                                ctx.drawImage(img, x * tileSize, y * tileSize, tileSize, tileSize);
+                                // Use actual screen tile dimensions for perfect grid alignment
+                                // This matches how the background image is rendered
+                                const pixelX = x * screenTileWidth;
+                                const pixelY = y * screenTileHeight;
+
+                                // Render the item image at exactly one tile size
+                                // This ensures each item occupies exactly ONE tile and aligns with the grid
+                                ctx.drawImage(img, pixelX, pixelY, screenTileWidth, screenTileHeight);
                             }
                         }
                     }
@@ -487,7 +514,12 @@ export default function TileMap({
 
                     if (customTileImage && loadedImages[customTileImage]) {
                         const img = loadedImages[customTileImage];
-                        ctx.drawImage(img, x * tileSize, y * tileSize, tileSize, tileSize);
+                        // Use actual screen tile dimensions for perfect grid alignment
+                        const pixelX = x * screenTileWidth;
+                        const pixelY = y * screenTileHeight;
+
+                        // Render the item image at exactly one tile size
+                        ctx.drawImage(img, pixelX, pixelY, screenTileWidth, screenTileHeight);
                     }
                 }
             }
@@ -495,9 +527,7 @@ export default function TileMap({
 
         // Draw collision map overlay (red tiles for blocked areas) - only if enabled
         if (showCollisionMap) {
-            // Calculate actual screen tile size to match background image rendering
-            const screenTileWidth = canvas.width / tilesX;
-            const screenTileHeight = canvas.height / tilesY;
+            // Use the same screen tile dimensions calculated above for consistency
 
             for (let y = 0; y < tilesY; y++) {
                 for (let x = 0; x < tilesX; x++) {
@@ -588,6 +618,24 @@ export default function TileMap({
             right: 9
         };
         return directionMap[direction];
+    };
+
+    // Helper to get tile key and check for custom tiles
+    const getCustomTilesAtPosition = (worldX: number, worldY: number) => {
+        const key = `${worldX},${worldY}`;
+        const tiles: Array<{ layer: 0 | 1 | 2; image: string; key: string }> = [];
+
+        if (isLayeredTiles(customTiles)) {
+            [0, 1, 2].forEach((layerIndex) => {
+                const layerKey = `layer${layerIndex}` as keyof TileLayers;
+                const layer = customTiles[layerKey];
+                if (layer && layer[key]) {
+                    tiles.push({ layer: layerIndex as 0 | 1 | 2, image: layer[key], key });
+                }
+            });
+        }
+
+        return tiles;
     };
 
     return (
@@ -746,6 +794,97 @@ export default function TileMap({
                     </div>
                 );
             })()}
+
+            {/* Render delete buttons for placed items in build mode */}
+            {buildMode === 'paint' && onDeleteTile && isLayeredTiles(customTiles) && canvasRef.current && (
+                <>
+                    {(() => {
+                        const canvas = canvasRef.current;
+                        if (!canvas) return null;
+
+                        // Calculate actual screen tile size to match grid alignment
+                        const screenTileWidth = canvas.width / tilesX;
+                        const screenTileHeight = canvas.height / tilesY;
+
+                        return Array.from({ length: tilesY }).map((_, screenY) =>
+                            Array.from({ length: tilesX }).map((_, screenX) => {
+                                const worldTileX = Math.floor(cameraTileX + screenX);
+                                const worldTileY = Math.floor(cameraTileY + screenY);
+                                const tiles = getCustomTilesAtPosition(worldTileX, worldTileY);
+
+                                // Only show delete button for layer1 items (items placed by users)
+                                const layer1Tile = tiles.find((t) => t.layer === 1);
+                                if (!layer1Tile) return null;
+
+                                return (
+                                    <div
+                                        key={`delete-${worldTileX}-${worldTileY}`}
+                                        className="group absolute"
+                                        style={{
+                                            left: `${screenX * screenTileWidth}px`,
+                                            top: `${screenY * screenTileHeight}px`,
+                                            width: `${screenTileWidth}px`,
+                                            height: `${screenTileHeight}px`,
+                                            pointerEvents: 'auto',
+                                            zIndex: 15
+                                        }}
+                                    >
+                                        {/* Delete button - centered X, shown on hover */}
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onDeleteTile(layer1Tile.layer, layer1Tile.key);
+                                            }}
+                                            className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center text-red-500 opacity-0 drop-shadow-lg transition-all hover:scale-125 hover:text-red-600 group-hover:opacity-100"
+                                            style={{
+                                                fontSize: '36px',
+                                                fontWeight: 'bold',
+                                                lineHeight: '1',
+                                                textShadow: '0 0 4px white, 0 0 8px white'
+                                            }}
+                                            title="Delete item"
+                                        >
+                                            ×
+                                        </button>
+                                    </div>
+                                );
+                            })
+                        );
+                    })()}
+                </>
+            )}
+
+            {/* Visual feedback for blocked tiles when hovering */}
+            {buildMode === 'paint' && mousePosition && (
+                <>
+                    {(() => {
+                        const canvas = canvasRef.current;
+                        if (!canvas) return null;
+
+                        const rect = canvas.getBoundingClientRect();
+                        const scaleX = canvas.width / rect.width;
+                        const screenTileHeight = canvas.height / tilesY;
+
+                        return (
+                            <div
+                                style={{
+                                    position: 'absolute',
+                                    left: `${screenTileX * screenTileWidth}px`,
+                                    top: `${screenTileY * screenTileHeight}px`,
+                                    width: `${screenTileWidth}px`,
+                                    height: `${screenTileHeight}px`,
+                                    backgroundColor: 'rgba(255, 0, 0, 0.4)',
+                                    border: '2px solid rgba(255, 0, 0, 0.8)',
+                                    pointerEvents: 'none',
+                                    zIndex: 20
+                                }}
+                            />
+                        );
+                    })()}
+                </>
+            )}
         </div>
     );
 }
+
+export default TileMap;

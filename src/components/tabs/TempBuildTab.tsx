@@ -1,11 +1,12 @@
 'use client';
 
 import Image from 'next/image';
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import BaseTabContent from './BaseTabContent';
 import TileMap from '@/components/TileMap';
 import { cn } from '@/lib/utils';
 import { TILE_SIZE } from '@/constants/game';
+import { useBuildStore } from '@/stores';
 
 type TileLayers = {
     layer0: { [key: string]: string };
@@ -28,6 +29,7 @@ interface BuildTabProps {
     publishedTiles: TileLayers;
     customTiles: TileLayers;
     setCustomTiles: (tiles: TileLayers | ((prev: TileLayers) => TileLayers)) => void;
+    setPublishedTiles: (tiles: TileLayers | ((prev: TileLayers) => TileLayers)) => void;
     isPublishing: boolean;
     publishStatus: {
         type: 'success' | 'error';
@@ -46,6 +48,7 @@ export default function TempBuildTab({
     publishedTiles,
     customTiles,
     setCustomTiles,
+    setPublishedTiles,
     isPublishing,
     publishStatus,
     userId,
@@ -53,7 +56,49 @@ export default function TempBuildTab({
 }: BuildTabProps) {
     const [selectedTab, setSelectedTab] = useState<'map' | 'item'>('item');
     const [selectedItem, setSelectedItem] = useState<number | null>(null);
+    const [playerDirection, setPlayerDirection] = useState<'up' | 'down' | 'left' | 'right'>('down');
+    const [isPlayerMoving, setIsPlayerMoving] = useState(false);
+    const [lastMoveTime, setLastMoveTime] = useState(0);
     const tileSize = TILE_SIZE;
+
+    const { setShowCollisionMap, collisionMap, isBlocked, setCollisionMap } = useBuildStore();
+
+    // Preload background images as soon as component mounts for faster rendering
+    useEffect(() => {
+        // Preload critical map images
+        const preloadImages = ['/map/land_layer_0.png', '/map/land_layer_1.png'];
+
+        preloadImages.forEach((src) => {
+            const img = document.createElement('img');
+            img.src = src;
+        });
+    }, []);
+
+    useEffect(() => {
+        if (isActive) {
+            setShowCollisionMap(true);
+        } else {
+            // Turn off collision map when leaving the tab
+            setShowCollisionMap(false);
+            // Clear unpublished items when leaving the tab
+            setCustomTiles((prev) => ({
+                layer0: prev.layer0 || {},
+                layer1: {},
+                layer2: prev.layer2 || {}
+            }));
+            setSelectedItem(null);
+        }
+    }, [isActive, setShowCollisionMap, setCustomTiles]);
+
+    useEffect(() => {
+        if (!isPlayerMoving) return;
+
+        const timer = setTimeout(() => {
+            setIsPlayerMoving(false);
+        }, 800);
+
+        return () => clearTimeout(timer);
+    }, [lastMoveTime]);
 
     const handleItemClick = (index: number) => {
         if (selectedTab === 'item') {
@@ -63,8 +108,17 @@ export default function TempBuildTab({
 
     const handleTileClick = (worldX: number, worldY: number) => {
         if (selectedTab === 'item' && selectedItem !== null) {
+            if (isBlocked(worldX, worldY)) {
+                console.warn(`Cannot place item at (${worldX}, ${worldY}) - tile is blocked`);
+                return;
+            }
+
             const itemImage = `/tempBuild/item/${selectedItem + 1}.png`;
             const key = `${worldX},${worldY}`;
+
+            setIsPlayerMoving(true);
+            setLastMoveTime(Date.now());
+
             setCustomTiles((prev) => ({
                 ...prev,
                 layer1: {
@@ -74,6 +128,95 @@ export default function TempBuildTab({
             }));
         }
     };
+
+    const handleDeleteTile = async (layer: 0 | 1 | 2, key: string) => {
+        if (isPublishing) {
+            console.warn('Cannot delete tiles while publishing');
+            return;
+        }
+
+        const layerKey = `layer${layer}` as keyof TileLayers;
+
+        // Check if the tile is in customTiles
+        const isInCustomTiles = customTiles[layerKey] && customTiles[layerKey][key];
+
+        // Check if the tile is in publishedTiles
+        const isInPublishedTiles = publishedTiles[layerKey] && publishedTiles[layerKey][key];
+
+        // Delete from customTiles if it exists there
+        if (isInCustomTiles) {
+            setCustomTiles((prev) => {
+                const newLayer = { ...prev[layerKey] };
+                delete newLayer[key];
+                return {
+                    ...prev,
+                    [layerKey]: newLayer
+                };
+            });
+        }
+
+        // Delete from publishedTiles if it exists there
+        if (isInPublishedTiles) {
+            // Update local state first for immediate UI feedback
+            setPublishedTiles((prev) => {
+                const newLayer = { ...prev[layerKey] };
+                delete newLayer[key];
+                return {
+                    ...prev,
+                    [layerKey]: newLayer
+                };
+            });
+
+            // If deleting a layer1 item from published tiles, update collision map
+            if (layer === 1) {
+                const newCollisionMap = { ...collisionMap };
+                delete newCollisionMap[key];
+                setCollisionMap(newCollisionMap);
+                console.log(`Removed collision for deleted published tile at ${key}`);
+            }
+
+            // Persist the deletion to the database
+            if (userId) {
+                try {
+                    // Create updated published tiles
+                    const updatedPublishedTiles = {
+                        layer0: { ...publishedTiles.layer0 },
+                        layer1: { ...publishedTiles.layer1 },
+                        layer2: { ...publishedTiles.layer2 }
+                    };
+                    delete updatedPublishedTiles[layerKey][key];
+
+                    const response = await fetch('/api/custom-tiles', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            userId: userId,
+                            customTiles: updatedPublishedTiles
+                        })
+                    });
+
+                    if (!response.ok) {
+                        console.error('Failed to persist tile deletion to database');
+                    } else {
+                        console.log(`Successfully deleted published tile at ${key} from database`);
+                    }
+                } catch (error) {
+                    console.error('Error deleting published tile from database:', error);
+                }
+            }
+        }
+    };
+
+    // Memoize the merged customTiles prop to prevent unnecessary TileMap re-renders
+    // This is a performance optimization as the object spread operation creates new objects on every render
+    const mergedCustomTiles = useMemo(() => {
+        return {
+            layer0: { ...(publishedTiles.layer0 || {}), ...(customTiles.layer0 || {}) },
+            layer2: { ...(publishedTiles.layer2 || {}), ...(customTiles.layer2 || {}) }
+        };
+    }, [publishedTiles, customTiles]);
 
     return (
         <BaseTabContent isActive={isActive} withPadding={false} className="bg-white">
@@ -88,26 +231,29 @@ export default function TempBuildTab({
                         </p>
                     </div>
 
-                    {selectedTab === 'item' && selectedItem !== null && (
-                        <div className="flex w-full justify-center overflow-hidden rounded-lg">
+                    <div
+                        className="mb-4 w-full overflow-hidden rounded-lg"
+                        style={{ minHeight: '500px', height: '70vh' }}
+                    >
+                        <div className="h-full w-full">
                             <TileMap
                                 mapData={mapData}
                                 tileSize={tileSize}
                                 playerPosition={playerPosition}
                                 worldPosition={worldPosition}
                                 agents={visibleAgents}
-                                customTiles={{
-                                    layer0: { ...(publishedTiles.layer0 || {}), ...(customTiles.layer0 || {}) },
-                                    layer1: { ...(publishedTiles.layer1 || {}), ...(customTiles.layer1 || {}) },
-                                    layer2: { ...(publishedTiles.layer2 || {}), ...(customTiles.layer2 || {}) }
-                                }}
-                                buildMode="paint"
+                                customTiles={mergedCustomTiles}
+                                buildMode={selectedTab === 'item' ? 'paint' : 'view'}
                                 backgroundImageSrc="/map/land_layer_0.png"
                                 layer1ImageSrc="/map/land_layer_1.png"
-                                onTileClick={handleTileClick}
+                                onTileClick={selectedTab === 'item' ? handleTileClick : undefined}
+                                onDeleteTile={selectedTab === 'item' ? handleDeleteTile : undefined}
+                                playerDirection={playerDirection}
+                                playerIsMoving={isPlayerMoving}
+                                collisionMap={collisionMap}
                             />
                         </div>
-                    )}
+                    </div>
 
                     <div className="flex w-full flex-row gap-0 self-stretch">
                         <div
@@ -138,7 +284,7 @@ export default function TempBuildTab({
                                 key={index}
                                 onClick={() => handleItemClick(index)}
                                 className={cn(
-                                    'rounded-lg transition-all',
+                                    'flex aspect-square items-center justify-center rounded-lg bg-[#EDEFF2] transition-all',
                                     selectedTab === 'item'
                                         ? 'cursor-pointer hover:scale-105 hover:shadow-lg'
                                         : 'cursor-default opacity-50',
@@ -152,7 +298,7 @@ export default function TempBuildTab({
                                     alt={`${selectedTab} ${index + 1}`}
                                     width={300}
                                     height={300}
-                                    className="rounded-lg"
+                                    className="h-[30%] w-[30%] rounded-lg object-contain"
                                 />
                             </div>
                         ))}
