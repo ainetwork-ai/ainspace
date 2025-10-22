@@ -187,15 +187,22 @@ export default function AgentTab({
                                         <div className="flex-1">
                                             <div className="inline-flex items-start justify-start gap-2">
                                                 {agent.characterImage ? (
-                                                    <div className="flex items-center space-x-2">
-                                                        <label className="cursor-pointer text-xs text-white transition-colors">
+                                                    <div className="relative flex items-center space-x-2">
+                                                        <label
+                                                            className={`cursor-pointer text-xs text-white transition-colors ${uploadingImage === agent.url ? 'pointer-events-none' : ''}`}
+                                                        >
                                                             <Image
                                                                 src={agent.characterImage}
-                                                                className="rounded-md"
+                                                                className={`rounded-md ${uploadingImage === agent.url ? 'opacity-50' : ''}`}
                                                                 alt="agent"
                                                                 width={48}
                                                                 height={48}
                                                             />
+                                                            {uploadingImage === agent.url && (
+                                                                <div className="absolute inset-0 flex items-center justify-center">
+                                                                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-purple-600"></div>
+                                                                </div>
+                                                            )}
                                                             <input
                                                                 type="file"
                                                                 accept="image/*"
@@ -209,24 +216,42 @@ export default function AgentTab({
                                                         </label>
                                                     </div>
                                                 ) : (
-                                                    <Image
-                                                        src="/agent/defaultAvatar.svg"
-                                                        alt="agent"
-                                                        width={48}
-                                                        height={48}
-                                                    />
-                                                )}
-                                                <label className="cursor-pointer">
-                                                    <div className="ml-5 flex h-[30px] items-center justify-center gap-1 rounded bg-[#ebeef2] px-1.5">
-                                                        <p className="justify-start font-['SF_Pro'] text-xs text-[#838d9d]">
-                                                            {agent.characterImage ? 'Change Image' : 'Upload Image'}
-                                                        </p>
+                                                    <div className="relative">
                                                         <Image
-                                                            src="/agent/image.svg"
-                                                            alt="uploadImage"
-                                                            width={12}
-                                                            height={12}
+                                                            src="/agent/defaultAvatar.svg"
+                                                            alt="agent"
+                                                            width={48}
+                                                            height={48}
+                                                            className={uploadingImage === agent.url ? 'opacity-50' : ''}
                                                         />
+                                                        {uploadingImage === agent.url && (
+                                                            <div className="absolute inset-0 flex items-center justify-center">
+                                                                <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-purple-600"></div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                                <label
+                                                    className={`cursor-pointer ${uploadingImage === agent.url ? 'pointer-events-none' : ''}`}
+                                                >
+                                                    <div
+                                                        className={`ml-5 flex h-[30px] items-center justify-center gap-1 rounded px-1.5 ${uploadingImage === agent.url ? 'bg-gray-200' : 'bg-[#ebeef2]'}`}
+                                                    >
+                                                        <p className="justify-start font-['SF_Pro'] text-xs text-[#838d9d]">
+                                                            {uploadingImage === agent.url
+                                                                ? 'Uploading...'
+                                                                : agent.characterImage
+                                                                  ? 'Change Image'
+                                                                  : 'Upload Image'}
+                                                        </p>
+                                                        {uploadingImage !== agent.url && (
+                                                            <Image
+                                                                src="/agent/image.svg"
+                                                                alt="uploadImage"
+                                                                width={12}
+                                                                height={12}
+                                                            />
+                                                        )}
                                                     </div>
                                                     <input
                                                         type="file"
