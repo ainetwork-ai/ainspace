@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useMapData } from '@/providers/MapDataProvider';
 import { useSession } from '@/hooks/useSession';
 import { useAgents } from '@/hooks/useAgents';
-import { useLayer1Collision } from '@/hooks/useLayer1Collision';
+import { useBuildStore } from '@/stores';
 import {
     MAP_WIDTH,
     MAP_HEIGHT,
@@ -23,12 +23,12 @@ interface Position {
 export function useGameState() {
     const { getMapData, generateTileAt } = useMapData();
     const { userId } = useSession();
-    const { isBlocked: isLayer1Blocked, collisionMap } = useLayer1Collision('/map/land_layer_1.png');
+    const { isBlocked: isLayer1Blocked, collisionMap } = useBuildStore();
 
-    // Character starts at the center of the map
+    // Character starts at position (63, 58)
     const initialPosition: Position = {
-        x: Math.floor((MIN_WORLD_X + MAX_WORLD_X) / 2),
-        y: Math.floor((MIN_WORLD_Y + MAX_WORLD_Y) / 2)
+        x: 63,
+        y: 58
     };
     const [worldPosition, setWorldPosition] = useState<Position>(initialPosition);
     const [isLoading, setIsLoading] = useState(true);
@@ -49,7 +49,7 @@ export function useGameState() {
     };
 
     // Initialize agents system
-    const { agents, worldAgents, visibleAgents } = useAgents({
+    const { agents, worldAgents, visibleAgents, resetAgents } = useAgents({
         playerWorldPosition: worldPosition,
         viewRadius: VIEW_RADIUS
     });
@@ -152,6 +152,16 @@ export function useGameState() {
     const toggleAutonomous = useCallback(() => {
         setIsAutonomous((prev) => !prev);
     }, []);
+
+    // Reset player location to initial position
+    const resetLocation = useCallback(() => {
+        setWorldPosition(initialPosition);
+        savePositionToRedis(initialPosition);
+        setPlayerDirection('right');
+        setRecentMovements([]);
+        setIsPlayerMoving(false);
+        resetAgents(); // Reset agents to their initial positions
+    }, [savePositionToRedis, resetAgents]);
 
     // Helper function to determine terrain type
     const getCurrentTerrain = useCallback(() => {
@@ -364,6 +374,7 @@ export function useGameState() {
         visibleAgents,
         isAutonomous,
         toggleAutonomous,
+        resetLocation,
         lastCommentary,
         playerDirection,
         isPlayerMoving,

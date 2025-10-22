@@ -25,11 +25,12 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
     const { generateTileAt } = useMapData();
     const { isBlocked: isLayer1Blocked } = useLayer1Collision('/map/land_layer_1.png');
 
-    const [agents, setAgents] = useState<AgentInternal[]>([
+    // Initial agent positions near player start location (63, 58)
+    const initialAgents: AgentInternal[] = [
         {
             id: 'agent-1',
-            x: 50,
-            y: 48,
+            x: 58,
+            y: 66,
             color: '#00FF00',
             name: 'Explorer Bot',
             direction: 'right',
@@ -42,7 +43,7 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
         },
         {
             id: 'agent-2',
-            x: 50,
+            x: 67,
             y: 48,
             color: '#FF6600',
             name: 'Patrol Bot',
@@ -56,8 +57,8 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
         },
         {
             id: 'agent-3',
-            x: 48,
-            y: 48,
+            x: 82,
+            y: 80,
             color: '#9933FF',
             name: 'Wanderer',
             direction: 'left',
@@ -68,7 +69,9 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
             spriteHeight: TILE_SIZE,
             spriteWidth: TILE_SIZE
         }
-    ]);
+    ];
+
+    const [agents, setAgents] = useState<AgentInternal[]>(initialAgents);
 
     const isWalkable = useCallback(
         (x: number, y: number, currentAgents: AgentInternal[], checkingAgentId?: string): boolean => {
@@ -266,10 +269,16 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
         }));
     }, [agents]);
 
+    // Reset agents to initial positions
+    const resetAgents = useCallback(() => {
+        setAgents(initialAgents.map((agent) => ({ ...agent, lastMoved: Date.now() })));
+    }, []);
+
     return {
         agents,
         worldAgents: getWorldAgents(),
         visibleAgents: getVisibleAgents(),
-        updateAgents
+        updateAgents,
+        resetAgents
     };
 }

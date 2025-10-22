@@ -9,10 +9,10 @@ import BuildTab from '@/components/tabs/BuildTab';
 import AgentTab from '@/components/tabs/AgentTab';
 import Footer from '@/components/Footer';
 import BottomSheet from '@/components/BottomSheet';
-import { useLayer1Collision } from '@/hooks/useLayer1Collision';
 import { MAP_TILES } from '@/constants/game';
 import { AgentCard } from '@a2a-js/sdk';
 import { useUIStore, useThreadStore, useBuildStore, useAgentStore } from '@/stores';
+import TempBuildTab from '@/components/tabs/TempBuildTab';
 
 export default function Home() {
     const {
@@ -26,13 +26,11 @@ export default function Home() {
         worldAgents,
         isAutonomous,
         toggleAutonomous,
+        resetLocation,
         lastCommentary,
         playerDirection,
-        isPlayerMoving,
-        collisionMap
+        isPlayerMoving
     } = useGameState();
-    const { isBlocked: isLayer1Blocked } = useLayer1Collision('/map/land_layer_1.png');
-
     // Global stores
     const { activeTab, isBottomSheetOpen, setActiveTab, openBottomSheet, closeBottomSheet } = useUIStore();
     const {
@@ -54,17 +52,35 @@ export default function Home() {
         buildMode,
         isPublishing,
         publishStatus,
+        collisionMap: globalCollisionMap,
+        isBlocked: globalIsBlocked,
         setCustomTiles,
         setPublishedTiles,
         setSelectedImage,
         setBuildMode,
         setIsPublishing,
         setPublishStatus,
+        setCollisionMap,
         clearPublishStatusAfterDelay
     } = useBuildStore();
     const { spawnedA2AAgents, spawnAgent, removeAgent, updateAgent, setAgents } = useAgentStore();
 
     const chatBoxRef = useRef<ChatBoxRef>(null);
+
+    // Initialize collision map on first load
+    useEffect(() => {
+        const initCollisionMap = async () => {
+            if (Object.keys(globalCollisionMap).length === 0) {
+                try {
+                    const { updateCollisionMapFromImage } = useBuildStore.getState();
+                    await updateCollisionMapFromImage('/map/land_layer_1.png');
+                } catch (error) {
+                    console.error('Failed to initialize collision map:', error);
+                }
+            }
+        };
+        initCollisionMap();
+    }, []); // Run only once on mount
 
     // Load custom tiles when userId is available
     useEffect(() => {
@@ -132,6 +148,14 @@ export default function Home() {
     // Keyboard handling for player movement (works alongside joystick)
     useEffect(() => {
         const handleKeyPress = (event: KeyboardEvent) => {
+            // Reset location with Ctrl+R
+            if (event.ctrlKey && event.key.toLowerCase() === 'r') {
+                event.preventDefault();
+                resetLocation();
+                console.log('Location reset to initial position (63, 58)');
+                return;
+            }
+
             if (isLoading || isAutonomous) return;
 
             switch (event.key) {
@@ -156,7 +180,7 @@ export default function Home() {
 
         window.addEventListener('keydown', handleKeyPress);
         return () => window.removeEventListener('keydown', handleKeyPress);
-    }, [handleMobileMove, isLoading, isAutonomous]);
+    }, [handleMobileMove, isLoading, isAutonomous, resetLocation]);
 
     const handleBroadcast = async () => {
         if (broadcastMessage.trim()) {
@@ -443,7 +467,7 @@ export default function Home() {
                     }
 
                     // Check layer1 collision - don't move if blocked
-                    if (isLayer1Blocked(newX, newY)) {
+                    if (globalIsBlocked(newX, newY)) {
                         return; // Skip this agent's movement
                     }
 
@@ -475,7 +499,7 @@ export default function Home() {
 
         const interval = setInterval(moveA2AAgents, 2000); // Check every 2 seconds
         return () => clearInterval(interval);
-    }, [isLayer1Blocked, spawnedA2AAgents, worldAgents, worldPosition, setAgents, setCustomTiles]);
+    }, [globalIsBlocked, spawnedA2AAgents, worldAgents, worldPosition, setAgents, setCustomTiles]);
 
     return (
         <div className="flex h-screen w-full flex-col bg-gray-100">
@@ -499,11 +523,13 @@ export default function Home() {
                     userId={userId}
                     isLoading={isLoading}
                     toggleAutonomous={toggleAutonomous}
+                    resetLocation={resetLocation}
                     playerDirection={playerDirection}
                     playerIsMoving={isPlayerMoving}
-                    collisionMap={collisionMap}
+                    collisionMap={globalCollisionMap}
                 />
-                <BuildTab
+                <TempBuildTab isActive={activeTab === 'build'} />
+                {/* <BuildTab
                     isActive={activeTab === 'build'}
                     mapData={mapData}
                     playerPosition={playerPosition}
@@ -521,7 +547,7 @@ export default function Home() {
                     userId={userId}
                     onPublishTiles={handlePublishTiles}
                     onMobileMove={handleMobileMove}
-                />
+                /> */}
                 <AgentTab
                     isActive={activeTab === 'agent'}
                     onSpawnAgent={handleSpawnAgent}
@@ -530,8 +556,9 @@ export default function Home() {
                     onUploadCharacterImage={handleUploadCharacterImage}
                 />
             </div>
-            <Footer activeTab={activeTab} onTabChange={setActiveTab} onClickDialogueBox={openBottomSheet} />
-
+            {!isBottomSheetOpen && (
+                <Footer activeTab={activeTab} onTabChange={setActiveTab} onClickDialogueBox={openBottomSheet} />
+            )}
             <BottomSheet isOpen={isBottomSheetOpen} onClose={closeBottomSheet}>
                 <ThreadTab
                     isActive={true}
@@ -542,6 +569,7 @@ export default function Home() {
                     currentThreadId={currentThreadId || undefined}
                     threads={threads}
                     onThreadSelect={setCurrentThreadId}
+                    onResetLocation={resetLocation}
                 />
             </BottomSheet>
         </div>

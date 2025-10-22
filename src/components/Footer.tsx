@@ -13,19 +13,21 @@ interface FooterProps {
 export default function Footer({ activeTab, onTabChange, onClickDialogueBox }: FooterProps) {
     return (
         <div className="fixed right-0 bottom-0 left-0">
-            <div className="inline-flex h-8 w-full items-center justify-center gap-2 self-stretch rounded-tl-lg rounded-tr-lg bg-black/80 p-2">
-                <Image
-                    src="/footer/bottomTab/tab_icon_bubble.svg"
-                    className="h-4 w-4"
-                    alt="Chat"
-                    width={16}
-                    height={16}
-                />
-                <button onClick={onClickDialogueBox} className="flex flex-1 cursor-pointer justify-start">
-                    <span className="text-xs font-bold text-[#ffe05c]">류승룡:</span>
-                    <span className="text-xs text-white"> 마을 행사를 하려는데 어떻게 하면 좋을지 알려줘</span>
-                </button>
-            </div>
+            {activeTab === 'map' && (
+                <div className="inline-flex h-8 w-full items-center justify-center gap-2 self-stretch rounded-tl-lg rounded-tr-lg bg-black/80 p-2">
+                    <Image
+                        src="/footer/bottomTab/tab_icon_bubble.svg"
+                        className="h-4 w-4"
+                        alt="Chat"
+                        width={16}
+                        height={16}
+                    />
+                    <button onClick={onClickDialogueBox} className="flex flex-1 cursor-pointer justify-start">
+                        <span className="text-xs font-bold text-[#ffe05c]">류승룡:</span>
+                        <span className="text-xs text-white"> 마을 행사를 하려는데 어떻게 하면 좋을지 알려줘</span>
+                    </button>
+                </div>
+            )}
             <div className="border-t border-black bg-black">
                 <div className="flex h-[72px] w-full">
                     <button

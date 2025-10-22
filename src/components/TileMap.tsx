@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { SpriteAnimator } from 'react-sprite-animator';
 import { TILE_SIZE, MAP_TILES } from '@/constants/game';
+import { useBuildStore } from '@/stores';
 
 interface Agent {
     id: string;
@@ -67,7 +68,9 @@ export default function TileMap({
     const [isPainting, setIsPainting] = useState(false);
     const [lastPaintedTile, setLastPaintedTile] = useState<{ x: number; y: number } | null>(null);
     const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
-    const [showCollisionMap, setShowCollisionMap] = useState(false);
+
+    // Use global state for collision map visibility
+    const { showCollisionMap, toggleCollisionMap } = useBuildStore();
 
     // Load background image
     useEffect(() => {
@@ -119,13 +122,13 @@ export default function TileMap({
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.ctrlKey && event.key === 'j') {
                 event.preventDefault();
-                setShowCollisionMap((prev) => !prev);
+                toggleCollisionMap();
             }
         };
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, []);
+    }, [toggleCollisionMap]);
 
     // Check if customTiles is using layer structure
     const isLayeredTiles = (tiles: TileLayers | { [key: string]: string }): tiles is TileLayers => {
@@ -662,6 +665,28 @@ export default function TileMap({
                             shouldAnimate={agentIsMoving}
                             startFrame={agentStartFrame}
                         />
+                        {/* Show agent coordinates when grid is visible */}
+                        {showCollisionMap && agent.x !== undefined && agent.y !== undefined && (
+                            <div
+                                style={{
+                                    position: 'absolute',
+                                    bottom: '-18px',
+                                    left: '50%',
+                                    transform: 'translateX(-50%)',
+                                    fontSize: '11px',
+                                    fontWeight: 'bold',
+                                    color: '#fff',
+                                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                    whiteSpace: 'nowrap',
+                                    zIndex: 20,
+                                    pointerEvents: 'none'
+                                }}
+                            >
+                                ({agent.x}, {agent.y})
+                            </div>
+                        )}
                     </div>
                 );
             })}
@@ -696,6 +721,28 @@ export default function TileMap({
                             shouldAnimate={playerIsMoving}
                             startFrame={playerStartFrame}
                         />
+                        {/* Show player coordinates when grid is visible */}
+                        {showCollisionMap && (
+                            <div
+                                style={{
+                                    position: 'absolute',
+                                    bottom: '-18px',
+                                    left: '50%',
+                                    transform: 'translateX(-50%)',
+                                    fontSize: '11px',
+                                    fontWeight: 'bold',
+                                    color: '#fff',
+                                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                    whiteSpace: 'nowrap',
+                                    zIndex: 20,
+                                    pointerEvents: 'none'
+                                }}
+                            >
+                                ({worldPosition.x}, {worldPosition.y})
+                            </div>
+                        )}
                     </div>
                 );
             })()}
