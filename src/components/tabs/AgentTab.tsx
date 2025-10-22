@@ -4,19 +4,18 @@ import Image from 'next/image';
 import React, { useState } from 'react';
 import { AgentCard } from '@a2a-js/sdk';
 import BaseTabContent from './BaseTabContent';
-import Link from 'next/link';
 
 interface ImportedAgent {
     url: string;
     card: AgentCard;
-    characterImage?: string; // Character image URL for layer2
+    characterImage?: string;
 }
 
 interface AgentTabProps {
     isActive: boolean;
     onSpawnAgent: (agent: ImportedAgent) => void;
     onRemoveAgentFromMap: (agentUrl: string) => void;
-    spawnedAgents: string[]; // URLs of spawned agents
+    spawnedAgents: string[];
     onUploadCharacterImage: (agentUrl: string, imageUrl: string) => void;
 }
 
@@ -43,7 +42,6 @@ export default function AgentTab({
         setError(null);
 
         try {
-            // Use proxy to fetch agent card to avoid CORS issues
             const proxyResponse = await fetch('/api/agent-proxy', {
                 method: 'POST',
                 headers: {
@@ -59,14 +57,12 @@ export default function AgentTab({
 
             const { agentCard } = await proxyResponse.json();
 
-            // Check if agent already exists
             if (agents.some((agent) => agent.url === agentUrl)) {
                 setError('This agent has already been imported');
                 setIsLoading(false);
                 return;
             }
 
-            // Add the agent to the list
             setAgents([
                 ...agents,
                 {
@@ -75,7 +71,6 @@ export default function AgentTab({
                 }
             ]);
 
-            // Clear the input
             setAgentUrl('');
         } catch (err) {
             setError(`Failed to import agent: ${err instanceof Error ? err.message : 'Unknown error'}`);
@@ -85,13 +80,15 @@ export default function AgentTab({
     };
 
     const handleRemoveAgent = (url: string) => {
+        if (spawnedAgents.includes(url)) {
+            onRemoveAgentFromMap(url);
+        }
         setAgents(agents.filter((agent) => agent.url !== url));
     };
 
     const handleImageUpload = async (agentUrl: string, file: File) => {
         setUploadingImage(agentUrl);
         try {
-            // Upload to Vercel Blob
             const formData = new FormData();
             const imageId = `character_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
             formData.append('file', file, `${imageId}.png`);
@@ -108,10 +105,7 @@ export default function AgentTab({
 
             const { url } = await uploadResponse.json();
 
-            // Update agent with character image
             setAgents(agents.map((agent) => (agent.url === agentUrl ? { ...agent, characterImage: url } : agent)));
-
-            // Notify parent component
             onUploadCharacterImage(agentUrl, url);
         } catch (err) {
             setError(`Failed to upload image: ${err instanceof Error ? err.message : 'Unknown error'}`);
@@ -187,91 +181,21 @@ export default function AgentTab({
                             {agents.map((agent, index) => (
                                 <div
                                     key={agent.url}
-                                    className="overflow-hidden rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+                                    className="overflow-hidden rounded-lg border border-gray-200 bg-white p-4"
                                 >
                                     <div className="flex items-start justify-between">
                                         <div className="flex-1">
-                                            <h4 className="font-semibold text-gray-900">
-                                                {agent.card.name || `Agent ${index + 1}`}
-                                            </h4>
-                                            {agent.card.description && (
-                                                <p className="mt-1 text-sm break-words text-gray-600">
-                                                    {agent.card.description}
-                                                </p>
-                                            )}
-                                            <div className="mt-2 space-y-1 text-xs text-gray-500">
-                                                <div>Version: {agent.card.version || 'N/A'}</div>
-                                                <div>Protocol: {agent.card.protocolVersion || 'N/A'}</div>
-                                                <div>
-                                                    URL: <span className="break-all text-blue-600">{agent.url}</span>
-                                                </div>
-                                                {agent.card.capabilities?.streaming && (
-                                                    <div className="text-green-600">✓ Streaming supported</div>
-                                                )}
-                                            </div>
-
-                                            {/* Skills */}
-                                            {agent.card.skills && agent.card.skills.length > 0 && (
-                                                <div className="mt-3">
-                                                    <div className="mb-1 text-xs font-medium text-gray-700">
-                                                        Skills:
-                                                    </div>
-                                                    <div className="flex flex-wrap gap-1">
-                                                        {agent.card.skills.map((skill, skillIndex) => (
-                                                            <span
-                                                                key={skillIndex}
-                                                                className="inline-block rounded-full bg-purple-100 px-2 py-1 text-xs text-purple-700"
-                                                            >
-                                                                {skill.name}
-                                                            </span>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <div className="ml-4 flex flex-col space-y-2">
-                                            <div className="flex space-x-2">
-                                                {spawnedAgents.includes(agent.url) ? (
-                                                    <button
-                                                        onClick={() => onRemoveAgentFromMap(agent.url)}
-                                                        className="rounded bg-red-500 px-3 py-1 text-xs text-white transition-colors hover:bg-red-600"
-                                                        title="Remove from map"
-                                                    >
-                                                        Remove from Map
-                                                    </button>
-                                                ) : (
-                                                    <button
-                                                        onClick={() => onSpawnAgent(agent)}
-                                                        className="rounded bg-green-500 px-3 py-1 text-xs text-white transition-colors hover:bg-green-600"
-                                                        title="Spawn on map"
-                                                    >
-                                                        Spawn on Map
-                                                    </button>
-                                                )}
-
-                                                <button
-                                                    onClick={() => handleRemoveAgent(agent.url)}
-                                                    className="text-red-500 transition-colors hover:text-red-700"
-                                                    title="Remove agent completely"
-                                                >
-                                                    ✕
-                                                </button>
-                                            </div>
-
-                                            {/* Character Image Upload */}
-                                            <div className="flex flex-col space-y-1">
-                                                <label className="text-xs text-gray-600">Character Image:</label>
+                                            <div className="inline-flex items-start justify-start gap-2">
                                                 {agent.characterImage ? (
                                                     <div className="flex items-center space-x-2">
-                                                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                                                        <img
-                                                            src={agent.characterImage}
-                                                            alt="Character"
-                                                            className="h-8 w-8 rounded border object-cover"
-                                                        />
-                                                        <label className="cursor-pointer rounded bg-blue-500 px-2 py-1 text-xs text-white transition-colors hover:bg-blue-600">
-                                                            Change
+                                                        <label className="cursor-pointer text-xs text-white transition-colors">
+                                                            <Image
+                                                                src={agent.characterImage}
+                                                                className="rounded-md"
+                                                                alt="agent"
+                                                                width={48}
+                                                                height={48}
+                                                            />
                                                             <input
                                                                 type="file"
                                                                 accept="image/*"
@@ -285,21 +209,70 @@ export default function AgentTab({
                                                         </label>
                                                     </div>
                                                 ) : (
-                                                    <label className="cursor-pointer rounded bg-purple-500 px-2 py-1 text-center text-xs text-white transition-colors hover:bg-purple-600">
-                                                        {uploadingImage === agent.url ? 'Uploading...' : 'Upload Image'}
-                                                        <input
-                                                            type="file"
-                                                            accept="image/*"
-                                                            className="hidden"
-                                                            onChange={(e) => {
-                                                                const file = e.target.files?.[0];
-                                                                if (file) handleImageUpload(agent.url, file);
-                                                            }}
-                                                            disabled={uploadingImage === agent.url}
-                                                        />
-                                                    </label>
+                                                    <Image
+                                                        src="/agent/defaultAvatar.svg"
+                                                        alt="agent"
+                                                        width={48}
+                                                        height={48}
+                                                    />
                                                 )}
+                                                <label className="cursor-pointer">
+                                                    <div className="ml-5 flex h-[30px] items-center justify-center gap-1 rounded bg-[#ebeef2] px-1.5">
+                                                        <p className="justify-start font-['SF_Pro'] text-xs text-[#838d9d]">
+                                                            {agent.characterImage ? 'Change Image' : 'Upload Image'}
+                                                        </p>
+                                                        <Image
+                                                            src="/agent/image.svg"
+                                                            alt="uploadImage"
+                                                            width={12}
+                                                            height={12}
+                                                        />
+                                                    </div>
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        className="hidden"
+                                                        onChange={(e) => {
+                                                            const file = e.target.files?.[0];
+                                                            if (file) handleImageUpload(agent.url, file);
+                                                        }}
+                                                        disabled={uploadingImage === agent.url}
+                                                    />
+                                                </label>
+                                                <button
+                                                    onClick={() => onSpawnAgent(agent)}
+                                                    className="flex h-[30px] cursor-pointer items-center justify-start gap-1 rounded bg-[#ebeef2] px-1.5"
+                                                >
+                                                    <p className="justify-start font-['SF_Pro'] text-xs text-[#838d9d]">
+                                                        Add to Map
+                                                    </p>
+                                                    <Image
+                                                        src="/agent/map-pin.svg"
+                                                        alt="uploadImage"
+                                                        width={12}
+                                                        height={12}
+                                                    />
+                                                </button>
+                                                <button
+                                                    className="cursor-pointer"
+                                                    onClick={() => handleRemoveAgent(agent.url)}
+                                                >
+                                                    <Image
+                                                        src="/agent/trash.svg"
+                                                        alt="uploadImage"
+                                                        width={30}
+                                                        height={30}
+                                                    />
+                                                </button>
                                             </div>
+                                            <h4 className="font-semibold text-gray-900">
+                                                {agent.card.name || `Agent ${index + 1}`}
+                                            </h4>
+                                            {agent.card.description && (
+                                                <p className="mt-2 text-sm break-words text-[#838d9d]">
+                                                    {agent.card.description}
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
