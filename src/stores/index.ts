@@ -5,4 +5,4 @@ export { useAgentStore } from './useAgentStore';
 
 export type { Thread } from './useThreadStore';
 export type { TileLayers } from './useBuildStore';
-export type { SpawnedA2AAgent } from './useAgentStore';
+export type { AgentState } from './useAgentStore';

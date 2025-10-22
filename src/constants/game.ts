@@ -17,3 +17,11 @@ export const MIN_WORLD_X = Math.floor(MAP_WIDTH / 2);
 export const MAX_WORLD_X = MAP_TILES - Math.ceil(MAP_WIDTH / 2);
 export const MIN_WORLD_Y = Math.floor(MAP_HEIGHT / 2);
 export const MAX_WORLD_Y = MAP_TILES - Math.ceil(MAP_HEIGHT / 2);
+
+export enum DIRECTION {
+  UP = 'up',
+  DOWN = 'down',
+  LEFT = 'left',
+  RIGHT = 'right',
+  STOP = 'stop',
+}

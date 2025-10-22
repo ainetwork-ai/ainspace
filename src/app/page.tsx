@@ -5,7 +5,6 @@ import { useRef, useEffect, useCallback } from 'react';
 import { ChatBoxRef } from '@/components/ChatBox';
 import MapTab from '@/components/tabs/MapTab';
 import ThreadTab from '@/components/tabs/ThreadTab';
-import BuildTab from '@/components/tabs/BuildTab';
 import AgentTab from '@/components/tabs/AgentTab';
 import Footer from '@/components/Footer';
 import BottomSheet from '@/components/BottomSheet';
@@ -13,6 +12,7 @@ import { MAP_TILES } from '@/constants/game';
 import { AgentCard } from '@a2a-js/sdk';
 import { useUIStore, useThreadStore, useBuildStore, useAgentStore } from '@/stores';
 import TempBuildTab from '@/components/tabs/TempBuildTab';
+import { A2AAgent, A2AAgentState, BaseAgent, createAgent } from '@/lib/agent';
 
 export default function Home() {
     const {
@@ -60,10 +60,9 @@ export default function Home() {
         setBuildMode,
         setIsPublishing,
         setPublishStatus,
-        setCollisionMap,
         clearPublishStatusAfterDelay
     } = useBuildStore();
-    const { spawnedA2AAgents, spawnAgent, removeAgent, updateAgent, setAgents } = useAgentStore();
+    const { a2aAgents, spawnAgent, removeAgent, updateAgentCharacterImage, setAgents } = useAgentStore();
 
     const chatBoxRef = useRef<ChatBoxRef>(null);
 
@@ -131,8 +130,8 @@ export default function Home() {
             }
 
             // Check if A2A agent is at this position
-            const isOccupiedByA2A = Object.values(spawnedA2AAgents).some(
-                (agent) => agent.x === newX && agent.y === newY
+            const isOccupiedByA2A = Object.values(a2aAgents).some(
+                (agent: BaseAgent) => agent.x === newX && agent.y === newY
             );
 
             if (isOccupiedByA2A) {
@@ -142,7 +141,7 @@ export default function Home() {
             // Move player (this will also check worldAgents in useGameState)
             movePlayer(direction);
         },
-        [isAutonomous, worldPosition, spawnedA2AAgents, movePlayer]
+        [isAutonomous, worldPosition, a2aAgents, movePlayer]
     );
 
     // Keyboard handling for player movement (works alongside joystick)
@@ -334,17 +333,18 @@ export default function Home() {
         const spawnY = worldPosition.y + Math.floor(Math.random() * 6) - 3;
 
         // Add to spawned A2A agents for UI tracking
-        spawnAgent(importedAgent.url, {
+        spawnAgent(importedAgent.url, createAgent('A2A Agent', {
             id: agentId,
             name: importedAgent.card.name || 'A2A Agent',
             x: spawnX,
             y: spawnY,
             color: randomColor,
+            behavior: 'A2A Agent',
             agentUrl: importedAgent.url,
             lastMoved: Date.now(),
             skills: importedAgent.card.skills || [],
             characterImage: importedAgent.characterImage
-        });
+        } as A2AAgentState) as A2AAgent);
 
         // If there's a character image, place it on layer2
         if (importedAgent.characterImage) {
@@ -361,7 +361,7 @@ export default function Home() {
 
     const handleUploadCharacterImage = (agentUrl: string, imageUrl: string) => {
         // Update the spawned agent's character image
-        const agent = spawnedA2AAgents[agentUrl];
+        const agent = a2aAgents[agentUrl];
         if (!agent) return;
 
         // Place character image on layer2 at agent's current position
@@ -374,7 +374,7 @@ export default function Home() {
         }));
 
         // Update agent with character image
-        updateAgent(agentUrl, { characterImage: imageUrl });
+        updateAgentCharacterImage(agentUrl, imageUrl);
     };
 
     const handleRemoveAgentFromMap = (agentUrl: string) => {
@@ -384,20 +384,20 @@ export default function Home() {
     // Combine existing world agents with spawned A2A agents
     const combinedWorldAgents = [
         ...worldAgents,
-        ...Object.values(spawnedA2AAgents).map((agent) => ({
+        ...Object.values(a2aAgents).map((agent: BaseAgent) => ({
             id: agent.id,
             x: agent.x,
             y: agent.y,
             color: agent.color,
             name: agent.name,
             behavior: 'A2A Agent',
-            agentUrl: agent.agentUrl, // Include agentUrl for A2A agents
-            skills: agent.skills,
+            agentUrl: agent.getState().agentUrl, // Include agentUrl for A2A agents
+            skills: agent.getState().skills,
         }))
     ];
 
     // Convert A2A agents to visible agents format for the map
-    const a2aVisibleAgents = Object.values(spawnedA2AAgents)
+    const a2aVisibleAgents = Object.values(a2aAgents)
         .map((agent) => {
             return {
                 id: agent.id,
@@ -407,7 +407,7 @@ export default function Home() {
                 screenY: 0, // Will be calculated in TileMap based on camera position
                 color: agent.color,
                 name: agent.name,
-                hasCharacterImage: !!agent.characterImage
+                hasCharacterImage: !!agent.getState().characterImage
             };
         })
         .filter(Boolean) as Array<{
@@ -427,11 +427,11 @@ export default function Home() {
     useEffect(() => {
         const moveA2AAgents = () => {
             const now = Date.now();
-            const updated = { ...spawnedA2AAgents };
+            const updated = { ...a2aAgents };
 
-            Object.values(updated).forEach((agent) => {
+            Object.values(updated).forEach((agent: A2AAgent) => {
                 // Move agents every 5-10 seconds randomly
-                if (now - agent.lastMoved > 5000 + Math.random() * 5000) {
+                if (now - (agent.getState().lastMoved || 0) > 5000 + Math.random() * 5000) {
                     const directions = [
                         { dx: 0, dy: -1 }, // up
                         { dx: 0, dy: 1 }, // down
@@ -472,13 +472,13 @@ export default function Home() {
                     }
 
                     // Update character image position on layer2 if it exists
-                    if (agent.characterImage) {
+                    if (agent.getState().characterImage) {
                         setCustomTiles((prevTiles) => {
                             const newLayer2 = { ...prevTiles.layer2 };
                             // Remove from old position
                             delete newLayer2[`${oldX},${oldY}`];
                             // Add to new position
-                            newLayer2[`${newX},${newY}`] = agent.characterImage!;
+                            newLayer2[`${newX},${newY}`] = agent.getState().characterImage!;
 
                             return {
                                 ...prevTiles,
@@ -488,9 +488,7 @@ export default function Home() {
                     }
 
                     // Simple boundary check (agents can move anywhere not blocked by layer1)
-                    agent.x = newX;
-                    agent.y = newY;
-                    agent.lastMoved = now;
+                    agent.updateState({ x: newX, y: newY, lastMoved: now });
                 }
             });
 
@@ -499,7 +497,7 @@ export default function Home() {
 
         const interval = setInterval(moveA2AAgents, 2000); // Check every 2 seconds
         return () => clearInterval(interval);
-    }, [globalIsBlocked, spawnedA2AAgents, worldAgents, worldPosition, setAgents, setCustomTiles]);
+    }, [globalIsBlocked, a2aAgents, worldAgents, worldPosition, setAgents, setCustomTiles]);
 
     return (
         <div className="flex h-screen w-full flex-col bg-gray-100">
@@ -552,7 +550,7 @@ export default function Home() {
                     isActive={activeTab === 'agent'}
                     onSpawnAgent={handleSpawnAgent}
                     onRemoveAgentFromMap={handleRemoveAgentFromMap}
-                    spawnedAgents={Object.keys(spawnedA2AAgents)}
+                    spawnedAgents={Object.keys(a2aAgents)}
                     onUploadCharacterImage={handleUploadCharacterImage}
                 />
             </div>
