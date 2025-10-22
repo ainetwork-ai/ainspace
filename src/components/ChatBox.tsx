@@ -6,6 +6,7 @@ import { Agent, AgentResponse } from '@/lib/world';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { useBuildStore } from '@/stores';
+import { useGameState } from '@/hooks/useGameState';
 
 interface Message {
     id: string;
@@ -20,7 +21,6 @@ interface ChatBoxProps {
     onAddMessage?: (message: Message) => void;
     aiCommentary?: string;
     agents?: Agent[];
-    playerWorldPosition?: { x: number; y: number };
     currentThreadId?: string;
     threads?: Array<{
         id: string;
@@ -38,7 +38,7 @@ export interface ChatBoxRef {
 }
 
 const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
-    { className = '', aiCommentary, agents = [], playerWorldPosition, currentThreadId, onResetLocation },
+    { className = '', aiCommentary, agents = [], currentThreadId, onResetLocation },
     ref
 ) {
     const [messages, setMessages] = useState<Message[]>([]);
@@ -50,10 +50,12 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     const { showCollisionMap, setShowCollisionMap, updateCollisionMapFromImage } = useBuildStore();
     const inputRef = useRef<HTMLInputElement>(null);
 
+    const { playerPosition } = useGameState();
+
     // Initialize world system
     const { sendMessage: worldSendMessage, getAgentSuggestions } = useWorld({
         agents: agents || [],
-        playerPosition: playerWorldPosition || { x: 0, y: 0 },
+        playerPosition: playerPosition || { x: 0, y: 0 },
         onAgentResponse: (response: AgentResponse & { threadId?: string }) => {
             const { agentId, message, threadId, nextAgentRequest } = response;
             // Add agent response to chat with thread ID
@@ -372,10 +374,10 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                                         {message.id.includes('agent-')
                                             ? (() => {
                                                   const agent = agents.find((a) => message.id.includes(a.id));
-                                                  if (agent && playerWorldPosition) {
+                                                  if (agent && playerPosition) {
                                                       const distance = Math.sqrt(
-                                                          Math.pow(agent.x - playerWorldPosition.x, 2) +
-                                                              Math.pow(agent.y - playerWorldPosition.y, 2)
+                                                          Math.pow(agent.x - playerPosition.x, 2) +
+                                                              Math.pow(agent.y - playerPosition.y, 2)
                                                       );
                                                       return `${agent.name} (${agent.x}, ${agent.y}) [${distance.toFixed(1)}u]`;
                                                   }
@@ -397,10 +399,10 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 {showSuggestions && filteredAgents.length > 0 && (
                     <div className="absolute right-3 bottom-full left-3 z-10 mb-1 max-h-32 overflow-y-auto rounded-md border border-gray-600 bg-gray-800 shadow-lg">
                         {filteredAgents.map((agent, index) => {
-                            const distance = playerWorldPosition
+                            const distance = playerPosition
                                 ? Math.sqrt(
-                                      Math.pow(agent.x - playerWorldPosition.x, 2) +
-                                          Math.pow(agent.y - playerWorldPosition.y, 2)
+                                      Math.pow(agent.x - playerPosition.x, 2) +
+                                          Math.pow(agent.y - playerPosition.y, 2)
                                   )
                                 : 0;
 

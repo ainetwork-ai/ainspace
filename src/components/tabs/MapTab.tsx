@@ -1,17 +1,15 @@
 'use client';
 
-import React from 'react';
+import React, { useCallback, useEffect } from 'react';
 import TileMap from '@/components/TileMap';
 import BaseTabContent from './BaseTabContent';
 import PlayerJoystick from '@/components/controls/PlayerJoystick';
 import { DIRECTION, TILE_SIZE } from '@/constants/game';
-import { useUIStore } from '@/stores';
+import { useAgentStore, useUIStore } from '@/stores';
+import { useGameState } from '@/hooks/useGameState';
 
 interface MapTabProps {
     isActive: boolean;
-    playerPosition: { x: number; y: number };
-    mapData: number[][];
-    worldPosition: { x: number; y: number };
     visibleAgents: Array<{
         id: string;
         screenX: number;
@@ -29,8 +27,6 @@ interface MapTabProps {
         layer1: { [key: string]: string };
         layer2: { [key: string]: string };
     };
-    isAutonomous: boolean;
-    onMobileMove: (direction: DIRECTION) => void;
     broadcastMessage: string;
     setBroadcastMessage: (message: string) => void;
     onBroadcast: () => void;
@@ -47,40 +43,113 @@ interface MapTabProps {
         agentNames: string[];
     }[];
     onViewThread: (threadId?: string) => void;
-    userId: string | null;
-    isLoading: boolean;
-    toggleAutonomous: () => void;
-    resetLocation: () => void;
-    playerDirection: DIRECTION;
-    playerIsMoving?: boolean;
     collisionMap: { [key: string]: boolean };
 }
 
 export default function MapTab({
     isActive,
-    playerPosition,
-    mapData,
-    worldPosition,
     visibleAgents,
     publishedTiles,
     customTiles,
-    isAutonomous,
-    onMobileMove,
     broadcastMessage,
     setBroadcastMessage,
     onBroadcast,
     broadcastStatus,
     threads,
     onViewThread,
-    userId,
-    isLoading,
-    toggleAutonomous,
-    resetLocation,
-    playerDirection,
-    playerIsMoving = false,
     collisionMap
 }: MapTabProps) {
     const { isBottomSheetOpen } = useUIStore();
+    const { agents } = useAgentStore();
+    const { movePlayer } = useGameState();
+
+    const {
+        playerPosition,
+        mapData,
+        worldPosition,
+        isLoading,
+        isAutonomous,
+        resetLocation,
+        playerDirection,
+        isPlayerMoving
+    } = useGameState();
+
+    const handleMobileMove = useCallback(
+      (direction: DIRECTION) => {
+          if (isAutonomous) return;
+
+          // Calculate new position
+          let newX = worldPosition.x;
+          let newY = worldPosition.y;
+          switch (direction) {
+              case DIRECTION.UP:
+                  newY -= 1;
+                  break;
+              case DIRECTION.DOWN:
+                  newY += 1;
+                  break;
+              case DIRECTION.LEFT:
+                  newX -= 1;
+                  break;
+              case DIRECTION.RIGHT:
+                  newX += 1;
+                  break;
+              case DIRECTION.STOP:
+              default:
+                  break;
+          }
+
+          // Check if A2A agent is at this position
+          const isOccupiedByA2A = Object.values(agents).some(
+              (agent) => agent.x === newX && agent.y === newY
+          );
+
+          if (isOccupiedByA2A) {
+              return;
+          }
+          console.log(direction);
+          // Move player (this will also check worldAgents in useGameState)
+          movePlayer(direction);
+      },
+      [isAutonomous, worldPosition, agents, movePlayer]
+    );
+
+    // Keyboard handling for player movement (works alongside joystick)
+    useEffect(() => {
+      const handleKeyPress = (event: KeyboardEvent) => {
+          // Reset location with Ctrl+R
+          if (event.ctrlKey && event.key.toLowerCase() === 'r') {
+              event.preventDefault();
+              resetLocation();
+              console.log('Location reset to initial position (63, 58)');
+              return;
+          }
+
+          if (isLoading || isAutonomous) return;
+
+          switch (event.key) {
+              case 'ArrowUp':
+                  event.preventDefault();
+                  handleMobileMove(DIRECTION.UP);
+                  break;
+              case 'ArrowDown':
+                  event.preventDefault();
+                  handleMobileMove(DIRECTION.DOWN);
+                  break;
+              case 'ArrowLeft':
+                  event.preventDefault();
+                  handleMobileMove(DIRECTION.LEFT);
+                  break;
+              case 'ArrowRight':
+                  event.preventDefault();
+                  handleMobileMove(DIRECTION.RIGHT);
+                  break;
+          }
+      };
+
+      window.addEventListener('keydown', handleKeyPress);
+      return () => window.removeEventListener('keydown', handleKeyPress);
+    }, [handleMobileMove, isLoading, isAutonomous, resetLocation]);
 
     return (
         <BaseTabContent isActive={isActive} withPadding={false}>
@@ -102,7 +171,7 @@ export default function MapTab({
                         backgroundImageSrc="/map/land_layer_0.png"
                         layer1ImageSrc="/map/land_layer_1.png"
                         playerDirection={playerDirection}
-                        playerIsMoving={playerIsMoving}
+                        playerIsMoving={isPlayerMoving}
                         collisionMap={collisionMap}
                     />
                 </div>
@@ -110,7 +179,7 @@ export default function MapTab({
                 {!isBottomSheetOpen && (
                     <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 transform">
                         <PlayerJoystick
-                            onMove={onMobileMove}
+                            onMove={handleMobileMove}
                             disabled={isAutonomous}
                             baseColor="#00000050"
                             stickColor="#FFF"
@@ -121,7 +190,7 @@ export default function MapTab({
                 {/* <div className="flex flex-col items-center mb-4">
           <div className="flex justify-center mb-2">
             <button
-              onClick={() => onMobileMove('up')}
+              onClick={() => handleMobileMove('up')}
               disabled={isAutonomous}
               className={`w-12 h-12 rounded text-xl font-bold transition-colors ${
                 isAutonomous 
@@ -135,7 +204,7 @@ export default function MapTab({
           
           <div className="flex space-x-2">
             <button
-              onClick={() => onMobileMove('left')}
+              onClick={() => handleMobileMove('left')}
               disabled={isAutonomous}
               className={`w-12 h-12 rounded text-xl font-bold transition-colors ${
                 isAutonomous 
@@ -146,7 +215,7 @@ export default function MapTab({
               ←
             </button>
             <button
-              onClick={() => onMobileMove('down')}
+              onClick={() => handleMobileMove('down')}
               disabled={isAutonomous}
               className={`w-12 h-12 rounded text-xl font-bold transition-colors ${
                 isAutonomous 
@@ -157,7 +226,7 @@ export default function MapTab({
               ↓
             </button>
             <button
-              onClick={() => onMobileMove('right')}
+              onClick={() => handleMobileMove('right')}
               disabled={isAutonomous}
               className={`w-12 h-12 rounded text-xl font-bold transition-colors ${
                 isAutonomous 

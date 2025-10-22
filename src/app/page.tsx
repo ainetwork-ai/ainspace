@@ -5,32 +5,15 @@ import { useRef, useEffect, useCallback } from 'react';
 import { ChatBoxRef } from '@/components/ChatBox';
 import MapTab from '@/components/tabs/MapTab';
 import ThreadTab from '@/components/tabs/ThreadTab';
-import BuildTab from '@/components/tabs/BuildTab';
 import AgentTab from '@/components/tabs/AgentTab';
 import Footer from '@/components/Footer';
 import BottomSheet from '@/components/BottomSheet';
 import { DIRECTION, MAP_TILES } from '@/constants/game';
 import { AgentCard } from '@a2a-js/sdk';
 import { useUIStore, useThreadStore, useBuildStore, useAgentStore } from '@/stores';
-import TempBuildTab from '@/components/tabs/TempBuildTab';
+// import TempBuildTab from '@/components/tabs/TempBuildTab';
 
 export default function Home() {
-    const {
-        playerPosition,
-        mapData,
-        worldPosition,
-        movePlayer,
-        isLoading,
-        userId,
-        visibleAgents,
-        worldAgents,
-        isAutonomous,
-        toggleAutonomous,
-        resetLocation,
-        lastCommentary,
-        playerDirection,
-        isPlayerMoving
-    } = useGameState();
     // Global stores
     const { activeTab, isBottomSheetOpen, setActiveTab, openBottomSheet, closeBottomSheet } = useUIStore();
     const {
@@ -63,7 +46,15 @@ export default function Home() {
         setCollisionMap,
         clearPublishStatusAfterDelay
     } = useBuildStore();
-    const { spawnedA2AAgents, spawnAgent, removeAgent, updateAgent, setAgents } = useAgentStore();
+    const {
+        worldPosition,
+        userId,
+        worldAgents,
+        resetLocation,
+        lastCommentary,
+        visibleAgents,
+    } = useGameState();
+    const { agents, spawnAgent, removeAgent, updateAgent, setAgents } = useAgentStore();
 
     const chatBoxRef = useRef<ChatBoxRef>(null);
 
@@ -108,82 +99,6 @@ export default function Home() {
         loadCustomTiles();
     }, [userId]);
 
-    const handleMobileMove = useCallback(
-        (direction: DIRECTION) => {
-            if (isAutonomous) return;
-
-            // Calculate new position
-            let newX = worldPosition.x;
-            let newY = worldPosition.y;
-            switch (direction) {
-                case DIRECTION.UP:
-                    newY -= 1;
-                    break;
-                case DIRECTION.DOWN:
-                    newY += 1;
-                    break;
-                case DIRECTION.LEFT:
-                    newX -= 1;
-                    break;
-                case DIRECTION.RIGHT:
-                    newX += 1;
-                    break;
-                case DIRECTION.STOP:
-                default:
-                    break;
-            }
-
-            // Check if A2A agent is at this position
-            const isOccupiedByA2A = Object.values(spawnedA2AAgents).some(
-                (agent) => agent.x === newX && agent.y === newY
-            );
-
-            if (isOccupiedByA2A) {
-                return;
-            }
-
-            // Move player (this will also check worldAgents in useGameState)
-            movePlayer(direction);
-        },
-        [isAutonomous, worldPosition, spawnedA2AAgents, movePlayer]
-    );
-
-    // Keyboard handling for player movement (works alongside joystick)
-    useEffect(() => {
-        const handleKeyPress = (event: KeyboardEvent) => {
-            // Reset location with Ctrl+R
-            if (event.ctrlKey && event.key.toLowerCase() === 'r') {
-                event.preventDefault();
-                resetLocation();
-                console.log('Location reset to initial position (63, 58)');
-                return;
-            }
-
-            if (isLoading || isAutonomous) return;
-
-            switch (event.key) {
-                case 'ArrowUp':
-                    event.preventDefault();
-                    handleMobileMove(DIRECTION.UP);
-                    break;
-                case 'ArrowDown':
-                    event.preventDefault();
-                    handleMobileMove(DIRECTION.DOWN);
-                    break;
-                case 'ArrowLeft':
-                    event.preventDefault();
-                    handleMobileMove(DIRECTION.LEFT);
-                    break;
-                case 'ArrowRight':
-                    event.preventDefault();
-                    handleMobileMove(DIRECTION.RIGHT);
-                    break;
-            }
-        };
-
-        window.addEventListener('keydown', handleKeyPress);
-        return () => window.removeEventListener('keydown', handleKeyPress);
-    }, [handleMobileMove, isLoading, isAutonomous, resetLocation]);
 
     const handleBroadcast = async () => {
         if (broadcastMessage.trim()) {
@@ -364,7 +279,7 @@ export default function Home() {
 
     const handleUploadCharacterImage = (agentUrl: string, imageUrl: string) => {
         // Update the spawned agent's character image
-        const agent = spawnedA2AAgents[agentUrl];
+        const agent = agents[agentUrl];
         if (!agent) return;
 
         // Place character image on layer2 at agent's current position
@@ -387,7 +302,7 @@ export default function Home() {
     // Combine existing world agents with spawned A2A agents
     const combinedWorldAgents = [
         ...worldAgents,
-        ...Object.values(spawnedA2AAgents).map((agent) => ({
+        ...Object.values(agents).map((agent) => ({
             id: agent.id,
             x: agent.x,
             y: agent.y,
@@ -400,7 +315,7 @@ export default function Home() {
     ];
 
     // Convert A2A agents to visible agents format for the map
-    const a2aVisibleAgents = Object.values(spawnedA2AAgents)
+    const a2aVisibleAgents = Object.values(agents)
         .map((agent) => {
             return {
                 id: agent.id,
@@ -430,11 +345,11 @@ export default function Home() {
     useEffect(() => {
         const moveA2AAgents = () => {
             const now = Date.now();
-            const updated = { ...spawnedA2AAgents };
+            const updated = { ...agents };
 
             Object.values(updated).forEach((agent) => {
                 // Move agents every 5-10 seconds randomly
-                if (now - agent.lastMoved > 5000 + Math.random() * 5000) {
+                if (now - (agent.lastMoved || 0) > 5000 + Math.random() * 5000) {
                     const directions = [
                         { dx: 0, dy: -1 }, // up
                         { dx: 0, dy: 1 }, // down
@@ -502,36 +417,25 @@ export default function Home() {
 
         const interval = setInterval(moveA2AAgents, 2000); // Check every 2 seconds
         return () => clearInterval(interval);
-    }, [globalIsBlocked, spawnedA2AAgents, worldAgents, worldPosition, setAgents, setCustomTiles]);
+    }, [globalIsBlocked, agents, worldAgents, worldPosition, setAgents, setCustomTiles]);
 
     return (
         <div className="flex h-screen w-full flex-col bg-gray-100">
             <div className="flex-1 overflow-hidden">
                 <MapTab
                     isActive={activeTab === 'map'}
-                    playerPosition={playerPosition}
-                    mapData={mapData}
-                    worldPosition={worldPosition}
                     visibleAgents={combinedVisibleAgents}
                     publishedTiles={publishedTiles}
                     customTiles={customTiles}
-                    isAutonomous={isAutonomous}
-                    onMobileMove={handleMobileMove}
                     broadcastMessage={broadcastMessage}
                     setBroadcastMessage={setBroadcastMessage}
                     onBroadcast={handleBroadcast}
                     broadcastStatus={broadcastStatus}
                     threads={threads}
                     onViewThread={handleViewThread}
-                    userId={userId}
-                    isLoading={isLoading}
-                    toggleAutonomous={toggleAutonomous}
-                    resetLocation={resetLocation}
-                    playerDirection={playerDirection}
-                    playerIsMoving={isPlayerMoving}
                     collisionMap={globalCollisionMap}
                 />
-                <TempBuildTab isActive={activeTab === 'build'} />
+                {/* <TempBuildTab isActive={activeTab === 'build'} /> */}
                 {/* <BuildTab
                     isActive={activeTab === 'build'}
                     mapData={mapData}
@@ -555,7 +459,7 @@ export default function Home() {
                     isActive={activeTab === 'agent'}
                     onSpawnAgent={handleSpawnAgent}
                     onRemoveAgentFromMap={handleRemoveAgentFromMap}
-                    spawnedAgents={Object.keys(spawnedA2AAgents)}
+                    spawnedAgents={Object.keys(agents)}
                     onUploadCharacterImage={handleUploadCharacterImage}
                 />
             </div>

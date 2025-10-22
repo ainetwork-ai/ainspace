@@ -6,4 +6,4 @@ export { useGameStateStore } from './useGameStateStore';
 
 export type { Thread } from './useThreadStore';
 export type { TileLayers } from './useBuildStore';
-export type { SpawnedA2AAgent } from './useAgentStore';
+export type { AgentInformation } from './useAgentStore';
