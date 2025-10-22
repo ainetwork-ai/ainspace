@@ -20,8 +20,6 @@ interface MapTabProps {
     }>;
     publishedTiles: TileLayers;
     customTiles: TileLayers;
-    isAutonomous: boolean;
-    onMobileMove: (direction: 'up' | 'down' | 'left' | 'right') => void;
     broadcastMessage: string;
     setBroadcastMessage: (message: string) => void;
     onBroadcast: () => void;

@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { useBuildStore } from '@/stores';
 import { useGameState } from '@/hooks/useGameState';
+import { useSession } from '@/hooks/useSession';
 
 interface Message {
     id: string;
@@ -51,6 +52,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     const { showCollisionMap, setShowCollisionMap, updateCollisionMapFromImage, publishedTiles, setCollisionMap } = useBuildStore();
     const inputRef = useRef<HTMLInputElement>(null);
 
+    const { userId } = useSession();
     const { playerPosition } = useGameState();
 
     // Initialize world system

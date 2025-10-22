@@ -5,8 +5,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import BaseTabContent from './BaseTabContent';
 import TileMap from '@/components/TileMap';
 import { cn } from '@/lib/utils';
-import { TILE_SIZE } from '@/constants/game';
-import { useBuildStore } from '@/stores';
+import { DIRECTION, TILE_SIZE } from '@/constants/game';
+import { useBuildStore, useGameStateStore } from '@/stores';
+import { useGameState } from '@/hooks/useGameState';
 
 type TileLayers = {
     layer0: { [key: string]: string };
@@ -36,8 +37,6 @@ const ITEM_DIMENSIONS: { [key: number]: { width: number; height: number } } = {
 
 interface BuildTabProps {
     isActive: boolean;
-    mapData: number[][];
-    playerPosition: { x: number; y: number };
     worldPosition: { x: number; y: number };
     visibleAgents: Array<{
         id: string;
@@ -61,8 +60,6 @@ interface BuildTabProps {
 
 export default function TempBuildTab({
     isActive,
-    mapData,
-    playerPosition,
     worldPosition,
     visibleAgents,
     publishedTiles,
@@ -76,13 +73,18 @@ export default function TempBuildTab({
 }: BuildTabProps) {
     const [selectedTab, setSelectedTab] = useState<'map' | 'item'>('item');
     const [selectedItem, setSelectedItem] = useState<number | null>(null);
-    const [playerDirection, setPlayerDirection] = useState<'up' | 'down' | 'left' | 'right'>('down');
-    const [isPlayerMoving, setIsPlayerMoving] = useState(false);
-    const [lastMoveTime, setLastMoveTime] = useState(0);
     const [placedItems, setPlacedItems] = useState<Set<number>>(new Set());
     const tileSize = TILE_SIZE;
 
     const { setShowCollisionMap, collisionMap, isBlocked, setCollisionMap } = useBuildStore();
+    const { mapData, playerPosition } = useGameState();
+    const {
+        playerDirection,
+        isPlayerMoving,
+        setIsPlayerMoving,
+        lastMoveTime,
+        setLastMoveTime,
+    } = useGameStateStore();
 
     // Preload background images as soon as component mounts for faster rendering
     useEffect(() => {

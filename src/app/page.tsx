@@ -11,7 +11,7 @@ import BottomSheet from '@/components/BottomSheet';
 import { DIRECTION, MAP_TILES } from '@/constants/game';
 import { AgentCard } from '@a2a-js/sdk';
 import { useUIStore, useThreadStore, useBuildStore, useAgentStore } from '@/stores';
-// import TempBuildTab from '@/components/tabs/TempBuildTab';
+import TempBuildTab from '@/components/tabs/TempBuildTab';
 
 export default function Home() {
     // Global stores
@@ -529,8 +529,6 @@ export default function Home() {
                 />
                 <TempBuildTab
                     isActive={activeTab === 'build'}
-                    mapData={mapData}
-                    playerPosition={playerPosition}
                     worldPosition={worldPosition}
                     visibleAgents={combinedVisibleAgents}
                     publishedTiles={publishedTiles}
