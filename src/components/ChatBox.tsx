@@ -31,6 +31,7 @@ interface ChatBoxProps {
     }>;
     onThreadSelect?: (threadId: string | undefined) => void;
     onResetLocation?: () => void;
+    userId?: string | null;
 }
 
 export interface ChatBoxRef {
@@ -38,7 +39,7 @@ export interface ChatBoxRef {
 }
 
 const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
-    { className = '', aiCommentary, agents = [], playerWorldPosition, currentThreadId, onResetLocation },
+    { className = '', aiCommentary, agents = [], playerWorldPosition, currentThreadId, onResetLocation, userId },
     ref
 ) {
     const [messages, setMessages] = useState<Message[]>([]);
@@ -168,6 +169,77 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 const errorMessage: Message = {
                     id: `system-${Date.now()}`,
                     text: 'Reset location is not available.',
+                    timestamp: new Date(),
+                    sender: 'system',
+                    threadId: undefined
+                };
+                setMessages((prev) => [...prev, errorMessage]);
+            }
+        } else if (inputValue.trim() === 'clear items') {
+            setInputValue('');
+            const systemMessage: Message = {
+                id: `system-${Date.now()}`,
+                text: 'Clearing all placed items...',
+                timestamp: new Date(),
+                sender: 'system',
+                threadId: undefined
+            };
+            setMessages((prev) => [...prev, systemMessage]);
+
+            try {
+                // Get current state from useBuildStore
+                const { setCustomTiles, setPublishedTiles, updateCollisionMapFromImage } = useBuildStore.getState();
+
+                // Step 1: Clear customTiles.layer1 and publishedTiles.layer1
+                setCustomTiles((prev) => ({
+                    ...prev,
+                    layer1: {}
+                }));
+
+                setPublishedTiles((prev) => ({
+                    ...prev,
+                    layer1: {}
+                }));
+
+                // Step 2: Reset collision map to base land_layer_1.png only
+                await updateCollisionMapFromImage('/map/land_layer_1.png');
+
+                // Step 3: Persist to database by sending empty layer1 to API
+                if (userId) {
+                    const response = await fetch('/api/custom-tiles', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            userId: userId,
+                            customTiles: {
+                                layer0: {},
+                                layer1: {}, // Empty layer1
+                                layer2: {}
+                            }
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Failed to persist cleared items to database');
+                    }
+                } else {
+                    console.warn('No userId available, skipping database persistence');
+                }
+
+                const successMessage: Message = {
+                    id: `system-${Date.now()}`,
+                    text: 'All items have been cleared! All 6 items are now available for placement again.',
+                    timestamp: new Date(),
+                    sender: 'system',
+                    threadId: undefined
+                };
+                setMessages((prev) => [...prev, successMessage]);
+            } catch (error) {
+                const errorMessage: Message = {
+                    id: `system-${Date.now()}`,
+                    text: `Failed to clear items: ${error instanceof Error ? error.message : 'Unknown error'}`,
                     timestamp: new Date(),
                     sender: 'system',
                     threadId: undefined
