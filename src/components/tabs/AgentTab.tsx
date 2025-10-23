@@ -198,7 +198,7 @@ export default function AgentTab({ isActive, onSpawnAgent, onRemoveAgentFromMap,
                             </p>
                             <a
                                 target="_blank"
-                                href="https://a2a-agent-builder-git-main-comcom-team.vercel.app?_vercel_share=0qHZq7N3C1Au0tZ4cCrduC8zMNEspwOi"
+                                href="https://a2a-agent-builder-alb7-git-main-comcom-team.vercel.app?_vercel_share=iR9cCyXg63SdMCSn29H8KzBspeCPckDx"
                                 className="inline-flex h-9 items-center justify-center gap-2.5 rounded bg-[#7f4fe8] px-3 py-2"
                             >
                                 <p className="justify-start font-['SF_Pro'] text-sm text-white">Agent Builder</p>
