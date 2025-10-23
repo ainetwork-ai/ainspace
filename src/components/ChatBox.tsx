@@ -5,8 +5,7 @@ import { useWorld } from '@/hooks/useWorld';
 import { Agent, AgentResponse } from '@/lib/world';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
-import { useBuildStore } from '@/stores';
-import { useGameState } from '@/hooks/useGameState';
+import { useBuildStore, useGameStateStore } from '@/stores';
 import { useSession } from '@/hooks/useSession';
 
 interface Message {
@@ -53,7 +52,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     const inputRef = useRef<HTMLInputElement>(null);
 
     const { userId } = useSession();
-    const { playerPosition } = useGameState();
+    const { worldPosition: playerPosition } = useGameStateStore();
 
     // Initialize world system
     const { sendMessage: worldSendMessage, getAgentSuggestions } = useWorld({
@@ -86,29 +85,29 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     });
 
     // Expose sendMessage function to parent components
-    useImperativeHandle(
-        ref,
-        () => ({
-            sendMessage: async (message: string, threadId?: string, broadcastRadius?: number) => {
-                const newMessage: Message = {
-                    id: Date.now().toString(),
-                    text: message,
-                    timestamp: new Date(),
-                    sender: 'user',
-                    threadId: threadId || currentThreadId || undefined
-                };
-                console.log('SendMessage (imperative):', {
-                    message,
-                    threadId,
-                    broadcastRadius,
-                    messageId: newMessage.id
-                });
-                setMessages((prev) => [...prev, newMessage]);
-                await worldSendMessage(message, threadId, broadcastRadius);
-            }
-        }),
-        [worldSendMessage, currentThreadId]
-    );
+    // useImperativeHandle(
+    //     ref,
+    //     () => ({
+    //         sendMessage: async (message: string, threadId?: string, broadcastRadius?: number) => {
+    //             const newMessage: Message = {
+    //                 id: Date.now().toString(),
+    //                 text: message,
+    //                 timestamp: new Date(),
+    //                 sender: 'user',
+    //                 threadId: threadId || currentThreadId || undefined
+    //             };
+    //             console.log('SendMessage (imperative):', {
+    //                 message,
+    //                 threadId,
+    //                 broadcastRadius,
+    //                 messageId: newMessage.id
+    //             });
+    //             setMessages((prev) => [...prev, newMessage]);
+    //             await worldSendMessage(message, threadId, broadcastRadius);
+    //         }
+    //     }),
+    //     [worldSendMessage, currentThreadId]
+    // );
 
     // Add welcome message on client side only to avoid hydration mismatch
     useEffect(() => {
@@ -314,12 +313,14 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 threadId: newMessage.threadId,
                 messageId: newMessage.id
             });
+            const isFirstChat = messages.length === 1;
+
             setMessages((prev) => [...prev, newMessage]);
             const userMessageText = inputValue.trim();
             setInputValue('');
 
             // Send message through world system (no radius limit for regular chat)
-            await worldSendMessage(userMessageText, currentThreadId || undefined);
+            await worldSendMessage(userMessageText, currentThreadId || undefined, isFirstChat ? 10 : undefined);
         }
     };
 
