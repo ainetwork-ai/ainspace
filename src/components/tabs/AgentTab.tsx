@@ -9,6 +9,8 @@ interface ImportedAgent {
     url: string;
     card: AgentCard;
     characterImage?: string;
+    spriteUrl?: string;
+    spriteHeight?: number;
 }
 
 interface AgentTabProps {
@@ -16,21 +18,25 @@ interface AgentTabProps {
     onSpawnAgent: (agent: ImportedAgent) => void;
     onRemoveAgentFromMap: (agentUrl: string) => void;
     spawnedAgents: string[];
-    onUploadCharacterImage: (agentUrl: string, imageUrl: string) => void;
 }
+
+const SPRITE_OPTIONS = [
+    { name: 'Cat', url: '/sprite/sprite_cat.png', height: 40 },
+    { name: 'Default 1', url: '/sprite/sprite_default_1.png', height: 86 },
+    { name: 'Default 2', url: '/sprite/sprite_default_2.png', height: 86 }
+];
 
 export default function AgentTab({
     isActive,
     onSpawnAgent,
     onRemoveAgentFromMap,
-    spawnedAgents,
-    onUploadCharacterImage
+    spawnedAgents
 }: AgentTabProps) {
     const [agentUrl, setAgentUrl] = useState('');
     const [agents, setAgents] = useState<ImportedAgent[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [uploadingImage, setUploadingImage] = useState<string | null>(null);
+    const [selectedSprites, setSelectedSprites] = useState<{ [key: string]: string }>({});
 
     const handleImportAgent = async () => {
         if (!agentUrl.trim()) {
@@ -63,13 +69,18 @@ export default function AgentTab({
                 return;
             }
 
-            setAgents([
-                ...agents,
-                {
-                    url: agentUrl,
-                    card: agentCard
-                }
-            ]);
+            const newAgent = {
+                url: agentUrl,
+                card: agentCard,
+                spriteUrl: SPRITE_OPTIONS[0].url, // Default to first sprite option
+                spriteHeight: SPRITE_OPTIONS[0].height
+            };
+
+            setAgents([...agents, newAgent]);
+            setSelectedSprites((prev) => ({
+                ...prev,
+                [agentUrl]: SPRITE_OPTIONS[0].url
+            }));
 
             setAgentUrl('');
         } catch (err) {
@@ -86,32 +97,17 @@ export default function AgentTab({
         setAgents(agents.filter((agent) => agent.url !== url));
     };
 
-    const handleImageUpload = async (agentUrl: string, file: File) => {
-        setUploadingImage(agentUrl);
-        try {
-            const formData = new FormData();
-            const imageId = `character_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-            formData.append('file', file, `${imageId}.png`);
-            formData.append('tileId', imageId);
+    const handleSpriteChange = (agentUrl: string, spriteUrl: string) => {
+        const selectedSprite = SPRITE_OPTIONS.find((sprite) => sprite.url === spriteUrl);
+        const spriteHeight = selectedSprite?.height || 40;
 
-            const uploadResponse = await fetch('/api/upload-tile', {
-                method: 'POST',
-                body: formData
-            });
-
-            if (!uploadResponse.ok) {
-                throw new Error('Failed to upload image');
-            }
-
-            const { url } = await uploadResponse.json();
-
-            setAgents(agents.map((agent) => (agent.url === agentUrl ? { ...agent, characterImage: url } : agent)));
-            onUploadCharacterImage(agentUrl, url);
-        } catch (err) {
-            setError(`Failed to upload image: ${err instanceof Error ? err.message : 'Unknown error'}`);
-        } finally {
-            setUploadingImage(null);
-        }
+        setSelectedSprites((prev) => ({
+            ...prev,
+            [agentUrl]: spriteUrl
+        }));
+        setAgents(
+            agents.map((agent) => (agent.url === agentUrl ? { ...agent, spriteUrl, spriteHeight } : agent))
+        );
     };
 
     return (
@@ -264,6 +260,35 @@ export default function AgentTab({
                                                         disabled={uploadingImage === agent.url}
                                                     />
                                                 </label>
+                                                <div className="relative">
+                                                    <select
+                                                        value={
+                                                            selectedSprites[agent.url] ||
+                                                            agent.spriteUrl ||
+                                                            SPRITE_OPTIONS[0].url
+                                                        }
+                                                        onChange={(e) => handleSpriteChange(agent.url, e.target.value)}
+                                                        className="flex h-[30px] cursor-pointer appearance-none items-center justify-start gap-1 rounded bg-[#ebeef2] px-1.5 pr-6 text-xs text-[#838d9d] outline-none"
+                                                        style={{ paddingRight: '20px' }}
+                                                    >
+                                                        {SPRITE_OPTIONS.map((sprite) => (
+                                                            <option key={sprite.url} value={sprite.url}>
+                                                                {sprite.name}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                    <div className="pointer-events-none absolute top-1/2 right-1.5 -translate-y-1/2">
+                                                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                                            <path
+                                                                d="M3 5L6 8L9 5"
+                                                                stroke="#838d9d"
+                                                                strokeWidth="1.5"
+                                                                strokeLinecap="round"
+                                                                strokeLinejoin="round"
+                                                            />
+                                                        </svg>
+                                                    </div>
+                                                </div>
                                                 <button
                                                     onClick={() => onSpawnAgent(agent)}
                                                     className="flex h-[30px] cursor-pointer items-center justify-start gap-1 rounded bg-[#ebeef2] px-1.5"

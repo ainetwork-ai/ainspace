@@ -282,7 +282,13 @@ export default function Home() {
     };
 
     // A2A Agent handlers - now integrated into worldAgents
-    const handleSpawnAgent = (importedAgent: { url: string; card: AgentCard; characterImage?: string }) => {
+    const handleSpawnAgent = (importedAgent: {
+        url: string;
+        card: AgentCard;
+        characterImage?: string;
+        spriteUrl?: string;
+        spriteHeight?: number;
+    }) => {
         const agentId = `a2a-${Date.now()}`;
         const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8'];
         const randomColor = colors[Math.floor(Math.random() * colors.length)];
@@ -348,7 +354,9 @@ export default function Home() {
             lastMoved: Date.now(),
             moveInterval: 600 + Math.random() * 400, // Random 600-1000ms interval, matching original agents
             skills: importedAgent.card.skills || [],
-            characterImage: importedAgent.characterImage
+            characterImage: importedAgent.characterImage,
+            spriteUrl: importedAgent.spriteUrl || '/sprite/sprite_cat.png', // Use selected sprite or default
+            spriteHeight: importedAgent.spriteHeight || 40 // Use selected sprite height or default
         });
 
         // If there's a character image, place it on layer2
@@ -415,7 +423,11 @@ export default function Home() {
                 screenY: 0, // Will be calculated in TileMap based on camera position
                 color: agent.color,
                 name: agent.name,
-                hasCharacterImage: !!agent.characterImage
+                hasCharacterImage: !!agent.characterImage,
+                spriteUrl: agent.spriteUrl, // Pass sprite URL for animation
+                spriteHeight: agent.spriteHeight, // Pass sprite height for rendering
+                direction: agent.direction, // Pass direction for animation
+                isMoving: agent.isMoving // Pass movement state for animation
             };
         })
         .filter(Boolean) as Array<{
@@ -427,6 +439,10 @@ export default function Home() {
         color: string;
         name: string;
         hasCharacterImage?: boolean;
+        spriteUrl?: string;
+        spriteHeight?: number;
+        direction?: DIRECTION;
+        isMoving?: boolean;
     }>;
 
     const combinedVisibleAgents = [...visibleAgents, ...a2aVisibleAgents];
@@ -491,10 +507,19 @@ export default function Home() {
                         continue; // Try next direction
                     }
 
-                    // Valid move found! Update position
+                    // Determine direction based on movement
+                    let agentDirection = DIRECTION.DOWN;
+                    if (direction.dy === -1) agentDirection = DIRECTION.UP;
+                    else if (direction.dy === 1) agentDirection = DIRECTION.DOWN;
+                    else if (direction.dx === -1) agentDirection = DIRECTION.LEFT;
+                    else if (direction.dx === 1) agentDirection = DIRECTION.RIGHT;
+
+                    // Valid move found! Update position, direction and set moving flag
                     agent.x = newX;
                     agent.y = newY;
                     agent.lastMoved = now;
+                    agent.direction = agentDirection;
+                    agent.isMoving = true;
                     moved = true;
                     hasUpdates = true;
 
@@ -514,12 +539,25 @@ export default function Home() {
                         });
                     }
 
+                    // Clear isMoving flag after a short delay (animation duration)
+                    const agentUrl = agent.agentUrl;
+                    if (agentUrl) {
+                        setTimeout(() => {
+                            const currentAgents = useAgentStore.getState().agents;
+                            const currentAgent = currentAgents[agentUrl];
+                            if (currentAgent) {
+                                useAgentStore.getState().updateAgent(agentUrl, { isMoving: false });
+                            }
+                        }, 500); // Match animation duration
+                    }
+
                     break; // Successfully moved, exit the direction loop
                 }
 
                 // If we couldn't move in any direction, still update lastMoved to prevent getting stuck
                 if (!moved) {
                     agent.lastMoved = now;
+                    agent.isMoving = false;
                     hasUpdates = true;
                 }
             });

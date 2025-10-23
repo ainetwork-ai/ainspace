@@ -1,5 +1,6 @@
 import { AgentSkill } from '@a2a-js/sdk';
 import { create } from 'zustand';
+import { DIRECTION } from '@/constants/game';
 
 export interface AgentInformation {
     id: string;
@@ -12,6 +13,10 @@ export interface AgentInformation {
     moveInterval?: number; // Random interval for agent movement (ms)
     agentUrl?: string;
     skills?: AgentSkill[];
+    spriteUrl?: string; // Sprite image for movement animation
+    spriteHeight?: number; // Height of the sprite (e.g., 40 for cat, 86 for default sprites)
+    direction?: DIRECTION; // Current facing direction (DIRECTION enum)
+    isMoving?: boolean; // Whether agent is currently moving
 }
 
 interface AgentState {
