@@ -15,11 +15,6 @@ const geistMono = Geist_Mono({
     subsets: ['latin']
 });
 
-export const metadata: Metadata = {
-    title: 'Ainspace',
-    description: 'AI-powered collaborative space'
-};
-
 export function generateMetadata(): Metadata {
     const baseUrl = process.env.NEXT_PUBLIC_URL || 'https://ainspace-4g3e.vercel.app';
     const projectName = process.env.NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME || 'AIN SPACE';
