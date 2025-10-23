@@ -10,12 +10,13 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     const { isConnected, isConnecting } = useAccount();
     const pathname = usePathname();
     const router = useRouter();
+    const [isMounted, setIsMounted] = useState(false);
+
     const [isInitialCheck, setIsInitialCheck] = useState(true);
     const [cachedConnected, setCachedConnected] = useState<boolean | null>(null);
 
     const requiresAuth = pathname === '/';
 
-    // Initial localStorage check (for UI hint only)
     useEffect(() => {
         if (!requiresAuth) {
             setIsInitialCheck(false);
@@ -29,23 +30,19 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         }
     }, [pathname, requiresAuth]);
 
-    // Main authentication logic - only runs after wagmi finishes loading
     useEffect(() => {
         if (!requiresAuth) {
             setIsInitialCheck(false);
             return;
         }
 
-        // Wait for wagmi to finish checking connection status
         if (isConnecting) {
             console.log('Wagmi is still connecting, waiting...');
             return;
         }
 
-        // wagmi has finished checking, now we have the final state
         console.log('Wagmi check complete. isConnected:', isConnected);
 
-        // Sync localStorage with actual wagmi state
         if (typeof window !== 'undefined') {
             const currentCached = localStorage.getItem(WALLET_CONNECTED_KEY);
             const shouldBeConnected = String(isConnected);
@@ -56,7 +53,6 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
             }
         }
 
-        // Make redirect decision based on final wagmi state
         if (!isConnected) {
             console.log('Wallet not connected (final check), redirecting to /login');
             router.push('/login');
@@ -66,7 +62,14 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         }
     }, [isConnected, isConnecting, pathname, requiresAuth, router]);
 
-    // Show loading UI while wagmi is connecting or during initial check
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
+
+    if (!isMounted) {
+        return null;
+    }
+
     if (requiresAuth && (isConnecting || isInitialCheck)) {
         const loadingMessage =
             cachedConnected === true ? 'Restoring wallet connection...' : 'Checking wallet connection...';
