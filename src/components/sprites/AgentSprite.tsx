@@ -15,7 +15,6 @@ interface AgentSpriteProps {
     spriteWidth?: number;
 }
 
-// Helper function to get startFrame based on direction
 const getStartFrame = (direction: DIRECTION) => {
     const directionMap = {
         [DIRECTION.DOWN]: 0,
@@ -39,11 +38,7 @@ export default function AgentSprite({
 }: AgentSpriteProps) {
     const startFrame = getStartFrame(direction);
 
-    // Calculate top offset based on sprite height
-    const topOffset =
-        spriteHeight === TILE_SIZE
-            ? spriteHeight / 6 // For 40px height sprites (agent-3)
-            : spriteHeight / 1.5; // For 86px height sprites (agent-1, agent-2)
+    const topOffset = spriteHeight === TILE_SIZE ? spriteHeight / 6 : spriteHeight / 1.5;
 
     return (
         <div

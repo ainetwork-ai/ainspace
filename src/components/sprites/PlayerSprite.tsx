@@ -11,7 +11,6 @@ interface PlayerSpriteProps {
     isMoving: boolean;
 }
 
-// Helper function to get startFrame based on direction
 const getStartFrame = (direction: DIRECTION) => {
     const directionMap = {
         [DIRECTION.DOWN]: 0,
