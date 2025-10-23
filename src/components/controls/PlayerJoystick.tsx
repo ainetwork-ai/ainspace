@@ -118,7 +118,7 @@ export default function PlayerJoystick({ onMove, disabled = false, size = 200 }:
     };
 
     return (
-        <div className="mb-30 flex items-center justify-center">
+        <div className="mb-20 flex items-center justify-center opacity-80">
             <div
                 ref={imageRef}
                 onMouseDown={handleMouseDown}
