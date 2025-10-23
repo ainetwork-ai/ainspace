@@ -730,28 +730,28 @@ function TileMap({
                             shouldAnimate={agentIsMoving}
                             startFrame={agentStartFrame}
                         />
-                        {/* Show agent coordinates when grid is visible */}
-                        {showCollisionMap && agent.x !== undefined && agent.y !== undefined && (
-                            <div
-                                style={{
-                                    position: 'absolute',
-                                    bottom: '-18px',
-                                    left: '50%',
-                                    transform: 'translateX(-50%)',
-                                    fontSize: '11px',
-                                    fontWeight: 'bold',
-                                    color: '#fff',
-                                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                                    padding: '2px 6px',
-                                    borderRadius: '4px',
-                                    whiteSpace: 'nowrap',
-                                    zIndex: 20,
-                                    pointerEvents: 'none'
-                                }}
-                            >
-                                ({agent.x}, {agent.y})
-                            </div>
-                        )}
+                        {/* Show agent name and coordinates */}
+                        <div
+                            style={{
+                                position: 'absolute',
+                                top: '-20px',
+                                left: '50%',
+                                transform: 'translateX(-50%)',
+                                fontSize: '11px',
+                                fontWeight: 'bold',
+                                color: '#fff',
+                                backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                whiteSpace: 'nowrap',
+                                zIndex: 20,
+                                pointerEvents: 'none'
+                            }}
+                        >
+                            {showCollisionMap && agent.x !== undefined && agent.y !== undefined
+                                ? `${agent.name} (${agent.x}, ${agent.y})`
+                                : agent.name}
+                        </div>
                     </div>
                 );
             })}
