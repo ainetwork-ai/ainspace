@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { SpriteAnimator } from 'react-sprite-animator';
-import { TILE_SIZE, MAP_TILES } from '@/constants/game';
+import { TILE_SIZE, MAP_TILES, DIRECTION } from '@/constants/game';
 import { useBuildStore } from '@/stores';
 
 interface Agent {
@@ -14,7 +14,7 @@ interface Agent {
     color: string;
     name: string;
     hasCharacterImage?: boolean;
-    direction?: 'up' | 'down' | 'left' | 'right';
+    direction?: DIRECTION;
     isMoving?: boolean;
     spriteUrl?: string;
     spriteHeight?: number;
@@ -50,7 +50,7 @@ interface TileMapProps {
     onDeleteTile?: (layer: 0 | 1 | 2, key: string) => void;
     backgroundImageSrc?: string;
     layer1ImageSrc?: string;
-    playerDirection?: 'up' | 'down' | 'left' | 'right';
+    playerDirection?: DIRECTION;
     playerIsMoving?: boolean;
     collisionMap?: { [key: string]: boolean };
     selectedItemDimensions?: { width: number; height: number } | null;
@@ -71,7 +71,7 @@ function TileMap({
     onDeleteTile,
     backgroundImageSrc,
     layer1ImageSrc,
-    playerDirection = 'down',
+    playerDirection = DIRECTION.DOWN,
     playerIsMoving = false,
     collisionMap = {},
     selectedItemDimensions = null,
@@ -697,14 +697,14 @@ function TileMap({
     cameraTileY = Math.max(0, Math.min(MAP_TILES - tilesY, cameraTileY));
 
     // Helper function to get startFrame based on direction
-    const getStartFrame = (direction: 'up' | 'down' | 'left' | 'right') => {
+    const getStartFrame = (direction: DIRECTION) => {
         const directionMap = {
-            down: 0,
-            left: 3,
-            up: 6,
-            right: 9
+            [DIRECTION.DOWN]: 0,
+            [DIRECTION.LEFT]: 3,
+            [DIRECTION.UP]: 6,
+            [DIRECTION.RIGHT]: 9
         };
-        return directionMap[direction];
+        return directionMap[direction as keyof typeof directionMap] || 0;
     };
 
     // Helper to get tile key and check for custom tiles
@@ -815,7 +815,7 @@ function TileMap({
                 }
 
                 const agentIsMoving = agent.isMoving || false;
-                const agentDirection = agent.direction || 'down';
+                const agentDirection = agent.direction || DIRECTION.DOWN;
                 const agentStartFrame = getStartFrame(agentDirection);
                 const agentSpriteUrl = agent.spriteUrl || '/sprite/sprite_kkaebi.png';
                 const agentSpriteHeight = agent.spriteHeight || TILE_SIZE;

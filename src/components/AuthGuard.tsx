@@ -39,7 +39,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
     // Show loading state while checking authentication
     // This prevents flash of protected content before redirect
-    if (isChecking && !isPublicRoute) {
+    if (isChecking) {
         return (
             <div className="flex h-screen w-full items-center justify-center bg-gray-100">
                 <div className="text-center">

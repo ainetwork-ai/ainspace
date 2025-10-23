@@ -16,7 +16,6 @@ interface ThreadTabProps {
         name: string;
         behavior: string;
     }>;
-    worldPosition: { x: number; y: number };
     currentThreadId?: string;
     threads: {
         id: string;
@@ -35,7 +34,6 @@ export default function ThreadTab({
     chatBoxRef,
     lastCommentary,
     worldAgents,
-    worldPosition,
     currentThreadId,
     threads,
     onThreadSelect,
@@ -49,7 +47,6 @@ export default function ThreadTab({
                 className="h-full"
                 aiCommentary={lastCommentary}
                 agents={worldAgents}
-                playerWorldPosition={worldPosition}
                 currentThreadId={currentThreadId}
                 threads={threads}
                 onThreadSelect={onThreadSelect}

@@ -5,7 +5,8 @@ import { useWorld } from '@/hooks/useWorld';
 import { Agent, AgentResponse } from '@/lib/world';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
-import { useBuildStore } from '@/stores';
+import { useBuildStore, useGameStateStore } from '@/stores';
+import { useSession } from '@/hooks/useSession';
 
 interface Message {
     id: string;
@@ -20,7 +21,6 @@ interface ChatBoxProps {
     onAddMessage?: (message: Message) => void;
     aiCommentary?: string;
     agents?: Agent[];
-    playerWorldPosition?: { x: number; y: number };
     currentThreadId?: string;
     threads?: Array<{
         id: string;
@@ -39,7 +39,7 @@ export interface ChatBoxRef {
 }
 
 const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
-    { className = '', aiCommentary, agents = [], playerWorldPosition, currentThreadId, onResetLocation, userId },
+    { className = '', aiCommentary, agents = [], currentThreadId, onResetLocation },
     ref
 ) {
     const [messages, setMessages] = useState<Message[]>([]);
@@ -51,10 +51,13 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     const { showCollisionMap, setShowCollisionMap, updateCollisionMapFromImage, publishedTiles, setCollisionMap } = useBuildStore();
     const inputRef = useRef<HTMLInputElement>(null);
 
+    const { userId } = useSession();
+    const { worldPosition: playerPosition } = useGameStateStore();
+
     // Initialize world system
     const { sendMessage: worldSendMessage, getAgentSuggestions } = useWorld({
         agents: agents || [],
-        playerPosition: playerWorldPosition || { x: 0, y: 0 },
+        playerPosition: playerPosition || { x: 0, y: 0 },
         onAgentResponse: (response: AgentResponse & { threadId?: string }) => {
             const { agentId, message, threadId, nextAgentRequest } = response;
             // Add agent response to chat with thread ID
@@ -82,29 +85,29 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     });
 
     // Expose sendMessage function to parent components
-    useImperativeHandle(
-        ref,
-        () => ({
-            sendMessage: async (message: string, threadId?: string, broadcastRadius?: number) => {
-                const newMessage: Message = {
-                    id: Date.now().toString(),
-                    text: message,
-                    timestamp: new Date(),
-                    sender: 'user',
-                    threadId: threadId || currentThreadId || undefined
-                };
-                console.log('SendMessage (imperative):', {
-                    message,
-                    threadId,
-                    broadcastRadius,
-                    messageId: newMessage.id
-                });
-                setMessages((prev) => [...prev, newMessage]);
-                await worldSendMessage(message, threadId, broadcastRadius);
-            }
-        }),
-        [worldSendMessage, currentThreadId]
-    );
+    // useImperativeHandle(
+    //     ref,
+    //     () => ({
+    //         sendMessage: async (message: string, threadId?: string, broadcastRadius?: number) => {
+    //             const newMessage: Message = {
+    //                 id: Date.now().toString(),
+    //                 text: message,
+    //                 timestamp: new Date(),
+    //                 sender: 'user',
+    //                 threadId: threadId || currentThreadId || undefined
+    //             };
+    //             console.log('SendMessage (imperative):', {
+    //                 message,
+    //                 threadId,
+    //                 broadcastRadius,
+    //                 messageId: newMessage.id
+    //             });
+    //             setMessages((prev) => [...prev, newMessage]);
+    //             await worldSendMessage(message, threadId, broadcastRadius);
+    //         }
+    //     }),
+    //     [worldSendMessage, currentThreadId]
+    // );
 
     // Add welcome message on client side only to avoid hydration mismatch
     useEffect(() => {
@@ -295,12 +298,14 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 threadId: newMessage.threadId,
                 messageId: newMessage.id
             });
+            const isFirstChat = messages.length === 1;
+
             setMessages((prev) => [...prev, newMessage]);
             const userMessageText = inputValue.trim();
             setInputValue('');
 
             // Send message through world system (no radius limit for regular chat)
-            await worldSendMessage(userMessageText, currentThreadId || undefined);
+            await worldSendMessage(userMessageText, currentThreadId || undefined, isFirstChat ? 10 : undefined);
         }
     };
 
@@ -404,7 +409,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
 
     return (
         <div className={cn('flex h-full w-full flex-col bg-transparent', className)}>
-            <div className="max-h-full min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
+            <div className="max-h-full min-h-[150px] flex-1 space-y-2 overflow-y-auto p-3">
                 {threadMessages.slice().map((message) => (
                     <div key={message.id} className={cn('flex flex-col items-start gap-1')}>
                         <div className="flex flex-row items-center gap-2">
@@ -448,10 +453,10 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                                         {message.id.includes('agent-')
                                             ? (() => {
                                                   const agent = agents.find((a) => message.id.includes(a.id));
-                                                  if (agent && playerWorldPosition) {
+                                                  if (agent && playerPosition) {
                                                       const distance = Math.sqrt(
-                                                          Math.pow(agent.x - playerWorldPosition.x, 2) +
-                                                              Math.pow(agent.y - playerWorldPosition.y, 2)
+                                                          Math.pow(agent.x - playerPosition.x, 2) +
+                                                              Math.pow(agent.y - playerPosition.y, 2)
                                                       );
                                                       return `${agent.name} (${agent.x}, ${agent.y}) [${distance.toFixed(1)}u]`;
                                                   }
@@ -473,10 +478,10 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 {showSuggestions && filteredAgents.length > 0 && (
                     <div className="absolute right-3 bottom-full left-3 z-10 mb-1 max-h-32 overflow-y-auto rounded-md border border-gray-600 bg-gray-800 shadow-lg">
                         {filteredAgents.map((agent, index) => {
-                            const distance = playerWorldPosition
+                            const distance = playerPosition
                                 ? Math.sqrt(
-                                      Math.pow(agent.x - playerWorldPosition.x, 2) +
-                                          Math.pow(agent.y - playerWorldPosition.y, 2)
+                                      Math.pow(agent.x - playerPosition.x, 2) +
+                                          Math.pow(agent.y - playerPosition.y, 2)
                                   )
                                 : 0;
 
@@ -507,7 +512,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     </div>
                 )}
 
-                <div className="inline-flex w-full items-center justify-start gap-2.5 rounded-[10px] px-2.5 py-2 outline-1 outline-offset-[-1px] outline-white">
+                <div className="inline-flex w-full items-center justify-start gap-2.5 rounded-[10px] px-2.5 py-2 outline-1 outline-offset-[-1px] outline-white my-auto">
                     <input
                         ref={inputRef}
                         type="text"
