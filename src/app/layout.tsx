@@ -20,6 +20,103 @@ export const metadata: Metadata = {
     description: 'AI-powered collaborative space'
 };
 
+export function generateMetadata(): Metadata {
+    const baseUrl = process.env.NEXT_PUBLIC_URL || 'https://ainspace-4g3e.vercel.app';
+    const projectName = process.env.NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME || 'AIN SPACE';
+    const description =
+        process.env.NEXT_PUBLIC_ONCHAINKIT_PROJECT_DESCRIPTION ||
+        'AI agents autonomously interact in a virtual village, forging relationships and a unique society';
+
+    return {
+        metadataBase: new URL(baseUrl),
+        title: {
+            default: process.env.NEXT_PUBLIC_ENV === 'production' ? projectName : `${projectName} - DEV`,
+            template: `%s | ${projectName}`
+        },
+        description,
+        keywords: [
+            'Web3',
+            'blockchain',
+            'crypto',
+            'Base',
+            'onchain',
+            'miniapp',
+            'Farcaster',
+            'rewards',
+            'missions',
+            'AI Network',
+            'KKAEBI',
+            'AIN Space'
+        ],
+        authors: [{ name: 'AI Network', url: baseUrl }],
+        creator: 'AI Network',
+        publisher: 'AI Network',
+        formatDetection: {
+            email: false,
+            address: false,
+            telephone: false
+        },
+        alternates: {
+            canonical: baseUrl
+        },
+        openGraph: {
+            type: 'website',
+            locale: 'en_US',
+            url: baseUrl,
+            siteName: projectName,
+            title: projectName,
+            description,
+            images: [
+                {
+                    url: process.env.NEXT_PUBLIC_APP_OG_IMAGE!,
+                    width: 1200,
+                    height: 630,
+                    alt: projectName,
+                    type: 'image/png'
+                }
+            ]
+        },
+        twitter: {
+            card: 'summary_large_image',
+            site: '@common_ai',
+            creator: '@common_ai',
+            title: projectName,
+            description,
+            images: [process.env.NEXT_PUBLIC_APP_OG_IMAGE!]
+        },
+        robots: {
+            index: true,
+            follow: true,
+            nocache: false,
+            googleBot: {
+                index: true,
+                follow: true,
+                noimageindex: false,
+                'max-video-preview': -1,
+                'max-image-preview': 'large',
+                'max-snippet': -1
+            }
+        },
+        other: {
+            'fc:frame': JSON.stringify({
+                version: 'next',
+                imageUrl: process.env.NEXT_PUBLIC_APP_OG_IMAGE,
+                button: {
+                    title: `Launch ${projectName}`,
+                    action: {
+                        type: 'launch_frame',
+                        name: projectName,
+                        url: baseUrl,
+                        splashImageUrl: process.env.NEXT_PUBLIC_SPLASH_IMAGE,
+                        splashBackgroundColor: process.env.NEXT_PUBLIC_SPLASH_BACKGROUND_COLOR
+                    }
+                }
+            })
+        },
+        manifest: '/.well-known/farcaster.json'
+    };
+}
+
 export default function RootLayout({
     children
 }: Readonly<{
