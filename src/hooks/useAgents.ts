@@ -24,7 +24,7 @@ interface UseAgentsProps {
 
 export function useAgents({ playerWorldPosition }: UseAgentsProps) {
     const { generateTileAt } = useMapData();
-    const { isBlocked: isLayer1Blocked } = useLayer1Collision('/map/land_layer_1.png');
+    const { isBlocked: isLayer1Blocked } = useLayer1Collision('/map/land_layer_1.webp');
     const { isBlocked: isBuildStoreBlocked } = useBuildStore();
 
     // Initial agent positions near player start location (63, 58)
@@ -106,15 +106,11 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
         return directions[Math.floor(Math.random() * directions.length)];
     };
 
-    const moveInDirection = (
-        x: number,
-        y: number,
-        direction: DIRECTION
-    ): { x: number; y: number } => {
+    const moveInDirection = (x: number, y: number, direction: DIRECTION): { x: number; y: number } => {
         switch (direction) {
             case DIRECTION.UP:
                 return { x, y: y - 1 };
-              case DIRECTION.DOWN:
+            case DIRECTION.DOWN:
                 return { x, y: y + 1 };
             case DIRECTION.LEFT:
                 return { x: x - 1, y };
