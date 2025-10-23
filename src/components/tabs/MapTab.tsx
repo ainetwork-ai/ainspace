@@ -160,7 +160,7 @@ export default function MapTab({
         <BaseTabContent isActive={isActive} withPadding={false}>
             {/* Game Area */}
             <div className="relative flex h-full w-full flex-col">
-                <div className="flex h-full w-full items-center justify-center">
+                <div className="flex h-full w-full items-center justify-center select-none">
                     <TileMap
                         mapData={mapData}
                         tileSize={TILE_SIZE}
