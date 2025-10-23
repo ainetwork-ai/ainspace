@@ -18,13 +18,12 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     const router = useRouter();
     const [isChecking, setIsChecking] = useState(true);
 
-    // Public routes that don't require authentication
-    const publicRoutes = ['/login'];
-    const isPublicRoute = publicRoutes.includes(pathname);
+    // Only check authentication on the root path "/"
+    const requiresAuth = pathname === '/';
 
     useEffect(() => {
-        // Allow public routes without wallet connection
-        if (isPublicRoute) {
+        // Skip auth check if not on root path
+        if (!requiresAuth) {
             setIsChecking(false);
             return;
         }
@@ -36,7 +35,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         } else {
             setIsChecking(false);
         }
-    }, [isConnected, pathname, isPublicRoute, router]);
+    }, [isConnected, pathname, requiresAuth, router]);
 
     // Show loading state while checking authentication
     // This prevents flash of protected content before redirect

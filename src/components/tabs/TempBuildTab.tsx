@@ -471,7 +471,7 @@ export default function TempBuildTab({
                             tileSize={tileSize}
                             playerPosition={playerPosition}
                             worldPosition={worldPosition}
-                            agents={visibleAgents}
+                            agents={[]}
                             customTiles={mergedCustomTiles}
                             buildMode={selectedTab === 'item' ? 'paint' : 'view'}
                             backgroundImageSrc="/map/land_layer_0.png"
@@ -482,6 +482,8 @@ export default function TempBuildTab({
                             playerIsMoving={isPlayerMoving}
                             collisionMap={collisionMap}
                             selectedItemDimensions={selectedItem !== null ? ITEM_DIMENSIONS[selectedItem] : null}
+                            enableZoom={true}
+                            zoomControls="both"
                         />
                     </div>
 
