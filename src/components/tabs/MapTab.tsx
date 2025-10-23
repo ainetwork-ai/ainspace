@@ -77,85 +77,83 @@ export default function MapTab({
     const { isBlocked: globalIsBlocked } = useBuildStore();
 
     const handleMobileMove = useCallback(
-      (direction: DIRECTION) => {
-          if (isAutonomous) return;
+        (direction: DIRECTION) => {
+            if (isAutonomous) return;
 
-          // Calculate new position
-          let newX = worldPosition.x;
-          let newY = worldPosition.y;
-          switch (direction) {
-              case DIRECTION.UP:
-                  newY -= 1;
-                  break;
-              case DIRECTION.DOWN:
-                  newY += 1;
-                  break;
-              case DIRECTION.LEFT:
-                  newX -= 1;
-                  break;
-              case DIRECTION.RIGHT:
-                  newX += 1;
-                  break;
-              case DIRECTION.STOP:
-              default:
-                  break;
-          }
+            // Calculate new position
+            let newX = worldPosition.x;
+            let newY = worldPosition.y;
+            switch (direction) {
+                case DIRECTION.UP:
+                    newY -= 1;
+                    break;
+                case DIRECTION.DOWN:
+                    newY += 1;
+                    break;
+                case DIRECTION.LEFT:
+                    newX -= 1;
+                    break;
+                case DIRECTION.RIGHT:
+                    newX += 1;
+                    break;
+                case DIRECTION.STOP:
+                default:
+                    break;
+            }
 
-          // Check if tile is blocked by collision map
-          if (globalIsBlocked(newX, newY)) {
-              console.log(`Movement blocked: tile (${newX}, ${newY}) is blocked by collision`);
-              return;
-          }
+            // Check if tile is blocked by collision map
+            if (globalIsBlocked(newX, newY)) {
+                console.log(`Movement blocked: tile (${newX}, ${newY}) is blocked by collision`);
+                return;
+            }
 
-          // Check if A2A agent is at this position
-          const isOccupiedByA2A = Object.values(agents).some(
-              (agent) => agent.x === newX && agent.y === newY
-          );
+            // Check if A2A agent is at this position
+            const isOccupiedByA2A = Object.values(agents).some((agent) => agent.x === newX && agent.y === newY);
 
-          if (isOccupiedByA2A) {
-              return;
-          }
-          // Move player (this will also check worldAgents in useGameState)
-          movePlayer(direction);
-      },
-      [isAutonomous, worldPosition, agents, movePlayer]
+            if (isOccupiedByA2A) {
+                return;
+            }
+            // Move player (this will also check worldAgents in useGameState)
+            movePlayer(direction);
+        },
+        [isAutonomous, worldPosition, agents, movePlayer]
     );
 
     // Keyboard handling for player movement (works alongside joystick)
     useEffect(() => {
-      const handleKeyPress = (event: KeyboardEvent) => {
-          // Reset location with Ctrl+R
-          if (event.ctrlKey && event.key.toLowerCase() === 'r') {
-              event.preventDefault();
-              resetLocation();
-              console.log('Location reset to initial position (63, 58)');
-              return;
-          }
+        const handleKeyPress = (event: KeyboardEvent) => {
+            // Reset location with Ctrl+R
+            if (event.ctrlKey && event.key.toLowerCase() === 'r') {
+                event.preventDefault();
+                resetLocation();
+                console.log('Location reset to initial position (63, 58)');
+                return;
+            }
 
-          if (isLoading || isAutonomous) return;
+            if (isLoading || isAutonomous) return;
 
-          switch (event.key) {
-              case 'ArrowUp':
-                  event.preventDefault();
-                  handleMobileMove(DIRECTION.UP);
-                  break;
-              case 'ArrowDown':
-                  event.preventDefault();
-                  handleMobileMove(DIRECTION.DOWN);
-                  break;
-              case 'ArrowLeft':
-                  event.preventDefault();
-                  handleMobileMove(DIRECTION.LEFT);
-                  break;
-              case 'ArrowRight':
-                  event.preventDefault();
-                  handleMobileMove(DIRECTION.RIGHT);
-                  break;
-          }
-      };
+            switch (event.key) {
+                case 'ArrowUp':
+                    event.preventDefault();
+                    handleMobileMove(DIRECTION.UP);
+                    break;
+                case 'ArrowDown':
+                    event.preventDefault();
+                    handleMobileMove(DIRECTION.DOWN);
+                    break;
+                case 'ArrowLeft':
+                    event.preventDefault();
+                    handleMobileMove(DIRECTION.LEFT);
+                    break;
+                case 'ArrowRight':
+                    event.preventDefault();
+                    handleMobileMove(DIRECTION.RIGHT);
+                    break;
+            }
+        };
 
-      window.addEventListener('keydown', handleKeyPress);
-      return () => window.removeEventListener('keydown', handleKeyPress);
+        window.addEventListener('keydown', handleKeyPress);
+        return () => window.removeEventListener('keydown', handleKeyPress);
     }, [handleMobileMove, isLoading, isAutonomous, resetLocation]);
 
     return (
@@ -175,8 +173,8 @@ export default function MapTab({
                             layer2: { ...(publishedTiles.layer2 || {}), ...(customTiles.layer2 || {}) }
                         }}
                         layerVisibility={{ 0: true, 1: true, 2: true }}
-                        backgroundImageSrc="/map/land_layer_0.png"
-                        layer1ImageSrc="/map/land_layer_1.png"
+                        backgroundImageSrc="/map/land_layer_0.webp"
+                        layer1ImageSrc="/map/land_layer_1.webp"
                         playerDirection={playerDirection}
                         playerIsMoving={isPlayerMoving}
                         collisionMap={collisionMap}

@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import { cn, shortAddress } from '@/lib/utils';
 
 export default function LoginPage() {
-    const { address, isConnected } = useAccount();
+    const { address, isConnected, isConnecting } = useAccount();
     const router = useRouter();
     const [nonce] = useState(() => Date.now().toString());
     const message = useMemo(() => `Welcome to the AIN SPACE MiniApp!\n\nNonce: ${nonce}`, [nonce]);
@@ -23,12 +23,20 @@ export default function LoginPage() {
     }, []);
 
     // Redirect to home page if wallet is already connected
+    // Only redirect after wagmi finishes checking connection status
     useEffect(() => {
+        // Wait for wagmi to finish loading
+        if (isConnecting) {
+            console.log('Wagmi is still connecting, waiting before redirect...');
+            return;
+        }
+
+        // wagmi has finished checking, now redirect if connected
         if (isConnected) {
-            console.log('Wallet connected, redirecting to home page');
+            console.log('Wallet connected (final check), redirecting to home page');
             router.push('/');
         }
-    }, [isConnected, router]);
+    }, [isConnected, isConnecting, router]);
 
     const handleSignature = useCallback(
         async (signature: string) => {

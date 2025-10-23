@@ -46,14 +46,7 @@ export default function Home() {
         setCollisionMap,
         clearPublishStatusAfterDelay
     } = useBuildStore();
-    const {
-        worldPosition,
-        userId,
-        worldAgents,
-        resetLocation,
-        lastCommentary,
-        visibleAgents,
-    } = useGameState();
+    const { worldPosition, userId, worldAgents, resetLocation, lastCommentary, visibleAgents } = useGameState();
     const { agents, spawnAgent, removeAgent, updateAgent, setAgents } = useAgentStore();
 
     const chatBoxRef = useRef<ChatBoxRef>(null);
@@ -64,7 +57,7 @@ export default function Home() {
             if (Object.keys(globalCollisionMap).length === 0) {
                 try {
                     const { updateCollisionMapFromImage } = useBuildStore.getState();
-                    await updateCollisionMapFromImage('/map/land_layer_1.png');
+                    await updateCollisionMapFromImage('/map/land_layer_1.webp');
                 } catch (error) {
                     console.error('Failed to initialize collision map:', error);
                 }
@@ -102,7 +95,9 @@ export default function Home() {
                         });
 
                         setCollisionMap(existingCollisionTiles);
-                        console.log(`Updated collision map with ${Object.keys(layer1Items).length} existing blocked tiles`);
+                        console.log(
+                            `Updated collision map with ${Object.keys(layer1Items).length} existing blocked tiles`
+                        );
                     }
                 }
             } catch (error) {
@@ -112,7 +107,6 @@ export default function Home() {
 
         loadCustomTiles();
     }, [userId, setPublishedTiles, setCollisionMap]);
-
 
     const handleBroadcast = async () => {
         if (broadcastMessage.trim()) {
@@ -246,7 +240,9 @@ export default function Home() {
             });
 
             setCollisionMap(newCollisionTiles);
-            console.log(`Updated collision map with ${Object.keys(layer1Items).length} new blocked tiles from published items`);
+            console.log(
+                `Updated collision map with ${Object.keys(layer1Items).length} new blocked tiles from published items`
+            );
 
             setPublishStatus({
                 type: 'success',
@@ -280,7 +276,11 @@ export default function Home() {
         const randomColor = colors[Math.floor(Math.random() * colors.length)];
 
         // Find a non-blocked spawn position near player
-        const findNonBlockedPosition = (centerX: number, centerY: number, maxRadius: number = 5): { x: number; y: number } | null => {
+        const findNonBlockedPosition = (
+            centerX: number,
+            centerY: number,
+            maxRadius: number = 5
+        ): { x: number; y: number } | null => {
             // First try random positions in increasing radius
             for (let radius = 0; radius <= maxRadius; radius++) {
                 const candidates: { x: number; y: number }[] = [];
@@ -336,7 +336,9 @@ export default function Home() {
         if (!spawnPosition) {
             // Show error if no valid spawn position found
             console.error('Cannot spawn agent: no non-blocked tiles available near player');
-            alert('Cannot spawn agent: no available space near your position. Try moving to a different location or clearing some items.');
+            alert(
+                'Cannot spawn agent: no available space near your position. Try moving to a different location or clearing some items.'
+            );
             return;
         }
 
@@ -402,7 +404,7 @@ export default function Home() {
             name: agent.name,
             behavior: 'A2A Agent',
             agentUrl: agent.agentUrl, // Include agentUrl for A2A agents
-            skills: agent.skills,
+            skills: agent.skills
         }))
     ];
 

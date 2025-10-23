@@ -24,7 +24,7 @@ interface Agent {
 // Data structure for multi-tile items
 interface ItemTileData {
     image: string;
-    width: number;  // in tiles
+    width: number; // in tiles
     height: number; // in tiles
     topLeftX: number; // original placement X coordinate
     topLeftY: number; // original placement Y coordinate
@@ -90,19 +90,15 @@ function TileMap({
     const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
     const [hoveredWorldCoords, setHoveredWorldCoords] = useState<{ worldX: number; worldY: number } | null>(null);
 
-    // Zoom state: 0.5x to 2.0x in 0.25 increments
     const [zoomLevel, setZoomLevel] = useState(1.0);
     const MIN_ZOOM = 0.5;
     const MAX_ZOOM = 2.0;
     const ZOOM_STEP = 0.25;
 
-    // Calculate actual tile size based on zoom
     const tileSize = baseTileSize * zoomLevel;
 
-    // Use global state for collision map visibility
     const { showCollisionMap, toggleCollisionMap } = useBuildStore();
 
-    // Load background image
     useEffect(() => {
         if (!backgroundImageSrc) {
             setBackgroundImage(null);
@@ -116,7 +112,6 @@ function TileMap({
         img.src = backgroundImageSrc;
     }, [backgroundImageSrc]);
 
-    // Load layer1 image
     useEffect(() => {
         if (!layer1ImageSrc) {
             setLayer1Image(null);
@@ -165,7 +160,6 @@ function TileMap({
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [toggleCollisionMap]);
 
-    // Zoom handlers
     const handleZoomIn = () => {
         setZoomLevel((prev) => Math.min(MAX_ZOOM, prev + ZOOM_STEP));
     };
@@ -198,7 +192,6 @@ function TileMap({
                 const layer = customTiles[layerKey as keyof TileLayers];
                 if (layer) {
                     Object.values(layer).forEach((tileData) => {
-                        // Handle both string and ItemTileData formats
                         if (typeof tileData === 'string') {
                             imagesToLoad.push(tileData);
                         } else if (tileData && typeof tileData === 'object' && tileData.image) {
@@ -214,7 +207,6 @@ function TileMap({
         const uniqueImages = [...new Set(imagesToLoad)];
 
         uniqueImages.forEach((imageUrl) => {
-            // Skip if already loaded
             if (loadedImages[imageUrl]) return;
 
             const img = new Image();
@@ -236,29 +228,23 @@ function TileMap({
         const scaleX = canvas.width / rect.width;
         const scaleY = canvas.height / rect.height;
 
-        // Get position relative to canvas, accounting for scaling
         const canvasX = (event.clientX - rect.left) * scaleX;
         const canvasY = (event.clientY - rect.top) * scaleY;
 
-        // Convert to tile coordinates (screen space)
         const screenTileX = Math.floor(canvasX / tileSize);
         const screenTileY = Math.floor(canvasY / tileSize);
 
-        // Calculate visible tiles
         const tilesX = Math.ceil(canvasSize.width / tileSize);
         const tilesY = Math.ceil(canvasSize.height / tileSize);
         const halfTilesX = Math.floor(tilesX / 2);
         const halfTilesY = Math.floor(tilesY / 2);
 
-        // Calculate camera position
         let cameraTileX = worldPosition.x - halfTilesX;
         let cameraTileY = worldPosition.y - halfTilesY;
         cameraTileX = Math.max(0, Math.min(MAP_TILES - tilesX, cameraTileX));
         cameraTileY = Math.max(0, Math.min(MAP_TILES - tilesY, cameraTileY));
 
-        // Check if position is within visible bounds
         if (screenTileX >= 0 && screenTileX < tilesX && screenTileY >= 0 && screenTileY < tilesY) {
-            // Convert screen coordinates to world coordinates
             const worldX = Math.floor(cameraTileX + screenTileX);
             const worldY = Math.floor(cameraTileY + screenTileY);
 
@@ -268,11 +254,9 @@ function TileMap({
         return null;
     };
 
-    // Handle painting at specific coordinates
     const paintTileAt = (worldX: number, worldY: number) => {
         if (!onTileClick) return;
 
-        // Avoid painting the same tile twice in a row during drag
         if (lastPaintedTile && lastPaintedTile.x === worldX && lastPaintedTile.y === worldY) {
             return;
         }
@@ -281,9 +265,7 @@ function TileMap({
         onTileClick(worldX, worldY);
     };
 
-    // Handle mouse down - start painting
     const handleMouseDown = (event: React.MouseEvent<HTMLCanvasElement>) => {
-        // Paint mode behavior: only paint if explicitly in paint mode
         if (buildMode === 'paint') {
             const coords = getWorldCoordinatesFromEvent(event);
             if (coords) {
@@ -293,11 +275,9 @@ function TileMap({
         }
     };
 
-    // Handle mouse move - continue painting if dragging and track mouse position
     const handleMouseMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
         const coords = getWorldCoordinatesFromEvent(event);
 
-        // Update mouse position and world coordinates for visual feedback
         if (buildMode === 'paint') {
             const canvas = canvasRef.current;
             if (canvas) {
@@ -308,7 +288,6 @@ function TileMap({
                 });
             }
 
-            // Update hovered world coordinates for preview outline
             if (coords) {
                 setHoveredWorldCoords({ worldX: coords.worldX, worldY: coords.worldY });
             } else {
@@ -325,13 +304,11 @@ function TileMap({
         }
     };
 
-    // Handle mouse up - stop painting
     const handleMouseUp = () => {
         setIsPainting(false);
         setLastPaintedTile(null);
     };
 
-    // Handle mouse leave - stop painting when leaving canvas
     const handleMouseLeave = () => {
         setIsPainting(false);
         setLastPaintedTile(null);
@@ -339,13 +316,11 @@ function TileMap({
         setMousePosition(null);
     };
 
-    // Handle touch start - for mobile touch painting
     const handleTouchStart = (event: React.TouchEvent<HTMLCanvasElement>) => {
         if (event.touches.length === 0) return;
 
         const touch = event.touches[0];
 
-        // Paint mode behavior: only paint if explicitly in paint mode
         if (buildMode === 'paint') {
             const canvas = canvasRef.current;
             if (!canvas) return;
@@ -360,13 +335,11 @@ function TileMap({
             const screenTileX = Math.floor(canvasX / tileSize);
             const screenTileY = Math.floor(canvasY / tileSize);
 
-            // Calculate visible tiles
             const tilesX = Math.ceil(canvasSize.width / tileSize);
             const tilesY = Math.ceil(canvasSize.height / tileSize);
             const halfTilesX = Math.floor(tilesX / 2);
             const halfTilesY = Math.floor(tilesY / 2);
 
-            // Calculate camera position
             let cameraTileX = worldPosition.x - halfTilesX;
             let cameraTileY = worldPosition.y - halfTilesY;
             cameraTileX = Math.max(0, Math.min(MAP_TILES - tilesX, cameraTileX));
@@ -382,7 +355,6 @@ function TileMap({
         }
     };
 
-    // Handle touch move - for mobile touch painting
     const handleTouchMove = (event: React.TouchEvent<HTMLCanvasElement>) => {
         if (buildMode !== 'paint' || !isPainting || event.touches.length === 0) return;
 
@@ -400,13 +372,11 @@ function TileMap({
         const screenTileX = Math.floor(canvasX / tileSize);
         const screenTileY = Math.floor(canvasY / tileSize);
 
-        // Calculate visible tiles
         const tilesX = Math.ceil(canvasSize.width / tileSize);
         const tilesY = Math.ceil(canvasSize.height / tileSize);
         const halfTilesX = Math.floor(tilesX / 2);
         const halfTilesY = Math.floor(tilesY / 2);
 
-        // Calculate camera position
         let cameraTileX = worldPosition.x - halfTilesX;
         let cameraTileY = worldPosition.y - halfTilesY;
         cameraTileX = Math.max(0, Math.min(MAP_TILES - tilesX, cameraTileX));
@@ -420,7 +390,6 @@ function TileMap({
         }
     };
 
-    // Handle touch end - stop painting
     const handleTouchEnd = () => {
         setIsPainting(false);
         setLastPaintedTile(null);
@@ -433,36 +402,27 @@ function TileMap({
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        // Draw background color
         ctx.fillStyle = '#f0f8ff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // Calculate visible tiles based on canvas size
         const tilesX = Math.ceil(canvasSize.width / tileSize);
         const tilesY = Math.ceil(canvasSize.height / tileSize);
         const halfTilesX = Math.floor(tilesX / 2);
         const halfTilesY = Math.floor(tilesY / 2);
 
-        // Map boundaries (4200x4200 pixels at 40px per tile = 105 tiles)
         const MAP_SIZE_PIXELS = 4200;
         const ORIGINAL_TILE_SIZE = TILE_SIZE;
 
-        // Calculate camera position in world coordinates (tiles)
-        // Player is at worldPosition, we want to center the view on the player
         let cameraTileX = worldPosition.x - halfTilesX;
         let cameraTileY = worldPosition.y - halfTilesY;
 
-        // Clamp camera to map boundaries
         cameraTileX = Math.max(0, Math.min(MAP_TILES - tilesX, cameraTileX));
         cameraTileY = Math.max(0, Math.min(MAP_TILES - tilesY, cameraTileY));
 
-        // Convert camera tile position to pixel position in the original image
         const sourceX = cameraTileX * ORIGINAL_TILE_SIZE;
         const sourceY = cameraTileY * ORIGINAL_TILE_SIZE;
 
-        // Draw layer 0 background image if available
         if (backgroundImage) {
-            // Source dimensions from original image
             const sourceWidth = tilesX * ORIGINAL_TILE_SIZE;
             const sourceHeight = tilesY * ORIGINAL_TILE_SIZE;
 
@@ -479,69 +439,17 @@ function TileMap({
             );
         }
 
-        // Draw layer 1 image overlay if available and visible
         if (layer1Image && layerVisibility[1]) {
-            // Source dimensions from original image
             const sourceWidth = tilesX * ORIGINAL_TILE_SIZE;
             const sourceHeight = tilesY * ORIGINAL_TILE_SIZE;
 
             ctx.drawImage(layer1Image, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, canvas.width, canvas.height);
         }
 
-        // Draw base tiles if no background image
-        if (!backgroundImage) {
-            // Draw base tiles
-            for (let y = 0; y < tilesY; y++) {
-                for (let x = 0; x < tilesX; x++) {
-                    const worldTileX = Math.floor(cameraTileX + x);
-                    const worldTileY = Math.floor(cameraTileY + y);
-
-                    // Get tile type from mapData if within bounds
-                    let tileType = 0;
-                    if (mapData[worldTileY] && mapData[worldTileY][worldTileX] !== undefined) {
-                        tileType = mapData[worldTileY][worldTileX];
-                    } else {
-                        tileType = 0; // Default to grass
-                    }
-
-                    // Render void tiles as light background
-                    if (tileType === -1) {
-                        ctx.fillStyle = '#f0f8ff'; // Same as background
-                        ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
-                        continue;
-                    }
-
-                    // Set tile color based on type
-                    switch (tileType) {
-                        case 0:
-                            ctx.fillStyle = '#90EE90'; // Light green for grass
-                            break;
-                        case 1:
-                            ctx.fillStyle = '#8B4513'; // Brown for dirt
-                            break;
-                        case 2:
-                            ctx.fillStyle = '#4169E1'; // Blue for water
-                            break;
-                        case 3:
-                            ctx.fillStyle = '#696969'; // Gray for stone
-                            break;
-                        default:
-                            ctx.fillStyle = '#FFFFFF'; // White for unknown
-                    }
-
-                    ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
-                }
-            }
-        }
-
-        // Calculate actual screen tile size to match background image rendering
-        // This ensures perfect grid alignment for all layers
         const screenTileWidth = canvas.width / tilesX;
         const screenTileHeight = canvas.height / tilesY;
 
-        // Draw custom tile layers
         if (isLayeredTiles(customTiles)) {
-            // Draw each layer in order
             [0, 1, 2].forEach((layerIndex) => {
                 if (!layerVisibility[layerIndex]) return;
 
@@ -557,9 +465,7 @@ function TileMap({
                             const customTileData = layer[tileKey];
 
                             if (customTileData) {
-                                // Check if this is a string (legacy) or ItemTileData (new format)
                                 if (typeof customTileData === 'string') {
-                                    // Legacy single-tile rendering
                                     if (loadedImages[customTileData]) {
                                         const img = loadedImages[customTileData];
                                         const pixelX = x * screenTileWidth;
@@ -567,7 +473,6 @@ function TileMap({
                                         ctx.drawImage(img, pixelX, pixelY, screenTileWidth, screenTileHeight);
                                     }
                                 } else if (customTileData && typeof customTileData === 'object') {
-                                    // New multi-tile rendering - only render at top-left position
                                     if (!customTileData.isSecondaryTile) {
                                         const { image, width, height } = customTileData;
                                         if (loadedImages[image]) {
@@ -575,15 +480,12 @@ function TileMap({
                                             const pixelX = x * screenTileWidth;
                                             const pixelY = y * screenTileHeight;
 
-                                            // Calculate the size in pixels to span multiple tiles
                                             const itemWidth = width * screenTileWidth;
                                             const itemHeight = height * screenTileHeight;
 
-                                            // Draw the image spanning multiple tiles
                                             ctx.drawImage(img, pixelX, pixelY, itemWidth, itemHeight);
                                         }
                                     }
-                                    // Skip rendering for secondary tiles - they're just markers for collision
                                 }
                             }
                         }
@@ -591,7 +493,6 @@ function TileMap({
                 }
             });
         } else {
-            // Legacy single layer rendering
             for (let y = 0; y < tilesY; y++) {
                 for (let x = 0; x < tilesX; x++) {
                     const worldTileX = Math.floor(cameraTileX + x);
@@ -601,47 +502,38 @@ function TileMap({
 
                     if (customTileImage && loadedImages[customTileImage]) {
                         const img = loadedImages[customTileImage];
-                        // Use actual screen tile dimensions for perfect grid alignment
+
                         const pixelX = x * screenTileWidth;
                         const pixelY = y * screenTileHeight;
 
-                        // Render the item image at exactly one tile size
                         ctx.drawImage(img, pixelX, pixelY, screenTileWidth, screenTileHeight);
                     }
                 }
             }
         }
 
-        // Draw collision map overlay (red tiles for blocked areas) - only if enabled
         if (showCollisionMap) {
-            // Use the same screen tile dimensions calculated above for consistency
-
             for (let y = 0; y < tilesY; y++) {
                 for (let x = 0; x < tilesX; x++) {
                     const worldTileX = Math.floor(cameraTileX + x);
                     const worldTileY = Math.floor(cameraTileY + y);
 
-                    // Check if player is at this position
                     const hasPlayer = worldTileX === worldPosition.x && worldTileY === worldPosition.y;
 
-                    // Check if any agent is at this position
                     const agentAtPosition = agents.find((agent) => agent.x === worldTileX && agent.y === worldTileY);
 
                     if (hasPlayer) {
-                        // Black for player tile
                         ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'; // Black with 50% opacity
                         ctx.fillRect(x * screenTileWidth, y * screenTileHeight, screenTileWidth, screenTileHeight);
                     } else if (agentAtPosition) {
-                        // Use agent's unique color
                         const agentColor = agentAtPosition.color;
-                        // Convert hex to rgba with 50% opacity
+
                         const r = parseInt(agentColor.slice(1, 3), 16);
                         const g = parseInt(agentColor.slice(3, 5), 16);
                         const b = parseInt(agentColor.slice(5, 7), 16);
                         ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.5)`;
                         ctx.fillRect(x * screenTileWidth, y * screenTileHeight, screenTileWidth, screenTileHeight);
                     } else {
-                        // Check collision map for blocked tiles
                         const tileKey = `${worldTileX},${worldTileY}`;
                         if (collisionMap[tileKey]) {
                             ctx.fillStyle = 'rgba(255, 0, 0, 0.5)'; // Red with 50% opacity
@@ -651,7 +543,6 @@ function TileMap({
                 }
             }
 
-            // Draw tile grid (outline for all tiles)
             ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)'; // Black with 30% opacity
             ctx.lineWidth = 1;
             for (let y = 0; y <= tilesY; y++) {
@@ -667,9 +558,6 @@ function TileMap({
                 ctx.stroke();
             }
         }
-
-        // Agents and player are now rendered as DOM elements using SpriteAnimator
-        // Canvas only renders background, tiles, and layers
     }, [
         mapData,
         tileSize,
@@ -685,7 +573,6 @@ function TileMap({
         showCollisionMap
     ]);
 
-    // Calculate camera position for sprite positioning
     const tilesX = Math.ceil(canvasSize.width / tileSize);
     const tilesY = Math.ceil(canvasSize.height / tileSize);
     const halfTilesX = Math.floor(tilesX / 2);
@@ -696,7 +583,6 @@ function TileMap({
     cameraTileX = Math.max(0, Math.min(MAP_TILES - tilesX, cameraTileX));
     cameraTileY = Math.max(0, Math.min(MAP_TILES - tilesY, cameraTileY));
 
-    // Helper function to get startFrame based on direction
     const getStartFrame = (direction: DIRECTION) => {
         const directionMap = {
             [DIRECTION.DOWN]: 0,
@@ -707,7 +593,6 @@ function TileMap({
         return directionMap[direction as keyof typeof directionMap] || 0;
     };
 
-    // Helper to get tile key and check for custom tiles
     const getCustomTilesAtPosition = (worldX: number, worldY: number) => {
         const key = `${worldX},${worldY}`;
         const tiles: Array<{ layer: 0 | 1 | 2; image: string; key: string; isSecondaryTile?: boolean }> = [];
@@ -721,7 +606,6 @@ function TileMap({
                     let imageUrl: string;
                     let isSecondary = false;
 
-                    // Handle both string and ItemTileData formats
                     if (typeof tileData === 'string') {
                         imageUrl = tileData;
                     } else if (tileData && typeof tileData === 'object') {
@@ -771,7 +655,7 @@ function TileMap({
 
             {/* Zoom Controls */}
             {enableZoom && (zoomControls === 'buttons' || zoomControls === 'both') && (
-                <div className="absolute bottom-4 right-4 z-30 flex flex-col gap-2 rounded-lg bg-white/90 p-2 shadow-lg backdrop-blur-sm">
+                <div className="absolute right-4 bottom-4 z-30 flex flex-col gap-2 rounded-lg bg-white/90 p-2 shadow-lg backdrop-blur-sm">
                     <button
                         onClick={handleZoomIn}
                         disabled={zoomLevel >= MAX_ZOOM}
@@ -809,7 +693,6 @@ function TileMap({
                     agentScreenY = agent.screenY;
                 }
 
-                // Only render if agent is within visible area
                 if (agentScreenX < -1 || agentScreenX > tilesX || agentScreenY < -1 || agentScreenY > tilesY) {
                     return null;
                 }
@@ -936,7 +819,6 @@ function TileMap({
                         const canvas = canvasRef.current;
                         if (!canvas) return null;
 
-                        // Calculate actual screen tile size to match grid alignment
                         const screenTileWidth = canvas.width / tilesX;
                         const screenTileHeight = canvas.height / tilesY;
 
@@ -946,7 +828,6 @@ function TileMap({
                                 const worldTileY = Math.floor(cameraTileY + screenY);
                                 const tiles = getCustomTilesAtPosition(worldTileX, worldTileY);
 
-                                // Only show delete button for layer1 items (items placed by users)
                                 const layer1Tile = tiles.find((t) => t.layer === 1);
                                 if (!layer1Tile) return null;
 
@@ -998,7 +879,6 @@ function TileMap({
                         const { worldX, worldY } = hoveredWorldCoords;
                         const { width: itemWidth, height: itemHeight } = selectedItemDimensions;
 
-                        // Check if ALL tiles are free (collision detection)
                         let hasCollision = false;
                         const tilesStatus: Array<{ screenX: number; screenY: number; blocked: boolean }> = [];
 
@@ -1007,14 +887,11 @@ function TileMap({
                                 const checkX = worldX + dx;
                                 const checkY = worldY + dy;
 
-                                // Convert world coordinates to screen coordinates
                                 const screenTileX = checkX - cameraTileX;
                                 const screenTileY = checkY - cameraTileY;
 
-                                // Check if this tile is blocked
                                 const isBlockedTile = collisionMap[`${checkX},${checkY}`] === true;
 
-                                // Also check map boundaries
                                 const outOfBounds = checkX < 0 || checkX >= 105 || checkY < 0 || checkY >= 105;
 
                                 const blocked = isBlockedTile || outOfBounds;
@@ -1022,18 +899,20 @@ function TileMap({
                                     hasCollision = true;
                                 }
 
-                                // Only add tiles that are visible on screen
-                                if (screenTileX >= 0 && screenTileX < tilesX && screenTileY >= 0 && screenTileY < tilesY) {
+                                if (
+                                    screenTileX >= 0 &&
+                                    screenTileX < tilesX &&
+                                    screenTileY >= 0 &&
+                                    screenTileY < tilesY
+                                ) {
                                     tilesStatus.push({ screenX: screenTileX, screenY: screenTileY, blocked });
                                 }
                             }
                         }
 
-                        // Calculate actual screen tile size to match grid alignment
                         const screenTileWidth = canvas.width / tilesX;
                         const screenTileHeight = canvas.height / tilesY;
 
-                        // Determine outline color: green if all tiles are free, red if any tile is blocked
                         const outlineColor = hasCollision ? 'rgba(255, 0, 0, 0.7)' : 'rgba(0, 255, 0, 0.7)';
                         const fillColor = hasCollision ? 'rgba(255, 0, 0, 0.15)' : 'rgba(0, 255, 0, 0.15)';
 
@@ -1086,8 +965,6 @@ function TileMap({
 
                         if (!isBlockedTile) return null;
 
-                        // Calculate actual screen tile size to match grid alignment
-                        // This ensures the red border aligns perfectly with the grid, just like items do
                         const screenTileWidth = canvas.width / tilesX;
                         const screenTileHeight = canvas.height / tilesY;
 

@@ -4,52 +4,85 @@ import { useAccount } from 'wagmi';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
-/**
- * AuthGuard component that protects routes requiring wallet connection.
- * Redirects to /login if wallet is not connected.
- *
- * @param {Object} props - Component props
- * @param {React.ReactNode} props.children - Child components to render if authenticated
- * @returns {React.ReactNode} Protected content or null during redirect
- */
+const WALLET_CONNECTED_KEY = 'wallet_connected';
+
 export function AuthGuard({ children }: { children: React.ReactNode }) {
-    const { isConnected } = useAccount();
+    const { isConnected, isConnecting } = useAccount();
     const pathname = usePathname();
     const router = useRouter();
-    const [isChecking, setIsChecking] = useState(true);
+    const [isMounted, setIsMounted] = useState(false);
 
-    // Only check authentication on the root path "/"
+    const [isInitialCheck, setIsInitialCheck] = useState(true);
+    const [cachedConnected, setCachedConnected] = useState<boolean | null>(null);
+
     const requiresAuth = pathname === '/';
 
     useEffect(() => {
-        // Skip auth check if not on root path
         if (!requiresAuth) {
-            setIsChecking(false);
+            setIsInitialCheck(false);
+            return;
+        }
+        if (typeof window !== 'undefined') {
+            const cached = localStorage.getItem(WALLET_CONNECTED_KEY);
+            const isWalletConnected = cached === 'true';
+            setCachedConnected(isWalletConnected);
+            console.log('localStorage hint:', isWalletConnected ? 'connected' : 'not connected');
+        }
+    }, [pathname, requiresAuth]);
+
+    useEffect(() => {
+        if (!requiresAuth) {
+            setIsInitialCheck(false);
             return;
         }
 
-        // Redirect to login if wallet is not connected on protected routes
+        if (isConnecting) {
+            console.log('Wagmi is still connecting, waiting...');
+            return;
+        }
+
+        console.log('Wagmi check complete. isConnected:', isConnected);
+
+        if (typeof window !== 'undefined') {
+            const currentCached = localStorage.getItem(WALLET_CONNECTED_KEY);
+            const shouldBeConnected = String(isConnected);
+
+            if (currentCached !== shouldBeConnected) {
+                console.log(`Syncing localStorage: ${currentCached} -> ${shouldBeConnected}`);
+                localStorage.setItem(WALLET_CONNECTED_KEY, shouldBeConnected);
+            }
+        }
+
         if (!isConnected) {
-            console.log('Wallet not connected, redirecting to /login');
+            console.log('Wallet not connected (final check), redirecting to /login');
             router.push('/login');
         } else {
-            setIsChecking(false);
+            console.log('Wallet connected (final check), allowing access');
+            setIsInitialCheck(false);
         }
-    }, [isConnected, pathname, requiresAuth, router]);
+    }, [isConnected, isConnecting, pathname, requiresAuth, router]);
 
-    // Show loading state while checking authentication
-    // This prevents flash of protected content before redirect
-    if (isChecking) {
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
+
+    if (!isMounted) {
+        return null;
+    }
+
+    if (requiresAuth && (isConnecting || isInitialCheck)) {
+        const loadingMessage =
+            cachedConnected === true ? 'Restoring wallet connection...' : 'Checking wallet connection...';
+
         return (
             <div className="flex h-screen w-full items-center justify-center bg-gray-100">
                 <div className="text-center">
                     <div className="mb-4 inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent motion-reduce:animate-[spin_1.5s_linear_infinite]"></div>
-                    <p className="text-gray-600">Checking wallet connection...</p>
+                    <p className="text-gray-600">{loadingMessage}</p>
                 </div>
             </div>
         );
     }
 
-    // Render children if authenticated or on public route
     return <>{children}</>;
 }

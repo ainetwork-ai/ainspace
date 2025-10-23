@@ -27,6 +27,10 @@ export default function RootLayout({
 }>) {
     return (
         <html lang="en" suppressHydrationWarning>
+            <head>
+                <link rel="preload" href="/map/land_layer_0.jpg" as="image" />
+                <link rel="preload" href="/map/land_layer_1.jpg" as="image" />
+            </head>
             <body className={`${geistSans.variable} ${geistMono.variable} antialiased`} suppressHydrationWarning>
                 <Providers>
                     <AuthGuard>{children}</AuthGuard>

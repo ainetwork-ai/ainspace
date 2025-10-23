@@ -1,4 +1,4 @@
-import { DIRECTION } from '@/constants/game';
+import { DIRECTION, INITIAL_PLAYER_POSITION } from '@/constants/game';
 import { create } from 'zustand';
 
 interface Position {
@@ -27,7 +27,7 @@ interface GameState {
 }
 
 export const useGameStateStore = create<GameState>((set, get) => ({
-    worldPosition: { x: 0, y: 0 },
+    worldPosition: INITIAL_PLAYER_POSITION,
     isLoading: true,
     isAutonomous: false,
     playerDirection: DIRECTION.RIGHT,

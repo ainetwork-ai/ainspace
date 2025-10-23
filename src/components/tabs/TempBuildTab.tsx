@@ -76,16 +76,10 @@ export default function TempBuildTab({
 
     const { setShowCollisionMap, collisionMap, isBlocked, setCollisionMap } = useBuildStore();
     const { mapData, playerPosition } = useGameState();
-    const {
-        playerDirection,
-        isPlayerMoving,
-        setIsPlayerMoving,
-        lastMoveTime,
-        setLastMoveTime,
-    } = useGameStateStore();
+    const { playerDirection, isPlayerMoving, setIsPlayerMoving, lastMoveTime, setLastMoveTime } = useGameStateStore();
 
     useEffect(() => {
-        const preloadImages = ['/map/land_layer_0.png', '/map/land_layer_1.png'];
+        const preloadImages = ['/map/land_layer_0.webp', '/map/land_layer_1.webp'];
 
         preloadImages.forEach((src) => {
             const img = document.createElement('img');
@@ -476,8 +470,8 @@ export default function TempBuildTab({
                             agents={[]}
                             customTiles={mergedCustomTiles}
                             buildMode={selectedTab === 'item' ? 'paint' : 'view'}
-                            backgroundImageSrc="/map/land_layer_0.png"
-                            layer1ImageSrc="/map/land_layer_1.png"
+                            backgroundImageSrc="/map/land_layer_0.webp"
+                            layer1ImageSrc="/map/land_layer_1.webp"
                             onTileClick={selectedTab === 'item' ? handleTileClick : undefined}
                             onDeleteTile={selectedTab === 'item' ? handleDeleteTile : undefined}
                             playerDirection={playerDirection}

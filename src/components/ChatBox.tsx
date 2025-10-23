@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { useBuildStore, useGameStateStore } from '@/stores';
 import { useSession } from '@/hooks/useSession';
+import { INITIAL_PLAYER_POSITION } from '@/constants/game';
 
 interface Message {
     id: string;
@@ -48,7 +49,8 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     const [filteredAgents, setFilteredAgents] = useState<Agent[]>([]);
     const [cursorPosition, setCursorPosition] = useState(0);
     const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
-    const { showCollisionMap, setShowCollisionMap, updateCollisionMapFromImage, publishedTiles, setCollisionMap } = useBuildStore();
+    const { showCollisionMap, setShowCollisionMap, updateCollisionMapFromImage, publishedTiles, setCollisionMap } =
+        useBuildStore();
     const inputRef = useRef<HTMLInputElement>(null);
 
     const { userId } = useSession();
@@ -57,7 +59,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     // Initialize world system
     const { sendMessage: worldSendMessage, getAgentSuggestions, playDemoScenario } = useWorld({
         agents: agents || [],
-        playerPosition: playerPosition || { x: 0, y: 0 },
+        playerPosition: playerPosition || INITIAL_PLAYER_POSITION,
         onAgentResponse: (response: AgentResponse & { threadId?: string }) => {
             const { agentId, message, threadId, nextAgentRequest } = response;
             // Add agent response to chat with thread ID
@@ -213,8 +215,8 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     layer1: {}
                 }));
 
-                // Reset collision map to base land_layer_1.png only
-                await updateCollisionMapFromImage('/map/land_layer_1.png');
+                // Reset collision map to base land_layer_1.webp only
+                await updateCollisionMapFromImage('/map/land_layer_1.webp');
 
                 const successMessage: Message = {
                     id: `system-${Date.now()}`,
@@ -238,7 +240,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             setInputValue('');
             const systemMessage: Message = {
                 id: `system-${Date.now()}`,
-                text: 'Updating collision map from land_layer_1.png and published tiles...',
+                text: 'Updating collision map from land_layer_1.webp and published tiles...',
                 timestamp: new Date(),
                 sender: 'system',
                 threadId: undefined
@@ -246,8 +248,8 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             setMessages((prev) => [...prev, systemMessage]);
 
             try {
-                // Step 1: Update collision map from land_layer_1.png image
-                await updateCollisionMapFromImage('/map/land_layer_1.png');
+                // Step 1: Update collision map from land_layer_1.webp image
+                await updateCollisionMapFromImage('/map/land_layer_1.webp');
 
                 // Step 2: Get the updated collision map and merge with published layer1 items
                 const currentCollisionMap = useBuildStore.getState().collisionMap;
@@ -493,8 +495,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                         {filteredAgents.map((agent, index) => {
                             const distance = playerPosition
                                 ? Math.sqrt(
-                                      Math.pow(agent.x - playerPosition.x, 2) +
-                                          Math.pow(agent.y - playerPosition.y, 2)
+                                      Math.pow(agent.x - playerPosition.x, 2) + Math.pow(agent.y - playerPosition.y, 2)
                                   )
                                 : 0;
 
@@ -525,7 +526,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     </div>
                 )}
 
-                <div className="inline-flex w-full items-center justify-start gap-2.5 rounded-[10px] px-2.5 py-2 outline-1 outline-offset-[-1px] outline-white my-auto">
+                <div className="my-auto inline-flex w-full items-center justify-start gap-2.5 rounded-[10px] px-2.5 py-2 outline-1 outline-offset-[-1px] outline-white">
                     <input
                         ref={inputRef}
                         type="text"

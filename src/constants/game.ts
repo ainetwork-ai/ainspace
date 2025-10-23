@@ -18,6 +18,9 @@ export const MAX_WORLD_X = MAP_TILES - Math.ceil(MAP_WIDTH / 2);
 export const MIN_WORLD_Y = Math.floor(MAP_HEIGHT / 2);
 export const MAX_WORLD_Y = MAP_TILES - Math.ceil(MAP_HEIGHT / 2);
 
+// Player initial position
+export const INITIAL_PLAYER_POSITION = { x: 72, y: 64 };
+
 export enum DIRECTION {
     UP = 'up',
     DOWN = 'down',

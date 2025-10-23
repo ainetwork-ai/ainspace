@@ -1,5 +1,6 @@
 import { AgentSkill } from '@a2a-js/sdk';
 import { BaseAgent, createAgent, AgentState, Message as AgentMessage } from './agent';
+import { INITIAL_PLAYER_POSITION } from '@/constants/game';
 
 export interface Agent {
     id: string;
@@ -39,7 +40,7 @@ export interface AgentResponse {
 export class World {
     private agents: Agent[] = [];
     private agentInstances: BaseAgent[] = [];
-    private player: Player = { x: 0, y: 0 };
+    private player: Player = INITIAL_PLAYER_POSITION;
     private readonly MAX_SPEED = 10; // units per second
 
     constructor(agents: Agent[], player: Player) {
@@ -174,14 +175,14 @@ export class World {
     }
 
     private extractMentionedAgentsAndTasks(content: string): string[] {
-      const regex = /@([^@]+?)\s*-\s*([^@]+?)(?=@|$)/g;
-      const result: string[] = [];
-      for (const [, name, req] of content.matchAll(regex)) {
-        console.log('name, req :>> ', name, req);
-        result.push(`@${name} ${req.trim()}`);
-      }
-      console.log(JSON.stringify(result, null, 2));
-      return result;
+        const regex = /@([^@]+?)\s*-\s*([^@]+?)(?=@|$)/g;
+        const result: string[] = [];
+        for (const [, name, req] of content.matchAll(regex)) {
+            console.log('name, req :>> ', name, req);
+            result.push(`@${name} ${req.trim()}`);
+        }
+        console.log(JSON.stringify(result, null, 2));
+        return result;
     }
 
     // Find agents that are mentioned in the message
@@ -198,18 +199,20 @@ export class World {
     // Process incoming message and deliver to each agent
     async processMessage(content: string, broadcastRadius?: number, threadId?: string): Promise<AgentResponse[]> {
         const mentions = this.extractMentions(content);
-        const agentSkills = this.agents.filter(agent => agent.skills).map(agent => {
-            return {
-                name: agent.name,
-                skills: agent.skills?.map(skill => {
-                    return {
-                        name: skill.name,
-                        description: skill.description,
-                        tags: skill.tags,
-                    }
-                })
-            }
-        });
+        const agentSkills = this.agents
+            .filter((agent) => agent.skills)
+            .map((agent) => {
+                return {
+                    name: agent.name,
+                    skills: agent.skills?.map((skill) => {
+                        return {
+                            name: skill.name,
+                            description: skill.description,
+                            tags: skill.tags
+                        };
+                    })
+                };
+            });
 
         let respondingAgentInstances: BaseAgent[];
 
@@ -265,7 +268,7 @@ export class World {
 
             // Let agent process the message
             const agentResponse = await agentInstance.processMessage(agentMessage, totalDelay, { agentSkills });
-            
+
             if (agentResponse) {
                 const nextAgentRequest = this.extractMentionedAgentsAndTasks(agentResponse?.message);
                 console.log('nextAgentRequest :>> ', nextAgentRequest);
