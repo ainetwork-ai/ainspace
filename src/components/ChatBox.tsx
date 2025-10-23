@@ -3,17 +3,18 @@
 import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { useWorld } from '@/hooks/useWorld';
 import { Agent, AgentResponse } from '@/lib/world';
-import { cn } from '@/lib/utils';
+import { cn, shortAddress } from '@/lib/utils';
 import Image from 'next/image';
 import { useBuildStore, useGameStateStore } from '@/stores';
-import { useSession } from '@/hooks/useSession';
 import { INITIAL_PLAYER_POSITION } from '@/constants/game';
+import { useAccount } from 'wagmi';
 
 interface Message {
     id: string;
     text: string;
     timestamp: Date;
     sender: 'user' | 'system' | 'ai';
+    senderId?: string;
     threadId?: string;
 }
 
@@ -53,7 +54,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         useBuildStore();
     const inputRef = useRef<HTMLInputElement>(null);
 
-    const { userId } = useSession();
+    const { address } = useAccount();
     const { worldPosition: playerPosition } = useGameStateStore();
 
     // Initialize world system
@@ -68,6 +69,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 text: message,
                 timestamp: new Date(),
                 sender: 'ai',
+                senderId: agentId,
                 threadId: threadId || currentThreadId || undefined
             };
 
@@ -137,6 +139,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 text: aiCommentary,
                 timestamp: new Date(),
                 sender: 'ai',
+                senderId: undefined,
                 threadId: undefined // AI commentary is not part of any thread
             };
 
@@ -292,6 +295,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 text: inputValue.trim(),
                 timestamp: new Date(),
                 sender: 'user',
+                senderId: address || undefined,
                 threadId: currentThreadId || undefined
             };
 
@@ -409,24 +413,30 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         [inputValue, cursorPosition]
     );
 
+    const getAgentNameAndPosition = (senderId: string | undefined): string => {
+        if (!senderId) return 'AI';
+        const agent = agents.find((a) => a.id === senderId);
+        if (agent && playerPosition) {
+            const distance = Math.sqrt(Math.pow(agent.x - playerPosition.x, 2) + Math.pow(agent.y - playerPosition.y, 2));
+            return `${agent.name} (${agent.x}, ${agent.y}) [${distance.toFixed(1)}u]`;
+        }
+        return 'AI';
+    };
+
     return (
         <div className={cn('flex h-full w-full flex-col bg-transparent', className)}>
             <div className="max-h-full min-h-[150px] flex-1 space-y-2 overflow-y-auto p-3">
                 {threadMessages.slice().map((message) => (
                     <div key={message.id} className={cn('flex flex-col items-start gap-1')}>
                         <div className="flex flex-row items-center gap-2">
-                            <Image
-                                src={
-                                    message.sender === 'user'
-                                        ? '/footer/bottomSheet/avatar_player.png'
-                                        : '/footer/bottomSheet/avatar_agent_1.png'
-                                }
-                                alt="User"
-                                width={24}
-                                height={24}
-                            />
-                            <span className="text-xs font-semibold text-white">
-                                {message.sender === 'user' ? 'You' : 'AI'}
+                            <span 
+                                style={{ color: message.sender === 'user' ? 'white' : agents.find((a) => a.id === message.senderId)?.color || "oklch(62.7% 0.194 149.214)" }}
+                                className="text-xs font-semibold">
+                                    {
+                                        message.sender === 'user' ? 
+                                            `${shortAddress(message.senderId || '')}` :
+                                            getAgentNameAndPosition(message.senderId)
+                                    }
                             </span>
                             {message.sender === 'user' ? (
                                 <div className="inline-flex flex-col items-start justify-center gap-2 rounded-lg bg-[#7f4fe8]/50 px-2 py-0.5">
@@ -444,31 +454,11 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                                 message.sender === 'user'
                                     ? 'rounded-br-sm text-white'
                                     : message.sender === 'ai'
-                                      ? 'rounded-bl-sm border border-green-300 bg-green-100 text-green-800'
+                                      ? 'rounded-bl-sm text-white'
                                       : 'rounded-bl-sm bg-gray-200 text-gray-800'
                             )}
                         >
-                            {message.sender === 'ai' && (
-                                <div className="mb-1 flex items-center">
-                                    <span className="text-xs font-semibold text-green-600">
-                                        🤖{' '}
-                                        {message.id.includes('agent-')
-                                            ? (() => {
-                                                  const agent = agents.find((a) => message.id.includes(a.id));
-                                                  if (agent && playerPosition) {
-                                                      const distance = Math.sqrt(
-                                                          Math.pow(agent.x - playerPosition.x, 2) +
-                                                              Math.pow(agent.y - playerPosition.y, 2)
-                                                      );
-                                                      return `${agent.name} (${agent.x}, ${agent.y}) [${distance.toFixed(1)}u]`;
-                                                  }
-                                                  return agent ? `${agent.name} (${agent.x}, ${agent.y})` : 'AI Agent';
-                                              })()
-                                            : 'AI Explorer'}
-                                    </span>
-                                </div>
-                            )}
-                            <p className="leading-[25px]break-words justify-start text-base text-white">
+                            <p className="leading-[25px] break-words justify-start text-base text-white">
                                 {message.text}
                             </p>
                         </div>
