@@ -285,7 +285,6 @@ export default function Home() {
     const handleSpawnAgent = (importedAgent: {
         url: string;
         card: AgentCard;
-        characterImage?: string;
         spriteUrl?: string;
         spriteHeight?: number;
     }) => {
@@ -354,43 +353,12 @@ export default function Home() {
             lastMoved: Date.now(),
             moveInterval: 600 + Math.random() * 400, // Random 600-1000ms interval, matching original agents
             skills: importedAgent.card.skills || [],
-            characterImage: importedAgent.characterImage,
             spriteUrl: importedAgent.spriteUrl || '/sprite/sprite_cat.png', // Use selected sprite or default
             spriteHeight: importedAgent.spriteHeight || 40 // Use selected sprite height or default
         });
 
-        // If there's a character image, place it on layer2
-        if (importedAgent.characterImage) {
-            const charImage = importedAgent.characterImage;
-            setCustomTiles((prev) => ({
-                ...prev,
-                layer2: {
-                    ...prev.layer2,
-                    [`${spawnX},${spawnY}`]: charImage
-                }
-            }));
-        }
-
         // Switch to map tab
         setActiveTab('map');
-    };
-
-    const handleUploadCharacterImage = (agentUrl: string, imageUrl: string) => {
-        // Update the spawned agent's character image
-        const agent = agents[agentUrl];
-        if (!agent) return;
-
-        // Place character image on layer2 at agent's current position
-        setCustomTiles((prevTiles) => ({
-            ...prevTiles,
-            layer2: {
-                ...prevTiles.layer2,
-                [`${agent.x},${agent.y}`]: imageUrl
-            }
-        }));
-
-        // Update agent with character image
-        updateAgent(agentUrl, { characterImage: imageUrl });
     };
 
     const handleRemoveAgentFromMap = (agentUrl: string) => {
@@ -423,7 +391,6 @@ export default function Home() {
                 screenY: 0, // Will be calculated in TileMap based on camera position
                 color: agent.color,
                 name: agent.name,
-                hasCharacterImage: !!agent.characterImage,
                 spriteUrl: agent.spriteUrl, // Pass sprite URL for animation
                 spriteHeight: agent.spriteHeight, // Pass sprite height for rendering
                 direction: agent.direction, // Pass direction for animation
@@ -438,7 +405,6 @@ export default function Home() {
         screenY: number;
         color: string;
         name: string;
-        hasCharacterImage?: boolean;
         spriteUrl?: string;
         spriteHeight?: number;
         direction?: DIRECTION;
@@ -523,22 +489,6 @@ export default function Home() {
                     moved = true;
                     hasUpdates = true;
 
-                    // Update character image position on layer2 if it exists
-                    if (agent.characterImage) {
-                        setCustomTiles((prevTiles) => {
-                            const newLayer2 = { ...prevTiles.layer2 };
-                            // Remove from old position
-                            delete newLayer2[`${oldX},${oldY}`];
-                            // Add to new position
-                            newLayer2[`${newX},${newY}`] = agent.characterImage!;
-
-                            return {
-                                ...prevTiles,
-                                layer2: newLayer2
-                            };
-                        });
-                    }
-
                     // Clear isMoving flag after a short delay (animation duration)
                     const agentUrl = agent.agentUrl;
                     if (agentUrl) {
@@ -570,7 +520,7 @@ export default function Home() {
 
         const interval = setInterval(moveA2AAgents, 100); // Check every 100ms, matching original agents
         return () => clearInterval(interval);
-    }, [globalIsBlocked, agents, worldAgents, worldPosition, setAgents, setCustomTiles]);
+    }, [globalIsBlocked, agents, worldAgents, worldPosition, setAgents]);
 
     return (
         <div className="flex h-screen w-full flex-col bg-gray-100">
@@ -625,7 +575,6 @@ export default function Home() {
                     onSpawnAgent={handleSpawnAgent}
                     onRemoveAgentFromMap={handleRemoveAgentFromMap}
                     spawnedAgents={Object.keys(agents)}
-                    onUploadCharacterImage={handleUploadCharacterImage}
                 />
             </div>
             {!isBottomSheetOpen && (
