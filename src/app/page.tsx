@@ -14,6 +14,13 @@ import { AgentCard } from '@a2a-js/sdk';
 import { useUIStore, useThreadStore, useBuildStore, useAgentStore } from '@/stores';
 import TempBuildTab from '@/components/tabs/TempBuildTab';
 
+const SPAWN_POSITIONS = [
+    { x: 63, y: 63 },
+    { x: 76, y: 63 },
+    { x: 76, y: 65 },
+    { x: 63, y: 65 }
+];
+
 export default function Home() {
     // Global stores
     const { activeTab, isBottomSheetOpen, setActiveTab, openBottomSheet, closeBottomSheet } = useUIStore();
@@ -280,75 +287,57 @@ export default function Home() {
         const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8'];
         const randomColor = colors[Math.floor(Math.random() * colors.length)];
 
-        // Find a non-blocked spawn position near player
-        const findNonBlockedPosition = (
-            centerX: number,
-            centerY: number,
-            maxRadius: number = 5
-        ): { x: number; y: number } | null => {
-            // First try random positions in increasing radius
-            for (let radius = 0; radius <= maxRadius; radius++) {
-                const candidates: { x: number; y: number }[] = [];
+        // Find a non-blocked spawn position from SPAWN_POSITIONS
+        const findAvailableSpawnPosition = (): { x: number; y: number } | null => {
+            // Shuffle spawn positions to add randomness
+            const shuffledPositions = [...SPAWN_POSITIONS].sort(() => Math.random() - 0.5);
 
-                // Generate all positions at this radius
-                for (let dx = -radius; dx <= radius; dx++) {
-                    for (let dy = -radius; dy <= radius; dy++) {
-                        // Only check positions at current radius (Manhattan distance)
-                        if (Math.abs(dx) + Math.abs(dy) <= radius) {
-                            const testX = centerX + dx;
-                            const testY = centerY + dy;
+            for (const position of shuffledPositions) {
+                const { x, y } = position;
 
-                            // Check boundaries
-                            if (testX < 0 || testX >= MAP_TILES || testY < 0 || testY >= MAP_TILES) {
-                                continue;
-                            }
-
-                            // Check if position is blocked by collision map
-                            if (globalIsBlocked(testX, testY)) {
-                                continue;
-                            }
-
-                            // Check if position is occupied by player
-                            if (testX === worldPosition.x && testY === worldPosition.y) {
-                                continue;
-                            }
-
-                            // Check if position is occupied by another agent
-                            const isOccupied = combinedWorldAgents.some(
-                                (agent) => agent.x === testX && agent.y === testY
-                            );
-                            if (isOccupied) {
-                                continue;
-                            }
-
-                            candidates.push({ x: testX, y: testY });
-                        }
-                    }
+                // Check boundaries
+                if (x < 0 || x >= MAP_TILES || y < 0 || y >= MAP_TILES) {
+                    continue;
                 }
 
-                // If we found any valid positions at this radius, pick one randomly
-                if (candidates.length > 0) {
-                    return candidates[Math.floor(Math.random() * candidates.length)];
+                // Check if position is blocked by collision map
+                if (globalIsBlocked(x, y)) {
+                    continue;
                 }
+
+                // Check if position is occupied by player
+                if (x === worldPosition.x && y === worldPosition.y) {
+                    continue;
+                }
+
+                // Check if position is occupied by another agent
+                const isOccupied = combinedWorldAgents.some(
+                    (agent) => agent.x === x && agent.y === y
+                );
+                if (isOccupied) {
+                    continue;
+                }
+
+                return { x, y };
             }
 
             return null; // No valid position found
         };
 
-        // Try to find spawn position
-        const spawnPosition = findNonBlockedPosition(worldPosition.x, worldPosition.y);
+        // Try to find spawn position from SPAWN_POSITIONS
+        const spawnPosition = findAvailableSpawnPosition();
 
         if (!spawnPosition) {
             // Show error if no valid spawn position found
-            console.error('Cannot spawn agent: no non-blocked tiles available near player');
+            console.error('Cannot spawn agent: all spawn positions are occupied or blocked');
             alert(
-                'Cannot spawn agent: no available space near your position. Try moving to a different location or clearing some items.'
+                'Cannot spawn agent: all designated spawn positions are occupied or blocked. Please clear some space or remove an agent.'
             );
             return;
         }
 
         const { x: spawnX, y: spawnY } = spawnPosition;
-        console.log(`Spawning agent at (${spawnX}, ${spawnY}) - checked collision map`);
+        console.log(`Spawning agent at (${spawnX}, ${spawnY}) from SPAWN_POSITIONS - checked collision map`);
 
         // Add to spawned A2A agents for UI tracking
         spawnAgent(importedAgent.url, {
@@ -359,6 +348,7 @@ export default function Home() {
             color: randomColor,
             agentUrl: importedAgent.url,
             lastMoved: Date.now(),
+            moveInterval: 3000 + Math.random() * 4000, // Random 3-7 second interval
             skills: importedAgent.card.skills || [],
             characterImage: importedAgent.characterImage
         });
@@ -448,18 +438,30 @@ export default function Home() {
         const moveA2AAgents = () => {
             const now = Date.now();
             const updated = { ...agents };
+            let hasUpdates = false;
 
             Object.values(updated).forEach((agent) => {
-                // Move agents every 5-10 seconds randomly
-                if (now - (agent.lastMoved || 0) > 5000 + Math.random() * 5000) {
-                    const directions = [
-                        { dx: 0, dy: -1 }, // up
-                        { dx: 0, dy: 1 }, // down
-                        { dx: -1, dy: 0 }, // left
-                        { dx: 1, dy: 0 } // right
-                    ];
+                // Use the stored moveInterval (or default if not set)
+                const moveInterval = agent.moveInterval || 5000;
+                const timeSinceLastMove = now - (agent.lastMoved || 0);
 
-                    const direction = directions[Math.floor(Math.random() * directions.length)];
+                // Only try to move if enough time has passed
+                if (timeSinceLastMove < moveInterval) {
+                    return;
+                }
+
+                const directions = [
+                    { dx: 0, dy: -1 }, // up
+                    { dx: 0, dy: 1 }, // down
+                    { dx: -1, dy: 0 }, // left
+                    { dx: 1, dy: 0 } // right
+                ];
+
+                // Try random directions until we find a valid move or exhaust all options
+                const shuffledDirections = [...directions].sort(() => Math.random() - 0.5);
+                let moved = false;
+
+                for (const direction of shuffledDirections) {
                     const oldX = agent.x;
                     const oldY = agent.y;
                     const newX = agent.x + direction.dx;
@@ -467,12 +469,12 @@ export default function Home() {
 
                     // Check map boundaries
                     if (newX < 0 || newX >= MAP_TILES || newY < 0 || newY >= MAP_TILES) {
-                        return; // Skip this agent's movement
+                        continue; // Try next direction
                     }
 
                     // Check if player is at this position
                     if (newX === worldPosition.x && newY === worldPosition.y) {
-                        return; // Skip this agent's movement
+                        continue; // Try next direction
                     }
 
                     // Check if another agent (A2A or world agent) is at this position
@@ -483,13 +485,20 @@ export default function Home() {
                         (worldAgent) => worldAgent.x === newX && worldAgent.y === newY
                     );
                     if (isOccupiedByA2A || isOccupiedByWorldAgent) {
-                        return; // Skip this agent's movement
+                        continue; // Try next direction
                     }
 
                     // Check layer1 collision - don't move if blocked
                     if (globalIsBlocked(newX, newY)) {
-                        return; // Skip this agent's movement
+                        continue; // Try next direction
                     }
+
+                    // Valid move found! Update position
+                    agent.x = newX;
+                    agent.y = newY;
+                    agent.lastMoved = now;
+                    moved = true;
+                    hasUpdates = true;
 
                     // Update character image position on layer2 if it exists
                     if (agent.characterImage) {
@@ -507,17 +516,23 @@ export default function Home() {
                         });
                     }
 
-                    // Simple boundary check (agents can move anywhere not blocked by layer1)
-                    agent.x = newX;
-                    agent.y = newY;
+                    break; // Successfully moved, exit the direction loop
+                }
+
+                // If we couldn't move in any direction, still update lastMoved to prevent getting stuck
+                if (!moved) {
                     agent.lastMoved = now;
+                    hasUpdates = true;
                 }
             });
 
-            setAgents(updated);
+            // Only update state if there were actual changes
+            if (hasUpdates) {
+                setAgents(updated);
+            }
         };
 
-        const interval = setInterval(moveA2AAgents, 2000); // Check every 2 seconds
+        const interval = setInterval(moveA2AAgents, 1000); // Check every 1 second
         return () => clearInterval(interval);
     }, [globalIsBlocked, agents, worldAgents, worldPosition, setAgents, setCustomTiles]);
 

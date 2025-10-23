@@ -1,12 +1,13 @@
 'use client';
 
 import Image from 'next/image';
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import BaseTabContent from './BaseTabContent';
 import TileMap from '@/components/TileMap';
+import PlayerJoystick from '@/components/controls/PlayerJoystick';
 import { cn } from '@/lib/utils';
 import { DIRECTION, TILE_SIZE } from '@/constants/game';
-import { useBuildStore, useGameStateStore } from '@/stores';
+import { useBuildStore, useGameStateStore, useUIStore } from '@/stores';
 import { useGameState } from '@/hooks/useGameState';
 
 type TileLayers = {
@@ -75,8 +76,46 @@ export default function TempBuildTab({
     const tileSize = TILE_SIZE;
 
     const { setShowCollisionMap, collisionMap, isBlocked, setCollisionMap } = useBuildStore();
-    const { mapData, playerPosition } = useGameState();
+    const { mapData, playerPosition, movePlayer, isAutonomous } = useGameState();
     const { playerDirection, isPlayerMoving, setIsPlayerMoving, lastMoveTime, setLastMoveTime } = useGameStateStore();
+    const { isBottomSheetOpen } = useUIStore();
+
+    const handleMobileMove = useCallback(
+        (direction: DIRECTION) => {
+            if (isAutonomous) return;
+
+            // Calculate new position
+            let newX = worldPosition.x;
+            let newY = worldPosition.y;
+            switch (direction) {
+                case DIRECTION.UP:
+                    newY -= 1;
+                    break;
+                case DIRECTION.DOWN:
+                    newY += 1;
+                    break;
+                case DIRECTION.LEFT:
+                    newX -= 1;
+                    break;
+                case DIRECTION.RIGHT:
+                    newX += 1;
+                    break;
+                case DIRECTION.STOP:
+                default:
+                    break;
+            }
+
+            // Check if tile is blocked by collision map
+            if (isBlocked(newX, newY)) {
+                console.log(`Movement blocked: tile (${newX}, ${newY}) is blocked by collision`);
+                return;
+            }
+
+            // Move player
+            movePlayer(direction);
+        },
+        [isAutonomous, worldPosition, isBlocked, movePlayer]
+    );
 
     useEffect(() => {
         const preloadImages = ['/map/land_layer_0.webp', '/map/land_layer_1.webp'];
@@ -458,10 +497,7 @@ export default function TempBuildTab({
                         </p>
                     </div>
 
-                    <div
-                        className="mb-4 w-full overflow-hidden rounded-lg"
-                        style={{ height: '70vh', minHeight: '500px' }}
-                    >
+                    <div className="relative mb-4 aspect-square w-full overflow-hidden rounded-lg">
                         <TileMap
                             mapData={mapData}
                             tileSize={tileSize}
@@ -478,9 +514,20 @@ export default function TempBuildTab({
                             playerIsMoving={isPlayerMoving}
                             collisionMap={collisionMap}
                             selectedItemDimensions={selectedItem !== null ? ITEM_DIMENSIONS[selectedItem] : null}
-                            enableZoom={true}
+                            enableZoom={false}
                             zoomControls="both"
+                            fixedZoom={0.5}
                         />
+                        {!isBottomSheetOpen && (
+                            <div className="absolute -bottom-20 left-1/2 z-20 -translate-x-1/2 transform">
+                                <PlayerJoystick
+                                    onMove={handleMobileMove}
+                                    disabled={isAutonomous}
+                                    baseColor="#00000050"
+                                    stickColor="#FFF"
+                                />
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex w-full flex-row gap-0 self-stretch">

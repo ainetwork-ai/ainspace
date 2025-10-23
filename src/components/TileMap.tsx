@@ -56,6 +56,7 @@ interface TileMapProps {
     selectedItemDimensions?: { width: number; height: number } | null;
     enableZoom?: boolean;
     zoomControls?: 'wheel' | 'buttons' | 'both';
+    fixedZoom?: number;
 }
 
 function TileMap({
@@ -76,7 +77,8 @@ function TileMap({
     collisionMap = {},
     selectedItemDimensions = null,
     enableZoom = false,
-    zoomControls = 'both'
+    zoomControls = 'both',
+    fixedZoom
 }: TileMapProps) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -90,12 +92,12 @@ function TileMap({
     const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
     const [hoveredWorldCoords, setHoveredWorldCoords] = useState<{ worldX: number; worldY: number } | null>(null);
 
-    const [zoomLevel, setZoomLevel] = useState(1.0);
+    const [zoomLevel, setZoomLevel] = useState(fixedZoom !== undefined ? fixedZoom : 1.0);
     const MIN_ZOOM = 0.5;
     const MAX_ZOOM = 2.0;
     const ZOOM_STEP = 0.25;
 
-    const tileSize = baseTileSize * zoomLevel;
+    const tileSize = baseTileSize * (fixedZoom !== undefined ? fixedZoom : zoomLevel);
 
     const { showCollisionMap, toggleCollisionMap } = useBuildStore();
 
@@ -654,7 +656,7 @@ function TileMap({
             />
 
             {/* Zoom Controls */}
-            {enableZoom && (zoomControls === 'buttons' || zoomControls === 'both') && (
+            {enableZoom && fixedZoom === undefined && (zoomControls === 'buttons' || zoomControls === 'both') && (
                 <div className="absolute right-4 bottom-4 z-30 flex flex-col gap-2 rounded-lg bg-white/90 p-2 shadow-lg backdrop-blur-sm">
                     <button
                         onClick={handleZoomIn}

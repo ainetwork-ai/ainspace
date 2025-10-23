@@ -9,6 +9,7 @@ export interface AgentInformation {
     name: string;
     characterImage?: string;
     lastMoved?: number;
+    moveInterval?: number; // Random interval for agent movement (ms)
     agentUrl?: string;
     skills?: AgentSkill[];
 }
