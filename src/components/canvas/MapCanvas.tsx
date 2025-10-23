@@ -110,51 +110,6 @@ export default function MapCanvas({
                 );
             }
 
-            // Draw base tiles if no background image
-            if (!backgroundImage) {
-                for (let y = 0; y < tilesY; y++) {
-                    for (let x = 0; x < tilesX; x++) {
-                        const worldTileX = Math.floor(cameraTileX + x);
-                        const worldTileY = Math.floor(cameraTileY + y);
-
-                        // Get tile type from mapData if within bounds
-                        let tileType = 0;
-                        if (mapData[worldTileY] && mapData[worldTileY][worldTileX] !== undefined) {
-                            tileType = mapData[worldTileY][worldTileX];
-                        } else {
-                            tileType = 0; // Default to grass
-                        }
-
-                        // Render void tiles as light background
-                        if (tileType === -1) {
-                            ctx.fillStyle = '#f0f8ff';
-                            ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
-                            continue;
-                        }
-
-                        // Set tile color based on type
-                        switch (tileType) {
-                            case 0:
-                                ctx.fillStyle = '#90EE90'; // Light green for grass
-                                break;
-                            case 1:
-                                ctx.fillStyle = '#8B4513'; // Brown for dirt
-                                break;
-                            case 2:
-                                ctx.fillStyle = '#4169E1'; // Blue for water
-                                break;
-                            case 3:
-                                ctx.fillStyle = '#696969'; // Gray for stone
-                                break;
-                            default:
-                                ctx.fillStyle = '#FFFFFF'; // White for unknown
-                        }
-
-                        ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
-                    }
-                }
-            }
-
             // Draw custom tile layers
             if (isLayeredTiles(customTiles)) {
                 [0, 1, 2].forEach((layerIndex) => {

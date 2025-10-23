@@ -58,7 +58,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     // Initialize world system
     const { sendMessage: worldSendMessage, getAgentSuggestions } = useWorld({
         agents: agents || [],
-        playerPosition: playerPosition || { x: 0, y: 0 },
+        playerPosition: playerPosition || { x: 72, y: 64 },
         onAgentResponse: (response: AgentResponse & { threadId?: string }) => {
             const { agentId, message, threadId, nextAgentRequest } = response;
             // Add agent response to chat with thread ID
