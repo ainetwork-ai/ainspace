@@ -374,6 +374,9 @@ export default function Home() {
                 }
             }));
         }
+
+        // Switch to map tab
+        setActiveTab('map');
     };
 
     const handleUploadCharacterImage = (agentUrl: string, imageUrl: string) => {
