@@ -42,7 +42,12 @@ export default function LoginPage() {
 
     const ConnectWalletButton = () => {
         return (
-            <div className={cn('h-14 transition-all duration-700 ease-out', showButton ? 'opacity-100' : 'opacity-0')}>
+            <div
+                className={cn(
+                    'z-10 h-14 transition-all duration-700 ease-out',
+                    showButton ? 'opacity-100' : 'opacity-0'
+                )}
+            >
                 <Signature message={message} onSuccess={handleSignature}>
                     <SignatureButton
                         label="Wallet Login"
@@ -60,7 +65,7 @@ export default function LoginPage() {
 
     return (
         <div className="flex h-screen w-full max-w-800 flex-col items-center justify-center gap-6 bg-[#B1E1FF]">
-            <Image src="/login/logo.svg" alt="Login Background" width={190} height={108} />
+            <Image src="/login/logo.svg" alt="Login Background" className="z-10" width={190} height={108} />
             <ConnectWalletButton />
             <Image src="/login/ainetwork.svg" alt="ainetwork" className="z-10" width={133} height={22} />
             <div className="h-10" />
