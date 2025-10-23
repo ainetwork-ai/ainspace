@@ -163,7 +163,7 @@ export class World {
                 })
             }
         });
-        console.log('agentSkills :>> ', agentSkills);
+
         let respondingAgentInstances: BaseAgent[];
 
         if (mentions.length > 0) {
@@ -192,6 +192,11 @@ export class World {
             }
         }
 
+        respondingAgentInstances.forEach(instance => {
+          // instance.    HERE
+          console.log('instance :>> ', instance.name, instance.position.x, instance.position.y);
+        })
+        console.log('respondingAgentInstances :>> ', respondingAgentInstances);
         // Process responses concurrently but with staggered delays
         const responsePromises = respondingAgentInstances.map(async (agentInstance, index) => {
             const distance = this.calculateDistance(this.player, agentInstance.position);

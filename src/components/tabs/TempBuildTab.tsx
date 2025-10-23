@@ -5,8 +5,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import BaseTabContent from './BaseTabContent';
 import TileMap from '@/components/TileMap';
 import { cn } from '@/lib/utils';
-import { TILE_SIZE } from '@/constants/game';
-import { useBuildStore } from '@/stores';
+import { DIRECTION, TILE_SIZE } from '@/constants/game';
+import { useBuildStore, useGameStateStore } from '@/stores';
+import { useGameState } from '@/hooks/useGameState';
 
 type TileLayers = {
     layer0: { [key: string]: string };
@@ -34,8 +35,6 @@ const ITEM_DIMENSIONS: { [key: number]: { width: number; height: number } } = {
 
 interface BuildTabProps {
     isActive: boolean;
-    mapData: number[][];
-    playerPosition: { x: number; y: number };
     worldPosition: { x: number; y: number };
     visibleAgents: Array<{
         id: string;
@@ -59,8 +58,6 @@ interface BuildTabProps {
 
 export default function TempBuildTab({
     isActive,
-    mapData,
-    playerPosition,
     worldPosition,
     visibleAgents,
     publishedTiles,
@@ -74,16 +71,15 @@ export default function TempBuildTab({
 }: BuildTabProps) {
     const [selectedTab, setSelectedTab] = useState<'map' | 'item'>('item');
     const [selectedItem, setSelectedItem] = useState<number | null>(null);
-    const [playerDirection, setPlayerDirection] = useState<'up' | 'down' | 'left' | 'right'>('down');
-    const [isPlayerMoving, setIsPlayerMoving] = useState(false);
-    const [lastMoveTime, setLastMoveTime] = useState(0);
     const [placedItems, setPlacedItems] = useState<Set<number>>(new Set());
     const tileSize = TILE_SIZE;
 
     const { setShowCollisionMap, collisionMap, isBlocked, setCollisionMap } = useBuildStore();
+    const { mapData, playerPosition } = useGameState();
+    const { playerDirection, isPlayerMoving, setIsPlayerMoving, lastMoveTime, setLastMoveTime } = useGameStateStore();
 
     useEffect(() => {
-        const preloadImages = ['/map/land_layer_0.png', '/map/land_layer_1.png'];
+        const preloadImages = ['/map/land_layer_0.webp', '/map/land_layer_1.webp'];
 
         preloadImages.forEach((src) => {
             const img = document.createElement('img');
@@ -471,17 +467,19 @@ export default function TempBuildTab({
                             tileSize={tileSize}
                             playerPosition={playerPosition}
                             worldPosition={worldPosition}
-                            agents={visibleAgents}
+                            agents={[]}
                             customTiles={mergedCustomTiles}
                             buildMode={selectedTab === 'item' ? 'paint' : 'view'}
-                            backgroundImageSrc="/map/land_layer_0.png"
-                            layer1ImageSrc="/map/land_layer_1.png"
+                            backgroundImageSrc="/map/land_layer_0.webp"
+                            layer1ImageSrc="/map/land_layer_1.webp"
                             onTileClick={selectedTab === 'item' ? handleTileClick : undefined}
                             onDeleteTile={selectedTab === 'item' ? handleDeleteTile : undefined}
                             playerDirection={playerDirection}
                             playerIsMoving={isPlayerMoving}
                             collisionMap={collisionMap}
                             selectedItemDimensions={selectedItem !== null ? ITEM_DIMENSIONS[selectedItem] : null}
+                            enableZoom={true}
+                            zoomControls="both"
                         />
                     </div>
 

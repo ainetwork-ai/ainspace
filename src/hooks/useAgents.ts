@@ -5,10 +5,10 @@ import { useMapData } from '@/providers/MapDataProvider';
 import { Agent } from '@/lib/world';
 import { useLayer1Collision } from '@/hooks/useLayer1Collision';
 import { useBuildStore } from '@/stores';
-import { MAP_TILES, TILE_SIZE } from '@/constants/game';
+import { DIRECTION, MAP_TILES, TILE_SIZE } from '@/constants/game';
 
 export interface AgentInternal extends Agent {
-    direction: 'up' | 'down' | 'left' | 'right';
+    direction: DIRECTION;
     lastMoved: number;
     moveInterval: number;
     isMoving?: boolean;
@@ -24,7 +24,7 @@ interface UseAgentsProps {
 
 export function useAgents({ playerWorldPosition }: UseAgentsProps) {
     const { generateTileAt } = useMapData();
-    const { isBlocked: isLayer1Blocked } = useLayer1Collision('/map/land_layer_1.png');
+    const { isBlocked: isLayer1Blocked } = useLayer1Collision('/map/land_layer_1.webp');
     const { isBlocked: isBuildStoreBlocked } = useBuildStore();
 
     // Initial agent positions near player start location (63, 58)
@@ -35,7 +35,7 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
             y: 67,
             color: '#00FF00',
             name: 'Explorer Bot',
-            direction: 'right',
+            direction: DIRECTION.RIGHT,
             lastMoved: Date.now(),
             moveInterval: 800,
             behavior: 'random',
@@ -49,7 +49,7 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
             y: 49,
             color: '#FF6600',
             name: 'Patrol Bot',
-            direction: 'up',
+            direction: DIRECTION.UP,
             lastMoved: Date.now(),
             moveInterval: 1000,
             behavior: 'patrol',
@@ -63,7 +63,7 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
             y: 81,
             color: '#9933FF',
             name: 'Wanderer',
-            direction: 'left',
+            direction: DIRECTION.LEFT,
             lastMoved: Date.now(),
             moveInterval: 600,
             behavior: 'explorer',
@@ -101,24 +101,20 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
         [generateTileAt, isLayer1Blocked, isBuildStoreBlocked, playerWorldPosition]
     );
 
-    const getRandomDirection = (): 'up' | 'down' | 'left' | 'right' => {
-        const directions = ['up', 'down', 'left', 'right'] as const;
+    const getRandomDirection = (): DIRECTION => {
+        const directions = [DIRECTION.UP, DIRECTION.DOWN, DIRECTION.LEFT, DIRECTION.RIGHT] as const;
         return directions[Math.floor(Math.random() * directions.length)];
     };
 
-    const moveInDirection = (
-        x: number,
-        y: number,
-        direction: 'up' | 'down' | 'left' | 'right'
-    ): { x: number; y: number } => {
+    const moveInDirection = (x: number, y: number, direction: DIRECTION): { x: number; y: number } => {
         switch (direction) {
-            case 'up':
+            case DIRECTION.UP:
                 return { x, y: y - 1 };
-            case 'down':
+            case DIRECTION.DOWN:
                 return { x, y: y + 1 };
-            case 'left':
+            case DIRECTION.LEFT:
                 return { x: x - 1, y };
-            case 'right':
+            case DIRECTION.RIGHT:
                 return { x: x + 1, y };
             default:
                 return { x, y };
@@ -129,7 +125,7 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
         (
             agent: AgentInternal,
             currentAgents: AgentInternal[]
-        ): { newX: number; newY: number; newDirection: 'up' | 'down' | 'left' | 'right' } => {
+        ): { newX: number; newY: number; newDirection: DIRECTION } => {
             const { x, y, direction, behavior, id } = agent;
 
             switch (behavior) {
@@ -159,12 +155,12 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
                     }
 
                     const clockwiseDirections = {
-                        up: 'right' as const,
-                        right: 'down' as const,
-                        down: 'left' as const,
-                        left: 'up' as const
+                        [DIRECTION.UP]: DIRECTION.RIGHT,
+                        [DIRECTION.RIGHT]: DIRECTION.DOWN,
+                        [DIRECTION.DOWN]: DIRECTION.LEFT,
+                        [DIRECTION.LEFT]: DIRECTION.UP
                     };
-                    const newDirection = clockwiseDirections[direction];
+                    const newDirection = clockwiseDirections[direction as keyof typeof clockwiseDirections];
                     const turnPos = moveInDirection(x, y, newDirection);
 
                     if (isWalkable(turnPos.x, turnPos.y, currentAgents, id)) {
@@ -178,11 +174,11 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
                     const playerDistance = Math.abs(x - playerWorldPosition.x) + Math.abs(y - playerWorldPosition.y);
 
                     if (playerDistance < 3) {
-                        const awayFromPlayerDirections: ('up' | 'down' | 'left' | 'right')[] = [];
-                        if (x < playerWorldPosition.x) awayFromPlayerDirections.push('left');
-                        if (x > playerWorldPosition.x) awayFromPlayerDirections.push('right');
-                        if (y < playerWorldPosition.y) awayFromPlayerDirections.push('up');
-                        if (y > playerWorldPosition.y) awayFromPlayerDirections.push('down');
+                        const awayFromPlayerDirections: DIRECTION[] = [];
+                        if (x < playerWorldPosition.x) awayFromPlayerDirections.push(DIRECTION.LEFT);
+                        if (x > playerWorldPosition.x) awayFromPlayerDirections.push(DIRECTION.RIGHT);
+                        if (y < playerWorldPosition.y) awayFromPlayerDirections.push(DIRECTION.UP);
+                        if (y > playerWorldPosition.y) awayFromPlayerDirections.push(DIRECTION.DOWN);
 
                         for (const dir of awayFromPlayerDirections) {
                             const pos = moveInDirection(x, y, dir);

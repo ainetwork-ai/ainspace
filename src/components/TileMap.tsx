@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { SpriteAnimator } from 'react-sprite-animator';
-import { TILE_SIZE, MAP_TILES } from '@/constants/game';
+import { TILE_SIZE, MAP_TILES, DIRECTION } from '@/constants/game';
 import { useBuildStore } from '@/stores';
 
 interface Agent {
@@ -14,7 +14,7 @@ interface Agent {
     color: string;
     name: string;
     hasCharacterImage?: boolean;
-    direction?: 'up' | 'down' | 'left' | 'right';
+    direction?: DIRECTION;
     isMoving?: boolean;
     spriteUrl?: string;
     spriteHeight?: number;
@@ -50,15 +50,17 @@ interface TileMapProps {
     onDeleteTile?: (layer: 0 | 1 | 2, key: string) => void;
     backgroundImageSrc?: string;
     layer1ImageSrc?: string;
-    playerDirection?: 'up' | 'down' | 'left' | 'right';
+    playerDirection?: DIRECTION;
     playerIsMoving?: boolean;
     collisionMap?: { [key: string]: boolean };
     selectedItemDimensions?: { width: number; height: number } | null;
+    enableZoom?: boolean;
+    zoomControls?: 'wheel' | 'buttons' | 'both';
 }
 
 function TileMap({
     mapData,
-    tileSize,
+    tileSize: baseTileSize,
     playerPosition,
     worldPosition,
     agents = [],
@@ -69,10 +71,12 @@ function TileMap({
     onDeleteTile,
     backgroundImageSrc,
     layer1ImageSrc,
-    playerDirection = 'down',
+    playerDirection = DIRECTION.DOWN,
     playerIsMoving = false,
     collisionMap = {},
-    selectedItemDimensions = null
+    selectedItemDimensions = null,
+    enableZoom = false,
+    zoomControls = 'both'
 }: TileMapProps) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -85,6 +89,15 @@ function TileMap({
     const [hoveredTile, setHoveredTile] = useState<{ x: number; y: number; layer: 0 | 1 | 2 } | null>(null);
     const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
     const [hoveredWorldCoords, setHoveredWorldCoords] = useState<{ worldX: number; worldY: number } | null>(null);
+
+    // Zoom state: 0.5x to 2.0x in 0.25 increments
+    const [zoomLevel, setZoomLevel] = useState(1.0);
+    const MIN_ZOOM = 0.5;
+    const MAX_ZOOM = 2.0;
+    const ZOOM_STEP = 0.25;
+
+    // Calculate actual tile size based on zoom
+    const tileSize = baseTileSize * zoomLevel;
 
     // Use global state for collision map visibility
     const { showCollisionMap, toggleCollisionMap } = useBuildStore();
@@ -151,6 +164,27 @@ function TileMap({
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [toggleCollisionMap]);
+
+    // Zoom handlers
+    const handleZoomIn = () => {
+        setZoomLevel((prev) => Math.min(MAX_ZOOM, prev + ZOOM_STEP));
+    };
+
+    const handleZoomOut = () => {
+        setZoomLevel((prev) => Math.max(MIN_ZOOM, prev - ZOOM_STEP));
+    };
+
+    const handleWheel = (event: React.WheelEvent<HTMLCanvasElement>) => {
+        if (!enableZoom || (zoomControls !== 'wheel' && zoomControls !== 'both')) return;
+
+        event.preventDefault();
+
+        if (event.deltaY < 0) {
+            handleZoomIn();
+        } else if (event.deltaY > 0) {
+            handleZoomOut();
+        }
+    };
 
     const isLayeredTiles = (tiles: TileLayers | { [key: string]: string }): tiles is TileLayers => {
         return tiles && typeof tiles === 'object' && ('layer0' in tiles || 'layer1' in tiles || 'layer2' in tiles);
@@ -663,14 +697,14 @@ function TileMap({
     cameraTileY = Math.max(0, Math.min(MAP_TILES - tilesY, cameraTileY));
 
     // Helper function to get startFrame based on direction
-    const getStartFrame = (direction: 'up' | 'down' | 'left' | 'right') => {
+    const getStartFrame = (direction: DIRECTION) => {
         const directionMap = {
-            down: 0,
-            left: 3,
-            up: 6,
-            right: 9
+            [DIRECTION.DOWN]: 0,
+            [DIRECTION.LEFT]: 3,
+            [DIRECTION.UP]: 6,
+            [DIRECTION.RIGHT]: 9
         };
-        return directionMap[direction];
+        return directionMap[direction as keyof typeof directionMap] || 0;
     };
 
     // Helper to get tile key and check for custom tiles
@@ -732,7 +766,35 @@ function TileMap({
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
+                onWheel={handleWheel}
             />
+
+            {/* Zoom Controls */}
+            {enableZoom && (zoomControls === 'buttons' || zoomControls === 'both') && (
+                <div className="absolute bottom-4 right-4 z-30 flex flex-col gap-2 rounded-lg bg-white/90 p-2 shadow-lg backdrop-blur-sm">
+                    <button
+                        onClick={handleZoomIn}
+                        disabled={zoomLevel >= MAX_ZOOM}
+                        className="flex h-10 w-10 items-center justify-center rounded-md bg-white text-xl font-bold text-gray-700 transition-all hover:bg-gray-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+                        title="Zoom In"
+                        aria-label="Zoom In"
+                    >
+                        +
+                    </button>
+                    <div className="flex h-8 items-center justify-center text-sm font-semibold text-gray-600">
+                        {Math.round(zoomLevel * 100)}%
+                    </div>
+                    <button
+                        onClick={handleZoomOut}
+                        disabled={zoomLevel <= MIN_ZOOM}
+                        className="flex h-10 w-10 items-center justify-center rounded-md bg-white text-xl font-bold text-gray-700 transition-all hover:bg-gray-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+                        title="Zoom Out"
+                        aria-label="Zoom Out"
+                    >
+                        −
+                    </button>
+                </div>
+            )}
 
             {/* Render Agents using SpriteAnimator */}
             {agents.map((agent) => {
@@ -753,7 +815,7 @@ function TileMap({
                 }
 
                 const agentIsMoving = agent.isMoving || false;
-                const agentDirection = agent.direction || 'down';
+                const agentDirection = agent.direction || DIRECTION.DOWN;
                 const agentStartFrame = getStartFrame(agentDirection);
                 const agentSpriteUrl = agent.spriteUrl || '/sprite/sprite_kkaebi.png';
                 const agentSpriteHeight = agent.spriteHeight || TILE_SIZE;

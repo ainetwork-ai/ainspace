@@ -1,25 +1,25 @@
 'use client';
 
 import { SpriteAnimator } from 'react-sprite-animator';
-import { TILE_SIZE } from '@/constants/game';
+import { DIRECTION, TILE_SIZE } from '@/constants/game';
 
 interface PlayerSpriteProps {
     screenX: number;
     screenY: number;
     tileSize: number;
-    direction: 'up' | 'down' | 'left' | 'right';
+    direction: DIRECTION;
     isMoving: boolean;
 }
 
 // Helper function to get startFrame based on direction
-const getStartFrame = (direction: 'up' | 'down' | 'left' | 'right') => {
+const getStartFrame = (direction: DIRECTION) => {
     const directionMap = {
-        down: 0,
-        left: 3,
-        up: 6,
-        right: 9
+        [DIRECTION.DOWN]: 0,
+        [DIRECTION.LEFT]: 3,
+        [DIRECTION.UP]: 6,
+        [DIRECTION.RIGHT]: 9
     };
-    return directionMap[direction];
+    return directionMap[direction as keyof typeof directionMap] || 0;
 };
 
 export default function PlayerSprite({ screenX, screenY, tileSize, direction, isMoving }: PlayerSpriteProps) {

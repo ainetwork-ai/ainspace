@@ -3,9 +3,10 @@
 import { Joystick } from 'react-joystick-component';
 import { useRef } from 'react';
 import { IJoystickUpdateEvent } from 'react-joystick-component/build/lib/Joystick';
+import { DIRECTION } from '@/constants/game';
 
 interface PlayerJoystickProps {
-    onMove: (direction: 'up' | 'down' | 'left' | 'right') => void;
+    onMove: (direction: DIRECTION) => void;
     disabled?: boolean;
     size?: number;
     baseColor?: string;
@@ -19,26 +20,26 @@ export default function PlayerJoystick({
     baseColor,
     stickColor
 }: PlayerJoystickProps) {
-    const lastDirectionRef = useRef<'up' | 'down' | 'left' | 'right' | null>(null);
+    const lastDirectionRef = useRef<DIRECTION | null>(null);
     const moveIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
     const handleMove = (event: IJoystickUpdateEvent) => {
         if (disabled || !event.direction) return;
 
-        let direction: 'up' | 'down' | 'left' | 'right' | null = null;
+        let direction: DIRECTION | null = null;
 
         switch (event.direction) {
             case 'FORWARD':
-                direction = 'up';
+                direction = DIRECTION.UP;
                 break;
             case 'BACKWARD':
-                direction = 'down';
+                direction = DIRECTION.DOWN;
                 break;
             case 'LEFT':
-                direction = 'left';
+                direction = DIRECTION.LEFT;
                 break;
             case 'RIGHT':
-                direction = 'right';
+                direction = DIRECTION.RIGHT;
                 break;
         }
 

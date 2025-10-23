@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect, useCallback } from 'react';
 import { useMapData } from '@/providers/MapDataProvider';
 import { useSession } from '@/hooks/useSession';
 import { useAgents } from '@/hooks/useAgents';
-import { useBuildStore } from '@/stores';
+import { useBuildStore, useGameStateStore } from '@/stores';
 import {
     MAP_WIDTH,
     MAP_HEIGHT,
@@ -12,7 +12,8 @@ import {
     MIN_WORLD_X,
     MAX_WORLD_X,
     MIN_WORLD_Y,
-    MAX_WORLD_Y
+    MAX_WORLD_Y,
+    DIRECTION
 } from '@/constants/game';
 
 interface Position {
@@ -24,20 +25,30 @@ export function useGameState() {
     const { getMapData, generateTileAt } = useMapData();
     const { userId } = useSession();
     const { isBlocked: isLayer1Blocked, collisionMap } = useBuildStore();
+    const { 
+      worldPosition,
+      setWorldPosition,
+      isLoading,
+      setIsLoading,
+      isAutonomous,
+      setIsAutonomous,
+      playerDirection,
+      setPlayerDirection,
+      recentMovements,
+      setRecentMovements,
+      lastCommentary,
+      setLastCommentary,
+      lastMoveTime,
+      setLastMoveTime,
+      isPlayerMoving,
+      setIsPlayerMoving,
+    } = useGameStateStore();
 
     // Character starts at position (63, 58)
     const initialPosition: Position = {
         x: 63,
         y: 58
     };
-    const [worldPosition, setWorldPosition] = useState<Position>(initialPosition);
-    const [isLoading, setIsLoading] = useState(true);
-    const [isAutonomous, setIsAutonomous] = useState(false);
-    const [playerDirection, setPlayerDirection] = useState<'up' | 'down' | 'left' | 'right'>('right');
-    const [recentMovements, setRecentMovements] = useState<string[]>([]);
-    const [lastCommentary, setLastCommentary] = useState<string>('');
-    const [lastMoveTime, setLastMoveTime] = useState<number>(0);
-    const [isPlayerMoving, setIsPlayerMoving] = useState(false);
 
     // Get the current map data centered on the player's world position with full square view
     const mapData = getMapData(worldPosition.x, worldPosition.y, MAP_WIDTH, MAP_HEIGHT);
@@ -77,87 +88,81 @@ export function useGameState() {
     );
 
     const movePlayer = useCallback(
-        (direction: 'up' | 'down' | 'left' | 'right') => {
+        (direction: DIRECTION) => {
             // Update player direction immediately
             setPlayerDirection(direction);
 
-            // Try to move and track if successful
-            setWorldPosition((prevWorldPos) => {
-                const newWorldPosition = { ...prevWorldPos };
+            const newWorldPosition = { ...worldPosition };
+            switch (direction) {
+                case DIRECTION.UP:
+                    newWorldPosition.y -= 1;
+                    break;
+                case DIRECTION.DOWN:
+                    newWorldPosition.y += 1;
+                    break;
+                case DIRECTION.LEFT:
+                    newWorldPosition.x -= 1;
+                    break;
+                case DIRECTION.RIGHT:
+                    newWorldPosition.x += 1;
+                    break;
+                default:
+                    break;
+            }
 
-                switch (direction) {
-                    case 'up':
-                        newWorldPosition.y -= 1;
-                        break;
-                    case 'down':
-                        newWorldPosition.y += 1;
-                        break;
-                    case 'left':
-                        newWorldPosition.x -= 1;
-                        break;
-                    case 'right':
-                        newWorldPosition.x += 1;
-                        break;
-                }
+            if (
+              newWorldPosition.x < MIN_WORLD_X ||
+              newWorldPosition.x > MAX_WORLD_X ||
+              newWorldPosition.y < MIN_WORLD_Y ||
+              newWorldPosition.y > MAX_WORLD_Y
+            ) {
+                return;
+            }
 
-                // Check map boundaries
-                if (
-                    newWorldPosition.x < MIN_WORLD_X ||
-                    newWorldPosition.x > MAX_WORLD_X ||
-                    newWorldPosition.y < MIN_WORLD_Y ||
-                    newWorldPosition.y > MAX_WORLD_Y
-                ) {
-                    return prevWorldPos;
-                }
+            // Check if the new world position is walkable
+            const tileType = generateTileAt(newWorldPosition.x, newWorldPosition.y);
+            if (tileType === 3) {
+                // Stone/wall - can't move there
+                return;
+            }
 
-                // Check if the new world position is walkable
-                const tileType = generateTileAt(newWorldPosition.x, newWorldPosition.y);
-                if (tileType === 3) {
-                    // Stone/wall - can't move there
-                    return prevWorldPos;
-                }
+            // Check layer1 collision
+            if (isLayer1Blocked(newWorldPosition.x, newWorldPosition.y)) {
+                return;
+            }
 
-                // Check layer1 collision
-                if (isLayer1Blocked(newWorldPosition.x, newWorldPosition.y)) {
-                    return prevWorldPos;
-                }
+            // Check if an agent is at this position
+            const isOccupiedByAgent = worldAgents.some(
+                (agent) => agent.x === newWorldPosition.x && agent.y === newWorldPosition.y
+            );
+            if (isOccupiedByAgent) {
+                return;
+            }
 
-                // Check if an agent is at this position
-                const isOccupiedByAgent = worldAgents.some(
-                    (agent) => agent.x === newWorldPosition.x && agent.y === newWorldPosition.y
-                );
-                if (isOccupiedByAgent) {
-                    return prevWorldPos;
-                }
+            // Save new position to Redis
+            savePositionToRedis(newWorldPosition);
 
-                // Save new position to Redis
-                savePositionToRedis(newWorldPosition);
+            // Position changed - trigger animation
+            setLastMoveTime(Date.now());
+            setIsPlayerMoving(true);
 
-                // Position changed - trigger animation
-                setLastMoveTime(Date.now());
-                setIsPlayerMoving(true);
-
-                return newWorldPosition;
-            });
+            setWorldPosition(newWorldPosition);
 
             // Track recent movements
-            setRecentMovements((prev) => {
-                const newMovements = [...prev, direction];
-                return newMovements.slice(-5); // Keep last 5 movements
-            });
+            setRecentMovements([direction, ...recentMovements.slice(0, 4)]);
         },
         [generateTileAt, savePositionToRedis, isLayer1Blocked, worldAgents]
     );
 
     const toggleAutonomous = useCallback(() => {
-        setIsAutonomous((prev) => !prev);
+        setIsAutonomous(!isAutonomous);
     }, []);
 
     // Reset player location to initial position
     const resetLocation = useCallback(() => {
         setWorldPosition(initialPosition);
         savePositionToRedis(initialPosition);
-        setPlayerDirection('right');
+        setPlayerDirection(DIRECTION.RIGHT);
         setRecentMovements([]);
         setIsPlayerMoving(false);
         resetAgents(); // Reset agents to their initial positions
@@ -230,16 +235,16 @@ export function useGameState() {
         // Try to move in current direction
         const nextPosition = { ...worldPosition };
         switch (playerDirection) {
-            case 'up':
+            case DIRECTION.UP:
                 nextPosition.y -= 1;
                 break;
-            case 'down':
+            case DIRECTION.DOWN:
                 nextPosition.y += 1;
                 break;
-            case 'left':
+            case DIRECTION.LEFT:
                 nextPosition.x -= 1;
                 break;
-            case 'right':
+            case DIRECTION.RIGHT:
                 nextPosition.x += 1;
                 break;
         }
@@ -257,21 +262,23 @@ export function useGameState() {
 
         if (isBlocked) {
             // Try different directions
-            const directions: ('up' | 'down' | 'left' | 'right')[] = ['up', 'down', 'left', 'right'];
+            const directions: DIRECTION[] = [DIRECTION.UP, DIRECTION.DOWN, DIRECTION.LEFT, DIRECTION.RIGHT];
             const availableDirections = directions.filter((dir) => {
                 const testPosition = { ...worldPosition };
                 switch (dir) {
-                    case 'up':
+                    case DIRECTION.UP:
                         testPosition.y -= 1;
                         break;
-                    case 'down':
+                    case DIRECTION.DOWN:
                         testPosition.y += 1;
                         break;
-                    case 'left':
+                    case DIRECTION.LEFT:
                         testPosition.x -= 1;
                         break;
-                    case 'right':
+                    case DIRECTION.RIGHT:
                         testPosition.x += 1;
+                        break;
+                    default:
                         break;
                 }
                 const outOfBounds =
@@ -292,11 +299,11 @@ export function useGameState() {
 
             if (availableDirections.length > 0) {
                 const randomDirection = availableDirections[Math.floor(Math.random() * availableDirections.length)];
-                movePlayer(randomDirection);
+                movePlayer(randomDirection as DIRECTION);
             }
         } else {
             // Move in current direction
-            movePlayer(playerDirection);
+            movePlayer(playerDirection as DIRECTION);
         }
     }, [isAutonomous, worldPosition, playerDirection, generateTileAt, movePlayer, isLayer1Blocked, worldAgents]);
 
