@@ -4,47 +4,78 @@ import { useAccount } from 'wagmi';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
-/**
- * AuthGuard component that protects routes requiring wallet connection.
- * Redirects to /login if wallet is not connected.
- *
- * @param {Object} props - Component props
- * @param {React.ReactNode} props.children - Child components to render if authenticated
- * @returns {React.ReactNode} Protected content or null during redirect
- */
+const WALLET_CONNECTED_KEY = 'wallet_connected';
+
 export function AuthGuard({ children }: { children: React.ReactNode }) {
-    const { isConnected } = useAccount();
+    const { isConnected, isConnecting } = useAccount();
     const pathname = usePathname();
     const router = useRouter();
-    const [isChecking, setIsChecking] = useState(true);
+    const [isInitialCheck, setIsInitialCheck] = useState(true);
+    const [cachedConnected, setCachedConnected] = useState<boolean | null>(null);
 
-    // Only check authentication on the root path "/"
     const requiresAuth = pathname === '/';
 
+    // Initial localStorage check (for UI hint only)
     useEffect(() => {
-        // Skip auth check if not on root path
         if (!requiresAuth) {
-            setIsChecking(false);
+            setIsInitialCheck(false);
+            return;
+        }
+        if (typeof window !== 'undefined') {
+            const cached = localStorage.getItem(WALLET_CONNECTED_KEY);
+            const isWalletConnected = cached === 'true';
+            setCachedConnected(isWalletConnected);
+            console.log('localStorage hint:', isWalletConnected ? 'connected' : 'not connected');
+        }
+    }, [pathname, requiresAuth]);
+
+    // Main authentication logic - only runs after wagmi finishes loading
+    useEffect(() => {
+        if (!requiresAuth) {
+            setIsInitialCheck(false);
             return;
         }
 
-        // Redirect to login if wallet is not connected on protected routes
+        // Wait for wagmi to finish checking connection status
+        if (isConnecting) {
+            console.log('Wagmi is still connecting, waiting...');
+            return;
+        }
+
+        // wagmi has finished checking, now we have the final state
+        console.log('Wagmi check complete. isConnected:', isConnected);
+
+        // Sync localStorage with actual wagmi state
+        if (typeof window !== 'undefined') {
+            const currentCached = localStorage.getItem(WALLET_CONNECTED_KEY);
+            const shouldBeConnected = String(isConnected);
+
+            if (currentCached !== shouldBeConnected) {
+                console.log(`Syncing localStorage: ${currentCached} -> ${shouldBeConnected}`);
+                localStorage.setItem(WALLET_CONNECTED_KEY, shouldBeConnected);
+            }
+        }
+
+        // Make redirect decision based on final wagmi state
         if (!isConnected) {
-            console.log('Wallet not connected, redirecting to /login');
+            console.log('Wallet not connected (final check), redirecting to /login');
             router.push('/login');
         } else {
-            setIsChecking(false);
+            console.log('Wallet connected (final check), allowing access');
+            setIsInitialCheck(false);
         }
-    }, [isConnected, pathname, requiresAuth, router]);
+    }, [isConnected, isConnecting, pathname, requiresAuth, router]);
 
-    // Show loading state while checking authentication
-    // This prevents flash of protected content before redirect
-    if (isChecking && requiresAuth) {
+    // Show loading UI while wagmi is connecting or during initial check
+    if (requiresAuth && (isConnecting || isInitialCheck)) {
+        const loadingMessage =
+            cachedConnected === true ? 'Restoring wallet connection...' : 'Checking wallet connection...';
+
         return (
             <div className="flex h-screen w-full items-center justify-center bg-gray-100">
                 <div className="text-center">
                     <div className="mb-4 inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent motion-reduce:animate-[spin_1.5s_linear_infinite]"></div>
-                    <p className="text-gray-600">Checking wallet connection...</p>
+                    <p className="text-gray-600">{loadingMessage}</p>
                 </div>
             </div>
         );
