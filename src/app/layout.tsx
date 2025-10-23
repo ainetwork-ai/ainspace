@@ -2,6 +2,7 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import '@coinbase/onchainkit/styles.css';
 import { Providers } from '@/providers/Providers';
+import { AuthGuard } from '@/components/AuthGuard';
 import type { Metadata } from 'next';
 
 const geistSans = Geist({
@@ -27,7 +28,9 @@ export default function RootLayout({
     return (
         <html lang="en" suppressHydrationWarning>
             <body className={`${geistSans.variable} ${geistMono.variable} antialiased`} suppressHydrationWarning>
-                <Providers>{children}</Providers>
+                <Providers>
+                    <AuthGuard>{children}</AuthGuard>
+                </Providers>
             </body>
         </html>
     );

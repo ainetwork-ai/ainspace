@@ -4,10 +4,12 @@ import Image from 'next/image';
 import { Signature, SignatureButton } from '@coinbase/onchainkit/signature';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAccount } from 'wagmi';
+import { useRouter } from 'next/navigation';
 import { cn, shortAddress } from '@/lib/utils';
 
 export default function LoginPage() {
     const { address, isConnected } = useAccount();
+    const router = useRouter();
     const [nonce] = useState(() => Date.now().toString());
     const message = useMemo(() => `Welcome to the AIN SPACE MiniApp!\n\nNonce: ${nonce}`, [nonce]);
     const [showButton, setShowButton] = useState(false);
@@ -20,11 +22,22 @@ export default function LoginPage() {
         return () => clearTimeout(timer);
     }, []);
 
+    // Redirect to home page if wallet is already connected
+    useEffect(() => {
+        if (isConnected) {
+            console.log('Wallet connected, redirecting to home page');
+            router.push('/');
+        }
+    }, [isConnected, router]);
+
     const handleSignature = useCallback(
         async (signature: string) => {
             if (!signature || !address) return;
+
+            console.log('Signature received:', signature);
+            // After successful signature, user will be redirected via the useEffect above
         },
-        [address, message]
+        [address]
     );
 
     const ConnectWalletButton = () => {
