@@ -39,6 +39,16 @@ export function useWorld({ agents, playerPosition, onAgentResponse }: UseWorldPr
         [onAgentResponse]
     );
 
+    const playDemoScenario = useCallback(async (type: number, agentIds: string[]) => {
+        if (!worldRef.current) return;
+        const responses = await worldRef.current.playDemoScenario(type, agentIds);
+        responses.forEach((response) => {
+            setTimeout(() => {
+                onAgentResponse?.({ ...response, threadId: undefined });
+            }, response.delay);
+        });
+    }, [onAgentResponse]);
+
     // Get agent suggestions for autocomplete
     const getAgentSuggestions = useCallback((partialName: string) => {
         if (!worldRef.current) return [];
@@ -61,6 +71,7 @@ export function useWorld({ agents, playerPosition, onAgentResponse }: UseWorldPr
         sendMessage,
         getAgentSuggestions,
         getAllAgents,
-        getAgentsInRange
+        getAgentsInRange,
+        playDemoScenario,
     };
 }

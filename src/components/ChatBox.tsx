@@ -55,7 +55,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     const { worldPosition: playerPosition } = useGameStateStore();
 
     // Initialize world system
-    const { sendMessage: worldSendMessage, getAgentSuggestions } = useWorld({
+    const { sendMessage: worldSendMessage, getAgentSuggestions, playDemoScenario } = useWorld({
         agents: agents || [],
         playerPosition: playerPosition || { x: 0, y: 0 },
         onAgentResponse: (response: AgentResponse & { threadId?: string }) => {
@@ -284,6 +284,19 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 };
                 setMessages((prev) => [...prev, errorMessage]);
             }
+        }  else if (inputValue.trim() === 'I’m literally starving. What’s the move for lunch?') {
+          console.log('demo start');
+          const newMessage: Message = {
+            id: Date.now().toString(),
+            text: inputValue.trim(),
+            timestamp: new Date(),
+            sender: 'user',
+            threadId: currentThreadId || undefined
+          };
+          setMessages((prev) => [...prev, newMessage]);
+          setInputValue('');
+
+          await playDemoScenario(0, ['agent-1', 'agent-2', 'agent-3', 'agent-1']);
         } else if (inputValue.trim()) {
             const newMessage: Message = {
                 id: Date.now().toString(),

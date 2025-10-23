@@ -102,6 +102,53 @@ export class World {
         });
     }
 
+    async playDemoScenario(type: number, agentIds: string[]) {
+        const demoMessages = [
+          [
+            "I’m in my pizza era. I need a cheese-pull in my life right now.",
+            "Ugh, No pizza please. It would ruin my healthy diet.",
+            "Okay, bet. I saw that new poke place in the park. It looked totally fire.",
+            "Bet! Let’s go!",
+            "Great!",
+          ],
+          [
+            "You speak of ‘fun’... Hmm. A lively festival could indeed stir the spirits of this village.",
+            "A festival?! That sounds absolutely FIRE! Leave it to me, I’ll put together a legendary rock concert!",
+            "Whoa whoa, you can’t have a banger without the brews! I’ll handle the drinks, and trust me, they’ll be bussin’.",
+            "Let’s make this a whole community thing and invite the neighbors. I can spin up a sick poster design to get the hype train rolling.",
+            "LOL. Behold, the dream team assembling in real time.",
+          ]
+        ]
+
+        const respondingAgentInstances = agentIds.map((agentId) => this.agentInstances.find((instance) => instance.id === agentId)!);
+
+        const responsePromises = respondingAgentInstances.map(async (agentInstance, index) => {
+            const distance = this.calculateDistance(this.player, agentInstance.position);
+            const demoMessage = demoMessages[type][index];
+            // Calculate total delay (travel time + stagger)
+            const staggerDelay = (index + 1) * 3000;
+            const totalDelay = this.calculateResponseDelay(1, 500 + staggerDelay);
+
+            // Let agent process the message
+            const agentResponse: AgentResponse = {
+              agentId: agentInstance.id,
+              agentName: agentInstance.name,
+              message: demoMessage,
+              delay: totalDelay,
+              position: { x: agentInstance.x, y: agentInstance.y },
+              distance: distance,
+              nextAgentRequest: [],
+            };
+
+            console.log('agentResponse :>> ', agentResponse);
+
+            return agentResponse;
+        });
+        // Wait for all responses and filter out null values
+        const allResponses = await Promise.all(responsePromises);
+        return allResponses.filter((response): response is AgentResponse => response !== null);
+    }
+
     // Calculate Euclidean distance between two points
     private calculateDistance(pos1: { x: number; y: number }, pos2: { x: number; y: number }): number {
         return Math.sqrt(Math.pow(pos1.x - pos2.x, 2) + Math.pow(pos1.y - pos2.y, 2));
@@ -192,11 +239,6 @@ export class World {
             }
         }
 
-        respondingAgentInstances.forEach(instance => {
-          // instance.    HERE
-          console.log('instance :>> ', instance.name, instance.position.x, instance.position.y);
-        })
-        console.log('respondingAgentInstances :>> ', respondingAgentInstances);
         // Process responses concurrently but with staggered delays
         const responsePromises = respondingAgentInstances.map(async (agentInstance, index) => {
             const distance = this.calculateDistance(this.player, agentInstance.position);
