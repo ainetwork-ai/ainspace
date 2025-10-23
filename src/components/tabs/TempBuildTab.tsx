@@ -517,6 +517,7 @@ export default function TempBuildTab({
                             enableZoom={false}
                             zoomControls="both"
                             fixedZoom={0.5}
+                            hideCoordinates={true}
                         />
                         {!isBottomSheetOpen && (
                             <div className="absolute -bottom-20 left-1/2 z-20 -translate-x-1/2 transform">

@@ -57,6 +57,7 @@ interface TileMapProps {
     enableZoom?: boolean;
     zoomControls?: 'wheel' | 'buttons' | 'both';
     fixedZoom?: number;
+    hideCoordinates?: boolean;
 }
 
 function TileMap({
@@ -78,7 +79,8 @@ function TileMap({
     selectedItemDimensions = null,
     enableZoom = false,
     zoomControls = 'both',
-    fixedZoom
+    fixedZoom,
+    hideCoordinates = false
 }: TileMapProps) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -750,7 +752,7 @@ function TileMap({
                                 pointerEvents: 'none'
                             }}
                         >
-                            {showCollisionMap && agent.x !== undefined && agent.y !== undefined
+                            {showCollisionMap && !hideCoordinates && agent.x !== undefined && agent.y !== undefined
                                 ? `${agent.name} (${agent.x}, ${agent.y})`
                                 : agent.name}
                         </div>
@@ -789,7 +791,7 @@ function TileMap({
                             startFrame={playerStartFrame}
                         />
                         {/* Show player coordinates when grid is visible */}
-                        {showCollisionMap && (
+                        {showCollisionMap && !hideCoordinates && (
                             <div
                                 style={{
                                     position: 'absolute',

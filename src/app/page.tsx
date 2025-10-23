@@ -311,9 +311,7 @@ export default function Home() {
                 }
 
                 // Check if position is occupied by another agent
-                const isOccupied = combinedWorldAgents.some(
-                    (agent) => agent.x === x && agent.y === y
-                );
+                const isOccupied = combinedWorldAgents.some((agent) => agent.x === x && agent.y === y);
                 if (isOccupied) {
                     continue;
                 }
@@ -348,7 +346,7 @@ export default function Home() {
             color: randomColor,
             agentUrl: importedAgent.url,
             lastMoved: Date.now(),
-            moveInterval: 3000 + Math.random() * 4000, // Random 3-7 second interval
+            moveInterval: 600 + Math.random() * 400, // Random 600-1000ms interval, matching original agents
             skills: importedAgent.card.skills || [],
             characterImage: importedAgent.characterImage
         });
@@ -532,7 +530,7 @@ export default function Home() {
             }
         };
 
-        const interval = setInterval(moveA2AAgents, 1000); // Check every 1 second
+        const interval = setInterval(moveA2AAgents, 100); // Check every 100ms, matching original agents
         return () => clearInterval(interval);
     }, [globalIsBlocked, agents, worldAgents, worldPosition, setAgents, setCustomTiles]);
 
