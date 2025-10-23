@@ -108,7 +108,6 @@ export default function MapTab({
           if (isOccupiedByA2A) {
               return;
           }
-          console.log(direction);
           // Move player (this will also check worldAgents in useGameState)
           movePlayer(direction);
       },
