@@ -53,6 +53,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     const { showCollisionMap, setShowCollisionMap, updateCollisionMapFromImage, publishedTiles, setCollisionMap } =
         useBuildStore();
     const inputRef = useRef<HTMLInputElement>(null);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const { address } = useAccount();
     const { worldPosition: playerPosition } = useGameStateStore();
@@ -113,7 +114,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     //     [worldSendMessage, currentThreadId]
     // );
 
-    // Add welcome message on client side only to avoid hydration mismatch
+    // Add welcome message and mock data on client side only to avoid hydration mismatch
     useEffect(() => {
         setMessages((prev) => {
             if (prev.length === 0) {
@@ -121,7 +122,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     {
                         id: '1',
                         text: 'Welcome to the Tile Map Game! Use arrow keys to move around.',
-                        timestamp: new Date(),
+                        timestamp: new Date(Date.now() - 300000),
                         sender: 'system',
                         threadId: undefined
                     }
@@ -129,7 +130,11 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             }
             return prev;
         });
-    }, []);
+    }, [address]);
+
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages]);
 
     // Add AI commentary to messages when it changes
     useEffect(() => {
@@ -417,26 +422,33 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         if (!senderId) return 'AI';
         const agent = agents.find((a) => a.id === senderId);
         if (agent && playerPosition) {
-            const distance = Math.sqrt(Math.pow(agent.x - playerPosition.x, 2) + Math.pow(agent.y - playerPosition.y, 2));
+            const distance = Math.sqrt(
+                Math.pow(agent.x - playerPosition.x, 2) + Math.pow(agent.y - playerPosition.y, 2)
+            );
             return `${agent.name} (${agent.x}, ${agent.y}) [${distance.toFixed(1)}u]`;
         }
         return 'AI';
     };
 
     return (
-        <div className={cn('flex h-full w-full flex-col bg-transparent', className)}>
-            <div className="max-h-full min-h-[150px] flex-1 space-y-2 overflow-y-auto p-3">
+        <div className={cn('relative flex h-full w-full flex-col bg-transparent', className)}>
+            <div className="h-full space-y-2 overflow-y-auto p-3 pb-20">
                 {threadMessages.slice().map((message) => (
                     <div key={message.id} className={cn('flex flex-col items-start gap-1')}>
                         <div className="flex flex-row items-center gap-2">
-                            <span 
-                                style={{ color: message.sender === 'user' ? 'white' : agents.find((a) => a.id === message.senderId)?.color || "oklch(62.7% 0.194 149.214)" }}
-                                className="text-xs font-semibold">
-                                    {
-                                        message.sender === 'user' ? 
-                                            `${shortAddress(message.senderId || '')}` :
-                                            getAgentNameAndPosition(message.senderId)
-                                    }
+                            <span
+                                style={{
+                                    color:
+                                        message.sender === 'user'
+                                            ? 'white'
+                                            : agents.find((a) => a.id === message.senderId)?.color ||
+                                              'oklch(62.7% 0.194 149.214)'
+                                }}
+                                className="text-xs font-semibold"
+                            >
+                                {message.sender === 'user'
+                                    ? `${shortAddress(message.senderId || '')}`
+                                    : getAgentNameAndPosition(message.senderId)}
                             </span>
                             {message.sender === 'user' ? (
                                 <div className="inline-flex flex-col items-start justify-center gap-2 rounded-lg bg-[#7f4fe8]/50 px-2 py-0.5">
@@ -458,15 +470,16 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                                       : 'rounded-bl-sm bg-gray-200 text-gray-800'
                             )}
                         >
-                            <p className="leading-[25px] break-words justify-start text-base text-white">
+                            <p className="justify-start text-base leading-[25px] break-words text-white">
                                 {message.text}
                             </p>
                         </div>
                     </div>
                 ))}
+                <div ref={messagesEndRef} />
             </div>
 
-            <div className="relative flex-shrink-0 bg-transparent p-3">
+            <div className="fixed right-0 bottom-0 left-0 bg-gradient-to-t from-black/90 to-transparent p-3 backdrop-blur-sm">
                 {showSuggestions && filteredAgents.length > 0 && (
                     <div className="absolute right-3 bottom-full left-3 z-10 mb-1 max-h-32 overflow-y-auto rounded-md border border-gray-600 bg-gray-800 shadow-lg">
                         {filteredAgents.map((agent, index) => {
