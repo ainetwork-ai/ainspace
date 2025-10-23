@@ -42,7 +42,7 @@ function SpritePreview({
     return (
         <div
             onClick={onClick}
-            className={`flex cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 p-2 transition-all ${
+            className={`flex cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 p-1 transition-all ${
                 isSelected
                     ? 'border-purple-600 bg-purple-50'
                     : 'hover:bg-purple-25 border-gray-200 bg-white hover:border-purple-300'
@@ -144,7 +144,7 @@ export default function AgentTab({ isActive, onSpawnAgent, onRemoveAgentFromMap,
 
     return (
         <BaseTabContent isActive={isActive} className="bg-white">
-            <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-4 overflow-hidden p-4">
+            <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-4 overflow-hidden">
                 <h3 className="mb-3 text-lg font-semibold text-black">Import Agent</h3>
                 <div className="flex space-x-2">
                     <input
@@ -209,7 +209,7 @@ export default function AgentTab({ isActive, onSpawnAgent, onRemoveAgentFromMap,
                             {agents.map((agent, index) => (
                                 <div
                                     key={agent.url}
-                                    className="overflow-hidden rounded-lg border border-gray-200 bg-white p-4"
+                                    className="overflow-hidden rounded-lg border border-gray-200 bg-white p-3"
                                 >
                                     <div className="flex items-start justify-between">
                                         <div className="flex-1">
@@ -222,9 +222,6 @@ export default function AgentTab({ isActive, onSpawnAgent, onRemoveAgentFromMap,
                                                 </p>
                                             )}
                                             <div className="mb-3">
-                                                <p className="mb-2 text-xs font-medium text-[#838d9d]">
-                                                    Select Character Sprite:
-                                                </p>
                                                 <div className="flex gap-2">
                                                     {SPRITE_OPTIONS.map((sprite) => (
                                                         <SpritePreview
