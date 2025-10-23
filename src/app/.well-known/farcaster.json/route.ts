@@ -18,6 +18,7 @@ export async function GET() {
         },
         frame: withValidProperties({
             version: '1',
+            tags: ['miniapps', 'a2a', 'aiagents', 'society', 'chatagents'],
             name: process.env.NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME,
             homeUrl: process.env.NEXT_PUBLIC_URL,
             iconUrl: process.env.NEXT_PUBLIC_APP_ICON,

@@ -6,17 +6,34 @@ import { base } from 'viem/chains';
 import { OnchainKitProvider } from '@coinbase/onchainkit';
 import { config } from '@/lib/wagmi-config';
 import { MapDataProvider } from './MapDataProvider';
+import { useEffect, useState } from 'react';
 
 const queryClient = new QueryClient({
     defaultOptions: {
         queries: {
-            staleTime: 60 * 1000, // 1 minute
+            staleTime: 60 * 1000,
             retry: 1
         }
     }
 });
 
 export function Providers({ children }: { children: React.ReactNode }) {
+    const [mounted, setMounted] = useState(false);
+    const BASE_CHAIN_ID = '0x2105';
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    useEffect(() => {
+        if (mounted && window?.ethereum) {
+            window.ethereum.request({
+                method: 'wallet_switchEthereumChain',
+                params: [{ chainId: BASE_CHAIN_ID }]
+            });
+        }
+    }, [mounted]);
+
     return (
         <WagmiProvider config={config}>
             <QueryClientProvider client={queryClient}>

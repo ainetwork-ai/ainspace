@@ -1,6 +1,7 @@
 'use client';
 
 import { useGameState } from '@/hooks/useGameState';
+import { useMiniKit } from '@coinbase/onchainkit/minikit';
 import { useRef, useEffect, useCallback } from 'react';
 import { ChatBoxRef } from '@/components/ChatBox';
 import MapTab from '@/components/tabs/MapTab';
@@ -48,11 +49,15 @@ export default function Home() {
     } = useBuildStore();
     const { worldPosition, userId, worldAgents, resetLocation, lastCommentary, visibleAgents } = useGameState();
     const { agents, spawnAgent, removeAgent, updateAgent, setAgents } = useAgentStore();
-
+    const { setFrameReady, isFrameReady } = useMiniKit();
     const chatBoxRef = useRef<ChatBoxRef>(null);
 
     // Initialize collision map on first load
     useEffect(() => {
+        if (!isFrameReady) {
+            setFrameReady();
+        }
+
         const initCollisionMap = async () => {
             if (Object.keys(globalCollisionMap).length === 0) {
                 try {
@@ -369,6 +374,9 @@ export default function Home() {
                 }
             }));
         }
+
+        // Switch to map tab
+        setActiveTab('map');
     };
 
     const handleUploadCharacterImage = (agentUrl: string, imageUrl: string) => {
