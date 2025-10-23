@@ -1,6 +1,10 @@
 'use client';
 
 import React, { useCallback, useEffect } from 'react';
+import { useAccount } from 'wagmi';
+import Image from 'next/image';
+import { disconnect } from '@wagmi/core';
+
 import TileMap from '@/components/TileMap';
 import BaseTabContent from './BaseTabContent';
 import PlayerJoystick from '@/components/controls/PlayerJoystick';
@@ -8,6 +12,8 @@ import { DIRECTION, TILE_SIZE } from '@/constants/game';
 import { useAgentStore, useUIStore } from '@/stores';
 import { useGameState } from '@/hooks/useGameState';
 import { TileLayers, useBuildStore } from '@/stores/useBuildStore';
+import { shortAddress } from '@/lib/utils';
+import { config } from '@/lib/wagmi-config';
 
 interface MapTabProps {
     isActive: boolean;
@@ -52,6 +58,7 @@ export default function MapTab({
     onViewThread,
     collisionMap
 }: MapTabProps) {
+    const { address } = useAccount();
     const { isBottomSheetOpen } = useUIStore();
     const { agents } = useAgentStore();
     const { movePlayer } = useGameState();
@@ -176,6 +183,15 @@ export default function MapTab({
                     />
                 </div>
 
+                {address && (
+                    <button
+                        onClick={() => disconnect(config)}
+                        className="absolute top-4 right-4 inline-flex cursor-pointer flex-row items-center justify-center gap-2 rounded-lg bg-white p-2"
+                    >
+                        <Image src="/agent/defaultAvatar.svg" alt="agent" width={20} height={20} />
+                        <p className="text-sm font-bold text-black">{shortAddress(address)}</p>
+                    </button>
+                )}
                 {!isBottomSheetOpen && (
                     <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 transform">
                         <PlayerJoystick
