@@ -33,7 +33,7 @@ export default function AgentSprite({
     tileSize,
     direction,
     isMoving,
-    spriteUrl = '/sprite/sprite_kkaebi.png',
+    spriteUrl = '/sprite/sprite_user.png',
     spriteHeight = TILE_SIZE,
     spriteWidth = TILE_SIZE
 }: AgentSpriteProps) {
@@ -51,7 +51,7 @@ export default function AgentSprite({
             style={{
                 position: 'absolute',
                 left: `${screenX * tileSize - TILE_SIZE / 6}px`,
-                top: `${screenY * tileSize - topOffset}px`,
+                top: `${screenY * tileSize - 60}px`,
                 width: `${tileSize}px`,
                 height: `${tileSize}px`,
                 pointerEvents: 'none'
@@ -60,7 +60,7 @@ export default function AgentSprite({
             <SpriteAnimator
                 key={`${id}-${direction}`}
                 sprite={spriteUrl}
-                width={40}
+                width={86}
                 height={spriteHeight}
                 scale={spriteWidth / tileSize}
                 fps={6}

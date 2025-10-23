@@ -704,7 +704,7 @@ function TileMap({
                 const agentIsMoving = agent.isMoving || false;
                 const agentDirection = agent.direction || DIRECTION.DOWN;
                 const agentStartFrame = getStartFrame(agentDirection);
-                const agentSpriteUrl = agent.spriteUrl || '/sprite/sprite_kkaebi.png';
+                const agentSpriteUrl = agent.spriteUrl || '/sprite/sprite_user.png';
                 const agentSpriteHeight = agent.spriteHeight || TILE_SIZE;
                 const agentSpriteWidth = agent.spriteWidth || TILE_SIZE;
 
@@ -771,7 +771,7 @@ function TileMap({
                         style={{
                             position: 'absolute',
                             left: `${playerScreenTileX * tileSize - TILE_SIZE / 4}px`,
-                            top: `${playerScreenTileY * tileSize - TILE_SIZE / 4}px`,
+                            top: `${playerScreenTileY * tileSize - 60}px`,
                             width: `${tileSize}px`,
                             height: `${tileSize}px`,
                             pointerEvents: 'none',
@@ -780,9 +780,9 @@ function TileMap({
                     >
                         <SpriteAnimator
                             key={`player-${playerDirection}`}
-                            sprite="/sprite/sprite_kkaebi.png"
+                            sprite="/sprite/sprite_user.png"
                             width={TILE_SIZE}
-                            height={TILE_SIZE}
+                            height={86}
                             scale={1}
                             fps={6}
                             frameCount={playerStartFrame + 3}

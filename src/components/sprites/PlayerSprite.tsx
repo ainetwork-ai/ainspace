@@ -30,7 +30,7 @@ export default function PlayerSprite({ screenX, screenY, tileSize, direction, is
             style={{
                 position: 'absolute',
                 left: `${screenX * tileSize - TILE_SIZE / 6}px`,
-                top: `${screenY * tileSize - TILE_SIZE / 4}px`,
+                top: `${screenY * tileSize - 60}px`,
                 width: `${tileSize}px`,
                 height: `${tileSize}px`,
                 pointerEvents: 'none',
@@ -39,9 +39,9 @@ export default function PlayerSprite({ screenX, screenY, tileSize, direction, is
         >
             <SpriteAnimator
                 key={`player-${direction}`}
-                sprite="/sprite/sprite_kkaebi.png"
+                sprite="/sprite/sprite_user.png"
                 width={TILE_SIZE}
-                height={TILE_SIZE}
+                height={86}
                 scale={1}
                 fps={6}
                 frameCount={startFrame + 3}
