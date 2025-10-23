@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { useBuildStore, useGameStateStore } from '@/stores';
 import { useSession } from '@/hooks/useSession';
+import { INITIAL_PLAYER_POSITION } from '@/constants/game';
 
 interface Message {
     id: string;
@@ -58,7 +59,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     // Initialize world system
     const { sendMessage: worldSendMessage, getAgentSuggestions } = useWorld({
         agents: agents || [],
-        playerPosition: playerPosition || { x: 72, y: 64 },
+        playerPosition: playerPosition || INITIAL_PLAYER_POSITION,
         onAgentResponse: (response: AgentResponse & { threadId?: string }) => {
             const { agentId, message, threadId, nextAgentRequest } = response;
             // Add agent response to chat with thread ID

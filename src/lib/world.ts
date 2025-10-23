@@ -1,5 +1,6 @@
 import { AgentSkill } from '@a2a-js/sdk';
 import { BaseAgent, createAgent, AgentState, Message as AgentMessage } from './agent';
+import { INITIAL_PLAYER_POSITION } from '@/constants/game';
 
 export interface Agent {
     id: string;
@@ -39,7 +40,7 @@ export interface AgentResponse {
 export class World {
     private agents: Agent[] = [];
     private agentInstances: BaseAgent[] = [];
-    private player: Player = { x: 72, y: 64 };
+    private player: Player = INITIAL_PLAYER_POSITION;
     private readonly MAX_SPEED = 10; // units per second
 
     constructor(agents: Agent[], player: Player) {
