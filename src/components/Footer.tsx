@@ -22,9 +22,8 @@ export default function Footer({ activeTab, onTabChange, onClickDialogueBox }: F
                         width={16}
                         height={16}
                     />
-                    <button onClick={onClickDialogueBox} className="flex flex-1 cursor-pointer justify-start">
-                        <span className="text-xs font-bold text-[#ffe05c]">류승룡:</span>
-                        <span className="text-xs text-white"> 마을 행사를 하려는데 어떻게 하면 좋을지 알려줘</span>
+                    <button onClick={onClickDialogueBox} className="flex flex-1 cursor-pointer">
+                        <span className="text-xs font-bold text-white">Ask anything!</span>
                     </button>
                 </div>
             )}
