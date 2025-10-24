@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useMapData } from '@/providers/MapDataProvider';
 import { Agent } from '@/lib/world';
 import { useLayer1Collision } from '@/hooks/useLayer1Collision';
-import { useBuildStore } from '@/stores';
+import { useBuildStore, useChatStore } from '@/stores';
 import { DIRECTION, MAP_TILES, TILE_SIZE } from '@/constants/game';
 
 export interface AgentInternal extends Agent {
@@ -26,6 +26,7 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
     const { generateTileAt } = useMapData();
     const { isBlocked: isLayer1Blocked } = useLayer1Collision('/map/land_layer_1.webp');
     const { isBlocked: isBuildStoreBlocked } = useBuildStore();
+    const { isAgentLoading } = useChatStore();
 
     // Initial agent positions near player start location (63, 58)
     const initialAgents: AgentInternal[] = [
@@ -215,6 +216,17 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
 
         setAgents((prevAgents) =>
             prevAgents.map((agent) => {
+                // Check if agent is loading (calling Gemini API)
+                const isLoading = isAgentLoading(agent.id);
+
+                // If agent is loading, stop movement and keep them in place
+                if (isLoading) {
+                    return {
+                        ...agent,
+                        isMoving: false // Stop animation during loading
+                    };
+                }
+
                 // Check if agent is currently in animation state (within 800ms of last move)
                 const isCurrentlyAnimating = currentTime - agent.lastMoved < 800;
 
@@ -240,7 +252,7 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
                 };
             })
         );
-    }, [getAgentBehavior]);
+    }, [getAgentBehavior, isAgentLoading]);
 
     const getVisibleAgents = useCallback(() => {
         return agents.map((agent) => ({

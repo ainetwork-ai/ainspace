@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { SpriteAnimator } from 'react-sprite-animator';
 import { TILE_SIZE, MAP_TILES, DIRECTION } from '@/constants/game';
-import { useBuildStore } from '@/stores';
+import { useBuildStore, useChatStore } from '@/stores';
 
 interface Agent {
     id: string;
@@ -102,6 +102,7 @@ function TileMap({
     const tileSize = baseTileSize * (fixedZoom !== undefined ? fixedZoom : zoomLevel);
 
     const { showCollisionMap, toggleCollisionMap } = useBuildStore();
+    const { isAgentLoading } = useChatStore();
 
     useEffect(() => {
         if (!backgroundImageSrc) {
@@ -753,8 +754,8 @@ function TileMap({
                             }}
                         >
                             {showCollisionMap && !hideCoordinates && agent.x !== undefined && agent.y !== undefined
-                                ? `${agent.name} (${agent.x}, ${agent.y})`
-                                : agent.name}
+                                ? `${agent.name} (${agent.x}, ${agent.y})${isAgentLoading(agent.id) ? ' 💬' : ''}`
+                                : `${agent.name}${isAgentLoading(agent.id) ? ' 💬' : ''}`}
                         </div>
                     </div>
                 );

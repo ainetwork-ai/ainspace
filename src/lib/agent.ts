@@ -1,4 +1,5 @@
 import { AgentSkill } from '@a2a-js/sdk';
+import { useChatStore } from '@/stores/useChatStore';
 // Removed direct gemini import to ensure server-side only calls
 
 export interface AgentState {
@@ -141,6 +142,9 @@ export abstract class BaseAgent {
         }
 
         try {
+            // Set agent as loading before calling Gemini API
+            useChatStore.getState().setAgentLoading(this.state.id, true);
+
             // Generate response using server-side API
             console.log(`🤖✨ Gemini API 호출 시작! Agent: ${this.state.name}, Distance: ${chebyshevDistance}`);
 
@@ -173,6 +177,9 @@ export abstract class BaseAgent {
                 `💬🎉 Gemini 응답 성공! Agent: ${this.state.name}, Response: "${responseText.substring(0, 50)}..."`
             );
 
+            // Clear loading state after successful response
+            useChatStore.getState().setAgentLoading(this.state.id, false);
+
             return {
                 agentId: this.state.id,
                 message: responseText,
@@ -181,6 +188,9 @@ export abstract class BaseAgent {
             };
         } catch (error) {
             console.error(`Error processing message for ${this.state.name}:`, error);
+
+            // Clear loading state on error
+            useChatStore.getState().setAgentLoading(this.state.id, false);
 
             // Fallback response
             return {
@@ -274,6 +284,9 @@ export class A2AAgent extends BaseAgent {
         }
 
         try {
+            // Set agent as loading before calling A2A API
+            useChatStore.getState().setAgentLoading(this.id, true);
+
             const requestBody = {
                 agentUrl: this.agentUrl,
                 message: `[From player at (${message.playerPosition.x}, ${message.playerPosition.y})]: ${message.content}`,
@@ -294,6 +307,9 @@ export class A2AAgent extends BaseAgent {
             if (response.ok) {
                 const data = await response.json();
                 if (data.response && data.response !== 'Agent received your message but did not respond.') {
+                    // Clear loading state after successful response
+                    useChatStore.getState().setAgentLoading(this.id, false);
+
                     return {
                         agentId: this.id,
                         message: data.response,
@@ -302,8 +318,14 @@ export class A2AAgent extends BaseAgent {
                     };
                 }
             }
+
+            // Clear loading state if no valid response
+            useChatStore.getState().setAgentLoading(this.id, false);
         } catch (error) {
             console.error(`Failed to send message to A2A agent ${this.name}:`, error);
+
+            // Clear loading state on error
+            useChatStore.getState().setAgentLoading(this.id, false);
         }
 
         return null;
