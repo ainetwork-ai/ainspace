@@ -309,14 +309,13 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 threadId: newMessage.threadId,
                 messageId: newMessage.id
             });
-            const isFirstChat = messages.length === 1;
 
             setMessages((prev) => [...prev, newMessage]);
             const userMessageText = inputValue.trim();
             setInputValue('');
 
-            // Send message through world system (no radius limit for regular chat)
-            await worldSendMessage(userMessageText, currentThreadId || undefined, isFirstChat ? 10 : undefined);
+            // Send message through world system with broadcast radius of 10
+            await worldSendMessage(userMessageText, currentThreadId || undefined, 10);
         }
     };
 

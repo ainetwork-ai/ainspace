@@ -111,14 +111,14 @@ export abstract class BaseAgent {
             playerPosition: message.playerPosition
         });
 
-        // Check if player is within 2-tile range (Chebyshev distance <= 2, 24 tiles total)
+        // Check if player is within 10-tile range (Chebyshev distance <= 10)
         // Only apply distance check if agent is not mentioned
-        if (!message.isMentioned && chebyshevDistance > 2) {
+        if (!message.isMentioned && chebyshevDistance > 10) {
             console.log(`🚫❌ Agent ${this.name} not responding: player is too far (distance: ${chebyshevDistance})`);
             return null;
         }
 
-        if (chebyshevDistance <= 2) {
+        if (chebyshevDistance <= 10) {
             console.log(`✅🎯 Agent ${this.name} is in range! Distance: ${chebyshevDistance}`);
         }
 
