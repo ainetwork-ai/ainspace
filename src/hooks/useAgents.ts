@@ -75,6 +75,11 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
 
     const [agents, setAgents] = useState<AgentInternal[]>(initialAgents);
 
+    // Log initialization on mount/refresh
+    useEffect(() => {
+        console.log('🔄 World agents initialized to initial positions:', initialAgents.map(a => ({ name: a.name, x: a.x, y: a.y })));
+    }, []); // Empty dependency - only run once on mount
+
     const isWalkable = useCallback(
         (x: number, y: number, currentAgents: AgentInternal[], checkingAgentId?: string): boolean => {
             if (x < 0 || x >= MAP_TILES || y < 0 || y >= MAP_TILES) {

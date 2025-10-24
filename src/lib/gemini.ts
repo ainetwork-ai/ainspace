@@ -12,7 +12,7 @@ export async function generateAgentResponse(agentData: {
     isMentioned?: boolean;
 }): Promise<string> {
     try {
-        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+        const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
         const behaviorDescriptions = {
             random: 'You move randomly and unpredictably, always curious about new discoveries.',

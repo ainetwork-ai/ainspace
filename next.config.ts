@@ -17,6 +17,25 @@ const nextConfig: NextConfig = {
                 permanent: false
             }
         ];
+    },
+    webpack: (config, { dev, isServer }) => {
+        // Production 환경에서만 console.log 제거 (console.error, console.warn은 유지)
+        if (!dev && !isServer) {
+            // terser 옵션 설정
+            config.optimization.minimizer = config.optimization.minimizer.map((plugin: any) => {
+                if (plugin.constructor.name === 'TerserPlugin') {
+                    plugin.options.terserOptions = {
+                        ...plugin.options.terserOptions,
+                        compress: {
+                            ...plugin.options.terserOptions?.compress,
+                            pure_funcs: ['console.log'], // console.log만 제거
+                        }
+                    };
+                }
+                return plugin;
+            });
+        }
+        return config;
     }
 };
 

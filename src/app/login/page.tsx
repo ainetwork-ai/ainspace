@@ -11,7 +11,7 @@ export default function LoginPage() {
     const { address, isConnected, isConnecting } = useAccount();
     const router = useRouter();
     const [nonce] = useState(() => Date.now().toString());
-    const message = useMemo(() => `Welcome to the AIN SPACE MiniApp!\n\nNonce: ${nonce}`, [nonce]);
+    const message = useMemo(() => `Welcome to the AINSpace MiniApp!\n\nNonce: ${nonce}`, [nonce]);
     const [showButton, setShowButton] = useState(false);
 
     useEffect(() => {

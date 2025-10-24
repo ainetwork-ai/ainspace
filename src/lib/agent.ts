@@ -89,14 +89,37 @@ export abstract class BaseAgent {
     }
 
     // Process incoming message and generate response if appropriate
-    async processMessage(message: Message, totalDelay: number, metadata?: { [key: string]: unknown }): Promise<AgentResponse | null> {
+    async processMessage(
+        message: Message,
+        totalDelay: number,
+        metadata?: { [key: string]: unknown }
+    ): Promise<AgentResponse | null> {
+        // Calculate Chebyshev distance (max of absolute differences in x and y)
+        const dx = Math.abs(this.state.x - message.playerPosition.x);
+        const dy = Math.abs(this.state.y - message.playerPosition.y);
+        const chebyshevDistance = Math.max(dx, dy);
+
         console.log(`Agent ${this.name} processing message:`, {
             threadId: message.threadId,
             metadata,
             isMentioned: message.isMentioned,
             isInThread: message.threadId ? this.isInThread(message.threadId) : 'N/A',
-            activeThreads: Array.from(this.activeThreads)
+            activeThreads: Array.from(this.activeThreads),
+            chebyshevDistance,
+            agentPosition: { x: this.state.x, y: this.state.y },
+            playerPosition: message.playerPosition
         });
+
+        // Check if player is within 2-tile range (Chebyshev distance <= 2, 24 tiles total)
+        // Only apply distance check if agent is not mentioned
+        if (!message.isMentioned && chebyshevDistance > 2) {
+            console.log(`🚫❌ Agent ${this.name} not responding: player is too far (distance: ${chebyshevDistance})`);
+            return null;
+        }
+
+        if (chebyshevDistance <= 2) {
+            console.log(`✅🎯 Agent ${this.name} is in range! Distance: ${chebyshevDistance}`);
+        }
 
         // Check thread participation
         if (message.threadId) {
@@ -119,6 +142,8 @@ export abstract class BaseAgent {
 
         try {
             // Generate response using server-side API
+            console.log(`🤖✨ Gemini API 호출 시작! Agent: ${this.state.name}, Distance: ${chebyshevDistance}`);
+
             const response = await fetch('/api/agent-response', {
                 method: 'POST',
                 headers: {
@@ -143,6 +168,10 @@ export abstract class BaseAgent {
 
             const data = await response.json();
             const responseText = data.response;
+
+            console.log(
+                `💬🎉 Gemini 응답 성공! Agent: ${this.state.name}, Response: "${responseText.substring(0, 50)}..."`
+            );
 
             return {
                 agentId: this.state.id,
@@ -224,7 +253,11 @@ export class A2AAgent extends BaseAgent {
         return;
     }
 
-    async processMessage(message: Message, totalDelay: number, metadata?: { [key: string]: unknown }): Promise<AgentResponse | null> {
+    async processMessage(
+        message: Message,
+        totalDelay: number,
+        metadata?: { [key: string]: unknown }
+    ): Promise<AgentResponse | null> {
         if (!this.shouldRespondToMessage(message)) {
             return null;
         }
@@ -232,9 +265,9 @@ export class A2AAgent extends BaseAgent {
         console.log(`A2A Agent ${this.name} processing message with agentUrl:`, this.agentUrl);
 
         if (metadata?.agentSkills) {
-            metadata.agentSkills = (metadata.agentSkills as AgentSkill[]).filter(agent => agent.name !== this.name);
+            metadata.agentSkills = (metadata.agentSkills as AgentSkill[]).filter((agent) => agent.name !== this.name);
         }
-        
+
         if (!this.agentUrl) {
             console.error(`A2A Agent ${this.name} has no agentUrl configured`);
             return null;
