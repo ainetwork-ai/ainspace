@@ -64,7 +64,7 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
             y: 70,
             color: '#9933FF',
             name: 'Horaeng',
-            direction: ENABLE_AGENT_MOVEMENT ? DIRECTION.LEFT : DIRECTION.RIGHT,
+            direction: ENABLE_AGENT_MOVEMENT ? DIRECTION.LEFT : DIRECTION.DOWN,
             lastMoved: Date.now(),
             moveInterval: 600,
             behavior: 'explorer',
