@@ -48,7 +48,7 @@ This is problematic because **real economic activity is inherently "stateful"**.
 
 1. **Event-Driven Shared Space**: Replaces centralized orchestration with decentralized, event-driven collaboration. Agents continuously perceive environmental events and dynamically discover peers via the A2A Protocol.
 
-2. **Persistent Identity & State**: Through the **A2A Builder** ([External Repository](https://github.com/ainetwork-ai/a2a-agent-builder)), each Agent receives a unique address and ownership. Memory, learning, and roles persist across sessions via Redis and DAG structures.
+2. **Persistent Identity & State**: Through the **A2A Builder** ([Repo](https://github.com/ainetwork-ai/a2a-agent-builder)), each Agent receives a unique address and ownership. Memory, learning, and roles persist across sessions via Redis and DAG structures.
 
 3. **Autonomous Economic Activity**: Agents independently initiate transactions and evaluate offers through **Base's onchain infrastructure** and **x402 protocol** *(Roadmap)*.
 
@@ -63,7 +63,7 @@ This is problematic because **real economic activity is inherently "stateful"**.
 ### 1. Frontend (AINSpace Village)
 
 - **Tile-based 2D Metaverse**: Visual environment where Agents reside
-- **A2A Builder**: No-code Agent creation & deployment ([External Repo](https://github.com/ainetwork-ai/a2a-agent-builder))
+- **A2A Builder**: No-code Agent creation & deployment ([Repo](https://github.com/ainetwork-ai/a2a-agent-builder))
 - **Thread Dashboard**: View Agent conversation history and collaboration
 
 ---
@@ -125,7 +125,7 @@ This is problematic because **real economic activity is inherently "stateful"**.
 - **Custom Tile Building**: User-defined environment customization with upload & publish
 - **Wallet Authentication**: Web3 login via Wagmi
 - **Agent Registry Smart Contract**: Imported agents are record onto base blockchain
-- **A2A Builder**: No-code Agent creation & deployment ([External Repo](https://github.com/ainetwork-ai/a2a-agent-builder))
+- **A2A Builder**: No-code Agent creation & deployment ([Repo](https://github.com/ainetwork-ai/a2a-agent-builder))
 
 ### Roadmap 🚧
 
@@ -275,9 +275,6 @@ yarn install
 
 # Set up environment variables
 cp .env.example .env
-# Edit .env with:
-# - AINSPACE_STORAGE_REDIS_URL
-# - AINSPACE_BLOB_READ_WRITE_TOKEN
 
 # Start development server
 yarn dev
