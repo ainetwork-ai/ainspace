@@ -88,7 +88,7 @@ This is problematic because **real economic activity is inherently "stateful"**.
 
 - **Redis**: Real-time state & Thread data persistence ✅
 - **Vercel Blob**: Agent-generated tiles & assets ✅
-- **Smart Contract**: AgentRegistry record agent informations [Testnet Contract](https://base-sepolia.blockscout.com/address/0xaD9AdC4b97F98E9E57b87a456F2613654dbD8d14) ✅
+- **Smart Contract**: AgentRegistry record agent informations  ✅
 - **L1 Blockchain (Base)**: Web3 ownership & x402 payments *(Roadmap)*
 - **L2 DAG**: Agent collaboration records & verification *(Merkle Proof in Roadmap)*
 
@@ -306,6 +306,7 @@ ainspace/
 │   │   └── tabs/              # UI tabs
 │   ├── stores/                # Zustand state
 │   ├── lib/
+│   │   ├── world.ts           # World state, orchestration.
 │   │   ├── messageDAG.ts      # DAG structure
 │   │   └── redis.ts           # Persistence
 │   └── types/
@@ -318,20 +319,8 @@ ainspace/
 
 ## Links & Resources
 
+- **Agent Registry(Smart Contract)**: [https://base-sepolia.blockscout.com/address/0xaD9AdC4b97F98E9E57b87a456F2613654dbD8d14](https://base-sepolia.blockscout.com/address/0xaD9AdC4b97F98E9E57b87a456F2613654dbD8d14)
 - **A2A Builder:** [https://github.com/ainetwork-ai/a2a-agent-builder](https://github.com/ainetwork-ai/a2a-agent-builder)
-- **Built on Base:** [https://base.org](https://base.org)
-
----
-
-## Contributing
-
-We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
-
----
-
-## License
-
-MIT License - see [LICENSE](LICENSE)
 
 ---
 
