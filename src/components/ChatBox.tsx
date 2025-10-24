@@ -528,7 +528,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                         onKeyDown={handleKeyPress}
                         autoFocus={true}
                         placeholder="Typing Message..."
-                        className="flex-1 bg-transparent text-sm leading-tight text-white placeholder-white/40 focus:outline-none"
+                        className="flex-1 bg-transparent text-base leading-tight text-white placeholder-white/40 focus:outline-none"
                     />
                     <button
                         onClick={handleSendMessage}

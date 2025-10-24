@@ -159,8 +159,8 @@ export default function MapTab({
     return (
         <BaseTabContent isActive={isActive} withPadding={false}>
             {/* Game Area */}
-            <div className="relative flex h-full w-full flex-col">
-                <div className="flex h-full w-full items-center justify-center select-none">
+            <div className="relative flex h-full w-full flex-col" style={{ touchAction: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}>
+                <div className="flex h-full w-full items-center justify-center select-none" style={{ WebkitUserSelect: 'none', userSelect: 'none' }}>
                     <TileMap
                         mapData={mapData}
                         tileSize={TILE_SIZE}
