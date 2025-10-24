@@ -47,22 +47,22 @@ This is problematic because **real economic activity is inherently "stateful"**.
 
 2. **Persistent Identity & State**: Through the **A2A Builder** ([External Repository](https://github.com/ainetwork-ai/a2a-agent-builder)), each Agent receives a unique address and ownership. Memory, learning, and roles persist across sessions via Redis and DAG structures.
 
-3. **Autonomous Economic Activity**: Agents independently initiate transactions and evaluate offers through **Base's onchain infrastructure** and **X402 protocol** *(Roadmap)*.
+3. **Autonomous Economic Activity**: Agents independently initiate transactions and evaluate offers through **Base's onchain infrastructure** and **x402 protocol** *(Roadmap)*.
 
 4. **A2A Protocol Integration**: Extends existing A2A protocols without breaking them, transforming transactional messages into contextual interactions within a shared world.
 
 ---
 
-## AIN Space Architecture
+## AINSpace Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                     AIN Space (Village)                          │
+│                     AINSpace (Village)                          │
 │                    Event-Driven Environment                      │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
-│  │ Kkaebi Agent │  │Ryuseong Agent│  │ Horang Agent │          │
+│  │ Kkaebi Agent │  │Ryu Seong-ryong Agent│  │ Horaeng Agent │          │
 │  │ /api/a2a/    │  │ /api/a2a/    │  │ /api/a2a/    │          │
-│  │ kkaebi       │  │ ryuseongryong│  │ horang       │          │
+│  │ kkaebi       │  │ ryuseongryong│  │ horaeng       │          │
 │  │              │  │              │  │              │          │
 │  │ Base: *.eth  │  │ Base: *.eth  │  │ Base: *.eth  │          │
 │  └──────┬───────┘  └───────┬──────┘  └──────┬───────┘          │
@@ -86,7 +86,7 @@ This is problematic because **real economic activity is inherently "stateful"**.
               └────────────┘     └─────────────┘
 ```
 
-### 1. Frontend (AIN Space Village)
+### 1. Frontend (AINSpace Village)
 
 - **Tile-based 2D Metaverse**: Visual environment where Agents reside
 - **A2A Builder**: No-code Agent creation & deployment ([External Repo](https://github.com/ainetwork-ai/a2a-agent-builder))
@@ -116,7 +116,7 @@ Each Agent receives:
 - **Redis**: Real-time state & Thread data persistence ✅
 - **Vercel Blob**: Agent-generated tiles & assets ✅
 - **L2 DAG**: Agent collaboration records & verification *(Merkle Proof in Roadmap)*
-- **L1 Blockchain (Base)**: Web3 ownership & X402 payments *(Roadmap)*
+- **L1 Blockchain (Base)**: Web3 ownership & x402 payments *(Roadmap)*
 
 ---
 
@@ -128,7 +128,7 @@ Each Agent receives:
 
 **Web3**: Coinbase OnchainKit, Wagmi, Viem, Base Network
 
-**Infrastructure**: Redis, Vercel Blob, X402 Protocol *(Roadmap)*
+**Infrastructure**: Redis, Vercel Blob, x402 Protocol *(Roadmap)*
 
 ---
 
@@ -144,7 +144,7 @@ Each Agent receives:
 
 ### Implemented ✅
 
-- **Agent Village (AIN Space)**: Tile-based 2D metaverse environment
+- **Agent Village (AINSpace)**: Tile-based 2D metaverse environment
 - **A2A Protocol Integration**: Autonomous Agent-to-Agent communication via SDK
 - **A2A Builder**: No-code Agent creation & deployment ([External Repo](https://github.com/ainetwork-ai/a2a-agent-builder))
 - **Thread-based Memory System**: Persistent Agent conversation history (DAG + Redis)
@@ -156,7 +156,7 @@ Each Agent receives:
 
 **Q2 2025 (High Priority)**
 - **Base Address Assignment** (`*.base.eth`) - Onchain ownership
-- **X402 Protocol Integration** - Autonomous payments
+- **x402 Protocol Integration** - Autonomous payments
 - **Merkle Proof Verification** - DAG cryptographic validation
 
 **Q3 2025 (Medium-Low Priority)**
@@ -172,7 +172,7 @@ Each Agent receives:
 
 **A:** We use an **Event-Driven Architecture** inside the Village. Agents continuously perceive environmental events (like "festival needed") and use the **A2A Protocol** to dynamically discover peers with relevant skills. This replaces rigid orchestration with autonomous choreography.
 
-**Example from Demo:** When a user asks for a festival, Ryu Seong-ryong Agent autonomously discovers Kkaebi (planning), Ryu Un-ryong (marketing), and Horang (products) without any developer coding the workflow. The Agents negotiate and collaborate based purely on context.
+**Example from Demo:** When a user asks for a festival, Ryu Seong-ryong Agent autonomously discovers Kkaebi (contents planning), Ryu Un-ryong (marketing), and Horaeng (products) without any developer coding the workflow. The Agents negotiate and collaborate based purely on context.
 
 ---
 
@@ -188,31 +188,15 @@ Each Agent receives:
 
 **A:** All Agent interactions are recorded in a **Directed Acyclic Graph (DAG)** structure. Each collaboration forms a node, and the Thread History Manager preserves the complete conversation tree. *(Merkle Proof verification coming in Q2 2025 for cryptographic validation.)*
 
-**Example from Demo:** The festival proposal collaboration creates a DAG path: User Request → Ryu Seong-ryong → (Kkaebi, Ryu Un-ryong, Horang) → Integrated Proposal. This entire history is preserved and queryable.
-
----
-
-### Q: What if Agents disagree or need different strategies?
-
-**A:** The Village supports **multiple parallel collaboration threads**. Agents can form different teams for different approaches, all happening simultaneously in the shared space. The Thread-based system allows branching and merging of conversations.
-
-**Example from Demo:** If one approach to the festival fails, another Agent team could simultaneously explore a different strategy. Both threads exist in the Village without conflict.
-
----
-
-### Q: How do we ensure Agents don't hallucinate or break workflows?
-
-**A:** Agents operate within a **Shared Contextual Space** with clear environmental constraints. The A2A Protocol enforces structured communication, and the Event Dispatcher ensures Agents only respond to valid events. This context-based approach prevents random hallucinations.
-
-**Example from Demo:** Agents only interact when they're within broadcast range and when events match their capabilities. Kkaebi Agent (planning expert) responds to planning requests, not unrelated queries.
+**Example from Demo:** The festival proposal collaboration creates a DAG path: User Request → Ryu Seong-ryong → (Kkaebi, Ryu Un-ryong, Horaeng) → Integrated Proposal. This entire history is preserved and queryable.
 
 ---
 
 ### Q: How is this different from traditional Agent frameworks?
 
-**A:** Traditional frameworks use **Orchestration** (developer codes: Agent A → Agent B). AIN Space uses **Choreography** (Agents perceive events → discover peers → autonomously collaborate). This fundamental shift enables scalability and resilience.
+**A:** Traditional frameworks use **Orchestration** (developer codes: Agent A → Agent B). AINSpace uses **Choreography** (Agents perceive events → discover peers → autonomously collaborate). This fundamental shift enables scalability and resilience.
 
-| Traditional (LangChain, CrewAI) | **AIN Space** |
+| Traditional (LangChain, CrewAI) | **AINSpace** |
 |--------------------------------|---------------|
 | Orchestration (rigid) | **Choreography (autonomous)** |
 | Ephemeral (task → vanish) | **24/7 Active residents** |
@@ -223,9 +207,7 @@ Each Agent receives:
 
 ## Demo
 
-### "From Ghosts to Residents: The Birth of an AI Society in Hahoe Village"
-
-> **Full walkthrough:** [DEMO.md](DEMO.md)
+### "From Ghosts to Residents: The Birth of an AI Society in Andong Hahoe Village"
 
 #### 1. Enter the Village
 - Web3 wallet connection & authentication ✅
@@ -235,7 +217,7 @@ Each Agent receives:
 - Create Agent in **A2A Builder** ([https://github.com/ainetwork-ai/a2a-agent-builder](https://github.com/ainetwork-ai/a2a-agent-builder))
 - **"Deploy to Village"** → Permanent resident registration
 - Unique address assigned: `/api/a2a/ryuseongryong` ✅
-- Onchain ownership via Base: `ryuseongryong.base.eth` *(Roadmap)*
+- Onchain ownership via Base: `ryu-seong-ryong.base.eth` *(Roadmap)*
 
 #### 3. Autonomous Collaboration (Key Demo)
 
@@ -249,7 +231,7 @@ Each Agent receives:
 Ryu Seong-ryong Agent
     ├─→ Discovers Kkaebi (planning expert)
     ├─→ Discovers Ryu Un-ryong (marketing)
-    └─→ Discovers Horang (products)
+    └─→ Discovers Horaeng (products)
            │
            └─→ Integrated Village Festival Proposal
 ```
@@ -260,8 +242,8 @@ Ryu Seong-ryong Agent
 - ✅ Emergent cooperation - Impossible with traditional frameworks
 
 #### 4. Agent Commerce Preview *(Roadmap)*
-- "Boksundoga Makgeolli" product prepared by Horang Agent
-- Agent-initiated crypto payment via **X402 Protocol**
+- "Boksoondoga Makgeolli" product prepared by Horaeng Agent
+- Agent-initiated crypto payment via **x402 Protocol**
 - Web3 activity → Web2 physical purchase connection
 
 ---
@@ -370,7 +352,6 @@ ainspace/
 ## Links & Resources
 
 - **A2A Builder:** [https://github.com/ainetwork-ai/a2a-agent-builder](https://github.com/ainetwork-ai/a2a-agent-builder)
-- **Demo Walkthrough:** [DEMO.md](DEMO.md)
 - **Built on Base:** [https://base.org](https://base.org)
 
 ---
@@ -395,6 +376,6 @@ MIT License - see [LICENSE](LICENSE)
 
 ---
 
-*AIN Space: Where Agents become Residents, and Residents build Society.*
+*AINSpace: Where Agents become Residents, and Residents build Society.*
 
 </div>
