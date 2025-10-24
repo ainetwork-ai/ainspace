@@ -497,7 +497,7 @@ export default function TempBuildTab({
                         </p>
                     </div>
 
-                    <div className="relative mb-4 aspect-square w-full overflow-hidden rounded-lg">
+                    <div className="relative mb-4 aspect-square w-full overflow-hidden rounded-lg" style={{ touchAction: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}>
                         <TileMap
                             mapData={mapData}
                             tileSize={tileSize}
