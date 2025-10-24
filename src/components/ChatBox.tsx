@@ -44,7 +44,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     { className = '', aiCommentary, agents = [], currentThreadId, onResetLocation },
     ref
 ) {
-    const { messages, addMessage, setMessages } = useChatStore();
+    const { messages, setMessages } = useChatStore();
     const [inputValue, setInputValue] = useState('');
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [filteredAgents, setFilteredAgents] = useState<Agent[]>([]);
@@ -310,12 +310,14 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 messageId: newMessage.id
             });
 
+            const isFirstChat = messages.length === 1;
+
             setMessages((prev) => [...prev, newMessage]);
             const userMessageText = inputValue.trim();
             setInputValue('');
 
             // Send message through world system with broadcast radius
-            await worldSendMessage(userMessageText, currentThreadId || undefined, AGENT_RESPONSE_DISTANCE);
+            await worldSendMessage(userMessageText, currentThreadId || undefined, isFirstChat ? 10 : undefined);
         }
     };
 
