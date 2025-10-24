@@ -60,15 +60,29 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
         },
         {
             id: 'agent-3',
-            x: 40,
-            y: 68,
+            x: 57,
+            y: 70,
             color: '#9933FF',
             name: 'Horaeng',
-            direction: ENABLE_AGENT_MOVEMENT ? DIRECTION.LEFT : DIRECTION.DOWN,
+            direction: ENABLE_AGENT_MOVEMENT ? DIRECTION.LEFT : DIRECTION.RIGHT,
             lastMoved: Date.now(),
             moveInterval: 600,
             behavior: 'explorer',
             spriteUrl: '/sprite/sprite_horaeng.png',
+            spriteHeight: TILE_SIZE,
+            spriteWidth: TILE_SIZE
+        },
+        {
+            id: 'agent-4',
+            x: 58,
+            y: 72,
+            color: '#0000FF',
+            name: 'Kkaebi',
+            direction: ENABLE_AGENT_MOVEMENT ? DIRECTION.LEFT : DIRECTION.DOWN,
+            lastMoved: Date.now(),
+            moveInterval: 600,
+            behavior: 'explorer',
+            spriteUrl: '/sprite/sprite_kkaebi.png',
             spriteHeight: TILE_SIZE,
             spriteWidth: TILE_SIZE
         }
