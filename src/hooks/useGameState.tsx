@@ -13,7 +13,8 @@ import {
     MAX_WORLD_X,
     MIN_WORLD_Y,
     MAX_WORLD_Y,
-    DIRECTION
+    DIRECTION,
+    INITIAL_PLAYER_POSITION
 } from '@/constants/game';
 
 interface Position {
@@ -27,29 +28,23 @@ export function useGameState() {
     const { isBlocked: isLayer1Blocked, collisionMap } = useBuildStore();
     const { agents: a2aAgents } = useAgentStore();
     const {
-      worldPosition,
-      setWorldPosition,
-      isLoading,
-      setIsLoading,
-      isAutonomous,
-      setIsAutonomous,
-      playerDirection,
-      setPlayerDirection,
-      recentMovements,
-      setRecentMovements,
-      lastCommentary,
-      setLastCommentary,
-      lastMoveTime,
-      setLastMoveTime,
-      isPlayerMoving,
-      setIsPlayerMoving,
+        worldPosition,
+        setWorldPosition,
+        isLoading,
+        setIsLoading,
+        isAutonomous,
+        setIsAutonomous,
+        playerDirection,
+        setPlayerDirection,
+        recentMovements,
+        setRecentMovements,
+        lastCommentary,
+        setLastCommentary,
+        lastMoveTime,
+        setLastMoveTime,
+        isPlayerMoving,
+        setIsPlayerMoving
     } = useGameStateStore();
-
-    // Character starts at position (63, 58)
-    const initialPosition: Position = {
-        x: 63,
-        y: 58
-    };
 
     // Get the current map data centered on the player's world position with full square view
     const mapData = getMapData(worldPosition.x, worldPosition.y, MAP_WIDTH, MAP_HEIGHT);
@@ -112,10 +107,10 @@ export function useGameState() {
             }
 
             if (
-              newWorldPosition.x < MIN_WORLD_X ||
-              newWorldPosition.x > MAX_WORLD_X ||
-              newWorldPosition.y < MIN_WORLD_Y ||
-              newWorldPosition.y > MAX_WORLD_Y
+                newWorldPosition.x < MIN_WORLD_X ||
+                newWorldPosition.x > MAX_WORLD_X ||
+                newWorldPosition.y < MIN_WORLD_Y ||
+                newWorldPosition.y > MAX_WORLD_Y
             ) {
                 return;
             }
@@ -140,7 +135,9 @@ export function useGameState() {
                 const blockingAgent = worldAgents.find(
                     (agent) => agent.x === newWorldPosition.x && agent.y === newWorldPosition.y
                 );
-                console.log(`🎮❌ Movement blocked: World agent "${blockingAgent?.name}" is at (${newWorldPosition.x}, ${newWorldPosition.y})`);
+                console.log(
+                    `🎮❌ Movement blocked: World agent "${blockingAgent?.name}" is at (${newWorldPosition.x}, ${newWorldPosition.y})`
+                );
                 return;
             }
 
@@ -152,7 +149,9 @@ export function useGameState() {
                 const blockingAgent = Object.values(a2aAgents).find(
                     (agent) => agent.x === newWorldPosition.x && agent.y === newWorldPosition.y
                 );
-                console.log(`🤖❌ Movement blocked: A2A agent "${blockingAgent?.name}" is at (${newWorldPosition.x}, ${newWorldPosition.y})`);
+                console.log(
+                    `🤖❌ Movement blocked: A2A agent "${blockingAgent?.name}" is at (${newWorldPosition.x}, ${newWorldPosition.y})`
+                );
                 return;
             }
 
@@ -177,8 +176,8 @@ export function useGameState() {
 
     // Reset player location to initial position
     const resetLocation = useCallback(() => {
-        setWorldPosition(initialPosition);
-        savePositionToRedis(initialPosition);
+        setWorldPosition(INITIAL_PLAYER_POSITION);
+        savePositionToRedis(INITIAL_PLAYER_POSITION);
         setPlayerDirection(DIRECTION.RIGHT);
         setRecentMovements([]);
         setIsPlayerMoving(false);
@@ -273,10 +272,18 @@ export function useGameState() {
             nextPosition.y < MIN_WORLD_Y ||
             nextPosition.y > MAX_WORLD_Y;
         const tileType = generateTileAt(nextPosition.x, nextPosition.y);
-        const isOccupiedByWorldAgent = worldAgents.some((agent) => agent.x === nextPosition.x && agent.y === nextPosition.y);
-        const isOccupiedByA2AAgent = Object.values(a2aAgents).some((agent) => agent.x === nextPosition.x && agent.y === nextPosition.y);
+        const isOccupiedByWorldAgent = worldAgents.some(
+            (agent) => agent.x === nextPosition.x && agent.y === nextPosition.y
+        );
+        const isOccupiedByA2AAgent = Object.values(a2aAgents).some(
+            (agent) => agent.x === nextPosition.x && agent.y === nextPosition.y
+        );
         const isBlocked =
-            isOutOfBounds || tileType === 3 || isLayer1Blocked(nextPosition.x, nextPosition.y) || isOccupiedByWorldAgent || isOccupiedByA2AAgent;
+            isOutOfBounds ||
+            tileType === 3 ||
+            isLayer1Blocked(nextPosition.x, nextPosition.y) ||
+            isOccupiedByWorldAgent ||
+            isOccupiedByA2AAgent;
 
         if (isBlocked) {
             // Try different directions
@@ -327,15 +334,24 @@ export function useGameState() {
             // Move in current direction
             movePlayer(playerDirection as DIRECTION);
         }
-    }, [isAutonomous, worldPosition, playerDirection, generateTileAt, movePlayer, isLayer1Blocked, worldAgents, a2aAgents]);
+    }, [
+        isAutonomous,
+        worldPosition,
+        playerDirection,
+        generateTileAt,
+        movePlayer,
+        isLayer1Blocked,
+        worldAgents,
+        a2aAgents
+    ]);
 
     // Initialize to default position on mount/refresh
     useEffect(() => {
         // Always start at initial position on refresh
-        setWorldPosition(initialPosition);
+        setWorldPosition(INITIAL_PLAYER_POSITION);
         setIsLoading(false);
 
-        console.log('🔄 Player position initialized to:', initialPosition);
+        console.log('🔄 Player position initialized to:', INITIAL_PLAYER_POSITION);
     }, []); // Empty dependency array - only run once on mount
 
     // Autonomous movement interval
