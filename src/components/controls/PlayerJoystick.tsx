@@ -12,7 +12,7 @@ interface PlayerJoystickProps {
     stickColor?: string;
 }
 
-export default function PlayerJoystick({ onMove, disabled = false, size = 200 }: PlayerJoystickProps) {
+export default function PlayerJoystick({ onMove, disabled = false, size = 100 }: PlayerJoystickProps) {
     const lastDirectionRef = useRef<DIRECTION | null>(null);
     const moveIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const imageRef = useRef<HTMLDivElement>(null);

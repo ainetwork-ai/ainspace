@@ -82,7 +82,7 @@ export async function generateCommentary(gameState: {
     biome: string;
 }): Promise<string> {
     try {
-        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+        const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
         const prompt = `You are an AI explorer playing a tile-based adventure game. You're currently moving autonomously through an infinite procedural world. 
 

@@ -197,6 +197,7 @@ export default function MapTab({
                             disabled={isAutonomous}
                             baseColor="#00000050"
                             stickColor="#FFF"
+                            size={160}
                         />
                     </div>
                 )}

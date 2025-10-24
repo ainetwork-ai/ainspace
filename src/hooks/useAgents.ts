@@ -4,8 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useMapData } from '@/providers/MapDataProvider';
 import { Agent } from '@/lib/world';
 import { useLayer1Collision } from '@/hooks/useLayer1Collision';
-import { useBuildStore } from '@/stores';
-import { DIRECTION, MAP_TILES, TILE_SIZE } from '@/constants/game';
+import { useBuildStore, useChatStore } from '@/stores';
+import { DIRECTION, MAP_TILES, TILE_SIZE, ENABLE_AGENT_MOVEMENT } from '@/constants/game';
 
 export interface AgentInternal extends Agent {
     direction: DIRECTION;
@@ -26,16 +26,17 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
     const { generateTileAt } = useMapData();
     const { isBlocked: isLayer1Blocked } = useLayer1Collision('/map/land_layer_1.webp');
     const { isBlocked: isBuildStoreBlocked } = useBuildStore();
+    const { isAgentLoading } = useChatStore();
 
     // Initial agent positions near player start location (63, 58)
     const initialAgents: AgentInternal[] = [
         {
             id: 'agent-1',
-            x: 58,
-            y: 67,
+            x: 59,
+            y: 68,
             color: '#00FF00',
             name: 'Ryu Seong-ryong',
-            direction: DIRECTION.RIGHT,
+            direction: ENABLE_AGENT_MOVEMENT ? DIRECTION.RIGHT : DIRECTION.DOWN,
             lastMoved: Date.now(),
             moveInterval: 800,
             behavior: 'random',
@@ -45,11 +46,11 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
         },
         {
             id: 'agent-2',
-            x: 67,
-            y: 49,
+            x: 61,
+            y: 70,
             color: '#FF6600',
             name: 'Ryu Un-ryong',
-            direction: DIRECTION.UP,
+            direction: ENABLE_AGENT_MOVEMENT ? DIRECTION.UP : DIRECTION.DOWN,
             lastMoved: Date.now(),
             moveInterval: 1000,
             behavior: 'patrol',
@@ -59,15 +60,29 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
         },
         {
             id: 'agent-3',
-            x: 82,
-            y: 81,
+            x: 57,
+            y: 70,
             color: '#9933FF',
             name: 'Horaeng',
-            direction: DIRECTION.LEFT,
+            direction: ENABLE_AGENT_MOVEMENT ? DIRECTION.LEFT : DIRECTION.DOWN,
             lastMoved: Date.now(),
             moveInterval: 600,
             behavior: 'explorer',
             spriteUrl: '/sprite/sprite_horaeng.png',
+            spriteHeight: TILE_SIZE,
+            spriteWidth: TILE_SIZE
+        },
+        {
+            id: 'agent-4',
+            x: 58,
+            y: 72,
+            color: '#0000FF',
+            name: 'Kkaebi',
+            direction: ENABLE_AGENT_MOVEMENT ? DIRECTION.LEFT : DIRECTION.DOWN,
+            lastMoved: Date.now(),
+            moveInterval: 600,
+            behavior: 'explorer',
+            spriteUrl: '/sprite/sprite_kkaebi.png',
             spriteHeight: TILE_SIZE,
             spriteWidth: TILE_SIZE
         }
@@ -77,7 +92,10 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
 
     // Log initialization on mount/refresh
     useEffect(() => {
-        console.log('🔄 World agents initialized to initial positions:', initialAgents.map(a => ({ name: a.name, x: a.x, y: a.y })));
+        console.log(
+            '🔄 World agents initialized to initial positions:',
+            initialAgents.map((a) => ({ name: a.name, x: a.x, y: a.y }))
+        );
     }, []); // Empty dependency - only run once on mount
 
     const isWalkable = useCallback(
@@ -215,6 +233,26 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
 
         setAgents((prevAgents) =>
             prevAgents.map((agent) => {
+                // Check if agent is loading (calling Gemini API)
+                const isLoading = isAgentLoading(agent.id);
+
+                // If agent is loading, stop movement and keep them in place
+                if (isLoading) {
+                    return {
+                        ...agent,
+                        isMoving: false // Stop animation during loading
+                    };
+                }
+
+                // If agent movement is disabled, keep agents in place with down direction
+                if (!ENABLE_AGENT_MOVEMENT) {
+                    return {
+                        ...agent,
+                        direction: DIRECTION.DOWN,
+                        isMoving: false
+                    };
+                }
+
                 // Check if agent is currently in animation state (within 800ms of last move)
                 const isCurrentlyAnimating = currentTime - agent.lastMoved < 800;
 
@@ -240,7 +278,7 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
                 };
             })
         );
-    }, [getAgentBehavior]);
+    }, [getAgentBehavior, isAgentLoading]);
 
     const getVisibleAgents = useCallback(() => {
         return agents.map((agent) => ({
