@@ -5,7 +5,7 @@ import { useMapData } from '@/providers/MapDataProvider';
 import { Agent } from '@/lib/world';
 import { useLayer1Collision } from '@/hooks/useLayer1Collision';
 import { useBuildStore, useChatStore } from '@/stores';
-import { DIRECTION, MAP_TILES, TILE_SIZE } from '@/constants/game';
+import { DIRECTION, MAP_TILES, TILE_SIZE, ENABLE_AGENT_MOVEMENT } from '@/constants/game';
 
 export interface AgentInternal extends Agent {
     direction: DIRECTION;
@@ -32,11 +32,11 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
     const initialAgents: AgentInternal[] = [
         {
             id: 'agent-1',
-            x: 58,
-            y: 67,
+            x: 59,
+            y: 68,
             color: '#00FF00',
             name: 'Ryu Seong-ryong',
-            direction: DIRECTION.RIGHT,
+            direction: ENABLE_AGENT_MOVEMENT ? DIRECTION.RIGHT : DIRECTION.DOWN,
             lastMoved: Date.now(),
             moveInterval: 800,
             behavior: 'random',
@@ -46,11 +46,11 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
         },
         {
             id: 'agent-2',
-            x: 67,
-            y: 49,
+            x: 61,
+            y: 70,
             color: '#FF6600',
             name: 'Ryu Un-ryong',
-            direction: DIRECTION.UP,
+            direction: ENABLE_AGENT_MOVEMENT ? DIRECTION.UP : DIRECTION.DOWN,
             lastMoved: Date.now(),
             moveInterval: 1000,
             behavior: 'patrol',
@@ -60,11 +60,11 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
         },
         {
             id: 'agent-3',
-            x: 82,
-            y: 81,
+            x: 40,
+            y: 68,
             color: '#9933FF',
             name: 'Horaeng',
-            direction: DIRECTION.LEFT,
+            direction: ENABLE_AGENT_MOVEMENT ? DIRECTION.LEFT : DIRECTION.DOWN,
             lastMoved: Date.now(),
             moveInterval: 600,
             behavior: 'explorer',
@@ -78,7 +78,10 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
 
     // Log initialization on mount/refresh
     useEffect(() => {
-        console.log('🔄 World agents initialized to initial positions:', initialAgents.map(a => ({ name: a.name, x: a.x, y: a.y })));
+        console.log(
+            '🔄 World agents initialized to initial positions:',
+            initialAgents.map((a) => ({ name: a.name, x: a.x, y: a.y }))
+        );
     }, []); // Empty dependency - only run once on mount
 
     const isWalkable = useCallback(
@@ -224,6 +227,15 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
                     return {
                         ...agent,
                         isMoving: false // Stop animation during loading
+                    };
+                }
+
+                // If agent movement is disabled, keep agents in place with down direction
+                if (!ENABLE_AGENT_MOVEMENT) {
+                    return {
+                        ...agent,
+                        direction: DIRECTION.DOWN,
+                        isMoving: false
                     };
                 }
 

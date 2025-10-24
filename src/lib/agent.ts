@@ -1,5 +1,6 @@
 import { AgentSkill } from '@a2a-js/sdk';
 import { useChatStore } from '@/stores/useChatStore';
+import { AGENT_RESPONSE_DISTANCE } from '@/constants/game';
 // Removed direct gemini import to ensure server-side only calls
 
 export interface AgentState {
@@ -111,14 +112,14 @@ export abstract class BaseAgent {
             playerPosition: message.playerPosition
         });
 
-        // Check if player is within 10-tile range (Chebyshev distance <= 10)
+        // Check if player is within response range (Chebyshev distance)
         // Only apply distance check if agent is not mentioned
-        if (!message.isMentioned && chebyshevDistance > 10) {
+        if (!message.isMentioned && chebyshevDistance > AGENT_RESPONSE_DISTANCE) {
             console.log(`🚫❌ Agent ${this.name} not responding: player is too far (distance: ${chebyshevDistance})`);
             return null;
         }
 
-        if (chebyshevDistance <= 10) {
+        if (chebyshevDistance <= AGENT_RESPONSE_DISTANCE) {
             console.log(`✅🎯 Agent ${this.name} is in range! Distance: ${chebyshevDistance}`);
         }
 

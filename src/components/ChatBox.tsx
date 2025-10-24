@@ -6,7 +6,7 @@ import { Agent, AgentResponse } from '@/lib/world';
 import { cn, shortAddress } from '@/lib/utils';
 import Image from 'next/image';
 import { useBuildStore, useGameStateStore } from '@/stores';
-import { INITIAL_PLAYER_POSITION } from '@/constants/game';
+import { INITIAL_PLAYER_POSITION, AGENT_RESPONSE_DISTANCE } from '@/constants/game';
 import { useAccount } from 'wagmi';
 
 interface Message {
@@ -314,8 +314,8 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             const userMessageText = inputValue.trim();
             setInputValue('');
 
-            // Send message through world system with broadcast radius of 10
-            await worldSendMessage(userMessageText, currentThreadId || undefined, 10);
+            // Send message through world system with broadcast radius
+            await worldSendMessage(userMessageText, currentThreadId || undefined, AGENT_RESPONSE_DISTANCE);
         }
     };
 
