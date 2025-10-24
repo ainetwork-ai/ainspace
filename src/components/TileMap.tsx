@@ -59,6 +59,7 @@ interface TileMapProps {
     zoomControls?: 'wheel' | 'buttons' | 'both';
     fixedZoom?: number;
     hideCoordinates?: boolean;
+    onAgentClick?: (agentId: string, agentName: string) => void;
 }
 
 function TileMap({
@@ -81,7 +82,8 @@ function TileMap({
     enableZoom = false,
     zoomControls = 'both',
     fixedZoom,
-    hideCoordinates = false
+    hideCoordinates = false,
+    onAgentClick
 }: TileMapProps) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -713,7 +715,14 @@ function TileMap({
                             top: `${agentScreenY * tileSize - topOffset}px`,
                             width: `${tileSize}px`,
                             height: `${tileSize}px`,
-                            pointerEvents: 'none'
+                            pointerEvents: 'auto',
+                            cursor: onAgentClick ? 'pointer' : 'default'
+                        }}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (onAgentClick) {
+                                onAgentClick(agent.id, agent.name);
+                            }
                         }}
                     >
                         <SpriteAnimator

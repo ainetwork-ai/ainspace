@@ -202,6 +202,23 @@ export default function Home() {
         setActiveTab('thread');
     };
 
+    const handleAgentClick = (agentId: string, agentName: string) => {
+        console.log(`Agent clicked: ${agentName} (${agentId})`);
+
+        // Find the most recent thread that includes this agent
+        const agentThread = threads.find(thread =>
+            thread.agentNames.includes(agentName)
+        );
+
+        if (agentThread) {
+            // If there's a thread with this agent, open it
+            setCurrentThreadId(agentThread.id);
+        }
+
+        // Open the BottomSheet to show the ThreadTab
+        openBottomSheet();
+    };
+
     const handlePublishTiles = async () => {
         const totalCustomTiles =
             Object.keys(customTiles.layer0 || {}).length +
@@ -561,6 +578,7 @@ export default function Home() {
                     threads={threads}
                     onViewThread={handleViewThread}
                     collisionMap={globalCollisionMap}
+                    onAgentClick={handleAgentClick}
                 />
                 <TempBuildTab
                     isActive={activeTab === 'build'}

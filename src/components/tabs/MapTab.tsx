@@ -43,6 +43,7 @@ interface MapTabProps {
     }[];
     onViewThread: (threadId?: string) => void;
     collisionMap: { [key: string]: boolean };
+    onAgentClick?: (agentId: string, agentName: string) => void;
 }
 
 export default function MapTab({
@@ -56,7 +57,8 @@ export default function MapTab({
     broadcastStatus,
     threads,
     onViewThread,
-    collisionMap
+    collisionMap,
+    onAgentClick
 }: MapTabProps) {
     const { address } = useAccount();
     const { isBottomSheetOpen } = useUIStore();
@@ -178,6 +180,7 @@ export default function MapTab({
                         playerDirection={playerDirection}
                         playerIsMoving={isPlayerMoving}
                         collisionMap={collisionMap}
+                        onAgentClick={onAgentClick}
                     />
                 </div>
 
