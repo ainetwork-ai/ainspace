@@ -103,7 +103,6 @@ export default function MapTab({
 
             // Check if tile is blocked by collision map
             if (globalIsBlocked(newX, newY)) {
-                console.log(`Movement blocked: tile (${newX}, ${newY}) is blocked by collision`);
                 return;
             }
 
@@ -111,6 +110,7 @@ export default function MapTab({
             const isOccupiedByA2A = Object.values(agents).some((agent) => agent.x === newX && agent.y === newY);
 
             if (isOccupiedByA2A) {
+                const blockingAgent = Object.values(agents).find((agent) => agent.x === newX && agent.y === newY);
                 return;
             }
             // Move player (this will also check worldAgents in useGameState)

@@ -4,7 +4,7 @@ import { useEffect, useCallback } from 'react';
 import { useMapData } from '@/providers/MapDataProvider';
 import { useSession } from '@/hooks/useSession';
 import { useAgents } from '@/hooks/useAgents';
-import { useBuildStore, useGameStateStore } from '@/stores';
+import { useBuildStore, useGameStateStore, useAgentStore } from '@/stores';
 import {
     MAP_WIDTH,
     MAP_HEIGHT,
@@ -25,7 +25,8 @@ export function useGameState() {
     const { getMapData, generateTileAt } = useMapData();
     const { userId } = useSession();
     const { isBlocked: isLayer1Blocked, collisionMap } = useBuildStore();
-    const { 
+    const { agents: a2aAgents } = useAgentStore();
+    const {
       worldPosition,
       setWorldPosition,
       isLoading,
@@ -131,11 +132,27 @@ export function useGameState() {
                 return;
             }
 
-            // Check if an agent is at this position
-            const isOccupiedByAgent = worldAgents.some(
+            // Check if a world agent is at this position
+            const isOccupiedByWorldAgent = worldAgents.some(
                 (agent) => agent.x === newWorldPosition.x && agent.y === newWorldPosition.y
             );
-            if (isOccupiedByAgent) {
+            if (isOccupiedByWorldAgent) {
+                const blockingAgent = worldAgents.find(
+                    (agent) => agent.x === newWorldPosition.x && agent.y === newWorldPosition.y
+                );
+                console.log(`🎮❌ Movement blocked: World agent "${blockingAgent?.name}" is at (${newWorldPosition.x}, ${newWorldPosition.y})`);
+                return;
+            }
+
+            // Check if an A2A agent is at this position
+            const isOccupiedByA2AAgent = Object.values(a2aAgents).some(
+                (agent) => agent.x === newWorldPosition.x && agent.y === newWorldPosition.y
+            );
+            if (isOccupiedByA2AAgent) {
+                const blockingAgent = Object.values(a2aAgents).find(
+                    (agent) => agent.x === newWorldPosition.x && agent.y === newWorldPosition.y
+                );
+                console.log(`🤖❌ Movement blocked: A2A agent "${blockingAgent?.name}" is at (${newWorldPosition.x}, ${newWorldPosition.y})`);
                 return;
             }
 
@@ -151,7 +168,7 @@ export function useGameState() {
             // Track recent movements
             setRecentMovements([direction, ...recentMovements.slice(0, 4)]);
         },
-        [generateTileAt, savePositionToRedis, isLayer1Blocked, worldAgents]
+        [generateTileAt, savePositionToRedis, isLayer1Blocked, worldAgents, a2aAgents]
     );
 
     const toggleAutonomous = useCallback(() => {
@@ -256,9 +273,10 @@ export function useGameState() {
             nextPosition.y < MIN_WORLD_Y ||
             nextPosition.y > MAX_WORLD_Y;
         const tileType = generateTileAt(nextPosition.x, nextPosition.y);
-        const isOccupiedByAgent = worldAgents.some((agent) => agent.x === nextPosition.x && agent.y === nextPosition.y);
+        const isOccupiedByWorldAgent = worldAgents.some((agent) => agent.x === nextPosition.x && agent.y === nextPosition.y);
+        const isOccupiedByA2AAgent = Object.values(a2aAgents).some((agent) => agent.x === nextPosition.x && agent.y === nextPosition.y);
         const isBlocked =
-            isOutOfBounds || tileType === 3 || isLayer1Blocked(nextPosition.x, nextPosition.y) || isOccupiedByAgent;
+            isOutOfBounds || tileType === 3 || isLayer1Blocked(nextPosition.x, nextPosition.y) || isOccupiedByWorldAgent || isOccupiedByA2AAgent;
 
         if (isBlocked) {
             // Try different directions
@@ -286,14 +304,18 @@ export function useGameState() {
                     testPosition.x > MAX_WORLD_X ||
                     testPosition.y < MIN_WORLD_Y ||
                     testPosition.y > MAX_WORLD_Y;
-                const occupiedByAgent = worldAgents.some(
+                const occupiedByWorldAgent = worldAgents.some(
+                    (agent) => agent.x === testPosition.x && agent.y === testPosition.y
+                );
+                const occupiedByA2AAgent = Object.values(a2aAgents).some(
                     (agent) => agent.x === testPosition.x && agent.y === testPosition.y
                 );
                 return (
                     !outOfBounds &&
                     generateTileAt(testPosition.x, testPosition.y) !== 3 &&
                     !isLayer1Blocked(testPosition.x, testPosition.y) &&
-                    !occupiedByAgent
+                    !occupiedByWorldAgent &&
+                    !occupiedByA2AAgent
                 );
             });
 
@@ -305,7 +327,7 @@ export function useGameState() {
             // Move in current direction
             movePlayer(playerDirection as DIRECTION);
         }
-    }, [isAutonomous, worldPosition, playerDirection, generateTileAt, movePlayer, isLayer1Blocked, worldAgents]);
+    }, [isAutonomous, worldPosition, playerDirection, generateTileAt, movePlayer, isLayer1Blocked, worldAgents, a2aAgents]);
 
     // Load saved position from Redis when user session is available
     useEffect(() => {

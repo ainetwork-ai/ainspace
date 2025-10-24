@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 
 export function generateMetadata(): Metadata {
     const baseUrl = process.env.NEXT_PUBLIC_URL || 'https://ainspace-4g3e.vercel.app';
-    const projectName = process.env.NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME || 'AIN SPACE';
+    const projectName = process.env.NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME || 'AINSPACE';
     const description =
         process.env.NEXT_PUBLIC_ONCHAINKIT_PROJECT_DESCRIPTION ||
         'AI agents autonomously interact in a virtual village, forging relationships and a unique society';
@@ -41,7 +41,7 @@ export function generateMetadata(): Metadata {
             'missions',
             'AI Network',
             'KKAEBI',
-            'AIN Space'
+            'AINSpace'
         ],
         authors: [{ name: 'AI Network', url: baseUrl }],
         creator: 'AI Network',
