@@ -13,7 +13,7 @@ import { DIRECTION, MAP_TILES } from '@/constants/game';
 import { AgentCard } from '@a2a-js/sdk';
 import { useUIStore, useThreadStore, useBuildStore, useAgentStore } from '@/stores';
 import TempBuildTab from '@/components/tabs/TempBuildTab';
-import { useWriteContract } from 'wagmi';
+import { useSwitchChain, useWriteContract } from 'wagmi';
 import { ADD_AGENT_ABI, AGENT_CONTRACT_ADDRESS } from '@/constants/agentContract';
 import { baseSepolia } from 'viem/chains';
 
@@ -63,6 +63,7 @@ export default function Home() {
     const chatBoxRef = useRef<ChatBoxRef>(null);
 
     const { writeContractAsync, isPending } = useWriteContract();
+    const { switchChainAsync } = useSwitchChain();
 
     // Initialize collision map on first load
     useEffect(() => {
@@ -287,7 +288,7 @@ export default function Home() {
     };
 
     // A2A Agent handlers - now integrated into worldAgents
-    const handleSpawnAgent = (importedAgent: {
+    const handleSpawnAgent = async (importedAgent: {
         url: string;
         card: AgentCard;
         spriteUrl?: string;
@@ -347,16 +348,23 @@ export default function Home() {
         const { x: spawnX, y: spawnY } = spawnPosition;
         console.log(`Spawning agent at (${spawnX}, ${spawnY}) from SPAWN_POSITIONS - checked collision map`);
 
-
-        writeContractAsync({
-          address: AGENT_CONTRACT_ADDRESS,
-          abi: ADD_AGENT_ABI,
-          functionName: 'addAgent',
-          args: [importedAgent.url, spawnX, spawnY],
-          chain: baseSepolia,
-        }).catch(error => {
-          console.error('User denied transaction:', error);
+        await switchChainAsync({
+          chainId: baseSepolia.id,
         });
+        
+        try {
+          await writeContractAsync({
+            address: AGENT_CONTRACT_ADDRESS,
+            abi: ADD_AGENT_ABI,
+            functionName: 'addAgent',
+            args: [importedAgent.url, spawnX, spawnY],
+            chain: baseSepolia,
+          }).catch(error => {
+            console.error('User denied transaction:', error);
+          });
+        } catch (error) {
+          console.error('User denied transaction:', error);
+        }
 
         // Add to spawned A2A agents for UI tracking
         spawnAgent(importedAgent.url, {
