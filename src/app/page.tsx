@@ -13,6 +13,9 @@ import { DIRECTION, MAP_TILES } from '@/constants/game';
 import { AgentCard } from '@a2a-js/sdk';
 import { useUIStore, useThreadStore, useBuildStore, useAgentStore } from '@/stores';
 import TempBuildTab from '@/components/tabs/TempBuildTab';
+import { useWriteContract } from 'wagmi';
+import { ADD_AGENT_ABI, AGENT_CONTRACT_ADDRESS } from '@/constants/agentContract';
+import { baseSepolia } from 'viem/chains';
 
 const SPAWN_POSITIONS = [
     { x: 63, y: 63 },
@@ -58,6 +61,8 @@ export default function Home() {
     const { agents, spawnAgent, removeAgent, updateAgent, setAgents } = useAgentStore();
     const { setFrameReady, isFrameReady } = useMiniKit();
     const chatBoxRef = useRef<ChatBoxRef>(null);
+
+    const { writeContractAsync, isPending } = useWriteContract();
 
     // Initialize collision map on first load
     useEffect(() => {
@@ -341,6 +346,17 @@ export default function Home() {
 
         const { x: spawnX, y: spawnY } = spawnPosition;
         console.log(`Spawning agent at (${spawnX}, ${spawnY}) from SPAWN_POSITIONS - checked collision map`);
+
+
+        writeContractAsync({
+          address: AGENT_CONTRACT_ADDRESS,
+          abi: ADD_AGENT_ABI,
+          functionName: 'addAgent',
+          args: [importedAgent.url, spawnX, spawnY],
+          chain: baseSepolia,
+        }).catch(error => {
+          console.error('User denied transaction:', error);
+        });
 
         // Add to spawned A2A agents for UI tracking
         spawnAgent(importedAgent.url, {
