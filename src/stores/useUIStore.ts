@@ -11,7 +11,7 @@ interface UIState {
 
 export const useUIStore = create<UIState>((set) => ({
     activeTab: 'map',
-    isBottomSheetOpen: true,
+    isBottomSheetOpen: false,
     setActiveTab: (tab) => set({ activeTab: tab }),
     setIsBottomSheetOpen: (isOpen) => set({ isBottomSheetOpen: isOpen }),
     openBottomSheet: () => set({ isBottomSheetOpen: true }),

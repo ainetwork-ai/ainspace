@@ -329,34 +329,14 @@ export function useGameState() {
         }
     }, [isAutonomous, worldPosition, playerDirection, generateTileAt, movePlayer, isLayer1Blocked, worldAgents, a2aAgents]);
 
-    // Load saved position from Redis when user session is available
+    // Initialize to default position on mount/refresh
     useEffect(() => {
-        const loadSavedPosition = async () => {
-            if (!userId) return;
+        // Always start at initial position on refresh
+        setWorldPosition(initialPosition);
+        setIsLoading(false);
 
-            setIsLoading(true);
-            try {
-                const response = await fetch(`/api/position?userId=${userId}`);
-                const data = await response.json();
-
-                if (response.ok && !data.isDefault) {
-                    const savedPosition = data.position;
-                    // Clamp position to map boundaries
-                    const clampedPosition = {
-                        x: Math.max(MIN_WORLD_X, Math.min(MAX_WORLD_X, savedPosition.x)),
-                        y: Math.max(MIN_WORLD_Y, Math.min(MAX_WORLD_Y, savedPosition.y))
-                    };
-                    setWorldPosition(clampedPosition);
-                }
-            } catch (error) {
-                console.error('Failed to load saved position:', error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        loadSavedPosition();
-    }, [userId]);
+        console.log('🔄 Player position initialized to:', initialPosition);
+    }, []); // Empty dependency array - only run once on mount
 
     // Autonomous movement interval
     useEffect(() => {

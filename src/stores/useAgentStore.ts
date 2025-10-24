@@ -32,19 +32,24 @@ interface AgentState {
 }
 
 export const useAgentStore = create<AgentState>((set, get) => ({
-    agents: {},
+    agents: {}, // A2A agents initialized to empty on refresh
 
-    spawnAgent: (agentUrl, agent) =>
-        set((state) => ({
+    spawnAgent: (agentUrl, agent) => {
+        console.log(`🔄 A2A Agent spawned: ${agent.name} at (${agent.x}, ${agent.y})`);
+        return set((state) => ({
             agents: {
                 ...state.agents,
                 [agentUrl]: agent
             }
-        })),
+        }));
+    },
 
     removeAgent: (agentUrl) =>
         set((state) => {
             const { [agentUrl]: removed, ...rest } = state.agents;
+            if (removed) {
+                console.log(`🔄 A2A Agent removed: ${removed.name}`);
+            }
             return { agents: rest };
         }),
 
