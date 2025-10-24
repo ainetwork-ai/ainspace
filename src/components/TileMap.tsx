@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { SpriteAnimator } from 'react-sprite-animator';
 import { TILE_SIZE, MAP_TILES, DIRECTION } from '@/constants/game';
-import { useBuildStore } from '@/stores';
+import { useBuildStore, useChatStore } from '@/stores';
+import { useProgressiveImage } from '@/hooks/useProgressiveImage';
 
 interface Agent {
     id: string;
@@ -85,8 +86,26 @@ function TileMap({
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const [loadedImages, setLoadedImages] = useState<{ [key: string]: HTMLImageElement }>({});
-    const [backgroundImage, setBackgroundImage] = useState<HTMLImageElement | null>(null);
-    const [layer1Image, setLayer1Image] = useState<HTMLImageElement | null>(null);
+
+    // Progressive loading for background and layer1 images
+    const {
+        image: backgroundImage,
+        isPreviewLoaded: bgPreviewLoaded,
+        isHighQualityLoaded: bgHQLoaded
+    } = useProgressiveImage(
+        backgroundImageSrc ? backgroundImageSrc.replace('.webp', '_preview.webp') : undefined,
+        backgroundImageSrc
+    );
+
+    const {
+        image: layer1Image,
+        isPreviewLoaded: layer1PreviewLoaded,
+        isHighQualityLoaded: layer1HQLoaded
+    } = useProgressiveImage(
+        layer1ImageSrc ? layer1ImageSrc.replace('.webp', '_preview.webp') : undefined,
+        layer1ImageSrc
+    );
+
     const [isPainting, setIsPainting] = useState(false);
     const [lastPaintedTile, setLastPaintedTile] = useState<{ x: number; y: number } | null>(null);
     const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
@@ -102,32 +121,7 @@ function TileMap({
     const tileSize = baseTileSize * (fixedZoom !== undefined ? fixedZoom : zoomLevel);
 
     const { showCollisionMap, toggleCollisionMap } = useBuildStore();
-
-    useEffect(() => {
-        if (!backgroundImageSrc) {
-            setBackgroundImage(null);
-            return;
-        }
-
-        const img = new Image();
-        img.onload = () => {
-            setBackgroundImage(img);
-        };
-        img.src = backgroundImageSrc;
-    }, [backgroundImageSrc]);
-
-    useEffect(() => {
-        if (!layer1ImageSrc) {
-            setLayer1Image(null);
-            return;
-        }
-
-        const img = new Image();
-        img.onload = () => {
-            setLayer1Image(img);
-        };
-        img.src = layer1ImageSrc;
-    }, [layer1ImageSrc]);
+    const { isAgentLoading } = useChatStore();
 
     useEffect(() => {
         const updateCanvasSize = () => {
@@ -753,8 +747,8 @@ function TileMap({
                             }}
                         >
                             {showCollisionMap && !hideCoordinates && agent.x !== undefined && agent.y !== undefined
-                                ? `${agent.name} (${agent.x}, ${agent.y})`
-                                : agent.name}
+                                ? `${agent.name} (${agent.x}, ${agent.y})${isAgentLoading(agent.id) ? ' 💬' : ''}`
+                                : `${agent.name}${isAgentLoading(agent.id) ? ' 💬' : ''}`}
                         </div>
                     </div>
                 );

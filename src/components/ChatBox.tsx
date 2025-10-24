@@ -5,8 +5,8 @@ import { useWorld } from '@/hooks/useWorld';
 import { Agent, AgentResponse } from '@/lib/world';
 import { cn, shortAddress } from '@/lib/utils';
 import Image from 'next/image';
-import { useBuildStore, useGameStateStore } from '@/stores';
-import { INITIAL_PLAYER_POSITION } from '@/constants/game';
+import { useBuildStore, useChatStore, useGameStateStore } from '@/stores';
+import { INITIAL_PLAYER_POSITION, AGENT_RESPONSE_DISTANCE } from '@/constants/game';
 import { useAccount } from 'wagmi';
 
 interface Message {
@@ -44,7 +44,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     { className = '', aiCommentary, agents = [], currentThreadId, onResetLocation },
     ref
 ) {
-    const [messages, setMessages] = useState<Message[]>([]);
+    const { messages, setMessages } = useChatStore();
     const [inputValue, setInputValue] = useState('');
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [filteredAgents, setFilteredAgents] = useState<Agent[]>([]);
@@ -309,13 +309,14 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 threadId: newMessage.threadId,
                 messageId: newMessage.id
             });
+
             const isFirstChat = messages.length === 1;
 
             setMessages((prev) => [...prev, newMessage]);
             const userMessageText = inputValue.trim();
             setInputValue('');
 
-            // Send message through world system (no radius limit for regular chat)
+            // Send message through world system with broadcast radius
             await worldSendMessage(userMessageText, currentThreadId || undefined, isFirstChat ? 10 : undefined);
         }
     };
@@ -507,9 +508,11 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                                         ></div>
                                         <span className="font-medium">{agent.name}</span>
                                     </div>
-                                    <div className={cn('text-xs', isSelected ? 'text-blue-200' : 'text-gray-400')}>
-                                        ({agent.x}, {agent.y}) [{distance.toFixed(1)}u]
-                                    </div>
+                                    {showCollisionMap && (
+                                        <div className={cn('text-xs', isSelected ? 'text-blue-200' : 'text-gray-400')}>
+                                            ({agent.x}, {agent.y}) [{distance.toFixed(1)}u]
+                                        </div>
+                                    )}
                                 </button>
                             );
                         })}

@@ -526,6 +526,7 @@ export default function TempBuildTab({
                                     disabled={isAutonomous}
                                     baseColor="#00000050"
                                     stickColor="#FFF"
+                                    size={100}
                                 />
                             </div>
                         )}
