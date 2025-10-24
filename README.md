@@ -55,8 +55,6 @@ This is problematic because **real economic activity is inherently "stateful"**.
 
 ## AIN Space Architecture
 
-![AIN Space Architecture](./public/og.png)
-
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                     AIN Space (Village)                          │
