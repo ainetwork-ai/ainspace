@@ -218,3 +218,129 @@ export async function deleteCustomTiles(userId: string): Promise<void> {
         throw error;
     }
 }
+
+export interface StoredAgent {
+    url: string;
+    card: {
+        name: string;
+        role?: string;
+        [key: string]: unknown;
+    };
+    timestamp: number;
+    x?: number;
+    y?: number;
+    color?: string;
+}
+
+const AGENTS_KEY = 'agents:';
+
+/**
+ * Get all registered agents from Redis
+ */
+export async function getAgents(): Promise<StoredAgent[]> {
+    try {
+        const redis = await getRedisClient();
+        const keys = await redis.keys(`${AGENTS_KEY}*`);
+
+        if (keys.length === 0) {
+            return [];
+        }
+
+        const values = await redis.mGet(keys);
+        const agents = values
+            .filter(value => value !== null)
+            .map(value => JSON.parse(value as string) as StoredAgent)
+            .filter(agent => agent && agent.url && agent.card);
+
+        return agents.sort((a, b) => b.timestamp - a.timestamp);
+    } catch (error) {
+        console.error('Error getting agents from Redis:', error);
+        return [];
+    }
+}
+
+// Thread mapping types
+export interface ThreadMapping {
+    threadName: string;
+    backendThreadId: string;
+    agentNames: string[];
+    createdAt: string;
+    lastMessageAt: string;
+}
+
+/**
+ * Save thread mapping for a user
+ */
+export async function saveThreadMapping(
+    userId: string,
+    threadName: string,
+    backendThreadId: string,
+    agentNames: string[]
+): Promise<void> {
+    try {
+        const redis = await getRedisClient();
+        const threadData: ThreadMapping = {
+            threadName,
+            backendThreadId,
+            agentNames,
+            createdAt: new Date().toISOString(),
+            lastMessageAt: new Date().toISOString(),
+        };
+
+        // Save to user-specific thread hash
+        await redis.hSet(`user:${userId}:threads`, {
+            [threadName]: JSON.stringify(threadData),
+        });
+
+        // Set expiration to 30 days
+        await redis.expire(`user:${userId}:threads`, 86400 * 30);
+    } catch (error) {
+        console.error('Error saving thread mapping:', error);
+        throw error;
+    }
+}
+
+/**
+ * Get all thread mappings for a user
+ */
+export async function getThreadMappings(userId: string): Promise<{ [threadName: string]: ThreadMapping }> {
+    try {
+        const redis = await getRedisClient();
+        const threadsData = await redis.hGetAll(`user:${userId}:threads`);
+
+        if (!threadsData || Object.keys(threadsData).length === 0) {
+            return {};
+        }
+
+        const threads: { [threadName: string]: ThreadMapping } = {};
+        for (const [threadName, data] of Object.entries(threadsData)) {
+            threads[threadName] = JSON.parse(data);
+        }
+
+        return threads;
+    } catch (error) {
+        console.error('Error getting thread mappings:', error);
+        return {};
+    }
+}
+
+/**
+ * Update last message timestamp for a thread
+ */
+export async function updateThreadLastMessage(userId: string, threadName: string): Promise<void> {
+    try {
+        const redis = await getRedisClient();
+        const threadDataStr = await redis.hGet(`user:${userId}:threads`, threadName);
+
+        if (threadDataStr) {
+            const threadData: ThreadMapping = JSON.parse(threadDataStr);
+            threadData.lastMessageAt = new Date().toISOString();
+
+            await redis.hSet(`user:${userId}:threads`, {
+                [threadName]: JSON.stringify(threadData),
+            });
+        }
+    } catch (error) {
+        console.error('Error updating thread last message:', error);
+    }
+}

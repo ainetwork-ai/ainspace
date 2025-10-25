@@ -35,6 +35,16 @@ const nextConfig: NextConfig = {
                 return plugin;
             });
         }
+
+        // 브라우저에서 필요 없는 모듈들을 false로 설정하여 경고 제거
+        config.resolve.fallback = {
+            ...config.resolve.fallback,
+            '@react-native-async-storage/async-storage': false,
+            'pino-pretty': false,
+            'lokijs': false,
+            'encoding': false,
+        };
+
         return config;
     }
 };

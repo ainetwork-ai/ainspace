@@ -7,6 +7,7 @@ import { OnchainKitProvider } from '@coinbase/onchainkit';
 import { config } from '@/lib/wagmi-config';
 import { MapDataProvider } from './MapDataProvider';
 import { useEffect, useState } from 'react';
+import { initializeDefaultAgents } from '@/lib/initializeAgents';
 
 const queryClient = new QueryClient({
     defaultOptions: {
@@ -30,6 +31,15 @@ export function Providers({ children }: { children: React.ReactNode }) {
             window.ethereum.request({
                 method: 'wallet_switchEthereumChain',
                 params: [{ chainId: BASE_CHAIN_ID }]
+            });
+        }
+    }, [mounted]);
+
+    // Initialize default A2A agents on app startup
+    useEffect(() => {
+        if (mounted) {
+            initializeDefaultAgents().catch((error) => {
+                console.error('Failed to initialize default agents:', error);
             });
         }
     }, [mounted]);

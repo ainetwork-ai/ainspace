@@ -6,6 +6,7 @@ import { Agent } from '@/lib/world';
 import { useLayer1Collision } from '@/hooks/useLayer1Collision';
 import { useBuildStore, useChatStore } from '@/stores';
 import { DIRECTION, MAP_TILES, TILE_SIZE, ENABLE_AGENT_MOVEMENT } from '@/constants/game';
+import { DEFAULT_AGENTS } from '@/lib/initializeAgents';
 
 export interface AgentInternal extends Agent {
     direction: DIRECTION;
@@ -22,81 +23,136 @@ interface UseAgentsProps {
     viewRadius: number;
 }
 
+// Cache agent data at module level to prevent repeated API calls
+let cachedAgentData: any = null;
+let isFetchingAgents = false;
+const agentDataCallbacks: ((data: any) => void)[] = [];
+
 export function useAgents({ playerWorldPosition }: UseAgentsProps) {
     const { generateTileAt } = useMapData();
     const { isBlocked: isLayer1Blocked } = useLayer1Collision('/map/land_layer_1.webp');
     const { isBlocked: isBuildStoreBlocked } = useBuildStore();
     const { isAgentLoading } = useChatStore();
 
-    // Initial agent positions near player start location (63, 58)
-    const initialAgents: AgentInternal[] = [
-        {
-            id: 'agent-1',
-            x: 59,
-            y: 68,
-            color: '#00FF00',
-            name: 'Ryu Seong-ryong',
-            direction: ENABLE_AGENT_MOVEMENT ? DIRECTION.RIGHT : DIRECTION.DOWN,
+    // Create initial agents from DEFAULT_AGENTS configuration
+    const createInitialAgents = (): AgentInternal[] => {
+        return DEFAULT_AGENTS.map((agent, index) => ({
+            id: `agent-${index + 1}`,
+            x: agent.x,
+            y: agent.y,
+            color: agent.color,
+            name: '', // Will be loaded from API
+            agentUrl: agent.a2aUrl,
+            direction: ENABLE_AGENT_MOVEMENT ?
+                (agent.behavior === 'random' ? DIRECTION.RIGHT :
+                 agent.behavior === 'patrol' ? DIRECTION.UP : DIRECTION.LEFT) :
+                DIRECTION.DOWN,
             lastMoved: Date.now(),
-            moveInterval: 800,
-            behavior: 'random',
-            spriteUrl: '/sprite/sprite_sungryong.png',
-            spriteHeight: 86,
-            spriteWidth: TILE_SIZE
-        },
-        {
-            id: 'agent-2',
-            x: 61,
-            y: 70,
-            color: '#FF6600',
-            name: 'Ryu Un-ryong',
-            direction: ENABLE_AGENT_MOVEMENT ? DIRECTION.UP : DIRECTION.DOWN,
-            lastMoved: Date.now(),
-            moveInterval: 1000,
-            behavior: 'patrol',
-            spriteUrl: '/sprite/sprite_unryong.png',
-            spriteHeight: 86,
-            spriteWidth: TILE_SIZE
-        },
-        {
-            id: 'agent-3',
-            x: 57,
-            y: 70,
-            color: '#9933FF',
-            name: 'Horaeng',
-            direction: ENABLE_AGENT_MOVEMENT ? DIRECTION.LEFT : DIRECTION.DOWN,
-            lastMoved: Date.now(),
-            moveInterval: 600,
-            behavior: 'explorer',
-            spriteUrl: '/sprite/sprite_horaeng.png',
-            spriteHeight: TILE_SIZE,
-            spriteWidth: TILE_SIZE
-        },
-        {
-            id: 'agent-4',
-            x: 58,
-            y: 72,
-            color: '#0000FF',
-            name: 'Kkaebi',
-            direction: ENABLE_AGENT_MOVEMENT ? DIRECTION.LEFT : DIRECTION.DOWN,
-            lastMoved: Date.now(),
-            moveInterval: 600,
-            behavior: 'explorer',
-            spriteUrl: '/sprite/sprite_kkaebi.png',
-            spriteHeight: TILE_SIZE,
-            spriteWidth: TILE_SIZE
-        }
-    ];
+            moveInterval: agent.moveInterval,
+            behavior: agent.behavior,
+            spriteUrl: agent.spriteUrl,
+            spriteHeight: agent.spriteHeight,
+            spriteWidth: agent.spriteWidth
+        }));
+    };
 
-    const [agents, setAgents] = useState<AgentInternal[]>(initialAgents);
+    const [agents, setAgents] = useState<AgentInternal[]>(createInitialAgents());
 
-    // Log initialization on mount/refresh
+    // Load agent names from API - with caching to prevent repeated calls
     useEffect(() => {
-        console.log(
-            '🔄 World agents initialized to initial positions:',
-            initialAgents.map((a) => ({ name: a.name, x: a.x, y: a.y }))
-        );
-    }, []); // Empty dependency - only run once on mount
+        const loadAgentNames = async () => {
+            // If data is already cached, use it immediately
+            if (cachedAgentData) {
+                setAgents((prevAgents) =>
+                    prevAgents.map((agent) => {
+                        const apiAgent = cachedAgentData.agents.find((a: { url: string }) => a.url === agent.agentUrl);
+                        if (apiAgent && apiAgent.card) {
+                            return {
+                                ...agent,
+                                name: apiAgent.card.name || agent.name
+                            };
+                        }
+                        return agent;
+                    })
+                );
+                return;
+            }
+
+            // If already fetching, wait for the result
+            if (isFetchingAgents) {
+                const callback = (data: any) => {
+                    setAgents((prevAgents) =>
+                        prevAgents.map((agent) => {
+                            const apiAgent = data.agents.find((a: { url: string }) => a.url === agent.agentUrl);
+                            if (apiAgent && apiAgent.card) {
+                                return {
+                                    ...agent,
+                                    name: apiAgent.card.name || agent.name
+                                };
+                            }
+                            return agent;
+                        })
+                    );
+                };
+                agentDataCallbacks.push(callback);
+                return;
+            }
+
+            // Start fetching
+            isFetchingAgents = true;
+
+            try {
+                const response = await fetch('/api/agents');
+                if (!response.ok) {
+                    console.error('Failed to load agents from API');
+                    isFetchingAgents = false;
+                    return;
+                }
+
+                const data = await response.json();
+                if (!data.success || !data.agents) {
+                    console.error('Invalid agents data from API');
+                    isFetchingAgents = false;
+                    return;
+                }
+
+                // Cache the data
+                cachedAgentData = data;
+
+                // Update agent names from API
+                setAgents((prevAgents) =>
+                    prevAgents.map((agent) => {
+                        const apiAgent = data.agents.find((a: { url: string }) => a.url === agent.agentUrl);
+                        if (apiAgent && apiAgent.card) {
+                            return {
+                                ...agent,
+                                name: apiAgent.card.name || agent.name
+                            };
+                        }
+                        return agent;
+                    })
+                );
+
+                // Notify any waiting callbacks
+                agentDataCallbacks.forEach(callback => callback(data));
+                agentDataCallbacks.length = 0;
+
+                console.log('✓ Agent names loaded from API');
+            } catch (error) {
+                console.error('Error loading agents from API:', error);
+            } finally {
+                isFetchingAgents = false;
+            }
+        };
+
+        loadAgentNames();
+    }, []);
+
+    // Log initialization on mount only
+    useEffect(() => {
+        console.log('🔄 World agents initialized');
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // Only run once on mount
 
     const isWalkable = useCallback(
         (x: number, y: number, currentAgents: AgentInternal[], checkingAgentId?: string): boolean => {
@@ -307,13 +363,14 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
             color: agent.color,
             x: agent.x,
             y: agent.y,
-            behavior: agent.behavior
+            behavior: agent.behavior,
+            agentUrl: agent.agentUrl
         }));
     }, [agents]);
 
     // Reset agents to initial positions
     const resetAgents = useCallback(() => {
-        setAgents(initialAgents.map((agent) => ({ ...agent, lastMoved: Date.now() })));
+        setAgents(createInitialAgents());
     }, []);
 
     return {
