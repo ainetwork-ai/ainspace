@@ -124,8 +124,6 @@ export default function RootLayout({
                     name="viewport"
                     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
                 />
-                <link rel="preload" href="/map/land_layer_0_preview.webp" as="image" />
-                <link rel="preload" href="/map/land_layer_1_preview.webp" as="image" />
             </head>
             <body className={`${geistSans.variable} ${geistMono.variable} antialiased`} suppressHydrationWarning>
                 <Providers>

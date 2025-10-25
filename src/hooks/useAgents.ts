@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useMapData } from '@/providers/MapDataProvider';
 import { Agent } from '@/lib/world';
-import { useLayer1Collision } from '@/hooks/useLayer1Collision';
+import { useTileBasedCollision } from '@/hooks/useTileBasedCollision';
 import { useBuildStore, useChatStore } from '@/stores';
 import { DIRECTION, MAP_TILES, TILE_SIZE, ENABLE_AGENT_MOVEMENT } from '@/constants/game';
 import { DEFAULT_AGENTS } from '@/lib/initializeAgents';
@@ -40,7 +40,7 @@ const agentDataCallbacks: ((data: CachedAgentData) => void)[] = [];
 
 export function useAgents({ playerWorldPosition }: UseAgentsProps) {
     const { generateTileAt } = useMapData();
-    const { isBlocked: isLayer1Blocked } = useLayer1Collision('/map/land_layer_1.webp');
+    const { isBlocked: isLayer1Blocked } = useTileBasedCollision('land_layer_1');
     const { isBlocked: isBuildStoreBlocked } = useBuildStore();
     const { isAgentLoading } = useChatStore();
 

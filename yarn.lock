@@ -4886,7 +4886,7 @@ sha.js@^2.4.11:
     safe-buffer "^5.2.1"
     to-buffer "^1.2.0"
 
-sharp@^0.34.3:
+sharp@^0.34.3, sharp@^0.34.4:
   version "0.34.4"
   resolved "https://registry.npmjs.org/sharp/-/sharp-0.34.4.tgz"
   integrity sha512-FUH39xp3SBPnxWvd5iib1X8XY7J0K0X7d93sie9CJg2PO8/7gmg89Nve6OjItK53/MlAushNNxteBYfM6DEuoA==

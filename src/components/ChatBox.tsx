@@ -348,24 +348,6 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     //     [worldSendMessage, currentThreadId]
     // );
 
-    // Add welcome message and mock data on client side only to avoid hydration mismatch
-    useEffect(() => {
-        setMessages((prev) => {
-            if (prev.length === 0) {
-                return [
-                    {
-                        id: '1',
-                        text: 'Welcome to the Tile Map Game! Use arrow keys to move around.',
-                        timestamp: new Date(Date.now() - 300000),
-                        sender: 'system',
-                        threadId: undefined
-                    }
-                ];
-            }
-            return prev;
-        });
-    }, [address]);
-
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);

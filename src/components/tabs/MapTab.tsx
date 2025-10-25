@@ -175,8 +175,6 @@ export default function MapTab({
                             layer2: { ...(publishedTiles.layer2 || {}), ...(customTiles.layer2 || {}) }
                         }}
                         layerVisibility={{ 0: true, 1: true, 2: true }}
-                        backgroundImageSrc="/map/land_layer_0.webp"
-                        layer1ImageSrc="/map/land_layer_1.webp"
                         playerDirection={playerDirection}
                         playerIsMoving={isPlayerMoving}
                         collisionMap={collisionMap}

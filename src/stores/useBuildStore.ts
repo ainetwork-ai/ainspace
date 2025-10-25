@@ -1,6 +1,17 @@
 import { create } from 'zustand';
 import { TILE_SIZE } from '@/constants/game';
 
+// Helper function to load an image
+function loadImagePromise(src: string): Promise<HTMLImageElement> {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = src;
+    });
+}
+
 // Data structure for multi-tile items
 export interface ItemTileData {
     image: string;
@@ -87,82 +98,84 @@ export const useBuildStore = create<BuildState>((set, get) => ({
     setCollisionMap: (map) => set({ collisionMap: map }),
 
     updateCollisionMapFromImage: async (imageSrc: string) => {
-        return new Promise((resolve, reject) => {
-            const img = new Image();
-            img.crossOrigin = 'anonymous';
+        // Extract layer name from imageSrc (e.g., '/map/land_layer_1.webp' -> 'land_layer_1')
+        const layerName = imageSrc.includes('land_layer_1') ? 'land_layer_1' : 'land_layer_0';
 
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                canvas.width = img.width;
-                canvas.height = img.height;
+        const TILE_CONFIG = {
+            tileSize: 840,
+            tilesPerSide: 5,
+            gameTilesPerImageTile: 21
+        };
 
-                const ctx = canvas.getContext('2d');
-                if (!ctx) {
-                    reject(new Error('Failed to get canvas context'));
-                    return;
-                }
+        const newCollisionMap: { [key: string]: boolean } = {};
 
-                // Draw the image
-                ctx.drawImage(img, 0, 0);
+        // Load all tiles (5x5 grid)
+        for (let row = 0; row < TILE_CONFIG.tilesPerSide; row++) {
+            for (let col = 0; col < TILE_CONFIG.tilesPerSide; col++) {
+                try {
+                    const img = await loadImagePromise(`/map/tiles/${layerName}/tile_${row}_${col}.webp`);
 
-                // Get image data
-                const imageData = ctx.getImageData(0, 0, img.width, img.height);
-                const data = imageData.data;
+                    // Process this tile image for collisions
+                    const canvas = document.createElement('canvas');
+                    canvas.width = TILE_CONFIG.tileSize;
+                    canvas.height = TILE_CONFIG.tileSize;
 
-                // Use game tile size for collision detection
-                const tilesX = Math.floor(img.width / TILE_SIZE);
-                const tilesY = Math.floor(img.height / TILE_SIZE);
+                    const ctx = canvas.getContext('2d');
+                    if (!ctx) continue;
 
-                const newCollisionMap: { [key: string]: boolean } = {};
+                    ctx.drawImage(img, 0, 0);
+                    const imageData = ctx.getImageData(0, 0, TILE_CONFIG.tileSize, TILE_CONFIG.tileSize);
+                    const data = imageData.data;
 
-                // Check each tile
-                for (let tileY = 0; tileY < tilesY; tileY++) {
-                    for (let tileX = 0; tileX < tilesX; tileX++) {
-                        // Calculate pixel bounds for this tile
-                        const startX = tileX * TILE_SIZE;
-                        const startY = tileY * TILE_SIZE;
-                        const endX = Math.min(startX + TILE_SIZE, img.width);
-                        const endY = Math.min(startY + TILE_SIZE, img.height);
+                    // Each image tile contains 21x21 game tiles
+                    const gameTilePixelSize = TILE_CONFIG.tileSize / TILE_CONFIG.gameTilesPerImageTile;
 
-                        let opaquePixelCount = 0;
-                        let totalPixelCount = 0;
+                    for (let localY = 0; localY < TILE_CONFIG.gameTilesPerImageTile; localY++) {
+                        for (let localX = 0; localX < TILE_CONFIG.gameTilesPerImageTile; localX++) {
+                            // Calculate world coordinates
+                            const worldX = col * TILE_CONFIG.gameTilesPerImageTile + localX;
+                            const worldY = row * TILE_CONFIG.gameTilesPerImageTile + localY;
 
-                        // Count all pixels in this tile
-                        for (let py = startY; py < endY; py++) {
-                            for (let px = startX; px < endX; px++) {
-                                const index = (py * img.width + px) * 4;
-                                const alpha = data[index + 3];
+                            // Calculate pixel bounds
+                            const startX = Math.floor(localX * gameTilePixelSize);
+                            const startY = Math.floor(localY * gameTilePixelSize);
+                            const endX = Math.floor((localX + 1) * gameTilePixelSize);
+                            const endY = Math.floor((localY + 1) * gameTilePixelSize);
 
-                                totalPixelCount++;
-                                // Consider pixel opaque if alpha > 50 (threshold)
-                                if (alpha > 50) {
-                                    opaquePixelCount++;
+                            let opaquePixelCount = 0;
+                            let totalPixelCount = 0;
+
+                            // Count opaque pixels in this game tile
+                            for (let py = startY; py < endY; py++) {
+                                for (let px = startX; px < endX; px++) {
+                                    const index = (py * TILE_CONFIG.tileSize + px) * 4;
+                                    const alpha = data[index + 3];
+
+                                    totalPixelCount++;
+                                    if (alpha > 50) {
+                                        opaquePixelCount++;
+                                    }
+                                }
+                            }
+
+                            // Block if 50% or more pixels are opaque
+                            if (totalPixelCount > 0) {
+                                const opaqueRatio = opaquePixelCount / totalPixelCount;
+                                if (opaqueRatio >= 0.5) {
+                                    const key = `${worldX},${worldY}`;
+                                    newCollisionMap[key] = true;
                                 }
                             }
                         }
-
-                        // Block if 50% or more pixels are opaque
-                        if (totalPixelCount > 0) {
-                            const opaqueRatio = opaquePixelCount / totalPixelCount;
-                            if (opaqueRatio >= 0.5) {
-                                const key = `${tileX},${tileY}`;
-                                newCollisionMap[key] = true;
-                            }
-                        }
                     }
+                } catch (error) {
+                    console.error(`Failed to load tile for collision: ${layerName}/tile_${row}_${col}.webp`, error);
                 }
+            }
+        }
 
-                set({ collisionMap: newCollisionMap });
-                console.log(`Collision map updated: ${Object.keys(newCollisionMap).length} blocked tiles`);
-                resolve();
-            };
-
-            img.onerror = () => {
-                reject(new Error('Failed to load image for collision detection'));
-            };
-
-            img.src = imageSrc;
-        });
+        set({ collisionMap: newCollisionMap });
+        console.log(`Collision map updated: ${Object.keys(newCollisionMap).length} blocked tiles`);
     },
 
     isBlocked: (worldX: number, worldY: number) => {

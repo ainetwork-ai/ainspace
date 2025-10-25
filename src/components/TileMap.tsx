@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { SpriteAnimator } from 'react-sprite-animator';
 import { TILE_SIZE, MAP_TILES, DIRECTION } from '@/constants/game';
 import { useBuildStore, useChatStore } from '@/stores';
-import { useProgressiveImage } from '@/hooks/useProgressiveImage';
+import { useTileBasedMap, drawTiledMap } from '@/hooks/useTileBasedMap';
 
 interface Agent {
     id: string;
@@ -49,8 +49,6 @@ interface TileMapProps {
     buildMode?: 'view' | 'paint';
     onTileClick?: (x: number, y: number) => void;
     onDeleteTile?: (layer: 0 | 1 | 2, key: string) => void;
-    backgroundImageSrc?: string;
-    layer1ImageSrc?: string;
     playerDirection?: DIRECTION;
     playerIsMoving?: boolean;
     collisionMap?: { [key: string]: boolean };
@@ -73,8 +71,6 @@ function TileMap({
     buildMode = 'view',
     onTileClick,
     onDeleteTile,
-    backgroundImageSrc,
-    layer1ImageSrc,
     playerDirection = DIRECTION.DOWN,
     playerIsMoving = false,
     collisionMap = {},
@@ -89,28 +85,24 @@ function TileMap({
     const containerRef = useRef<HTMLDivElement>(null);
     const [loadedImages, setLoadedImages] = useState<{ [key: string]: HTMLImageElement }>({});
 
-    // Progressive loading for background and layer1 images
-    const {
-        image: backgroundImage,
-        isPreviewLoaded: bgPreviewLoaded,
-        isHighQualityLoaded: bgHQLoaded
-    } = useProgressiveImage(
-        backgroundImageSrc ? backgroundImageSrc.replace('.webp', '_preview.webp') : undefined,
-        backgroundImageSrc
-    );
-
-    const {
-        image: layer1Image,
-        isPreviewLoaded: layer1PreviewLoaded,
-        isHighQualityLoaded: layer1HQLoaded
-    } = useProgressiveImage(
-        layer1ImageSrc ? layer1ImageSrc.replace('.webp', '_preview.webp') : undefined,
-        layer1ImageSrc
-    );
-
     const [isPainting, setIsPainting] = useState(false);
     const [lastPaintedTile, setLastPaintedTile] = useState<{ x: number; y: number } | null>(null);
     const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
+
+    // Tile-based map loading for layer 0 and layer 1
+    const { loadedTiles: layer0Tiles, tileConfig } = useTileBasedMap(
+        'land_layer_0',
+        worldPosition,
+        canvasSize,
+        baseTileSize
+    );
+
+    const { loadedTiles: layer1Tiles } = useTileBasedMap(
+        'land_layer_1',
+        worldPosition,
+        canvasSize,
+        baseTileSize
+    );
     const [hoveredTile, setHoveredTile] = useState<{ x: number; y: number; layer: 0 | 1 | 2 } | null>(null);
     const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
     const [hoveredWorldCoords, setHoveredWorldCoords] = useState<{ worldX: number; worldY: number } | null>(null);
@@ -410,40 +402,20 @@ function TileMap({
         const halfTilesX = Math.floor(tilesX / 2);
         const halfTilesY = Math.floor(tilesY / 2);
 
-        const MAP_SIZE_PIXELS = 4200;
-        const ORIGINAL_TILE_SIZE = TILE_SIZE;
-
         let cameraTileX = worldPosition.x - halfTilesX;
         let cameraTileY = worldPosition.y - halfTilesY;
 
         cameraTileX = Math.max(0, Math.min(MAP_TILES - tilesX, cameraTileX));
         cameraTileY = Math.max(0, Math.min(MAP_TILES - tilesY, cameraTileY));
 
-        const sourceX = cameraTileX * ORIGINAL_TILE_SIZE;
-        const sourceY = cameraTileY * ORIGINAL_TILE_SIZE;
-
-        if (backgroundImage) {
-            const sourceWidth = tilesX * ORIGINAL_TILE_SIZE;
-            const sourceHeight = tilesY * ORIGINAL_TILE_SIZE;
-
-            ctx.drawImage(
-                backgroundImage,
-                sourceX,
-                sourceY,
-                sourceWidth,
-                sourceHeight,
-                0,
-                0,
-                canvas.width,
-                canvas.height
-            );
+        // Draw layer 0 (background) using tile-based rendering
+        if (layerVisibility[0]) {
+            drawTiledMap(ctx, layer0Tiles, tileConfig, worldPosition, canvasSize, baseTileSize);
         }
 
-        if (layer1Image && layerVisibility[1]) {
-            const sourceWidth = tilesX * ORIGINAL_TILE_SIZE;
-            const sourceHeight = tilesY * ORIGINAL_TILE_SIZE;
-
-            ctx.drawImage(layer1Image, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, canvas.width, canvas.height);
+        // Draw layer 1 using tile-based rendering
+        if (layerVisibility[1]) {
+            drawTiledMap(ctx, layer1Tiles, tileConfig, worldPosition, canvasSize, baseTileSize);
         }
 
         const screenTileWidth = canvas.width / tilesX;
@@ -566,11 +538,13 @@ function TileMap({
         customTiles,
         loadedImages,
         layerVisibility,
-        backgroundImage,
-        layer1Image,
+        layer0Tiles,
+        layer1Tiles,
         canvasSize,
         collisionMap,
-        showCollisionMap
+        showCollisionMap,
+        baseTileSize,
+        tileConfig
     ]);
 
     const tilesX = Math.ceil(canvasSize.width / tileSize);

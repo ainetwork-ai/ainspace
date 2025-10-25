@@ -117,14 +117,6 @@ export default function TempBuildTab({
         [isAutonomous, worldPosition, isBlocked, movePlayer]
     );
 
-    useEffect(() => {
-        const preloadImages = ['/map/land_layer_0.webp', '/map/land_layer_1.webp'];
-
-        preloadImages.forEach((src) => {
-            const img = document.createElement('img');
-            img.src = src;
-        });
-    }, []);
 
     useEffect(() => {
         if (isActive) {
@@ -506,8 +498,6 @@ export default function TempBuildTab({
                             agents={[]}
                             customTiles={mergedCustomTiles}
                             buildMode={selectedTab === 'item' ? 'paint' : 'view'}
-                            backgroundImageSrc="/map/land_layer_0.webp"
-                            layer1ImageSrc="/map/land_layer_1.webp"
                             onTileClick={selectedTab === 'item' ? handleTileClick : undefined}
                             onDeleteTile={selectedTab === 'item' ? handleDeleteTile : undefined}
                             playerDirection={playerDirection}
