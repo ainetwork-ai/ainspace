@@ -24,9 +24,19 @@ interface UseAgentsProps {
 }
 
 // Cache agent data at module level to prevent repeated API calls
-let cachedAgentData: any = null;
+interface CachedAgentData {
+    success: boolean;
+    agents: Array<{
+        url: string;
+        card: {
+            name: string;
+        };
+    }>;
+}
+
+let cachedAgentData: CachedAgentData | null = null;
 let isFetchingAgents = false;
-const agentDataCallbacks: ((data: any) => void)[] = [];
+const agentDataCallbacks: ((data: CachedAgentData) => void)[] = [];
 
 export function useAgents({ playerWorldPosition }: UseAgentsProps) {
     const { generateTileAt } = useMapData();
@@ -63,9 +73,10 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
         const loadAgentNames = async () => {
             // If data is already cached, use it immediately
             if (cachedAgentData) {
+                const cached = cachedAgentData;
                 setAgents((prevAgents) =>
                     prevAgents.map((agent) => {
-                        const apiAgent = cachedAgentData.agents.find((a: { url: string }) => a.url === agent.agentUrl);
+                        const apiAgent = cached.agents.find((a) => a.url === agent.agentUrl);
                         if (apiAgent && apiAgent.card) {
                             return {
                                 ...agent,
@@ -80,10 +91,10 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
 
             // If already fetching, wait for the result
             if (isFetchingAgents) {
-                const callback = (data: any) => {
+                const callback = (data: CachedAgentData) => {
                     setAgents((prevAgents) =>
                         prevAgents.map((agent) => {
-                            const apiAgent = data.agents.find((a: { url: string }) => a.url === agent.agentUrl);
+                            const apiAgent = data.agents.find((a) => a.url === agent.agentUrl);
                             if (apiAgent && apiAgent.card) {
                                 return {
                                     ...agent,
@@ -120,9 +131,10 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
                 cachedAgentData = data;
 
                 // Update agent names from API
+                const agentList: Array<{ url: string; card: { name: string } }> = data.agents;
                 setAgents((prevAgents) =>
                     prevAgents.map((agent) => {
-                        const apiAgent = data.agents.find((a: { url: string }) => a.url === agent.agentUrl);
+                        const apiAgent = agentList.find((a) => a.url === agent.agentUrl);
                         if (apiAgent && apiAgent.card) {
                             return {
                                 ...agent,
