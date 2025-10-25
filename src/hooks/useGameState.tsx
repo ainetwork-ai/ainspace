@@ -14,7 +14,8 @@ import {
     MIN_WORLD_Y,
     MAX_WORLD_Y,
     DIRECTION,
-    INITIAL_PLAYER_POSITION
+    INITIAL_PLAYER_POSITION,
+    MIN_MOVE_INTERVAL
 } from '@/constants/game';
 
 interface Position {
@@ -85,6 +86,14 @@ export function useGameState() {
 
     const movePlayer = useCallback(
         (direction: DIRECTION) => {
+            // Check if enough time has passed since last move (prevent double movement)
+            const now = Date.now();
+            const timeSinceLastMove = now - lastMoveTime;
+            if (timeSinceLastMove < MIN_MOVE_INTERVAL) {
+                console.log(`⏱️ Movement throttled: ${timeSinceLastMove}ms since last move (min: ${MIN_MOVE_INTERVAL}ms)`);
+                return;
+            }
+
             // Update player direction immediately
             setPlayerDirection(direction);
 
@@ -167,7 +176,7 @@ export function useGameState() {
             // Track recent movements
             setRecentMovements([direction, ...recentMovements.slice(0, 4)]);
         },
-        [generateTileAt, savePositionToRedis, isLayer1Blocked, worldAgents, a2aAgents]
+        [generateTileAt, savePositionToRedis, isLayer1Blocked, worldAgents, a2aAgents, lastMoveTime]
     );
 
     const toggleAutonomous = useCallback(() => {

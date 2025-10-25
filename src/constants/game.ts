@@ -25,6 +25,9 @@ export const INITIAL_PLAYER_POSITION = { x: 59, y: 70 };
 export const ENABLE_AGENT_MOVEMENT = false; // Set to false to disable agent movement
 export const AGENT_RESPONSE_DISTANCE = 2; // Distance in tiles for agent to respond to player
 
+// Player movement settings
+export const MIN_MOVE_INTERVAL = 150; // Minimum milliseconds between moves (prevents double movement)
+
 export enum DIRECTION {
     UP = 'up',
     DOWN = 'down',

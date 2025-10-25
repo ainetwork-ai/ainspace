@@ -2,6 +2,7 @@
 
 import { SpriteAnimator } from 'react-sprite-animator';
 import { DIRECTION, TILE_SIZE } from '@/constants/game';
+import { useSpritePreload } from '@/hooks/useSpritePreload';
 
 interface PlayerSpriteProps {
     screenX: number;
@@ -22,7 +23,15 @@ const getStartFrame = (direction: DIRECTION) => {
 };
 
 export default function PlayerSprite({ screenX, screenY, tileSize, direction, isMoving }: PlayerSpriteProps) {
+    // Preload sprite to prevent flickering
+    const { loaded } = useSpritePreload(['/sprite/sprite_user.png']);
+
     const startFrame = getStartFrame(direction);
+
+    // Don't render until sprite is preloaded
+    if (!loaded) {
+        return null;
+    }
 
     return (
         <div
@@ -37,7 +46,7 @@ export default function PlayerSprite({ screenX, screenY, tileSize, direction, is
             }}
         >
             <SpriteAnimator
-                key={`player-${direction}`}
+                key="player"
                 sprite="/sprite/sprite_user.png"
                 width={TILE_SIZE}
                 height={86}

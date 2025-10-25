@@ -2,6 +2,7 @@
 
 import { SpriteAnimator } from 'react-sprite-animator';
 import { DIRECTION, TILE_SIZE } from '@/constants/game';
+import { useSpritePreload } from '@/hooks/useSpritePreload';
 
 interface AgentSpriteProps {
     id: string;
@@ -36,9 +37,17 @@ export default function AgentSprite({
     spriteHeight = TILE_SIZE,
     spriteWidth = TILE_SIZE
 }: AgentSpriteProps) {
+    // Preload sprite to prevent flickering
+    const { loaded } = useSpritePreload([spriteUrl]);
+
     const startFrame = getStartFrame(direction);
 
     const topOffset = spriteHeight === TILE_SIZE ? spriteHeight / 6 : spriteHeight / 1.5;
+
+    // Don't render until sprite is preloaded
+    if (!loaded) {
+        return null;
+    }
 
     return (
         <div
@@ -53,7 +62,7 @@ export default function AgentSprite({
             }}
         >
             <SpriteAnimator
-                key={`${id}-${direction}`}
+                key={id}
                 sprite={spriteUrl}
                 width={86}
                 height={spriteHeight}
