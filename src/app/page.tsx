@@ -2,7 +2,7 @@
 
 import { useGameState } from '@/hooks/useGameState';
 import { useMiniKit } from '@coinbase/onchainkit/minikit';
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useMemo } from 'react';
 import { ChatBoxRef } from '@/components/ChatBox';
 import MapTab from '@/components/tabs/MapTab';
 import ThreadTab from '@/components/tabs/ThreadTab';
@@ -368,7 +368,7 @@ export default function Home() {
         await switchChainAsync({
           chainId: baseSepolia.id,
         });
-        
+
         try {
           await writeContractAsync({
             address: AGENT_CONTRACT_ADDRESS,
@@ -381,6 +381,37 @@ export default function Home() {
           });
         } catch (error) {
           console.error('User denied transaction:', error);
+        }
+
+        // Register agent with backend Redis
+        try {
+            const registerResponse = await fetch('/api/agents', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    agentUrl: importedAgent.url,
+                    agentCard: {
+                        ...importedAgent.card,
+                        x: spawnX,
+                        y: spawnY,
+                        color: randomColor,
+                        spriteUrl: importedAgent.spriteUrl || '/sprite/sprite_cat.png',
+                        spriteHeight: importedAgent.spriteHeight || 40,
+                        behavior: 'random',
+                        moveInterval: 600 + Math.random() * 400,
+                    },
+                }),
+            });
+
+            if (!registerResponse.ok && registerResponse.status !== 409) {
+                console.error('Failed to register agent with backend:', await registerResponse.text());
+            } else {
+                console.log('✓ Agent registered with backend Redis');
+            }
+        } catch (error) {
+            console.error('Error registering agent with backend:', error);
         }
 
         // Add to spawned A2A agents for UI tracking
@@ -620,7 +651,13 @@ export default function Home() {
                 />
             </div>
             {!isBottomSheetOpen && (
-                <Footer activeTab={activeTab} onTabChange={setActiveTab} onClickDialogueBox={openBottomSheet} />
+                <Footer
+                    activeTab={activeTab}
+                    onTabChange={setActiveTab}
+                    onClickDialogueBox={openBottomSheet}
+                    worldAgents={combinedWorldAgents}
+                    playerPosition={worldPosition}
+                />
             )}
             <BottomSheet isOpen={isBottomSheetOpen} onClose={closeBottomSheet}>
                 <ThreadTab
