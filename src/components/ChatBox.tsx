@@ -98,7 +98,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     const fullData: { [threadName: string]: { backendThreadId: string; agentNames: string[] } } = {};
 
                     for (const [threadName, threadData] of Object.entries(data.threads)) {
-                        const td = threadData as any;
+                        const td = threadData as { backendThreadId: string; agentNames: string[] };
                         mappings[threadName] = td.backendThreadId;
                         fullData[threadName] = {
                             backendThreadId: td.backendThreadId,
@@ -257,23 +257,32 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
 
         if (event.type === 'message') {
             // Message data is in data.data (nested structure from A2A Orchestration)
-            const messageData = (event.data as any).data || event.data;
+            const eventData = event.data as {
+                data?: { speaker?: string; content?: string };
+                sender?: string;
+                agentName?: string;
+                agent?: { name?: string };
+                name?: string;
+                content?: string;
+                message?: string;
+            };
+            const messageData = (eventData.data || eventData) as { speaker?: string; content?: string; id?: string };
 
             // Extract agent name from speaker field (A2A Orchestration format)
             const agentName =
                 messageData.speaker ||
-                event.data.sender ||
-                event.data.agentName ||
-                (event.data as any).agent?.name ||
-                (event.data as any).name ||
+                eventData.sender ||
+                eventData.agentName ||
+                eventData.agent?.name ||
+                eventData.name ||
                 'agent';
 
             // Extract message content
             const messageContent =
                 messageData.content ||
-                event.data.content ||
-                event.data.message ||
-                JSON.stringify(event.data);
+                eventData.content ||
+                eventData.message ||
+                JSON.stringify(eventData);
 
             console.log('Extracted agent name:', agentName);
             console.log('Extracted message content:', messageContent);

@@ -31,7 +31,7 @@ export async function GET(
         'Accept': 'text/event-stream',
       },
       signal: controller.signal,
-      // @ts-ignore - undici specific options to prevent body timeout
+      // @ts-expect-error - undici specific options to prevent body timeout
       bodyTimeout: 0,
       headersTimeout: 0,
     });
