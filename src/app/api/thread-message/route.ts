@@ -176,7 +176,21 @@ export async function POST(request: NextRequest) {
     }
 
     // Send message to the thread
-    await sendMessage(currentThreadId, message);
+    try {
+      console.log(`Sending message to thread ${currentThreadId}:`, message);
+      await sendMessage(currentThreadId, message);
+      console.log('Message sent successfully');
+    } catch (error) {
+      console.error('Failed to send message to thread:', error);
+      return NextResponse.json(
+        {
+          error: 'Failed to send message to thread',
+          details: error instanceof Error ? error.message : 'Unknown error',
+          threadId: currentThreadId, // Return threadId even on failure so frontend can retry
+        },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
@@ -184,6 +198,7 @@ export async function POST(request: NextRequest) {
       agentsAdded: successfulAgents.length,
       totalAgents: agentsInRange.length,
       failedAgents: failedAgents.length > 0 ? failedAgents : undefined,
+      isNewThread,
     });
   } catch (error: unknown) {
     console.error('Thread message error:', error);

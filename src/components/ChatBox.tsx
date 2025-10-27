@@ -8,6 +8,7 @@ import Image from 'next/image';
 import { useBuildStore, useChatStore, useGameStateStore } from '@/stores';
 import { INITIAL_PLAYER_POSITION, AGENT_RESPONSE_DISTANCE } from '@/constants/game';
 import { useAccount } from 'wagmi';
+import * as Sentry from '@sentry/nextjs';
 import { useThreadStream } from '@/hooks/useThreadStream';
 import { StreamEvent } from '@/lib/a2aOrchestration';
 
@@ -593,7 +594,20 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             const mentionedAgents = mentionMatches?.map(m => m.substring(1)) || [];
 
             try {
-                // Send message through A2A Orchestration API
+                // Add loading message
+                const loadingMessage: Message = {
+                    id: `loading-${Date.now()}`,
+                    text: backendThreadIdToSend ? 'Sending message...' : 'Creating conversation and sending message...',
+                    timestamp: new Date(),
+                    sender: 'system',
+                    threadId: threadName
+                };
+                setMessages((prev) => [...prev, loadingMessage]);
+
+                // Send message through A2A Orchestration API with timeout
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
                 const response = await fetch('/api/thread-message', {
                     method: 'POST',
                     headers: {
@@ -607,13 +621,20 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                         agentNames: currentAgentNames, // Explicitly pass the agent list calculated on frontend
                         mentionedAgents: mentionedAgents.length > 0 ? mentionedAgents : undefined
                     }),
+                    signal: controller.signal,
                 });
 
-                if (!response.ok) {
-                    throw new Error(`Failed to send message: ${response.statusText}`);
-                }
+                clearTimeout(timeoutId);
+
+                // Remove loading message
+                setMessages((prev) => prev.filter(m => m.id !== loadingMessage.id));
 
                 const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.details || result.error || response.statusText);
+                }
+
                 console.log('Thread message sent:', result);
 
                 // Store the mapping between thread name and backend thread ID
@@ -624,7 +645,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     if (!threadNameToIdMap[threadName]) {
                         console.log('Saving mapping:', threadName, '→', result.threadId);
 
-                        // Update local state
+                        // Update local state IMMEDIATELY
                         setThreadNameToIdMap(prev => ({
                             ...prev,
                             [threadName]: result.threadId
@@ -639,7 +660,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                             }
                         }));
 
-                        // Save to backend
+                        // Save to backend (async, don't wait)
                         if (address) {
                             fetch('/api/threads', {
                                 method: 'POST',
@@ -654,27 +675,52 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                         }
                     }
 
-                    // Wait a bit for backend to fully initialize thread before connecting SSE
+                    // For new threads, wait a bit for backend to fully process
+                    // For existing threads, connect immediately
+                    const delay = result.isNewThread ? 1000 : 100;
                     setTimeout(() => {
                         setHasStartedConversation(true);
-                    }, 500);
+                    }, delay);
                 } else {
                     console.warn('Backend did not return thread ID');
-                    // Still enable SSE
+                    // Still enable SSE with short delay
                     setTimeout(() => {
                         setHasStartedConversation(true);
                     }, 500);
                 }
             } catch (error) {
                 console.error('Failed to send thread message:', error);
+
+                // Remove loading message if still present
+                setMessages((prev) => prev.filter(m => !m.id.startsWith('loading-')));
+
+                const isTimeout = error instanceof Error && error.name === 'AbortError';
+                const errorText = isTimeout
+                    ? 'Message timeout - the conversation is taking longer than expected. Please try again.'
+                    : `Failed to send message: ${error instanceof Error ? error.message : 'Unknown error'}`;
+
                 const errorMessage: Message = {
                     id: `error-${Date.now()}`,
-                    text: `Failed to send message: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                    text: errorText,
                     timestamp: new Date(),
                     sender: 'system',
-                    threadId: currentThreadId || undefined
+                    threadId: threadName
                 };
                 setMessages((prev) => [...prev, errorMessage]);
+
+                // Log to Sentry
+                Sentry.captureException(error instanceof Error ? error : new Error('Failed to send thread message'), {
+                    tags: {
+                        component: 'ChatBox',
+                        action: 'sendMessage',
+                    },
+                    extra: {
+                        threadName,
+                        backendThreadId: backendThreadIdToSend,
+                        agentNames: currentAgentNames,
+                        isTimeout,
+                    },
+                });
             }
         }
     };
