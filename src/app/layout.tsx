@@ -3,6 +3,7 @@ import './globals.css';
 import '@coinbase/onchainkit/styles.css';
 import { Providers } from '@/providers/Providers';
 import { AuthGuard } from '@/components/AuthGuard';
+import { Analytics } from '@vercel/analytics/next';
 import type { Metadata } from 'next';
 
 const geistSans = Geist({
@@ -129,6 +130,7 @@ export default function RootLayout({
                 <Providers>
                     <AuthGuard>{children}</AuthGuard>
                 </Providers>
+                <Analytics />
             </body>
         </html>
     );
