@@ -594,16 +594,6 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             const mentionedAgents = mentionMatches?.map(m => m.substring(1)) || [];
 
             try {
-                // Add loading message
-                const loadingMessage: Message = {
-                    id: `loading-${Date.now()}`,
-                    text: backendThreadIdToSend ? 'Sending message...' : 'Creating conversation and sending message...',
-                    timestamp: new Date(),
-                    sender: 'system',
-                    threadId: threadName
-                };
-                setMessages((prev) => [...prev, loadingMessage]);
-
                 // Send message through A2A Orchestration API with timeout
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
@@ -625,9 +615,6 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 });
 
                 clearTimeout(timeoutId);
-
-                // Remove loading message
-                setMessages((prev) => prev.filter(m => m.id !== loadingMessage.id));
 
                 const result = await response.json();
 
@@ -690,9 +677,6 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 }
             } catch (error) {
                 console.error('Failed to send thread message:', error);
-
-                // Remove loading message if still present
-                setMessages((prev) => prev.filter(m => !m.id.startsWith('loading-')));
 
                 const isTimeout = error instanceof Error && error.name === 'AbortError';
                 const errorText = isTimeout
