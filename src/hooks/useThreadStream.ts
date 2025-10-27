@@ -58,7 +58,7 @@ export function useThreadStream({ threadId, onMessage, enabled = true }: UseThre
       // Handle connection errors
       eventSource.onerror = (error) => {
         const errorMsg = `SSE connection error for thread: ${threadId}`;
-        console.error(errorMsg, error);
+        console.warn(errorMsg, error);
 
         // Log to Sentry but don't throw - keep app running
         Sentry.captureMessage(errorMsg, {
@@ -105,7 +105,7 @@ export function useThreadStream({ threadId, onMessage, enabled = true }: UseThre
           }, delay);
         } else {
           const maxAttemptsMsg = 'Connection failed. Please refresh the page.';
-          console.error('Max reconnect attempts reached');
+          console.warn('Max reconnect attempts reached');
 
           setConnectionStatus('error');
           setLastError(maxAttemptsMsg);
@@ -134,7 +134,7 @@ export function useThreadStream({ threadId, onMessage, enabled = true }: UseThre
       eventSourceRef.current = eventSource;
     } catch (error) {
       const failMsg = 'Failed to connect to stream';
-      console.error(failMsg, error);
+      console.warn(failMsg, error);
 
       setConnectionStatus('error');
       setLastError(failMsg);
