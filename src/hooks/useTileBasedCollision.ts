@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { TILE_SIZE } from '@/constants/game';
+import * as Sentry from '@sentry/nextjs';
 
 interface CollisionMap {
     [key: string]: boolean; // "x,y" -> true if blocked
@@ -32,8 +33,9 @@ export function useTileBasedCollision(layerName: 'land_layer_0' | 'land_layer_1'
                 for (let col = 0; col < TILE_CONFIG.tilesPerSide; col++) {
                     const tileKey = `${row}_${col}`;
 
+                    const tilePath = `/map/tiles/${layerName}/tile_${row}_${col}.webp`;
                     try {
-                        const img = await loadImage(`/map/tiles/${layerName}/tile_${row}_${col}.webp`);
+                        const img = await loadImage(tilePath);
 
                         // Process this tile image for collisions
                         const canvas = document.createElement('canvas');
@@ -91,7 +93,23 @@ export function useTileBasedCollision(layerName: 'land_layer_0' | 'land_layer_1'
 
                         setLoadedTileCollisions(prev => new Set(prev).add(tileKey));
                     } catch (error) {
-                        console.error(`Failed to load tile for collision: ${layerName}/tile_${row}_${col}.webp`, error);
+                        const errorMsg = `Failed to load tile for collision: ${layerName}/tile_${row}_${col}.webp`;
+                        console.error(errorMsg, error);
+
+                        Sentry.captureException(error instanceof Error ? error : new Error(errorMsg), {
+                            tags: {
+                                component: 'useTileBasedCollision',
+                                layer: layerName,
+                            },
+                            extra: {
+                                tilePath,
+                                row,
+                                col,
+                                tileKey,
+                                errorType: error instanceof Error ? error.name : typeof error,
+                                errorMessage: error instanceof Error ? error.message : String(error),
+                            }
+                        });
                     }
                 }
             }
