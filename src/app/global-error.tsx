@@ -16,6 +16,7 @@ export default function GlobalError({
   return (
     <html>
       <body>
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         <Error statusCode={undefined as any} />
       </body>
     </html>
