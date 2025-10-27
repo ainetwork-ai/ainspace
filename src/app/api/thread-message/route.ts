@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   createThread,
-  importAgent,
   addAgentToThread,
   sendMessage,
   Agent as A2AAgent,
@@ -141,18 +140,17 @@ export async function POST(request: NextRequest) {
 
     // Only add agents if this is a new thread
     if (isNewThread) {
-      // Import and add all agents in range to the thread
+      // Add all agents in range to the thread
+      // We already have the agent card data from Redis, so we don't need to import
       const addAgentPromises = agentsInRange.map(async (agent) => {
       try {
-        // First, import the agent to the orchestration system
-        console.log(`Importing agent: ${agent.card.name} from ${agent.url}`);
-        const importedAgent = await importAgent(agent.url);
-        console.log(`Successfully imported agent: ${importedAgent.name}`);
+        // Convert stored agent to A2A format
+        const a2aAgent = convertToA2AAgent(agent);
+        console.log(`Adding agent ${a2aAgent.name} to thread ${currentThreadId}`);
 
-        // Then add to thread
-        console.log(`Adding agent ${importedAgent.name} to thread ${currentThreadId}`);
-        await addAgentToThread(currentThreadId!, importedAgent);
-        console.log(`Successfully added agent ${importedAgent.name} to thread`);
+        // Add to thread (no need to import since we already have the card data)
+        await addAgentToThread(currentThreadId!, a2aAgent);
+        console.log(`Successfully added agent ${a2aAgent.name} to thread`);
 
         return { success: true, agent: agent.card.name };
       } catch (error) {
