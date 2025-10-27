@@ -51,5 +51,10 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         );
     }
 
+    // Don't render children if auth is required but user is not connected
+    if (requiresAuth && !isConnected) {
+        return null;
+    }
+
     return <>{children}</>;
 }
