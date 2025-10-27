@@ -62,7 +62,12 @@ export async function GET(
             streamController.enqueue(value);
           }
         } catch (error) {
-          console.error('Stream error:', error);
+          // Only log if it's not an expected AbortError from cleanup
+          if (error instanceof Error && error.name === 'AbortError') {
+            console.log('Stream aborted for thread:', threadId);
+          } else {
+            console.error('Stream error:', error);
+          }
           // Only close if not already closed
           try {
             streamController.error(error);
