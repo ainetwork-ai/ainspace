@@ -69,9 +69,18 @@ export async function POST(request: NextRequest) {
       // Check for duplicate
       const existing = await redis.get(agentKey);
       if (existing) {
+        console.log(`Agent already exists: ${agentCard.name} (${agentUrl})`);
         return NextResponse.json(
-          { error: 'Agent already exists', duplicate: true },
-          { status: 409 }
+          {
+            success: true,
+            message: 'Agent already exists',
+            duplicate: true,
+            agent: {
+              url: agentUrl,
+              card: agentCard
+            }
+          },
+          { status: 200 }
         );
       }
 
@@ -84,9 +93,18 @@ export async function POST(request: NextRequest) {
       
       // Check for duplicate in fallback storage
       if (agentStore.has(agentUrl)) {
+        console.log(`Agent already exists in memory: ${agentCard.name} (${agentUrl})`);
         return NextResponse.json(
-          { error: 'Agent already exists', duplicate: true },
-          { status: 409 }
+          {
+            success: true,
+            message: 'Agent already exists',
+            duplicate: true,
+            agent: {
+              url: agentUrl,
+              card: agentCard
+            }
+          },
+          { status: 200 }
         );
       }
 
