@@ -424,8 +424,19 @@ function TileMap({
             }
         });
 
-        ctx.fillStyle = '#f0f8ff';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        // Create offscreen canvas for double buffering to prevent flickering
+        const offscreenCanvas = document.createElement('canvas');
+        offscreenCanvas.width = canvas.width;
+        offscreenCanvas.height = canvas.height;
+        const offscreenCtx = offscreenCanvas.getContext('2d');
+
+        if (!offscreenCtx) return;
+
+        // Use offscreen context for all drawing operations
+        const renderCtx = offscreenCtx;
+
+        renderCtx.fillStyle = '#f0f8ff';
+        renderCtx.fillRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
 
         const tilesX = Math.ceil(canvasSize.width / tileSize);
         const tilesY = Math.ceil(canvasSize.height / tileSize);
@@ -440,12 +451,12 @@ function TileMap({
 
         // Draw layer 0 (background) using tile-based rendering
         if (layerVisibility[0]) {
-            drawTiledMap(ctx, layer0Tiles, tileConfig, worldPosition, canvasSize, baseTileSize);
+            drawTiledMap(renderCtx, layer0Tiles, tileConfig, worldPosition, canvasSize, baseTileSize);
         }
 
         // Draw layer 1 using tile-based rendering
         if (layerVisibility[1]) {
-            drawTiledMap(ctx, layer1Tiles, tileConfig, worldPosition, canvasSize, baseTileSize);
+            drawTiledMap(renderCtx, layer1Tiles, tileConfig, worldPosition, canvasSize, baseTileSize);
         }
 
         const screenTileWidth = canvas.width / tilesX;
@@ -472,7 +483,7 @@ function TileMap({
                                         const img = loadedImages[customTileData];
                                         const pixelX = x * screenTileWidth;
                                         const pixelY = y * screenTileHeight;
-                                        ctx.drawImage(img, pixelX, pixelY, screenTileWidth, screenTileHeight);
+                                        renderCtx.drawImage(img, pixelX, pixelY, screenTileWidth, screenTileHeight);
                                     }
                                 } else if (customTileData && typeof customTileData === 'object') {
                                     if (!customTileData.isSecondaryTile) {
@@ -485,7 +496,7 @@ function TileMap({
                                             const itemWidth = width * screenTileWidth;
                                             const itemHeight = height * screenTileHeight;
 
-                                            ctx.drawImage(img, pixelX, pixelY, itemWidth, itemHeight);
+                                            renderCtx.drawImage(img, pixelX, pixelY, itemWidth, itemHeight);
                                         }
                                     }
                                 }
@@ -508,7 +519,7 @@ function TileMap({
                         const pixelX = x * screenTileWidth;
                         const pixelY = y * screenTileHeight;
 
-                        ctx.drawImage(img, pixelX, pixelY, screenTileWidth, screenTileHeight);
+                        renderCtx.drawImage(img, pixelX, pixelY, screenTileWidth, screenTileHeight);
                     }
                 }
             }
@@ -525,39 +536,39 @@ function TileMap({
                     const agentAtPosition = agents.find((agent) => agent.x === worldTileX && agent.y === worldTileY);
 
                     if (hasPlayer) {
-                        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'; // Black with 50% opacity
-                        ctx.fillRect(x * screenTileWidth, y * screenTileHeight, screenTileWidth, screenTileHeight);
+                        renderCtx.fillStyle = 'rgba(0, 0, 0, 0.5)'; // Black with 50% opacity
+                        renderCtx.fillRect(x * screenTileWidth, y * screenTileHeight, screenTileWidth, screenTileHeight);
                     } else if (agentAtPosition) {
                         const agentColor = agentAtPosition.color;
 
                         const r = parseInt(agentColor.slice(1, 3), 16);
                         const g = parseInt(agentColor.slice(3, 5), 16);
                         const b = parseInt(agentColor.slice(5, 7), 16);
-                        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.5)`;
-                        ctx.fillRect(x * screenTileWidth, y * screenTileHeight, screenTileWidth, screenTileHeight);
+                        renderCtx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.5)`;
+                        renderCtx.fillRect(x * screenTileWidth, y * screenTileHeight, screenTileWidth, screenTileHeight);
                     } else {
                         const tileKey = `${worldTileX},${worldTileY}`;
                         if (collisionMap[tileKey]) {
-                            ctx.fillStyle = 'rgba(255, 0, 0, 0.5)'; // Red with 50% opacity
-                            ctx.fillRect(x * screenTileWidth, y * screenTileHeight, screenTileWidth, screenTileHeight);
+                            renderCtx.fillStyle = 'rgba(255, 0, 0, 0.5)'; // Red with 50% opacity
+                            renderCtx.fillRect(x * screenTileWidth, y * screenTileHeight, screenTileWidth, screenTileHeight);
                         }
                     }
                 }
             }
 
-            ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)'; // Black with 30% opacity
-            ctx.lineWidth = 1;
+            renderCtx.strokeStyle = 'rgba(0, 0, 0, 0.3)'; // Black with 30% opacity
+            renderCtx.lineWidth = 1;
             for (let y = 0; y <= tilesY; y++) {
-                ctx.beginPath();
-                ctx.moveTo(0, y * screenTileHeight);
-                ctx.lineTo(canvas.width, y * screenTileHeight);
-                ctx.stroke();
+                renderCtx.beginPath();
+                renderCtx.moveTo(0, y * screenTileHeight);
+                renderCtx.lineTo(canvas.width, y * screenTileHeight);
+                renderCtx.stroke();
             }
             for (let x = 0; x <= tilesX; x++) {
-                ctx.beginPath();
-                ctx.moveTo(x * screenTileWidth, 0);
-                ctx.lineTo(x * screenTileWidth, canvas.height);
-                ctx.stroke();
+                renderCtx.beginPath();
+                renderCtx.moveTo(x * screenTileWidth, 0);
+                renderCtx.lineTo(x * screenTileWidth, canvas.height);
+                renderCtx.stroke();
             }
         }
 
@@ -595,6 +606,10 @@ function TileMap({
                 }
             });
         }
+
+        // Copy offscreen canvas to main canvas (prevents flickering)
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(offscreenCanvas, 0, 0);
     }, [
         mapData,
         tileSize,
@@ -765,7 +780,7 @@ function TileMap({
                         }}
                     >
                         <SpriteAnimator
-                            key={`${agent.id}-${agentDirection}`}
+                            key={agent.id}
                             sprite={agentSpriteUrl}
                             width={TILE_SIZE}
                             height={agentSpriteHeight}
