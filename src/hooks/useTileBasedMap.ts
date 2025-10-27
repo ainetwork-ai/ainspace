@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import * as Sentry from '@sentry/nextjs';
 
 interface TileConfig {
   tileSize: number; // Size of each image tile (840px)
@@ -69,7 +70,20 @@ export function useTileBasedMap(
             loadingTilesRef.current.delete(tileKey);
           };
           img.onerror = () => {
-            console.error(`Failed to load tile: ${layerName}/tile_${row}_${col}.webp`);
+            const errorMsg = `Failed to load tile: ${layerName}/tile_${row}_${col}.webp`;
+            console.error(errorMsg);
+
+            Sentry.captureException(new Error(errorMsg), {
+              extra: {
+                layerName,
+                row,
+                col,
+                tileKey,
+                worldPosition,
+                canvasSize
+              }
+            });
+
             loadingTilesRef.current.delete(tileKey);
           };
           img.src = `/map/tiles/${layerName}/tile_${row}_${col}.webp`;

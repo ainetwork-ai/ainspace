@@ -5,6 +5,7 @@ import { SpriteAnimator } from 'react-sprite-animator';
 import { TILE_SIZE, MAP_TILES, DIRECTION } from '@/constants/game';
 import { useBuildStore, useChatStore } from '@/stores';
 import { useTileBasedMap, drawTiledMap } from '@/hooks/useTileBasedMap';
+import * as Sentry from '@sentry/nextjs';
 
 interface Agent {
     id: string;
@@ -389,10 +390,39 @@ function TileMap({
 
     useEffect(() => {
         const canvas = canvasRef.current;
-        if (!canvas) return;
+        if (!canvas) {
+            Sentry.addBreadcrumb({
+                category: 'tilemap',
+                message: 'Canvas ref is null',
+                level: 'warning'
+            });
+            return;
+        }
 
         const ctx = canvas.getContext('2d');
-        if (!ctx) return;
+        if (!ctx) {
+            Sentry.addBreadcrumb({
+                category: 'tilemap',
+                message: 'Failed to get 2D context',
+                level: 'error'
+            });
+            return;
+        }
+
+        // Start performance measurement
+        const renderStart = performance.now();
+
+        Sentry.addBreadcrumb({
+            category: 'tilemap',
+            message: 'Starting canvas render',
+            level: 'info',
+            data: {
+                canvasSize: canvasSize,
+                worldPosition: worldPosition,
+                layer0TilesCount: layer0Tiles.size,
+                layer1TilesCount: layer1Tiles.size
+            }
+        });
 
         ctx.fillStyle = '#f0f8ff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -529,6 +559,41 @@ function TileMap({
                 ctx.lineTo(x * screenTileWidth, canvas.height);
                 ctx.stroke();
             }
+        }
+
+        // End performance measurement
+        const renderEnd = performance.now();
+        const renderTime = renderEnd - renderStart;
+
+        // Log slow renders
+        if (renderTime > 16) { // More than one frame at 60fps
+            Sentry.addBreadcrumb({
+                category: 'tilemap.performance',
+                message: 'Slow canvas render detected',
+                level: 'warning',
+                data: {
+                    renderTime: `${renderTime.toFixed(2)}ms`,
+                    canvasSize: canvasSize,
+                    layer0TilesCount: layer0Tiles.size,
+                    layer1TilesCount: layer1Tiles.size,
+                    worldPosition: worldPosition
+                }
+            });
+        }
+
+        // Track very slow renders as errors
+        if (renderTime > 50) {
+            Sentry.captureMessage('Very slow TileMap render', {
+                level: 'warning',
+                extra: {
+                    renderTime: `${renderTime.toFixed(2)}ms`,
+                    canvasSize: canvasSize,
+                    layer0TilesCount: layer0Tiles.size,
+                    layer1TilesCount: layer1Tiles.size,
+                    worldPosition: worldPosition,
+                    showCollisionMap: showCollisionMap
+                }
+            });
         }
     }, [
         mapData,
