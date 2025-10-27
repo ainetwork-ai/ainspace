@@ -79,54 +79,41 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
         console.log('Wagmi check complete. isConnected:', isConnected);
 
-        if (!isConnected) {
-            // Don't redirect if already on login page
-            if (pathname === '/login') {
-                Sentry.addBreadcrumb({
-                    category: 'auth',
-                    message: 'Already on login page, skipping redirect',
-                    level: 'info',
-                    data: { pathname }
-                });
-                return;
-            }
+        if (!isConnected && !redirectAttemptedRef.current) {
+            redirectAttemptedRef.current = true;
 
-            if (!redirectAttemptedRef.current) {
-                redirectAttemptedRef.current = true;
+            Sentry.captureMessage('Redirecting to login - wallet not connected', {
+                level: 'info',
+                tags: {
+                    component: 'AuthGuard',
+                    action: 'redirect_to_login',
+                },
+                extra: {
+                    pathname,
+                    address: address || 'none',
+                    isConnecting,
+                    isMounted,
+                }
+            });
 
-                Sentry.captureMessage('Redirecting to login - wallet not connected', {
-                    level: 'info',
-                    tags: {
-                        component: 'AuthGuard',
-                        action: 'redirect_to_login',
-                    },
-                    extra: {
-                        pathname,
-                        address: address || 'none',
-                        isConnecting,
-                        isMounted,
-                    }
-                });
-
-                console.log('Wallet not connected, redirecting to /login');
-                router.push('/login');
-            } else {
-                // Multiple redirect attempts detected
-                Sentry.captureMessage('Multiple redirect attempts detected', {
-                    level: 'warning',
-                    tags: {
-                        component: 'AuthGuard',
-                        error_type: 'infinite_redirect',
-                    },
-                    extra: {
-                        pathname,
-                        isConnected,
-                        isConnecting,
-                        address: address || 'none',
-                    }
-                });
-                console.warn('Redirect already attempted, preventing loop');
-            }
+            console.log('Wallet not connected, redirecting to /login');
+            router.push('/login');
+        } else if (!isConnected && redirectAttemptedRef.current) {
+            // Multiple redirect attempts detected
+            Sentry.captureMessage('Multiple redirect attempts detected', {
+                level: 'warning',
+                tags: {
+                    component: 'AuthGuard',
+                    error_type: 'infinite_redirect',
+                },
+                extra: {
+                    pathname,
+                    isConnected,
+                    isConnecting,
+                    address: address || 'none',
+                }
+            });
+            console.warn('Redirect already attempted, preventing loop');
         } else {
             redirectAttemptedRef.current = false;
 
