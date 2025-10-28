@@ -2,6 +2,8 @@
  * Initialize default A2A agents on app startup
  */
 
+import { TILE_SIZE } from "@/constants/game";
+
 export interface DefaultAgent {
   a2aUrl: string;
   x: number;
@@ -23,7 +25,7 @@ export const DEFAULT_AGENTS: DefaultAgent[] = [
     color: '#00FF00',
     spriteUrl: '/sprite/sprite_sungryong.png',
     spriteHeight: 86,
-    spriteWidth: 32,
+    spriteWidth: TILE_SIZE,
     behavior: 'random',
     moveInterval: 800,
   },
@@ -34,7 +36,7 @@ export const DEFAULT_AGENTS: DefaultAgent[] = [
     color: '#FF6600',
     spriteUrl: '/sprite/sprite_unryong.png',
     spriteHeight: 86,
-    spriteWidth: 32,
+    spriteWidth: TILE_SIZE,
     behavior: 'patrol',
     moveInterval: 1000,
   },
@@ -44,8 +46,8 @@ export const DEFAULT_AGENTS: DefaultAgent[] = [
     y: 70,
     color: '#9933FF',
     spriteUrl: '/sprite/sprite_horaeng.png',
-    spriteHeight: 32,
-    spriteWidth: 32,
+    spriteHeight: TILE_SIZE,
+    spriteWidth: TILE_SIZE,
     behavior: 'explorer',
     moveInterval: 600,
   },
@@ -55,8 +57,8 @@ export const DEFAULT_AGENTS: DefaultAgent[] = [
     y: 72,
     color: '#0000FF',
     spriteUrl: '/sprite/sprite_kkaebi.png',
-    spriteHeight: 32,
-    spriteWidth: 32,
+    spriteHeight: TILE_SIZE,
+    spriteWidth: TILE_SIZE,
     behavior: 'explorer',
     moveInterval: 600,
   },
