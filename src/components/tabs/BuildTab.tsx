@@ -606,7 +606,7 @@ export default function BuildTab({
                 </div>
 
                 {/* Build Map Area */}
-                <div className="flex-1 overflow-auto p-3">
+                <div className="flex-1 overflow-auto p-3 pb-24">
                     <div className="mb-2 flex justify-center">
                         <TileMap
                             mapData={mapData}
