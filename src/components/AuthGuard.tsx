@@ -10,6 +10,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const router = useRouter();
     const [isMounted, setIsMounted] = useState(false);
+    const [isHydrated, setIsHydrated] = useState(false);
     const redirectAttemptedRef = useRef(false);
     const lastStateRef = useRef({ isConnected, isConnecting, pathname });
 
@@ -66,14 +67,14 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
             return;
         }
 
-        if (isConnecting) {
+        if (isConnecting || !isHydrated) {
             Sentry.addBreadcrumb({
                 category: 'auth',
-                message: 'Wallet connection check in progress',
+                message: 'Wallet connection check or hydration in progress',
                 level: 'info',
-                data: { pathname }
+                data: { pathname, isConnecting, isHydrated }
             });
-            console.log('Wagmi is checking wallet connection...');
+            console.log('Wagmi is checking wallet connection or hydrating...');
             return;
         }
 
@@ -129,11 +130,28 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
             console.log('Wallet connected, allowing access');
         }
-    }, [isConnected, isConnecting, pathname, requiresAuth, router]);
+    }, [isConnected, isConnecting, pathname, requiresAuth, router, isHydrated]);
 
     useEffect(() => {
         setIsMounted(true);
     }, []);
+
+    // Track hydration: wait for wagmi to finish initial connection check
+    useEffect(() => {
+        if (!isConnecting && isMounted) {
+            // Add small delay to ensure wagmi has fully hydrated
+            const timer = setTimeout(() => {
+                setIsHydrated(true);
+                Sentry.addBreadcrumb({
+                    category: 'auth',
+                    message: 'Wagmi hydration complete',
+                    level: 'info',
+                    data: { isConnected, address: address || 'none' }
+                });
+            }, 100);
+            return () => clearTimeout(timer);
+        }
+    }, [isConnecting, isMounted, isConnected, address]);
 
     if (!isMounted) {
         Sentry.addBreadcrumb({
@@ -144,12 +162,13 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         return null;
     }
 
-    if (requiresAuth && isConnecting) {
+    // Show loading spinner during hydration or connection check
+    if (requiresAuth && (isConnecting || !isHydrated)) {
         Sentry.addBreadcrumb({
             category: 'auth',
             message: 'Rendering loading spinner',
             level: 'info',
-            data: { pathname, requiresAuth, isConnecting }
+            data: { pathname, requiresAuth, isConnecting, isHydrated }
         });
         return (
             <div className="flex h-screen w-full items-center justify-center bg-gray-100">
