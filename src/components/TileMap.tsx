@@ -209,6 +209,26 @@ function TileMap({
                     [imageUrl]: img
                 }));
             };
+            img.onerror = (error) => {
+                // Log the error to Sentry for tracking
+                Sentry.captureException(new Error(`Failed to load tile image: ${imageUrl}`), {
+                    level: 'warning',
+                    extra: {
+                        imageUrl,
+                        errorEvent: error
+                    }
+                });
+                
+                // Add breadcrumb for debugging
+                Sentry.addBreadcrumb({
+                    category: 'tilemap.image',
+                    message: 'Failed to load custom tile image',
+                    level: 'warning',
+                    data: {
+                        imageUrl
+                    }
+                });
+            };
             img.src = imageUrl;
         });
     }, [customTiles]);
