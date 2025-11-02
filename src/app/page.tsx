@@ -2,7 +2,7 @@
 
 import { useGameState } from '@/hooks/useGameState';
 import { useMiniKit } from '@coinbase/onchainkit/minikit';
-import { useRef, useEffect, useCallback, useMemo } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 import { ChatBoxRef } from '@/components/ChatBox';
 import MapTab from '@/components/tabs/MapTab';
 import ThreadTab from '@/components/tabs/ThreadTab';
@@ -16,6 +16,7 @@ import TempBuildTab from '@/components/tabs/TempBuildTab';
 import { useSwitchChain, useWriteContract } from 'wagmi';
 import { ADD_AGENT_ABI, AGENT_CONTRACT_ADDRESS } from '@/constants/agentContract';
 import { baseSepolia } from 'viem/chains';
+import sdk from '@farcaster/miniapp-sdk';
 
 const SPAWN_POSITIONS = [
     { x: 63, y: 63 },
@@ -61,6 +62,7 @@ export default function Home() {
     const { agents, spawnAgent, removeAgent, updateAgent, setAgents } = useAgentStore();
     const { setFrameReady, isFrameReady } = useMiniKit();
     const chatBoxRef = useRef<ChatBoxRef>(null);
+    const [isSDKLoaded, setIsSDKLoaded] = useState(false);
 
     const { writeContractAsync, isPending } = useWriteContract();
     const { switchChainAsync } = useSwitchChain();
@@ -206,9 +208,7 @@ export default function Home() {
         console.log(`Agent clicked: ${agentName} (${agentId})`);
 
         // Find the most recent thread that includes this agent
-        const agentThread = threads.find(thread =>
-            thread.agentNames.includes(agentName)
-        );
+        const agentThread = threads.find((thread) => thread.agentNames.includes(agentName));
 
         if (agentThread) {
             // If there's a thread with this agent, open it
@@ -366,21 +366,21 @@ export default function Home() {
         console.log(`Spawning agent at (${spawnX}, ${spawnY}) from SPAWN_POSITIONS - checked collision map`);
 
         await switchChainAsync({
-          chainId: baseSepolia.id,
+            chainId: baseSepolia.id
         });
 
         try {
-          await writeContractAsync({
-            address: AGENT_CONTRACT_ADDRESS,
-            abi: ADD_AGENT_ABI,
-            functionName: 'addAgent',
-            args: [importedAgent.url, spawnX, spawnY],
-            chain: baseSepolia,
-          }).catch(error => {
-            console.error('User denied transaction:', error);
-          });
+            await writeContractAsync({
+                address: AGENT_CONTRACT_ADDRESS,
+                abi: ADD_AGENT_ABI,
+                functionName: 'addAgent',
+                args: [importedAgent.url, spawnX, spawnY],
+                chain: baseSepolia
+            }).catch((error) => {
+                console.error('User denied transaction:', error);
+            });
         } catch (error) {
-          console.error('User denied transaction:', error);
+            console.error('User denied transaction:', error);
         }
 
         // Register agent with backend Redis
@@ -388,7 +388,7 @@ export default function Home() {
             const registerResponse = await fetch('/api/agents', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
                     agentUrl: importedAgent.url,
@@ -400,9 +400,9 @@ export default function Home() {
                         spriteUrl: importedAgent.spriteUrl || '/sprite/sprite_cat.png',
                         spriteHeight: importedAgent.spriteHeight || 40,
                         behavior: 'random',
-                        moveInterval: 600 + Math.random() * 400,
-                    },
-                }),
+                        moveInterval: 600 + Math.random() * 400
+                    }
+                })
             });
 
             if (!registerResponse.ok && registerResponse.status !== 409) {
@@ -593,6 +593,16 @@ export default function Home() {
         const interval = setInterval(moveA2AAgents, 100); // Check every 100ms, matching original agents
         return () => clearInterval(interval);
     }, [globalIsBlocked, agents, worldAgents, worldPosition, setAgents]);
+
+    useEffect(() => {
+        const load = async () => {
+            sdk.actions.ready({ disableNativeGestures: true });
+        };
+        if (sdk && !isSDKLoaded) {
+            setIsSDKLoaded(true);
+            load();
+        }
+    }, [isSDKLoaded]);
 
     return (
         <div className="flex h-screen w-full flex-col bg-gray-100">
