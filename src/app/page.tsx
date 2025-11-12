@@ -9,7 +9,7 @@ import ThreadTab from '@/components/tabs/ThreadTab';
 import AgentTab from '@/components/tabs/AgentTab';
 import Footer from '@/components/Footer';
 import BottomSheet from '@/components/BottomSheet';
-import { DIRECTION, MAP_TILES } from '@/constants/game';
+import { DIRECTION, MAP_TILES, ENABLE_AGENT_MOVEMENT } from '@/constants/game';
 import { AgentCard } from '@a2a-js/sdk';
 import { useUIStore, useThreadStore, useBuildStore, useAgentStore } from '@/stores';
 import TempBuildTab from '@/components/tabs/TempBuildTab';
@@ -487,6 +487,11 @@ export default function Home() {
 
     // A2A Agent movement system
     useEffect(() => {
+        // Skip movement if disabled
+        if (!ENABLE_AGENT_MOVEMENT) {
+            return;
+        }
+
         const moveA2AAgents = () => {
             const now = Date.now();
             const updated = { ...agents };
@@ -592,7 +597,7 @@ export default function Home() {
 
         const interval = setInterval(moveA2AAgents, 100); // Check every 100ms, matching original agents
         return () => clearInterval(interval);
-    }, [globalIsBlocked, agents, worldAgents, worldPosition, setAgents]);
+    }, [globalIsBlocked, agents, worldAgents, worldPosition, setAgents, ENABLE_AGENT_MOVEMENT]);
 
     useEffect(() => {
         const load = async () => {
