@@ -3,7 +3,7 @@
  * Handles thread management, agent imports, and real-time messaging
  */
 
-const A2A_ORCHESTRATION_BASE_URL = 'https://a2a-orchestration.ainetwork.ai/api';
+const A2A_ORCHESTRATION_BASE_URL = process.env.NEXT_PUBLIC_A2A_ORCHESTRATION_BASE_URL;
 
 export interface Agent {
   name: string;

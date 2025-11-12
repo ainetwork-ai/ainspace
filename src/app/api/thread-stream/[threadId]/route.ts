@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 
-const A2A_ORCHESTRATION_BASE_URL = 'https://a2a-orchestration.ainetwork.ai/api';
+const A2A_ORCHESTRATION_BASE_URL = process.env.NEXT_PUBLIC_A2A_ORCHESTRATION_BASE_URL;
 
 // Configure route to handle long-lived streaming connections
 export const runtime = 'nodejs';
