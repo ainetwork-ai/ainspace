@@ -128,6 +128,81 @@ export default function Home() {
         loadCustomTiles();
     }, [userId, setPublishedTiles, setCollisionMap]);
 
+    // Load deployed agents from Redis on mount
+    useEffect(() => {
+        const loadDeployedAgents = async () => {
+            try {
+                const response = await fetch('/api/agents');
+                if (!response.ok) {
+                    console.error('Failed to load deployed agents from Redis');
+                    return;
+                }
+
+                const data = await response.json();
+                if (!data.success || !data.agents) {
+                    console.error('Invalid agents data from API');
+                    return;
+                }
+
+                // Get default agent URLs to exclude them from restoration
+                const { DEFAULT_AGENTS } = await import('@/lib/initializeAgents');
+                const defaultAgentUrls = new Set(DEFAULT_AGENTS.map(agent => agent.a2aUrl));
+
+                // Filter out default agents (they're already in worldAgents)
+                // Only load user-deployed agents that have position/sprite data
+                const deployedAgents = data.agents.filter((agentData: any) => {
+                    const card = agentData.card;
+                    const url = agentData.url;
+                    // Exclude default agents and only include agents with deployment data
+                    return !defaultAgentUrls.has(url) &&
+                           card &&
+                           typeof card.x === 'number' &&
+                           typeof card.y === 'number' &&
+                           card.spriteUrl;
+                });
+
+                console.log(`Found ${deployedAgents.length} user-deployed agents in Redis (excluding ${defaultAgentUrls.size} default agents)`);
+
+                // Restore agents to useAgentStore
+                deployedAgents.forEach((agentData: any) => {
+                    const card = agentData.card;
+                    const agentUrl = agentData.url;
+
+                    // Check if agent is already in store (avoid duplicates)
+                    const existingAgents = useAgentStore.getState().agents;
+                    if (existingAgents[agentUrl]) {
+                        console.log(`Agent already in store: ${card.name}`);
+                        return;
+                    }
+
+                    const agentId = `a2a-deployed-${Date.now()}-${Math.random()}`;
+
+                    // Restore agent to store with saved position and sprite
+                    spawnAgent(agentUrl, {
+                        id: agentId,
+                        name: card.name || 'Deployed Agent',
+                        x: card.x,
+                        y: card.y,
+                        color: card.color || '#FF6B6B',
+                        agentUrl: agentUrl,
+                        lastMoved: Date.now(),
+                        moveInterval: card.moveInterval || 800,
+                        skills: card.skills || [],
+                        spriteUrl: card.spriteUrl || '/sprite/sprite_cat.png',
+                        spriteHeight: card.spriteHeight || 40
+                    });
+
+                    console.log(`✓ Restored deployed agent: ${card.name} at (${card.x}, ${card.y})`);
+                });
+
+            } catch (error) {
+                console.error('Error loading deployed agents:', error);
+            }
+        };
+
+        loadDeployedAgents();
+    }, [spawnAgent]);
+
     const handleBroadcast = async () => {
         if (broadcastMessage.trim()) {
             const messageText = broadcastMessage.trim();
