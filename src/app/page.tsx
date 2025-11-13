@@ -18,12 +18,18 @@ import { ADD_AGENT_ABI, AGENT_CONTRACT_ADDRESS } from '@/constants/agentContract
 import { baseSepolia } from 'viem/chains';
 import sdk from '@farcaster/miniapp-sdk';
 
-const SPAWN_POSITIONS = [
-    { x: 63, y: 63 },
-    { x: 76, y: 63 },
-    { x: 76, y: 65 },
-    { x: 63, y: 65 }
+// Spawn zones for deployed agents
+// Default agents center: (59, 70) with radius ~2-3 tiles
+// Broadcast range: 10 tiles, so deploy zones must be 25+ tiles away to prevent thread overlap
+// Each zone can hold ~15-20 agents comfortably within radius 10
+const DEPLOY_ZONE_CENTERS = [
+    { x: 34, y: 70 },   // West zone (25 tiles left)
+    { x: 84, y: 70 },   // East zone (25 tiles right)
+    { x: 59, y: 45 },   // North zone (25 tiles up)
+    { x: 59, y: 95 },   // South zone (25 tiles down)
+    { x: 81, y: 48 },   // Northeast zone (diagonal, ~31 tiles away)
 ];
+const MAX_SEARCH_RADIUS = 10;  // Tight clustering within each zone
 
 export default function Home() {
     // Global stores
@@ -390,55 +396,83 @@ export default function Home() {
         const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8'];
         const randomColor = colors[Math.floor(Math.random() * colors.length)];
 
-        // Find a non-blocked spawn position from SPAWN_POSITIONS
+        // Find a non-blocked spawn position in one of the deployment zones
         const findAvailableSpawnPosition = (): { x: number; y: number } | null => {
-            // Shuffle spawn positions to add randomness
-            const shuffledPositions = [...SPAWN_POSITIONS].sort(() => Math.random() - 0.5);
-
-            for (const position of shuffledPositions) {
-                const { x, y } = position;
-
+            // Helper function to check if a position is valid
+            const isPositionValid = (x: number, y: number): boolean => {
                 // Check boundaries
                 if (x < 0 || x >= MAP_TILES || y < 0 || y >= MAP_TILES) {
-                    continue;
+                    return false;
                 }
 
                 // Check if position is blocked by collision map
                 if (globalIsBlocked(x, y)) {
-                    continue;
+                    return false;
                 }
 
                 // Check if position is occupied by player
                 if (x === worldPosition.x && y === worldPosition.y) {
-                    continue;
+                    return false;
                 }
 
                 // Check if position is occupied by another agent
                 const isOccupied = combinedWorldAgents.some((agent) => agent.x === x && agent.y === y);
-                if (isOccupied) {
-                    continue;
+                return !isOccupied;
+            };
+
+            // Randomly select one of the 5 deployment zones
+            const selectedCenter = DEPLOY_ZONE_CENTERS[
+                Math.floor(Math.random() * DEPLOY_ZONE_CENTERS.length)
+            ];
+
+            console.log(`Selected deployment zone: (${selectedCenter.x}, ${selectedCenter.y})`);
+
+            // Search in expanding radius from selected zone center
+            for (let radius = 1; radius <= MAX_SEARCH_RADIUS; radius++) {
+                // Collect all positions at current radius
+                const positionsAtRadius: { x: number; y: number }[] = [];
+
+                for (let dx = -radius; dx <= radius; dx++) {
+                    for (let dy = -radius; dy <= radius; dy++) {
+                        // Only check positions on the perimeter (not interior)
+                        if (Math.abs(dx) === radius || Math.abs(dy) === radius) {
+                            positionsAtRadius.push({
+                                x: selectedCenter.x + dx,
+                                y: selectedCenter.y + dy
+                            });
+                        }
+                    }
                 }
 
-                return { x, y };
+                // Shuffle to add randomness and avoid clustering
+                positionsAtRadius.sort(() => Math.random() - 0.5);
+
+                // Check each position at this radius
+                for (const pos of positionsAtRadius) {
+                    if (isPositionValid(pos.x, pos.y)) {
+                        console.log(`Found spawn position at (${pos.x}, ${pos.y}) - radius ${radius} from zone center`);
+                        return pos;
+                    }
+                }
             }
 
-            return null; // No valid position found
+            return null; // No valid position found in this zone
         };
 
-        // Try to find spawn position from SPAWN_POSITIONS
+        // Try to find spawn position
         const spawnPosition = findAvailableSpawnPosition();
 
         if (!spawnPosition) {
             // Show error if no valid spawn position found
-            console.error('Cannot spawn agent: all spawn positions are occupied or blocked');
+            console.error('Cannot spawn agent: no available positions found in deployment zones');
             alert(
-                'Cannot spawn agent: all designated spawn positions are occupied or blocked. Please clear some space or remove an agent.'
+                'Cannot spawn agent: no available space found in deployment zones. Please remove some agents or clear space on the map.'
             );
             return;
         }
 
         const { x: spawnX, y: spawnY } = spawnPosition;
-        console.log(`Spawning agent at (${spawnX}, ${spawnY}) from SPAWN_POSITIONS - checked collision map`);
+        console.log(`✓ Spawning agent at (${spawnX}, ${spawnY}) - separated from default agents`);
 
         await switchChainAsync({
             chainId: baseSepolia.id
