@@ -2,7 +2,7 @@
 
 import { useGameState } from '@/hooks/useGameState';
 import { useMiniKit } from '@coinbase/onchainkit/minikit';
-import { useRef, useEffect, useCallback, useState } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { ChatBoxRef } from '@/components/ChatBox';
 import MapTab from '@/components/tabs/MapTab';
 import ThreadTab from '@/components/tabs/ThreadTab';
@@ -49,8 +49,6 @@ export default function Home() {
     const {
         customTiles,
         publishedTiles,
-        selectedImage,
-        buildMode,
         isPublishing,
         publishStatus,
         collisionMap: globalCollisionMap,
@@ -65,12 +63,12 @@ export default function Home() {
         clearPublishStatusAfterDelay
     } = useBuildStore();
     const { worldPosition, userId, worldAgents, resetLocation, lastCommentary, visibleAgents } = useGameState();
-    const { agents, spawnAgent, removeAgent, updateAgent, setAgents } = useAgentStore();
+    const { agents, spawnAgent, removeAgent, setAgents } = useAgentStore();
     const { setFrameReady, isFrameReady } = useMiniKit();
     const chatBoxRef = useRef<ChatBoxRef>(null);
     const [isSDKLoaded, setIsSDKLoaded] = useState(false);
 
-    const { writeContractAsync, isPending } = useWriteContract();
+    const { writeContractAsync } = useWriteContract();
     const { switchChainAsync } = useSwitchChain();
 
     // Initialize collision map on first load
@@ -156,7 +154,11 @@ export default function Home() {
 
                 // Filter out default agents (they're already in worldAgents)
                 // Only load user-deployed agents that have position/sprite data
-                const deployedAgents = data.agents.filter((agentData: any) => {
+                type DeployedAgentData = {
+                    card: AgentCard & { x?: number; y?: number; spriteUrl?: string; color?: string; spriteHeight?: number; moveInterval?: number };
+                    url: string
+                };
+                const deployedAgents = data.agents.filter((agentData: DeployedAgentData) => {
                     const card = agentData.card;
                     const url = agentData.url;
                     // Exclude default agents and only include agents with deployment data
@@ -170,7 +172,7 @@ export default function Home() {
                 console.log(`Found ${deployedAgents.length} user-deployed agents in Redis (excluding ${defaultAgentUrls.size} default agents)`);
 
                 // Restore agents to useAgentStore
-                deployedAgents.forEach((agentData: any) => {
+                deployedAgents.forEach((agentData: DeployedAgentData) => {
                     const card = agentData.card;
                     const agentUrl = agentData.url;
 
@@ -184,11 +186,12 @@ export default function Home() {
                     const agentId = `a2a-deployed-${Date.now()}-${Math.random()}`;
 
                     // Restore agent to store with saved position and sprite
+                    // We know x and y are numbers because they were filtered above
                     spawnAgent(agentUrl, {
                         id: agentId,
                         name: card.name || 'Deployed Agent',
-                        x: card.x,
-                        y: card.y,
+                        x: card.x!,
+                        y: card.y!,
                         color: card.color || '#FF6B6B',
                         agentUrl: agentUrl,
                         lastMoved: Date.now(),
@@ -628,8 +631,6 @@ export default function Home() {
                 let moved = false;
 
                 for (const direction of shuffledDirections) {
-                    const oldX = agent.x;
-                    const oldY = agent.y;
                     const newX = agent.x + direction.dx;
                     const newY = agent.y + direction.dy;
 
