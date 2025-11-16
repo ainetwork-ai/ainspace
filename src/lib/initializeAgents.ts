@@ -53,7 +53,7 @@ export const DEFAULT_AGENTS: DefaultAgent[] = [
   },
   {
     a2aUrl: 'https://a2a-builder.ainetwork.ai/api/agents/kkaebi-1761332302116/.well-known/agent.json',
-    x: 58,
+    x: 59,
     y: 72,
     color: '#0000FF',
     spriteUrl: '/sprite/sprite_kkaebi.png',
