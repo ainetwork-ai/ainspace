@@ -14,6 +14,7 @@ import { useGameState } from '@/hooks/useGameState';
 import { TileLayers, useBuildStore } from '@/stores/useBuildStore';
 import { shortAddress } from '@/lib/utils';
 import { config } from '@/lib/wagmi-config';
+import TiledMapCanvas from '../testTile';
 
 interface MapTabProps {
     isActive: boolean;
@@ -103,10 +104,12 @@ export default function MapTab({
                     break;
             }
 
-            // Check if tile is blocked by collision map
-            if (globalIsBlocked(newX, newY)) {
-                return;
-            }
+
+            // FIXME(yoojin): temp comment out
+            // // Check if tile is blocked by collision map
+            // if (globalIsBlocked(newX, newY)) {
+            //     return;
+            // }
 
             // Check if A2A agent is at this position
             const isOccupiedByA2A = Object.values(agents).some((agent) => agent.x === newX && agent.y === newY);
@@ -137,6 +140,7 @@ export default function MapTab({
             switch (event.key) {
                 case 'ArrowUp':
                     event.preventDefault();
+                    console.log("@@@@@@@@@@@ ArrowUp");
                     handleMobileMove(DIRECTION.UP);
                     break;
                 case 'ArrowDown':
@@ -163,7 +167,7 @@ export default function MapTab({
             {/* Game Area */}
             <div className="relative flex h-full w-full flex-col" style={{ touchAction: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}>
                 <div className="flex h-full w-full items-center justify-center select-none" style={{ WebkitUserSelect: 'none', userSelect: 'none' }}>
-                    <TileMap
+                    {/* <TileMap
                         mapData={mapData}
                         tileSize={TILE_SIZE}
                         playerPosition={playerPosition}
@@ -179,7 +183,8 @@ export default function MapTab({
                         playerIsMoving={isPlayerMoving}
                         collisionMap={collisionMap}
                         onAgentClick={onAgentClick}
-                    />
+                    /> */}
+                    <TiledMapCanvas worldPosition={worldPosition} />
                 </div>
 
                 {address && (

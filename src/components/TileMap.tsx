@@ -839,15 +839,15 @@ function TileMap({
 
             {/* Render Player using SpriteAnimator */}
             {(() => {
-                const playerScreenTileX = worldPosition.x - cameraTileX;
-                const playerScreenTileY = worldPosition.y - cameraTileY;
+                const playerScreenTileX = Math.max(0, Math.min(MAP_TILES - tilesX, worldPosition.x - cameraTileX));
+                const playerScreenTileY = Math.max(0, Math.min(MAP_TILES - tilesY, worldPosition.y - cameraTileY));
                 const playerStartFrame = getStartFrame(playerDirection);
 
                 return (
                     <div
                         style={{
                             position: 'absolute',
-                            left: `${playerScreenTileX * tileSize - TILE_SIZE / 4}px`,
+                            left: `${playerScreenTileX * tileSize - TILE_SIZE / 2}px`,
                             top: `${playerScreenTileY * tileSize - 60}px`,
                             width: `${tileSize}px`,
                             height: `${tileSize}px`,
