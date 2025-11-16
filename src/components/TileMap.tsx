@@ -814,8 +814,8 @@ function TileMap({
 
             {/* Render Player using SpriteAnimator */}
             {(() => {
-                const playerScreenTileX = worldPosition.x - cameraTileX;
-                const playerScreenTileY = worldPosition.y - cameraTileY;
+                const playerScreenTileX = Math.max(0, Math.min(MAP_TILES - tilesX, worldPosition.x - cameraTileX));
+                const playerScreenTileY = Math.max(0, Math.min(MAP_TILES - tilesY, worldPosition.y - cameraTileY));
                 const playerStartFrame = getStartFrame(playerDirection);
 
                 return (
