@@ -172,7 +172,7 @@ export default function MapTab({
                         collisionMap={collisionMap}
                         onAgentClick={onAgentClick}
                     /> */}
-                    <TiledMapCanvas worldPosition={worldPosition} />
+                    <TiledMapCanvas worldPosition={worldPosition} agents={visibleAgents} />
                 </div>
 
                 {address && (
