@@ -1,7 +1,7 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 
-const TARGET_USERS = Number(__ENV.TARGET_VUS || 30);
+const TARGET_USERS = Number(__ENV.TARGET_USERS || 30);
 const HALF_TARGET_USERS = TARGET_USERS > 1 ? Math.floor(TARGET_USERS / 2) : 1;
 const AGENTS_PER_USER = Number(__ENV.AGENTS_PER_USER || 6);
 
