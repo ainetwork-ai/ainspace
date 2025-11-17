@@ -2,6 +2,7 @@
 
 import React, { useMemo } from 'react';
 import Image from 'next/image';
+import { Triangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface Agent {
@@ -48,16 +49,24 @@ export default function Footer({ activeTab, onTabChange, onClickDialogueBox, wor
     return (
         <div className="fixed right-0 bottom-0 left-0 z-50">
             {activeTab === 'map' && (
-                <div className="inline-flex h-8 w-full items-center justify-center gap-2 self-stretch rounded-tl-lg rounded-tr-lg bg-black/80 p-2">
-                    <Image
-                        src="/footer/bottomTab/tab_icon_bubble.svg"
-                        className="h-4 w-4"
-                        alt="Chat"
-                        width={16}
-                        height={16}
-                    />
-                    <button onClick={onClickDialogueBox} className="flex flex-1 cursor-pointer">
+                <div
+                  className=
+                    "flex w-full items-center justify-center gap-1.5 self-stretch rounded-tl-lg rounded-tr-lg backdrop-blur-[10px] bg-black/50 p-3"
+                >
+                    <div className="p-2 rounded-full bg-black/30">
+                        <Image
+                            src="/footer/bottomTab/tab_icon_bubble.svg"
+                            className="h-4 w-4"
+                            alt="Chat"
+                            width={16}
+                            height={16}
+                        />
+                    </div>
+                    <button onClick={onClickDialogueBox} className="flex flex-1 cursor-pointer rounded-[100px] px-2.5 py-2 bg-black/30">
                         <span className="text-xs font-bold text-white">{chatPlaceholder}</span>
+                    </button>
+                    <button className="bg-white rounded-lg w-[30px] h-[30px] flex items-center justify-center">
+                        <Triangle className="text-xs font-bold text-black" fill="black" width={12} height={9} />
                     </button>
                 </div>
             )}
