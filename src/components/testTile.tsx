@@ -2,11 +2,34 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { useTiledMap } from '@/hooks/useTiledMap';
-import { DIRECTION, TILE_SIZE } from '@/constants/game';
+import { DIRECTION, MAP_TILES, TILE_SIZE } from '@/constants/game';
 import { SpriteAnimator } from 'react-sprite-animator';
 import { useGameStateStore } from '@/stores';
 
-export default function TiledMapCanvas({ worldPosition }: { worldPosition: { x: number; y: number } }) {
+// FIXME(yoojin):  type 통일
+interface Agent {
+  id: string;
+  screenX: number;
+  screenY: number;
+  x?: number; // world position
+  y?: number; // world position
+  color: string;
+  name: string;
+  hasCharacterImage?: boolean;
+  direction?: DIRECTION;
+  isMoving?: boolean;
+  spriteUrl?: string;
+  spriteHeight?: number;
+  spriteWidth?: number;
+}
+
+export default function TiledMapCanvas({ 
+  worldPosition,
+  agents,
+}: { 
+  worldPosition: { x: number; y: number };
+  agents: Agent[];
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { playerDirection } = useGameStateStore();
   const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
@@ -54,6 +77,82 @@ const getStartFrame = (direction: DIRECTION) => {
     <div ref={containerRef} className="relative h-full w-full">
       <canvas ref={canvasRef} width={canvasSize.width} height={canvasSize.height} />
 
+
+            {/* Render Agents using SpriteAnimator */}
+            {agents.map((agent) => {
+                let agentScreenX: number;
+                let agentScreenY: number;
+
+                if (agent.x !== undefined && agent.y !== undefined) {
+                    agentScreenX = agent.x - cameraTilePosition.x;
+                    agentScreenY = agent.y - cameraTilePosition.y;
+                } else {
+                    agentScreenX = agent.screenX;
+                    agentScreenY = agent.screenY;
+                }
+
+                if (agentScreenX < -1 || agentScreenX > MAP_TILES || agentScreenY < -1 || agentScreenY > MAP_TILES) {
+                    return null;
+                }
+
+                const agentIsMoving = agent.isMoving || false;
+                const agentDirection = agent.direction || DIRECTION.DOWN;
+                const agentStartFrame = getStartFrame(agentDirection);
+                const agentSpriteUrl = agent.spriteUrl || '/sprite/sprite_user.png';
+                const agentSpriteHeight = agent.spriteHeight || TILE_SIZE;
+
+                const topOffset = agentSpriteHeight === TILE_SIZE ? agentSpriteHeight / 4 : agentSpriteHeight / 1.5;
+
+                return (
+                    <div
+                        key={agent.id}
+                        style={{
+                            position: 'absolute',
+                            left: `${agentScreenX * TILE_SIZE - TILE_SIZE / 4}px`,
+                            top: `${agentScreenY * TILE_SIZE - topOffset}px`,
+                            width: `${TILE_SIZE}px`,
+                            height: `${TILE_SIZE}px`,
+                            pointerEvents: 'auto',
+                            cursor: 'default'
+                        }}
+                    >
+                        <SpriteAnimator
+                            key={agent.id}
+                            sprite={agentSpriteUrl}
+                            width={TILE_SIZE}
+                            height={agentSpriteHeight}
+                            scale={1}
+                            fps={6}
+                            frameCount={agentStartFrame + 3}
+                            direction={'horizontal'}
+                            shouldAnimate={agentIsMoving}
+                            startFrame={agentStartFrame}
+                        />
+                        {/* Show agent name and coordinates */}
+                        <div
+                            style={{
+                                position: 'absolute',
+                                top: '-20px',
+                                left: '50%',
+                                transform: 'translateX(-50%)',
+                                fontSize: '11px',
+                                fontWeight: 'bold',
+                                color: '#fff',
+                                backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                whiteSpace: 'nowrap',
+                                zIndex: 20,
+                                pointerEvents: 'none'
+                            }}
+                        >
+                            {/* showCollisionMap && !hideCoordinates && */ agent.x !== undefined && agent.y !== undefined
+                                ? `${agent.name} (${agent.x}, ${agent.y})`
+                                : `${agent.name}`}
+                        </div>
+                    </div>
+                );
+            })}
             {/* Render Player using SpriteAnimator */}
             {(() => {
                 // worldPosition과 cameraTilePosition 모두 맵 중앙 기준 좌표계 (맵 중앙 = 0,0)
