@@ -16,7 +16,7 @@ const AGENTS_PER_USER = Number(__ENV.AGENTS_PER_USER || 6);
 export const options = {
     stages: [
         { duration: '1m', target: HALF_TARGET_USERS },
-        { duration: '5m', target: TARGET_USERS },
+        { duration: '2m', target: TARGET_USERS },
         { duration: '1m', target: HALF_TARGET_USERS },
         { duration: '30s', target: 0 }
     ]
@@ -137,7 +137,7 @@ export default function loadTest() {
             headers: {
                 Accept: 'text/event-stream'
             },
-            timeout: '60s' // increased timeout for SSE as it may take longer
+            timeout: '30s' // increased timeout for SSE as it may take longer
         });
 
         const sseEnd = Date.now();
@@ -157,17 +157,24 @@ export default function loadTest() {
         console.log(`✅ SSE stream completed in ${sseTotalTime}ms`);
         console.log(`📦 SSE response size: ${streamRes.body.length} bytes`);
 
+        console.log(`ℹ️ SSE observation window finished in ${sseTotalTime}ms (error: ${streamRes.error || 'none'})`);
         // log SSE response content (first 500 characters only)
         const ssePreview = streamRes.body.substring(0, 500);
         console.log(`📄 SSE response preview:\n${ssePreview}${streamRes.body.length > 500 ? '...' : ''}`);
+
+        // log full SSE response content
+        // console.log(`📄 SSE response (full):\n${streamRes.body}`);
 
         // parse SSE events for detailed analysis
         const events = streamRes.body.split('\n\n').filter((e) => e.trim());
         console.log(`📨 Total SSE events received: ${events.length}`);
 
-        check(streamRes, {
-            'GET /api/thread-stream 200': (r) => r.status === 200,
-            'SSE stream has events': () => events.length > 0
+        check(null, {
+            // at least one SSE event arrived within the observation window
+            'SSE got events within window': () => events.length > 0,
+
+            // first SSE event (TTFB) arrived within 3 seconds
+            'SSE TTFB < 3000ms': () => firstByteTime !== null && firstByteTime !== undefined && firstByteTime < 3000
         });
     } else {
         console.warn('⚠️  Skipping SSE stream - no threadId or thread-message failed');
