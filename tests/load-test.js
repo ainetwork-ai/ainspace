@@ -154,10 +154,9 @@ export default function loadTest() {
             console.log(`⏱️  SSE first byte (TTFB): ${firstByteTime}ms`);
         }
 
-        console.log(`✅ SSE stream completed in ${sseTotalTime}ms`);
+        console.log(`ℹ️ SSE observation window finished in ${sseTotalTime}ms (error: ${streamRes.error || 'none'})`);
         console.log(`📦 SSE response size: ${streamRes.body.length} bytes`);
 
-        console.log(`ℹ️ SSE observation window finished in ${sseTotalTime}ms (error: ${streamRes.error || 'none'})`);
         // log SSE response content (first 500 characters only)
         const ssePreview = streamRes.body.substring(0, 500);
         console.log(`📄 SSE response preview:\n${ssePreview}${streamRes.body.length > 500 ? '...' : ''}`);
