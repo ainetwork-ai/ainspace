@@ -1,6 +1,6 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
-import { Trend } from 'k6/metrics';
+import { Trend, Counter, Rate } from 'k6/metrics';
 
 // custom metrics for detailed performance tracking
 const threadMessageDuration = new Trend('thread_message_duration');
@@ -8,6 +8,9 @@ const threadMessageResponseSize = new Trend('thread_message_response_size');
 const sseFirstByteDuration = new Trend('sse_first_byte_duration');
 const sseTotalDuration = new Trend('sse_total_duration');
 const sseResponseSize = new Trend('sse_response_size');
+
+const sseErrorCount = new Counter('sse_error_count');
+const sseErrorRate = new Rate('sse_error_rate');
 
 const TARGET_USERS = Number(__ENV.TARGET_USERS || 30);
 const HALF_TARGET_USERS = TARGET_USERS > 1 ? Math.floor(TARGET_USERS / 2) : 1;
@@ -52,7 +55,8 @@ const AGENT_NAMES = [
     '만두가게 사장님',
     '러닝하는 대학생',
     '막걸리가게 사장님',
-    '택시기사님'
+    '택시기사님',
+    '포켓몬마스터'
 ];
 
 const ACTIVE_AGENT_NAMES = AGENT_NAMES.slice(0, Math.min(AGENTS_PER_USER, AGENT_NAMES.length));
@@ -168,12 +172,22 @@ export default function loadTest() {
         const events = streamRes.body.split('\n\n').filter((e) => e.trim());
         console.log(`📨 Total SSE events received: ${events.length}`);
 
+        const hasInternalError = events.some((event) => event.toLowerCase().includes('sorry'));
+
+        if (hasInternalError) {
+            sseErrorCount.add(1);
+        }
+        sseErrorRate.add(hasInternalError);
+
         check(null, {
             // at least one SSE event arrived within the observation window
             'SSE got events within window': () => events.length > 0,
 
             // first SSE event (TTFB) arrived within 3 seconds
-            'SSE TTFB < 3000ms': () => firstByteTime !== null && firstByteTime !== undefined && firstByteTime < 3000
+            'SSE TTFB < 3000ms': () => firstByteTime !== null && firstByteTime !== undefined && firstByteTime < 3000,
+
+            // fail if SSE contains "sorry" (case-insensitive)
+            'SSE has no internal error': () => !hasInternalError
         });
     } else {
         console.warn('⚠️  Skipping SSE stream - no threadId or thread-message failed');
