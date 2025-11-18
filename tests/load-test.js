@@ -1,5 +1,13 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
+import { Trend } from 'k6/metrics';
+
+// custom metrics for detailed performance tracking
+const threadMessageDuration = new Trend('thread_message_duration');
+const threadMessageResponseSize = new Trend('thread_message_response_size');
+const sseFirstByteDuration = new Trend('sse_first_byte_duration');
+const sseTotalDuration = new Trend('sse_total_duration');
+const sseResponseSize = new Trend('sse_response_size');
 
 const TARGET_USERS = Number(__ENV.TARGET_USERS || 30);
 const HALF_TARGET_USERS = TARGET_USERS > 1 ? Math.floor(TARGET_USERS / 2) : 1;
@@ -22,7 +30,7 @@ const jsonHeaders = {
     }
 };
 
-// 맵을 한 바퀴 도는 경로 (x, y 몇 개만 샘플)
+// sample path for player movement across the map
 const path = [
     { x: 59, y: 69 },
     { x: 58, y: 69 },
@@ -33,13 +41,11 @@ const path = [
     { x: 55, y: 71 },
     { x: 55, y: 72 },
     { x: 56, y: 72 },
-    { x: 57, y: 72 },
-    { x: 58, y: 72 }
+    { x: 57, y: 72 }
 ];
 
-// 환경변수로 유저/월렛 주입해도 됨
+// can be overridden with environment variables
 const USER_ID = '81fdda45-cdb3-47eb-9a47-1a94b1d2d07f';
-const WALLET_ADDRESS = '0xFcB04FFd50bcC37415756244B7fF6BCD4e9414C3';
 const AGENT_NAMES = [
     '꽃집 사장님',
     '마을이장',
@@ -52,15 +58,15 @@ const AGENT_NAMES = [
 const ACTIVE_AGENT_NAMES = AGENT_NAMES.slice(0, Math.min(AGENTS_PER_USER, AGENT_NAMES.length));
 
 export default function loadTest() {
-    // 1) 입장
+    // 1) enter the app
     let res = http.get(`${BASE_URL}/`);
     check(res, { 'GET / status 200': (r) => r.status === 200 });
 
-    // 2) 에이전트 목록 조회
+    // 2) fetch agent list
     res = http.get(`${BASE_URL}/api/agents`);
     check(res, { 'GET /api/agents 200': (r) => r.status === 200 });
 
-    // 3) 맵에서 이동 (position 업데이트)
+    // 3) simulate player movement on the map
     for (const pos of path) {
         const body = JSON.stringify({
             userId: USER_ID,
@@ -70,48 +76,112 @@ export default function loadTest() {
         res = http.post(`${BASE_URL}/api/position`, body, jsonHeaders);
         check(res, { 'POST /api/position 200': (r) => r.status === 200 });
 
-        sleep(0.3); // 이동 간 딜레이 (사용자 움직임 시뮬레이션)
+        sleep(0.3); // delay between moves to simulate realistic player movement
     }
 
-    // 4) 쓰레드 조회
-    res = http.get(`${BASE_URL}/api/threads?userId=${encodeURIComponent(WALLET_ADDRESS)}`);
-    check(res, { 'GET /api/threads 200': (r) => r.status === 200 });
+    // 4) send message without threadId (will create new thread)
+    const msgBody = JSON.stringify({
+        message: '안녕',
+        playerPosition: { x: 35, y: 70 },
+        broadcastRadius: 10,
+        // no threadId - backend will create a new thread
+        agentNames: ACTIVE_AGENT_NAMES
+    });
 
+    console.log('📤 Sending thread-message request without threadId (will create new thread)');
+    const threadMessageStart = Date.now();
+
+    res = http.post(`${BASE_URL}/api/thread-message`, msgBody, jsonHeaders);
+
+    const threadMessageEnd = Date.now();
+    const threadMessageTime = threadMessageEnd - threadMessageStart;
+
+    // record metrics
+    threadMessageDuration.add(threadMessageTime);
+    threadMessageResponseSize.add(res.body.length);
+
+    console.log(`✅ thread-message completed in ${threadMessageTime}ms`);
+    console.log(`📦 Response size: ${res.body.length} bytes`);
+    console.log(`📄 Response body: ${res.body}`);
+
+    const threadMessageCheck = check(res, {
+        'POST /api/thread-message 200': (r) => r.status === 200,
+        'thread-message has threadId': (r) => {
+            try {
+                const json = JSON.parse(r.body);
+                return json.threadId !== undefined;
+            } catch {
+                return false;
+            }
+        }
+    });
+
+    // parse threadId from response
     let threadId;
     try {
-        const threads = JSON.parse(res.body);
-        // 구조 보고 적당히 가져오기 (예: 첫 번째 thread)
-        threadId = threads[0]?.id || threads[0]?.threadId;
-    } catch {
-        // 파싱 안돼도 부하 자체는 계속 줄 수 있으니 그냥 넘어가도 됨
+        const responseBody = JSON.parse(res.body);
+        threadId = responseBody.threadId;
+        console.log(`🆔 Created threadId: ${threadId}`);
+        console.log(`📊 Full response:`, JSON.stringify(responseBody, null, 2));
+    } catch (e) {
+        console.error(`❌ Failed to parse thread-message response: ${e.message}`);
     }
 
-    if (threadId) {
-        // 5) 메시지 보내기
-        const msgBody = JSON.stringify({
-            message: '안녕',
-            playerPosition: { x: 35, y: 70 },
-            broadcastRadius: 10,
-            threadId,
-            agentNames: ACTIVE_AGENT_NAMES
-        });
+    if (threadId && threadMessageCheck) {
+        // 5) open SSE stream and collect detailed metrics
+        console.log(`🔌 Opening SSE stream for thread: ${threadId}`);
+        const sseStart = Date.now();
+        let firstByteTime = null;
 
-        res = http.post(`${BASE_URL}/api/thread-message`, msgBody, jsonHeaders);
-        check(res, { 'POST /api/thread-message 200': (r) => r.status === 200 });
-
-        // 6) SSE 스트림 열기 (간단히 상태만 확인)
         const streamRes = http.get(`${BASE_URL}/api/thread-stream/${threadId}`, {
             headers: {
                 Accept: 'text/event-stream'
-            }
+            },
+            timeout: '60s' // increased timeout for SSE as it may take longer
         });
+
+        const sseEnd = Date.now();
+        const sseTotalTime = sseEnd - sseStart;
+
+        // record SSE metrics
+        sseTotalDuration.add(sseTotalTime);
+        sseResponseSize.add(streamRes.body.length);
+
+        // use timings to get first byte time (TTFB)
+        if (streamRes.timings && streamRes.timings.waiting) {
+            firstByteTime = streamRes.timings.waiting;
+            sseFirstByteDuration.add(firstByteTime);
+            console.log(`⏱️  SSE first byte (TTFB): ${firstByteTime}ms`);
+        }
+
+        console.log(`✅ SSE stream completed in ${sseTotalTime}ms`);
+        console.log(`📦 SSE response size: ${streamRes.body.length} bytes`);
+
+        // log SSE response content (first 500 characters only)
+        const ssePreview = streamRes.body.substring(0, 500);
+        console.log(`📄 SSE response preview:\n${ssePreview}${streamRes.body.length > 500 ? '...' : ''}`);
+
+        // parse SSE events for detailed analysis
+        const events = streamRes.body.split('\n\n').filter((e) => e.trim());
+        console.log(`📨 Total SSE events received: ${events.length}`);
+
         check(streamRes, {
-            'GET /api/thread-stream 200': (r) => r.status === 200
+            'GET /api/thread-stream 200': (r) => r.status === 200,
+            'SSE stream has events': () => events.length > 0
         });
+    } else {
+        console.warn('⚠️  Skipping SSE stream - no threadId or thread-message failed');
     }
 
     sleep(1);
 }
 
-// k6 run load-test.js
-// k6 run load-test.js -e TARGET_USERS=4 -e AGENTS_PER_USER=3
+// usage examples:
+// k6 run tests/load-test.js
+// k6 run tests/load-test.js -e TARGET_USERS=20 -e AGENTS_PER_USER=5
+//
+// save output to file:
+// k6 run tests/load-test.js 2>&1 | tee output.log
+//
+// with timestamp:
+// k6 run tests/load-test.js 2>&1 | tee "output-$(date +%Y%m%d-%H%M%S).log"
