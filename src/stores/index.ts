@@ -1,4 +1,4 @@
-export { useUIStore } from './useUIStore';
+export { useUIStore, FOOTER_HEIGHT } from './useUIStore';
 export { useThreadStore } from './useThreadStore';
 export { useBuildStore } from './useBuildStore';
 export { useAgentStore } from './useAgentStore';

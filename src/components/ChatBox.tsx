@@ -1,16 +1,18 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback, useMemo, forwardRef, useImperativeHandle } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo, forwardRef } from 'react';
 import { useWorld } from '@/hooks/useWorld';
 import { Agent, AgentResponse } from '@/lib/world';
-import { cn, shortAddress } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { useBuildStore, useChatStore, useGameStateStore } from '@/stores';
-import { INITIAL_PLAYER_POSITION, AGENT_RESPONSE_DISTANCE } from '@/constants/game';
+import { INITIAL_PLAYER_POSITION } from '@/constants/game';
 import { useAccount } from 'wagmi';
 import * as Sentry from '@sentry/nextjs';
 import { useThreadStream } from '@/hooks/useThreadStream';
 import { StreamEvent } from '@/lib/a2aOrchestration';
+import { Triangle } from 'lucide-react';
+import ChatMessage from './ChatMessage';
 
 interface Message {
     id: string;
@@ -807,20 +809,6 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         [inputValue, cursorPosition]
     );
 
-    const getAgentNameAndPosition = (senderId: string | undefined): string => {
-        if (!senderId) return 'AI';
-        // Try to find agent by ID first, then by name (for SSE stream messages)
-        const agent = agents.find((a) => a.id === senderId || a.name === senderId);
-        if (agent && playerPosition) {
-            const distance = Math.sqrt(
-                Math.pow(agent.x - playerPosition.x, 2) + Math.pow(agent.y - playerPosition.y, 2)
-            );
-            return `${agent.name} (${agent.x}, ${agent.y}) [${distance.toFixed(1)}u]`;
-        }
-        // If agent not found in local agents array, just return the senderId as name
-        return senderId || 'AI';
-    };
-
     // Get current agents in radius for display
     const currentAgentsInRadius = getCurrentAgentsInRadius();
     const currentAgentNames = currentAgentsInRadius.map(a => a.name).sort();
@@ -829,10 +817,10 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     return (
         <div className={cn('relative flex h-full w-full flex-col bg-transparent', className)}>
             {/* Thread info - Top left corner */}
-            <div className="absolute top-0 left-0 z-10 p-3">
-                <div className="flex items-start gap-2">
+            {/* <div className="absolute top-0 left-0 z-10 p-3">
+                <div className="flex items-start gap-2"> */}
                     {/* Thread menu button */}
-                    <button
+                    {/* <button
                         onClick={() => setShowThreadList(!showThreadList)}
                         className="rounded-lg bg-black/60 px-3 py-2 hover:bg-black/80 transition-colors"
                     >
@@ -842,10 +830,10 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                                 {allThreads.length} Thread{allThreads.length !== 1 ? 's' : ''}
                             </span>
                         </div>
-                    </button>
+                    </button> */}
 
                     {/* Current thread info */}
-                    {(activeThreadId || currentAgentNames.length > 0) && (
+                    {/* {(activeThreadId || currentAgentNames.length > 0) && (
                         <div className="rounded-lg bg-black/60 px-3 py-2 max-w-md">
                             <div className="flex flex-col gap-1">
                                 <div className="flex items-center gap-2">
@@ -877,11 +865,11 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                                 </div>
                             </div>
                         </div>
-                    )}
-                </div>
+                    )} */}
+                {/* </div> */}
 
                 {/* Thread list dropdown */}
-                {showThreadList && (
+                {/* {showThreadList && (
                     <div className="absolute top-full left-0 mt-2 w-96 max-h-96 overflow-y-auto rounded-lg bg-black/90 shadow-xl border border-white/10">
                         <div className="p-3">
                             <div className="flex items-center justify-between mb-2">
@@ -942,57 +930,22 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                             )}
                         </div>
                     </div>
-                )}
-            </div>
+                )} */}
+            {/* </div> */}
 
-            <div className="h-full space-y-2 overflow-y-auto p-3 pb-20 pt-24">
+            {/* NOTE: Chat Messages */}
+            <div className="h-screen space-y-2 overflow-y-auto p-4 pt-2">
                 {threadMessages.slice().map((message) => (
-                    <div key={message.id} className={cn('flex flex-col items-start gap-1')}>
-                        <div className="flex flex-row items-center gap-2">
-                            <span
-                                style={{
-                                    color:
-                                        message.sender === 'user'
-                                            ? 'white'
-                                            : agents.find((a) => a.id === message.senderId || a.name === message.senderId)?.color ||
-                                              'oklch(62.7% 0.194 149.214)'
-                                }}
-                                className="text-xs font-semibold"
-                            >
-                                {message.sender === 'user'
-                                    ? `${shortAddress(message.senderId || '')}`
-                                    : getAgentNameAndPosition(message.senderId)}
-                            </span>
-                            {message.sender === 'user' ? (
-                                <div className="inline-flex flex-col items-start justify-center gap-2 rounded-lg bg-[#7f4fe8]/50 px-2 py-0.5">
-                                    <p className="justify-start text-xs leading-5 font-normal text-[#eae0ff]">Me</p>
-                                </div>
-                            ) : (
-                                <div className="Ta inline-flex flex-col items-start justify-center gap-2 rounded-lg bg-[#4a5057] px-2 py-0.5">
-                                    <p className="justify-start text-xs leading-5 font-normal text-[#dfe2e6]">AI</p>
-                                </div>
-                            )}
-                        </div>
-                        <div
-                            className={cn(
-                                'max-w-[85%] rounded-lg px-3 py-2 text-sm',
-                                message.sender === 'user'
-                                    ? 'rounded-br-sm text-white'
-                                    : message.sender === 'ai'
-                                      ? 'rounded-bl-sm text-white'
-                                      : 'rounded-bl-sm bg-gray-200 text-gray-800'
-                            )}
-                        >
-                            <p className="justify-start text-base leading-[25px] break-words text-white">
-                                {message.text}
-                            </p>
-                        </div>
-                    </div>
+                    <ChatMessage key={message.id} message={message} />
                 ))}
                 <div ref={messagesEndRef} />
             </div>
 
-            <div className="fixed right-0 bottom-0 left-0 bg-gradient-to-t from-black/90 to-transparent p-3 backdrop-blur-sm">
+            {/* NOTE: Chat Input Area */}
+            <div className={cn(
+                "fixed right-0 bottom-0 left-0 bg-gradient-to-t from-black/90 to-transparent p-3 backdrop-blur-sm",
+                // "fixed right-0 bottom-[73px]"
+            )}>
 
                 {showSuggestions && filteredAgents.length > 0 && (
                     <div className="absolute right-3 bottom-full left-3 z-10 mb-1 max-h-32 overflow-y-auto rounded-md border border-gray-600 bg-gray-800 shadow-lg">
@@ -1032,7 +985,19 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     </div>
                 )}
 
-                <div className="my-auto inline-flex w-full items-center justify-start gap-2.5 rounded-[10px] px-2.5 py-2 outline-1 outline-offset-[-1px] outline-white">
+                <div className={cn(
+                    "flex w-full items-center justify-center gap-1.5 self-stretch p-3",
+                    "fixed right-0 bottom-[73px]"
+                )}>
+                    <div className="p-2 rounded-full bg-black/30">
+                        <Image
+                            src="/footer/bottomTab/tab_icon_bubble.svg"
+                            className="h-4 w-4"
+                            alt="Chat"
+                            width={16}
+                            height={16}
+                        />
+                    </div>
                     <input
                         ref={inputRef}
                         type="text"
@@ -1041,17 +1006,10 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                         onKeyDown={handleKeyPress}
                         autoFocus={true}
                         placeholder="Typing Message..."
-                        className="flex-1 bg-transparent text-base leading-tight text-white placeholder-white/40 focus:outline-none"
+                        className="flex flex-1 cursor-pointer rounded-[100px] px-2.5 py-2 bg-black/30 text-white placeholder:text-[#FFFFFF66]"
                     />
-                    <button
-                        onClick={handleSendMessage}
-                        disabled={!inputValue.trim()}
-                        className={cn(
-                            'relative h-[30px] w-[30px] cursor-pointer overflow-hidden rounded-lg transition-all',
-                            inputValue.trim() ? 'bg-white' : 'bg-white/30'
-                        )}
-                    >
-                        <Image src="/footer/bottomSheet/send.svg" alt="Send" width={30} height={30} />
+                    <button className="bg-white rounded-lg w-[30px] h-[30px] flex items-center justify-center">
+                        <Triangle className="text-xs font-bold text-black" fill="black" width={12} height={9} />
                     </button>
                 </div>
             </div>

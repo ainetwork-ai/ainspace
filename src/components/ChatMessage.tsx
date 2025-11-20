@@ -1,0 +1,36 @@
+import { ChatMessage as ChatMessageType, useAgentStore, useGameStateStore } from "@/stores";
+import Image from "next/image";
+
+export default function ChatMessage({ message }: { message: ChatMessageType }) {
+  const { agents } = useAgentStore();
+  const { worldPosition: playerPosition } = useGameStateStore();
+  
+  const getAgentNameAndPosition = (senderId: string | undefined): string => {
+    if (!senderId) return 'AI';
+    // Try to find agent by ID first, then by name (for SSE stream messages)
+    const agent = agents[senderId];
+    if (agent && playerPosition) {
+        const distance = Math.sqrt(
+            Math.pow(agent.x - playerPosition.x, 2) + Math.pow(agent.y - playerPosition.y, 2)
+        );
+        return `${agent.name} (${agent.x}, ${agent.y}) [${distance.toFixed(1)}u]`;
+    }
+    // If agent not found in local agents array, just return the senderId as name
+    return senderId || 'AI';
+};
+
+
+  return (
+    <div className="flex flex-col items-start gap-1">
+        <div className="flex flex-row items-center gap-2">
+            <Image src={"/chat/default_profile.png"} alt="Profile" width={30} height={30} />
+            <span className="text-sm font-normal text-white">
+                {message.sender === 'user' ? 'Me' : getAgentNameAndPosition(message.senderId)}
+            </span>
+        </div>
+        <p className="justify-start font-semibold leading-[25px] text-white">
+            {message.text}
+        </p>
+    </div>
+  );
+}

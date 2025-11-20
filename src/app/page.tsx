@@ -5,10 +5,8 @@ import { useMiniKit } from '@coinbase/onchainkit/minikit';
 import { useRef, useEffect, useState } from 'react';
 import { ChatBoxRef } from '@/components/ChatBox';
 import MapTab from '@/components/tabs/MapTab';
-import ThreadTab from '@/components/tabs/ThreadTab';
 import AgentTab from '@/components/tabs/AgentTab';
 import Footer from '@/components/Footer';
-import BottomSheet from '@/components/BottomSheet';
 import { DIRECTION, MAP_TILES, ENABLE_AGENT_MOVEMENT } from '@/constants/game';
 import { AgentCard } from '@a2a-js/sdk';
 import { useUIStore, useThreadStore, useBuildStore, useAgentStore } from '@/stores';
@@ -33,18 +31,13 @@ const MAX_SEARCH_RADIUS = 10;  // Tight clustering within each zone
 
 export default function Home() {
     // Global stores
-    const { activeTab, isBottomSheetOpen, setActiveTab, openBottomSheet, closeBottomSheet } = useUIStore();
+    const { activeTab, setActiveTab, openBottomSheet } = useUIStore();
     const {
         threads,
-        currentThreadId,
         broadcastMessage,
         broadcastStatus,
-        addThread,
         setCurrentThreadId,
         setBroadcastMessage,
-        setBroadcastStatus,
-        clearBroadcastMessage,
-        clearBroadcastStatusAfterDelay
     } = useThreadStore();
     const {
         customTiles,
@@ -65,7 +58,6 @@ export default function Home() {
     const { worldPosition, userId, worldAgents, resetLocation, lastCommentary, visibleAgents } = useGameState();
     const { agents, spawnAgent, removeAgent, setAgents } = useAgentStore();
     const { setFrameReady, isFrameReady } = useMiniKit();
-    const chatBoxRef = useRef<ChatBoxRef>(null);
     const [isSDKLoaded, setIsSDKLoaded] = useState(false);
 
     const { writeContractAsync } = useWriteContract();
@@ -212,71 +204,6 @@ export default function Home() {
         loadDeployedAgents();
     }, [spawnAgent]);
 
-    const handleBroadcast = async () => {
-        if (broadcastMessage.trim()) {
-            const messageText = broadcastMessage.trim();
-
-            // Calculate agents within range (default broadcast range: 10 units)
-            const broadcastRange = 10;
-            const agentsInRange = combinedWorldAgents.filter((agent) => {
-                const distance = Math.sqrt(
-                    Math.pow(agent.x - worldPosition.x, 2) + Math.pow(agent.y - worldPosition.y, 2)
-                );
-                return distance <= broadcastRange;
-            });
-
-            console.log('Broadcast setup:', {
-                totalAgents: combinedWorldAgents.length,
-                agentsInRange: agentsInRange.length,
-                agentNames: agentsInRange.map((a) => a.name),
-                agentIds: agentsInRange.map((a) => a.id)
-            });
-
-            // Set broadcast status
-            setBroadcastStatus({
-                range: broadcastRange,
-                agentsReached: agentsInRange.length,
-                agentNames: agentsInRange.map((agent) => agent.name)
-            });
-
-            clearBroadcastMessage();
-
-            // Create thread and send message if there are agents in range
-            if (agentsInRange.length > 0 && chatBoxRef.current) {
-                // Create new thread with unique ID
-                const threadId = `thread-${Date.now()}`;
-                const newThread = {
-                    id: threadId,
-                    message: messageText,
-                    timestamp: new Date(),
-                    agentsReached: agentsInRange.length,
-                    agentNames: agentsInRange.map((agent) => agent.name)
-                };
-
-                // Add to threads list and set as current thread
-                addThread(newThread);
-                setCurrentThreadId(threadId);
-
-                try {
-                    // Send the broadcast message through the ChatBox system with thread ID and radius
-                    // This now handles both regular and A2A agents through the unified system
-                    await chatBoxRef.current.sendMessage(messageText, threadId, broadcastRange);
-                    console.log(
-                        `Broadcasting "${messageText}" to ${agentsInRange.length} agents in thread ${threadId}:`,
-                        agentsInRange.map((a) => a.name)
-                    );
-                } catch (error) {
-                    console.error('Failed to broadcast message:', error);
-                }
-            } else {
-                console.log(`No agents in range - broadcast message "${messageText}" not sent, no thread created`);
-            }
-
-            // Clear broadcast status after 5 seconds
-            clearBroadcastStatusAfterDelay(5000);
-        }
-    };
-
     const handleViewThread = (threadId?: string) => {
         // Set current thread if specified, otherwise use most recent
         if (threadId) {
@@ -419,7 +346,7 @@ export default function Home() {
                 }
 
                 // Check if position is occupied by another agent
-                const isOccupied = combinedWorldAgents.some((agent) => agent.x === x && agent.y === y);
+                const isOccupied = combinedVisibleAgents.some((agent) => agent.x === x && agent.y === y);
                 return !isOccupied;
             };
 
@@ -549,20 +476,20 @@ export default function Home() {
         removeAgent(agentUrl);
     };
 
-    // Combine existing world agents with spawned A2A agents
-    const combinedWorldAgents = [
-        ...worldAgents,
-        ...Object.values(agents).map((agent) => ({
-            id: agent.id,
-            x: agent.x,
-            y: agent.y,
-            color: agent.color,
-            name: agent.name,
-            behavior: 'A2A Agent',
-            agentUrl: agent.agentUrl, // Include agentUrl for A2A agents
-            skills: agent.skills
-        }))
-    ];
+    // // Combine existing world agents with spawned A2A agents
+    // const combinedWorldAgents = [
+    //     ...worldAgents,
+    //     ...Object.values(agents).map((agent) => ({
+    //         id: agent.id,
+    //         x: agent.x,
+    //         y: agent.y,
+    //         color: agent.color,
+    //         name: agent.name,
+    //         behavior: 'A2A Agent',
+    //         agentUrl: agent.agentUrl, // Include agentUrl for A2A agents
+    //         skills: agent.skills
+    //     }))
+    // ];
 
     // Convert A2A agents to visible agents format for the map
     const a2aVisibleAgents = Object.values(agents)
@@ -729,7 +656,6 @@ export default function Home() {
                     customTiles={customTiles}
                     broadcastMessage={broadcastMessage}
                     setBroadcastMessage={setBroadcastMessage}
-                    onBroadcast={handleBroadcast}
                     broadcastStatus={broadcastStatus}
                     threads={threads}
                     onViewThread={handleViewThread}
@@ -775,28 +701,10 @@ export default function Home() {
                     spawnedAgents={Object.keys(agents)}
                 />
             </div>
-            {!isBottomSheetOpen && (
-                <Footer
-                    activeTab={activeTab}
-                    onTabChange={setActiveTab}
-                    onClickDialogueBox={openBottomSheet}
-                    worldAgents={combinedWorldAgents}
-                    playerPosition={worldPosition}
-                />
-            )}
-            <BottomSheet isOpen={isBottomSheetOpen} onClose={closeBottomSheet}>
-                <ThreadTab
-                    isActive={true}
-                    chatBoxRef={chatBoxRef}
-                    lastCommentary={lastCommentary}
-                    worldAgents={combinedWorldAgents}
-                    currentThreadId={currentThreadId || undefined}
-                    threads={threads}
-                    onThreadSelect={setCurrentThreadId}
-                    onResetLocation={resetLocation}
-                    userId={userId}
-                />
-            </BottomSheet>
+            <Footer
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+            />
         </div>
     );
 }
