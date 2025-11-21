@@ -3,7 +3,7 @@ import ChatBox, { ChatBoxRef } from './ChatBox';
 import { AgentInformation } from '@/stores';
 import { cn } from '@/lib/utils';
 
-interface BottomSheetProps {
+interface ChatBottomDrawerProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     chatBoxRef: React.RefObject<ChatBoxRef>;
@@ -21,7 +21,7 @@ interface BottomSheetProps {
     userId: string | null;
 }
 
-export default function BottomSheet({
+export default function ChatBottomDrawer({
     open,
     onOpenChange,
     chatBoxRef,
@@ -31,7 +31,7 @@ export default function BottomSheet({
     threads,
     onThreadSelect,
     userId,
-}: BottomSheetProps) {
+  }: ChatBottomDrawerProps) {
     return (
         <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" >
             <DrawerContent 

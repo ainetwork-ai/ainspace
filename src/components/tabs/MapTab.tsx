@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAccount } from 'wagmi';
 import Image from 'next/image';
 import { disconnect } from '@wagmi/core';
@@ -47,15 +47,10 @@ export default function MapTab({
     publishedTiles,
     customTiles,
     broadcastMessage,
-    setBroadcastMessage,
-    broadcastStatus,
-    threads,
-    onViewThread,
     collisionMap,
     onAgentClick
 }: MapTabProps) {
     const { address } = useAccount();
-    const { isBottomSheetOpen } = useUIStore();
     const { agents } = useAgentStore();
     const { movePlayer } = useGameState();
     const chatBoxRef = useRef<ChatBoxRef>(null);
@@ -80,6 +75,8 @@ export default function MapTab({
     } = useThreadStore();
 
     const { isBlocked: globalIsBlocked } = useBuildStore();
+
+    const [isJoystickVisible, setIsJoystickVisible] = useState(true);
 
     const handleBroadcast = async () => {
       if (broadcastMessage.trim()) {
@@ -263,7 +260,7 @@ export default function MapTab({
                         <p className="text-sm font-bold text-black">{shortAddress(address)}</p>
                     </button>
                 )}
-                {!isBottomSheetOpen && (
+                {isJoystickVisible && (
                     <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 transform">
                         <PlayerJoystick
                             onMove={handleMobileMove}
@@ -381,7 +378,11 @@ export default function MapTab({
                     </div>
                 </div> */}
             </div>
-            <ChatBoxOverlay chatBoxRef={chatBoxRef} className="fixed bottom-[73px] left-0" />
+            <ChatBoxOverlay
+                chatBoxRef={chatBoxRef}
+                className="fixed bottom-[73px] left-0"
+                setJoystickVisible={setIsJoystickVisible}
+            />
         </BaseTabContent>
     );
 }

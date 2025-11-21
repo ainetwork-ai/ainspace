@@ -4,27 +4,43 @@ import { AgentInformation, useThreadStore } from '@/stores';
 import { Triangle } from 'lucide-react';
 import Image from 'next/image';
 import { useMemo, useState } from 'react';
-import BottomSheet from './BottomSheet';
+import ChatBottomDrawer from './ChatBottomDrawer';
 import { ChatBoxRef } from './ChatBox';
+import ThreadListLeftDrawer from './ThreadListLeftDrawer';
 
 interface ChatBoxOverlayProps {
-  chatBoxRef: React.RefObject<ChatBoxRef | null>;
-  className?: string;
-  lastCommentary: string;
-  worldAgents: AgentInformation[];
-  currentThreadId?: string;
-  threads: {
-    id: string;
-    message: string;
-    timestamp: Date;
-  }[];
+    chatBoxRef: React.RefObject<ChatBoxRef | null>;
+    setJoystickVisible: (isJoystickVisible: boolean) => void;
+    className?: string;
+    lastCommentary?: string;
+    worldAgents?: AgentInformation[];
+    currentThreadId?: string;
+    threads?: {
+        id: string;
+        message: string;
+        timestamp: Date;
+    }[];
 }
 
-export default function ChatBoxOverlay({ chatBoxRef, className, lastCommentary, currentThreadId }: ChatBoxOverlayProps) {
+export default function ChatBoxOverlay({
+  chatBoxRef, className, lastCommentary, currentThreadId, setJoystickVisible,
+}: ChatBoxOverlayProps) {
     const { worldAgents, playerPosition } = useGameState();
-    const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
+    const [isChatSheetOpen, setIsChatSheetOpen] = useState(false);
+    const [isThreadListSheetOpen, setIsThreadListSheetOpen] = useState(false);
     const { userId } = useGameState();
     const { threads, setCurrentThreadId } = useThreadStore();
+
+    const handleChatSheetOpen = (open: boolean) => {
+      setIsChatSheetOpen(open);
+      setJoystickVisible(!open);
+    }
+
+    const handleThreadListSheetOpen = (open: boolean) => {
+      setIsThreadListSheetOpen(open);
+      setJoystickVisible(!open);
+    }
+
     // Calculate agents within broadcast radius (10 units)
     const agentsInRadius = useMemo(() => {
       if (!playerPosition || worldAgents.length === 0) return [];
@@ -48,13 +64,18 @@ export default function ChatBoxOverlay({ chatBoxRef, className, lastCommentary, 
       return `Talk to: ${agentNames}`;
     }, [agentsInRadius]);
 
-    const openBottomSheet = () => {
-      setIsBottomSheetOpen(true);
+    const openChatSheet = () => {
+      setIsChatSheetOpen(true);
+    };
+
+    const openThreadListSheet = () => {
+      console.log('openThreadListSheet');
+      setIsThreadListSheetOpen(true);
     };
 
     return (
         <div className={cn("relative w-full z-50", className)}>
-            {!isBottomSheetOpen &&
+            {!isChatSheetOpen &&
                 <div
                     className={
                         cn(
@@ -63,7 +84,10 @@ export default function ChatBoxOverlay({ chatBoxRef, className, lastCommentary, 
                         )}
                     // style={{ bottom: `${FOOTER_HEIGHT}px` }}
                 >
-                    <div className="p-2 rounded-full bg-black/30">
+                    <div 
+                        className="p-2 rounded-full bg-black/30"
+                        onClick={openThreadListSheet}
+                    >
                         <Image
                             src="/footer/bottomTab/tab_icon_bubble.svg"
                             className="h-4 w-4"
@@ -72,16 +96,16 @@ export default function ChatBoxOverlay({ chatBoxRef, className, lastCommentary, 
                             height={16}
                         />
                     </div>
-                    <button onClick={openBottomSheet} className="flex flex-1 cursor-pointer rounded-[100px] px-2.5 py-2 bg-black/30">
+                    <button onClick={openChatSheet} className="flex flex-1 cursor-pointer rounded-[100px] px-2.5 py-2 bg-black/30">
                         <span className="text-xs font-bold text-white">{chatPlaceholder}</span>
                     </button>
                     <button className="bg-white rounded-lg w-[30px] h-[30px] flex items-center justify-center">
                         <Triangle className="text-xs font-bold text-black" fill="black" width={12} height={9} />
                     </button>
                 </div>}
-            <BottomSheet 
-                open={isBottomSheetOpen}
-                onOpenChange={setIsBottomSheetOpen}
+            <ChatBottomDrawer 
+                open={isChatSheetOpen}
+                onOpenChange={handleChatSheetOpen}
                 chatBoxRef={chatBoxRef as React.RefObject<ChatBoxRef>}
                 lastCommentary={lastCommentary}
                 worldAgents={worldAgents}
@@ -89,6 +113,12 @@ export default function ChatBoxOverlay({ chatBoxRef, className, lastCommentary, 
                 threads={[]}
                 onThreadSelect={setCurrentThreadId}
                 userId={userId}
+            />
+            <ThreadListLeftDrawer
+                open={isThreadListSheetOpen}
+                onOpenChange={handleThreadListSheetOpen}
+                threads={threads}
+                onThreadSelect={setCurrentThreadId}
             />
         </div>
     );
