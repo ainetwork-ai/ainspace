@@ -2,8 +2,7 @@
 
 import { useGameState } from '@/hooks/useGameState';
 import { useMiniKit } from '@coinbase/onchainkit/minikit';
-import { useRef, useEffect, useState } from 'react';
-import { ChatBoxRef } from '@/components/ChatBox';
+import { useEffect, useState } from 'react';
 import MapTab from '@/components/tabs/MapTab';
 import AgentTab from '@/components/tabs/AgentTab';
 import Footer from '@/components/Footer';
@@ -31,7 +30,7 @@ const MAX_SEARCH_RADIUS = 10;  // Tight clustering within each zone
 
 export default function Home() {
     // Global stores
-    const { activeTab, setActiveTab, openBottomSheet } = useUIStore();
+    const { activeTab, setActiveTab } = useUIStore();
     const {
         threads,
         broadcastMessage,
@@ -227,7 +226,7 @@ export default function Home() {
         }
 
         // Open the BottomSheet to show the ThreadTab
-        openBottomSheet();
+        // openBottomSheet();
     };
 
     const handlePublishTiles = async () => {
