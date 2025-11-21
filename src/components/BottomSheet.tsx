@@ -1,82 +1,60 @@
-'use client';
-
-import React, { useEffect, useRef, useState } from 'react';
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
+import ChatBox, { ChatBoxRef } from './ChatBox';
+import { AgentInformation } from '@/stores';
+import { cn } from '@/lib/utils';
 
 interface BottomSheetProps {
-    isOpen: boolean;
-    onClose: () => void;
-    children: React.ReactNode;
-    title?: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  chatBoxRef: React.RefObject<ChatBoxRef>;
+  lastCommentary: string;
+  worldAgents: AgentInformation[];
+  currentThreadId: string | undefined;
+  threads: {
+    id: string;
+    message: string;
+    timestamp: Date;
+    agentsReached: number;
+    agentNames: string[];
+  }[];
+  onThreadSelect: (threadId: string | undefined) => void;
+  userId: string | null;
 }
 
-export default function BottomSheet({ isOpen, onClose, children, title }: BottomSheetProps) {
-    const [isDragging, setIsDragging] = useState(false);
-    const [startY, setStartY] = useState(0);
-    const [currentY, setCurrentY] = useState(0);
-    const sheetRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        if (isOpen) {
-            document.body.style.overflow = 'hidden';
-        } else {
-            document.body.style.overflow = '';
-        }
-
-        return () => {
-            document.body.style.overflow = '';
-        };
-    }, [isOpen]);
-
-    const handleTouchStart = (e: React.TouchEvent) => {
-        setIsDragging(true);
-        setStartY(e.touches[0].clientY);
-        setCurrentY(0);
-    };
-
-    const handleTouchMove = (e: React.TouchEvent) => {
-        if (!isDragging) return;
-
-        const deltaY = e.touches[0].clientY - startY;
-        if (deltaY > 0) {
-            setCurrentY(deltaY);
-        }
-    };
-
-    const handleTouchEnd = () => {
-        setIsDragging(false);
-
-        if (currentY > 150) {
-            onClose();
-        }
-
-        setCurrentY(0);
-    };
-
-    if (!isOpen) return null;
-
-    return (
-        <>
-            <div
-                className="fixed inset-0 z-40 bg-transparent transition-opacity"
-                style={{ opacity: isOpen ? 1 : 0 }}
-                onClick={onClose}
-            />
-            <div
-                ref={sheetRef}
-                className="fixed right-0 bottom-0 left-0 z-50 flex max-h-[85vh] flex-col rounded-t-3xl bg-black/70 shadow-2xl transition-opacity"
-                style={{
-                    transform: isDragging ? `translateY(${currentY}px)` : isOpen ? 'translateY(0)' : 'translateY(100%)',
-                    transition: isDragging ? 'none' : 'transform 0.3s ease-out'
-                }}
-                onTouchStart={handleTouchStart}
-                onTouchMove={handleTouchMove}
-                onTouchEnd={handleTouchEnd}
+export default function BottomSheet({
+  open,
+  onOpenChange,
+  chatBoxRef,
+  lastCommentary,
+  worldAgents,
+  currentThreadId,
+  threads,
+  onThreadSelect,
+  userId,
+}: BottomSheetProps) {
+  return (
+    <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" >
+      <DrawerContent 
+        className={
+            cn(
+                "h-screen max-h-screen z-49 pb-[73px]",
+                "bg-black/50",
+            )}
             >
-                <div className="flex w-full items-center justify-center py-3">
-                    <div className="h-1.5 w-12 rounded-full bg-gray-300" />
-                </div>
-                <div className="flex-1 overflow-auto">{children}</div>
-            </div>
-        </>
-    );
+          <DrawerHeader>
+            <DrawerTitle></DrawerTitle>
+          </DrawerHeader>
+          <ChatBox
+                ref={chatBoxRef}
+                className="h-screen"
+                aiCommentary={lastCommentary}
+                agents={worldAgents}
+                currentThreadId={currentThreadId}
+                threads={threads}
+                onThreadSelect={onThreadSelect}
+                userId={userId}
+            />
+      </DrawerContent>
+    </Drawer>
+  );
 }

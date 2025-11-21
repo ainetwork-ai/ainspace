@@ -1,7 +1,6 @@
 import { useGameState } from '@/hooks/useGameState';
 import { cn } from '@/lib/utils';
-import { AgentInformation, FOOTER_HEIGHT, useThreadStore } from '@/stores';
-import ThreadTab from './tabs/ThreadTab';
+import { AgentInformation, useThreadStore } from '@/stores';
 import { Triangle } from 'lucide-react';
 import Image from 'next/image';
 import { useMemo, useState } from 'react';
@@ -49,17 +48,13 @@ export default function ChatBoxOverlay({ chatBoxRef, className, lastCommentary, 
       return `Talk to: ${agentNames}`;
     }, [agentsInRadius]);
 
-    const onClickDialogueBox = () => {
+    const openBottomSheet = () => {
       setIsBottomSheetOpen(true);
-    };
-
-    const closeBottomSheet = () => {
-      setIsBottomSheetOpen(false);
     };
 
     return (
         <div className={cn("relative w-full z-50", className)}>
-            {!isBottomSheetOpen ?
+            {!isBottomSheetOpen &&
                 <div
                     className={
                         cn(
@@ -77,35 +72,24 @@ export default function ChatBoxOverlay({ chatBoxRef, className, lastCommentary, 
                             height={16}
                         />
                     </div>
-                    <button onClick={onClickDialogueBox} className="flex flex-1 cursor-pointer rounded-[100px] px-2.5 py-2 bg-black/30">
+                    <button onClick={openBottomSheet} className="flex flex-1 cursor-pointer rounded-[100px] px-2.5 py-2 bg-black/30">
                         <span className="text-xs font-bold text-white">{chatPlaceholder}</span>
                     </button>
                     <button className="bg-white rounded-lg w-[30px] h-[30px] flex items-center justify-center">
                         <Triangle className="text-xs font-bold text-black" fill="black" width={12} height={9} />
                     </button>
-                </div> : 
-                <BottomSheet isOpen={isBottomSheetOpen} onClose={closeBottomSheet}>
-                    <div
-                        className={
-                            cn(
-                                "fixed left-0 right-0",
-                                "flex w-full items-center justify-center gap-1.5 self-stretch rounded-tl-lg rounded-tr-lg p-3",
-                            )}
-                        style={{ bottom: `${FOOTER_HEIGHT}px` }}
-                    >
-                    </div>
-                        <ThreadTab
-                            isActive={true}
-                            chatBoxRef={chatBoxRef as React.RefObject<ChatBoxRef>}
-                            lastCommentary={lastCommentary}
-                            worldAgents={worldAgents}
-                            currentThreadId={currentThreadId || undefined}
-                            threads={[]} //FIXME: temp
-                            onThreadSelect={setCurrentThreadId}
-                            userId={userId}
-                        />
-                </BottomSheet>    
-            }
+                </div>}
+            <BottomSheet 
+                open={isBottomSheetOpen}
+                onOpenChange={setIsBottomSheetOpen}
+                chatBoxRef={chatBoxRef as React.RefObject<ChatBoxRef>}
+                lastCommentary={lastCommentary}
+                worldAgents={worldAgents}
+                currentThreadId={currentThreadId || undefined}
+                threads={[]}
+                onThreadSelect={setCurrentThreadId}
+                userId={userId}
+            />
         </div>
     );
 }

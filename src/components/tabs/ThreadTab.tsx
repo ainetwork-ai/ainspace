@@ -44,7 +44,7 @@ export default function ThreadTab({
         <BaseTabContent isActive={isActive} withPadding={false}>
             <ChatBox
                 ref={chatBoxRef}
-                className="h-full"
+                className="h-screen"
                 aiCommentary={lastCommentary}
                 agents={worldAgents}
                 currentThreadId={currentThreadId}

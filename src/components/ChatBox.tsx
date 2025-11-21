@@ -934,7 +934,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             {/* </div> */}
 
             {/* NOTE: Chat Messages */}
-            <div className="h-screen space-y-2 overflow-y-auto p-4 pt-2">
+            <div className="overflow-y-auto p-4 pt-2">
                 {threadMessages.slice().map((message) => (
                     <ChatMessage key={message.id} message={message} />
                 ))}
@@ -943,8 +943,8 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
 
             {/* NOTE: Chat Input Area */}
             <div className={cn(
-                "fixed right-0 bottom-0 left-0 bg-gradient-to-t from-black/90 to-transparent p-3 backdrop-blur-sm",
-                // "fixed right-0 bottom-[73px]"
+                "w-full bg-transparent",
+                "absolute right-0 bottom-0"
             )}>
 
                 {showSuggestions && filteredAgents.length > 0 && (
@@ -987,7 +987,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
 
                 <div className={cn(
                     "flex w-full items-center justify-center gap-1.5 self-stretch p-3",
-                    "fixed right-0 bottom-[73px]"
+                    // "fixed right-0 bottom-0"
                 )}>
                     <div className="p-2 rounded-full bg-black/30">
                         <Image
