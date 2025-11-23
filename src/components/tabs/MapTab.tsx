@@ -67,6 +67,7 @@ export default function MapTab({
     } = useGameState();
 
     const {
+        setThreads,
         addThread,
         setCurrentThreadId,
         setBroadcastStatus,
@@ -222,6 +223,23 @@ export default function MapTab({
         window.addEventListener('keydown', handleKeyPress);
         return () => window.removeEventListener('keydown', handleKeyPress);
     }, [handleMobileMove, isLoading, isAutonomous, resetLocation]);
+
+    useEffect(() => {
+      if (!isActive) {
+        console.log('not active why?');
+        return;
+      }
+
+      const fetchThreads = async () => {
+        const response = await fetch(`/api/threads?userId=${address}`);
+        const data = await response.json();
+        console.log('data', data);
+        if (data.success && data.threads) {
+          setThreads(data.threads);
+        }
+      }
+      fetchThreads();
+    }, [isActive, address, setThreads]);
 
     return (
         <BaseTabContent isActive={isActive} withPadding={false}>

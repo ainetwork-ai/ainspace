@@ -25,7 +25,7 @@ export default function ThreadListLeftDrawer({ open, onOpenChange, threads }: Th
                     <DrawerTitle />
                 </DrawerHeader>
                 <div className='flex flex-col w-full'>
-                  {threads.map((thread) => (
+                  {Array.isArray(threads) && threads.map((thread) => (
                       <ThreadCard key={thread.id} thread={thread} />
                   ))}
                 </div>
