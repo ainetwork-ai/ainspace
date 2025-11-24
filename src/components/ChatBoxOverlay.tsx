@@ -154,12 +154,8 @@ export default function ChatBoxOverlay({
                 onOpenChange={handleChatSheetOpen}
                 openThreadList={() => handleThreadListSheetOpen(true)}
                 chatBoxRef={chatBoxRef as React.RefObject<ChatBoxRef>}
-                lastCommentary={lastCommentary}
                 worldAgents={worldAgents}
-                currentThreadId={currentThreadId}
-                threads={[]}
                 onThreadSelect={setCurrentThreadId}
-                userId={userId}
             />
             <ThreadListLeftDrawer
                 open={isThreadListSheetOpen}

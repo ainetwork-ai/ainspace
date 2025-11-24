@@ -8,18 +8,9 @@ interface ChatBottomDrawerProps {
     onOpenChange: (open: boolean) => void;
     openThreadList: () => void;
     chatBoxRef: React.RefObject<ChatBoxRef>;
-    lastCommentary: string;
+    lastCommentary?: string;
     worldAgents: AgentInformation[];
-    currentThreadId: string | undefined;
-    threads: {
-        id: string;
-        message: string;
-        timestamp: Date;
-        agentsReached: number;
-        agentNames: string[];
-    }[];
     onThreadSelect: (threadId: string | undefined) => void;
-    userId: string | null;
 }
 
 export default function ChatBottomDrawer({
@@ -29,10 +20,7 @@ export default function ChatBottomDrawer({
     chatBoxRef,
     lastCommentary,
     worldAgents,
-    currentThreadId,
-    threads,
     onThreadSelect,
-    userId,
   }: ChatBottomDrawerProps) {
     return (
         <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" >
@@ -50,11 +38,11 @@ export default function ChatBottomDrawer({
                 <ChatBox
                       ref={chatBoxRef}
                       aiCommentary={lastCommentary}
-                      agents={worldAgents}
-                      currentThreadId={currentThreadId}
-                      threads={threads}
+                      agents={worldAgents.map(agent => ({
+                        ...agent,
+                        behavior: 'idle', // FIXME(yoojin): temp behavior
+                      }))}
                       onThreadSelect={onThreadSelect}
-                      userId={userId}
                       openThreadList={openThreadList}
                 />
             </DrawerContent>
