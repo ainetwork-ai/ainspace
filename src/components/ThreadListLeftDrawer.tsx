@@ -1,6 +1,6 @@
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { cn } from '@/lib/utils';
-import { Thread, UserThread } from '@/stores/useThreadStore';
+import { UserThread } from '@/stores/useThreadStore';
 import ThreadCard from './ThreadCard';
 
 interface ThreadListLeftDrawerProps {
