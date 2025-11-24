@@ -40,7 +40,7 @@ export default function ChatBottomDrawer({
                       aiCommentary={lastCommentary}
                       agents={worldAgents.map(agent => ({
                         ...agent,
-                        behavior: 'idle', // FIXME(yoojin): temp behavior
+                        behavior: 'random', // FIXME(yoojin): temp behavior
                       }))}
                       onThreadSelect={onThreadSelect}
                       openThreadList={openThreadList}
