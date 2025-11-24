@@ -111,12 +111,12 @@ export default function ChatBoxOverlay({
     }, [agentsInRadius]);
 
     const openChatSheet = () => {
-      setIsChatSheetOpen(true);
+      handleChatSheetOpen(true);
     };
 
     const openThreadListSheet = () => {
       console.log('openThreadListSheet');
-      setIsThreadListSheetOpen(true);
+      handleThreadListSheetOpen(true);
     };
 
     return (
