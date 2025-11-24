@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 import ChatBottomDrawer from './ChatBottomDrawer';
 import { ChatBoxRef } from './ChatBox';
 import ThreadListLeftDrawer from './ThreadListLeftDrawer';
+import { useAccount } from 'wagmi';
 
 interface ChatBoxOverlayProps {
     chatBoxRef: React.RefObject<ChatBoxRef | null>;
@@ -23,20 +24,28 @@ interface ChatBoxOverlayProps {
 }
 
 export default function ChatBoxOverlay({
-  chatBoxRef, className, lastCommentary, currentThreadId, setJoystickVisible,
+  chatBoxRef, className, lastCommentary, setJoystickVisible,
 }: ChatBoxOverlayProps) {
     const { worldAgents, playerPosition } = useGameState();
     const [isChatSheetOpen, setIsChatSheetOpen] = useState(false);
     const [isThreadListSheetOpen, setIsThreadListSheetOpen] = useState(false);
     const { userId } = useGameState();
-    const { threads, userThreads, setCurrentThreadId, setUserThreads } = useThreadStore();
+    const {
+        threads,
+        userThreads,
+        setCurrentThreadId,
+        setUserThreads,
+        currentThreadId,
+    } = useThreadStore();
+
+    const { address } = useAccount();
 
     useEffect(() => {
-      if (!userId) return;
+      if (!address) return;
 
       const loadThreadMappings = async () => {
           try {
-              const response = await fetch(`/api/threads?userId=${userId}`);
+              const response = await fetch(`/api/threads?userId=${address}`);
               if (!response.ok) {
                   console.error('Failed to load thread mappings');
                   return;
@@ -58,7 +67,7 @@ export default function ChatBoxOverlay({
                   }
 
                   setUserThreads(data.threads);
-                  console.log('Loaded thread mappings:', mappings);
+                  console.log('Loaded thread mappings:', data.threads);
               }
           } catch (error) {
               console.error('Error loading thread mappings:', error);
@@ -66,7 +75,7 @@ export default function ChatBoxOverlay({
       };
 
       loadThreadMappings();
-  }, [userId, setUserThreads]);
+  }, [address, setUserThreads]);
 
     const handleChatSheetOpen = (open: boolean) => {
       setIsChatSheetOpen(open);
@@ -143,10 +152,11 @@ export default function ChatBoxOverlay({
             <ChatBottomDrawer 
                 open={isChatSheetOpen}
                 onOpenChange={handleChatSheetOpen}
+                openThreadList={() => handleThreadListSheetOpen(true)}
                 chatBoxRef={chatBoxRef as React.RefObject<ChatBoxRef>}
                 lastCommentary={lastCommentary}
                 worldAgents={worldAgents}
-                currentThreadId={currentThreadId || undefined}
+                currentThreadId={currentThreadId}
                 threads={[]}
                 onThreadSelect={setCurrentThreadId}
                 userId={userId}

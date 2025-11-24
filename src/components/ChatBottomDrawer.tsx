@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 interface ChatBottomDrawerProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    openThreadList: (open: boolean) => void;
+    openThreadList: () => void;
     chatBoxRef: React.RefObject<ChatBoxRef>;
     lastCommentary: string;
     worldAgents: AgentInformation[];

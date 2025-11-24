@@ -5,7 +5,7 @@ import { useWorld } from '@/hooks/useWorld';
 import { Agent, AgentResponse } from '@/lib/world';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
-import { useBuildStore, useChatStore, useGameStateStore } from '@/stores';
+import { useBuildStore, useChatStore, useGameStateStore, useThreadStore } from '@/stores';
 import { INITIAL_PLAYER_POSITION } from '@/constants/game';
 import { useAccount } from 'wagmi';
 import * as Sentry from '@sentry/nextjs';
@@ -26,20 +26,11 @@ interface Message {
 interface ChatBoxProps {
     className?: string;
     onAddMessage?: (message: Message) => void;
-    openThreadList: (open: boolean) => void;
+    openThreadList: () => void;
     aiCommentary?: string;
     agents?: Agent[];
-    currentThreadId?: string;
-    threads?: Array<{
-        id: string;
-        message: string;
-        timestamp: Date;
-        agentsReached: number;
-        agentNames: string[];
-    }>;
     onThreadSelect?: (threadId: string | undefined) => void;
     onResetLocation?: () => void;
-    userId?: string | null;
 }
 
 export interface ChatBoxRef {
@@ -47,10 +38,11 @@ export interface ChatBoxRef {
 }
 
 const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
-    { className = '', aiCommentary, agents = [], currentThreadId, onResetLocation, openThreadList },
+    { className = '', aiCommentary, agents = [], onResetLocation, openThreadList },
     ref
 ) {
-    const { messages, setMessages } = useChatStore();
+    const { messages, setMessages, getMessagesByThread } = useChatStore();
+    const { currentThreadId, setCurrentThreadId } = useThreadStore();
     const [inputValue, setInputValue] = useState('');
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [filteredAgents, setFilteredAgents] = useState<Agent[]>([]);
@@ -61,19 +53,21 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     const inputRef = useRef<HTMLInputElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
-    // Manage active thread ID internally (start with undefined, only set after first message)
-    const [activeThreadId, setActiveThreadId] = useState<string | undefined>(undefined);
-    // Track which agents are in the current thread
-    const [threadAgentNames, setThreadAgentNames] = useState<string[]>([]);
+    const [displayedMessages, setDisplayedMessages] = useState<Message[]>([]);
+
     // Track if a message has been sent (to enable SSE connection)
     const [hasStartedConversation, setHasStartedConversation] = useState(false);
     // Map thread names (our generated IDs) to backend thread IDs
     const [threadNameToIdMap, setThreadNameToIdMap] = useState<{ [threadName: string]: string }>({});
-    // Thread list menu state
-    const [showThreadList, setShowThreadList] = useState(false);
 
     const { address } = useAccount();
     const { worldPosition: playerPosition } = useGameStateStore();
+
+    useEffect(() => {
+        if (currentThreadId) {
+            setDisplayedMessages(getMessagesByThread(currentThreadId));
+        }
+    }, [currentThreadId, getMessagesByThread]);
 
     // Store full thread data including agent names
     const [fullThreadData, setFullThreadData] = useState<{
@@ -82,45 +76,6 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             agentNames: string[]
         }
     }>({});
-
-    // Load thread mappings from backend when component mounts
-    useEffect(() => {
-        if (!address) return;
-
-        const loadThreadMappings = async () => {
-            try {
-                const response = await fetch(`/api/threads?userId=${address}`);
-                if (!response.ok) {
-                    console.error('Failed to load thread mappings');
-                    return;
-                }
-
-                const data = await response.json();
-                if (data.success && data.threads) {
-                    // Convert thread mappings to our format
-                    const mappings: { [threadName: string]: string } = {};
-                    const fullData: { [threadName: string]: { backendThreadId: string; agentNames: string[] } } = {};
-
-                    for (const [threadName, threadData] of Object.entries(data.threads)) {
-                        const td = threadData as { backendThreadId: string; agentNames: string[] };
-                        mappings[threadName] = td.backendThreadId;
-                        fullData[threadName] = {
-                            backendThreadId: td.backendThreadId,
-                            agentNames: td.agentNames || []
-                        };
-                    }
-
-                    setThreadNameToIdMap(mappings);
-                    setFullThreadData(fullData);
-                    console.log('Loaded thread mappings:', mappings);
-                }
-            } catch (error) {
-                console.error('Error loading thread mappings:', error);
-            }
-        };
-
-        loadThreadMappings();
-    }, [address]);
 
     // Generate deterministic thread ID from agent names and user address
     const generateThreadId = useCallback((agentNames: string[], userAddress?: string): string => {
@@ -153,26 +108,9 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             threadName,
             backendThreadId: threadNameToIdMap[threadName],
             agentNames: fullThreadData[threadName]?.agentNames || [], // Use stored agent names
-            isActive: threadName === activeThreadId
+            isActive: threadName === currentThreadId
         }));
-    }, [threadNameToIdMap, activeThreadId, fullThreadData]);
-
-    // Switch to a different thread
-    const switchToThread = useCallback((threadName: string) => {
-        console.log('Switching to thread:', threadName);
-        setActiveThreadId(threadName);
-
-        // Get agent names from stored data
-        const agentNames = fullThreadData[threadName]?.agentNames || [];
-        setThreadAgentNames(agentNames);
-
-        // If thread already exists in map, enable SSE
-        if (threadNameToIdMap[threadName]) {
-            setHasStartedConversation(true);
-        }
-
-        setShowThreadList(false);
-    }, [threadNameToIdMap, fullThreadData]);
+    }, [threadNameToIdMap, currentThreadId, fullThreadData]);
 
     // Delete a thread
     const deleteThread = useCallback(async (threadName: string, e: React.MouseEvent) => {
@@ -202,20 +140,19 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             setFullThreadData(newFullThreadData);
 
             // If this was the active thread, clear it
-            if (activeThreadId === threadName) {
-                setActiveThreadId(undefined);
-                setThreadAgentNames([]);
+            if (currentThreadId === threadName) {
+                setCurrentThreadId(undefined);
                 setHasStartedConversation(false);
             }
         } catch (error) {
             console.error('Error deleting thread:', error);
         }
-    }, [address, threadNameToIdMap, fullThreadData, activeThreadId]);
+    }, [address, threadNameToIdMap, fullThreadData, currentThreadId]);
 
     // Update activeThreadId when prop changes (only if it's a valid thread ID)
     useEffect(() => {
         if (currentThreadId && currentThreadId !== '0' && currentThreadId !== 'undefined') {
-            setActiveThreadId(currentThreadId);
+            setCurrentThreadId(currentThreadId);
         }
     }, [currentThreadId]);
 
@@ -232,14 +169,14 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 timestamp: new Date(),
                 sender: 'ai',
                 senderId: agentId,
-                threadId: threadId || activeThreadId || undefined
+                threadId: threadId || currentThreadId || undefined
             };
 
             console.log('Agent response received:', {
                 agentId: agentId,
                 message: message,
                 threadId: agentMessage.threadId,
-                activeThreadId
+                currentThreadId
             });
 
             setMessages((prev) => [...prev, agentMessage]);
@@ -298,7 +235,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 timestamp: new Date(),
                 sender: 'ai',
                 senderId: agentName,
-                threadId: activeThreadId || undefined
+                threadId: currentThreadId || undefined
             };
             setMessages((prev) => [...prev, agentMessage]);
         } else if (event.type === 'block') {
@@ -311,15 +248,15 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 text: `Error: ${event.data.error || 'Unknown error'}`,
                 timestamp: new Date(),
                 sender: 'system',
-                threadId: activeThreadId || undefined
+                threadId: currentThreadId || undefined
             };
             setMessages((prev) => [...prev, errorMessage]);
         }
-    }, [activeThreadId, setMessages]);
+    }, [currentThreadId, setMessages]);
 
     // Connect to SSE stream for current thread (only after conversation has started)
     // Use the backend thread ID from our mapping
-    const backendThreadId = activeThreadId ? threadNameToIdMap[activeThreadId] : null;
+    const backendThreadId = currentThreadId ? threadNameToIdMap[currentThreadId] : null;
 
     useThreadStream({
         threadId: backendThreadId || null,
@@ -534,19 +471,18 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             const existingBackendThreadId = threadNameToIdMap[threadName];
 
             console.log('Existing backend thread ID:', existingBackendThreadId);
-            console.log('Previous active thread ID:', activeThreadId);
+            console.log('Previous active thread ID:', currentThreadId);
 
             // Determine which backend thread ID to use
             // If we have an existing mapping, use it; otherwise send undefined to create new
             const backendThreadIdToSend = existingBackendThreadId || undefined;
 
             // Check if we're switching to a different thread
-            const threadChanged = threadName !== activeThreadId;
+            const threadChanged = threadName !== currentThreadId;
 
             if (threadChanged) {
                 console.log('Agent combination changed - switching to thread:', threadName);
-                setActiveThreadId(threadName);
-                setThreadAgentNames(currentAgentNames);
+                setCurrentThreadId(threadName);
 
                 // If we're using an existing thread, we can start conversation immediately
                 // If it's new, we'll wait for backend response
@@ -557,7 +493,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 }
 
                 // Add system message to notify user about thread change
-                if (activeThreadId) {
+                if (currentThreadId) {
                     const systemMessage: Message = {
                         id: `system-${Date.now()}`,
                         text: `Switched to conversation with: ${currentAgentNames.join(', ')}`,
@@ -586,7 +522,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 threadChanged,
                 agentsInRadius: currentAgentNames,
                 isNewThread: !backendThreadIdToSend,
-                previousThreadId: activeThreadId
+                previousThreadId: currentThreadId
             });
 
             setMessages((prev) => [...prev, newMessage]);
@@ -713,8 +649,8 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     };
 
     // Filter messages by current thread
-    const threadMessages = activeThreadId
-        ? messages.filter((msg) => msg.threadId === activeThreadId)
+    const threadMessages = currentThreadId
+        ? messages.filter((msg) => msg.threadId === currentThreadId)
         : messages.filter((msg) => !msg.threadId);
 
     const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -990,7 +926,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     "flex w-full items-center justify-center gap-1.5 self-stretch p-3",
                     // "fixed right-0 bottom-0"
                 )}>
-                    <div className="p-2 rounded-full bg-black/30" onClick={() => openThreadList(true)}>
+                    <div className="p-2 rounded-full bg-black/30" onClick={openThreadList}>
                         <Image
                             src="/footer/bottomTab/tab_icon_bubble.svg"
                             className="h-4 w-4"
