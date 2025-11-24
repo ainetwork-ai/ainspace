@@ -26,6 +26,7 @@ interface Message {
 interface ChatBoxProps {
     className?: string;
     onAddMessage?: (message: Message) => void;
+    openThreadList: (open: boolean) => void;
     aiCommentary?: string;
     agents?: Agent[];
     currentThreadId?: string;
@@ -46,7 +47,7 @@ export interface ChatBoxRef {
 }
 
 const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
-    { className = '', aiCommentary, agents = [], currentThreadId, onResetLocation },
+    { className = '', aiCommentary, agents = [], currentThreadId, onResetLocation, openThreadList },
     ref
 ) {
     const { messages, setMessages } = useChatStore();
@@ -815,7 +816,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     const previewThreadName = generateThreadId(currentAgentNames, address);
 
     return (
-        <div className={cn('relative flex h-full w-full flex-col bg-transparent', className)}>
+        <div className={cn('flex flex-col min-h-0 h-full w-full bg-transparent', className)}>
             {/* Thread info - Top left corner */}
             {/* <div className="absolute top-0 left-0 z-10 p-3">
                 <div className="flex items-start gap-2"> */}
@@ -934,7 +935,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             {/* </div> */}
 
             {/* NOTE: Chat Messages */}
-            <div className="overflow-y-auto p-4 pt-2">
+            <div className="flex-1 overflow-y-auto p-4 pt-2">
                 {threadMessages.slice().map((message) => (
                     <ChatMessage key={message.id} message={message} />
                 ))}
@@ -944,7 +945,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             {/* NOTE: Chat Input Area */}
             <div className={cn(
                 "w-full bg-transparent",
-                "absolute right-0 bottom-0"
+                // "absolute right-0 bottom-0"
             )}>
 
                 {showSuggestions && filteredAgents.length > 0 && (
@@ -989,7 +990,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     "flex w-full items-center justify-center gap-1.5 self-stretch p-3",
                     // "fixed right-0 bottom-0"
                 )}>
-                    <div className="p-2 rounded-full bg-black/30">
+                    <div className="p-2 rounded-full bg-black/30" onClick={() => openThreadList(true)}>
                         <Image
                             src="/footer/bottomTab/tab_icon_bubble.svg"
                             className="h-4 w-4"

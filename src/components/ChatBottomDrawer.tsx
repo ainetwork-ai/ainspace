@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 interface ChatBottomDrawerProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
+    openThreadList: (open: boolean) => void;
     chatBoxRef: React.RefObject<ChatBoxRef>;
     lastCommentary: string;
     worldAgents: AgentInformation[];
@@ -24,6 +25,7 @@ interface ChatBottomDrawerProps {
 export default function ChatBottomDrawer({
     open,
     onOpenChange,
+    openThreadList,
     chatBoxRef,
     lastCommentary,
     worldAgents,
@@ -42,18 +44,18 @@ export default function ChatBottomDrawer({
                     )
                 }
             >
-                <DrawerHeader>
+                <DrawerHeader hidden>
                     <DrawerTitle />
                 </DrawerHeader>
                 <ChatBox
                       ref={chatBoxRef}
-                      className="h-screen"
                       aiCommentary={lastCommentary}
                       agents={worldAgents}
                       currentThreadId={currentThreadId}
                       threads={threads}
                       onThreadSelect={onThreadSelect}
                       userId={userId}
+                      openThreadList={openThreadList}
                 />
             </DrawerContent>
         </Drawer>

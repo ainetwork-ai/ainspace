@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 import { AgentInformation, useThreadStore } from '@/stores';
 import { Triangle } from 'lucide-react';
 import Image from 'next/image';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import ChatBottomDrawer from './ChatBottomDrawer';
 import { ChatBoxRef } from './ChatBox';
 import ThreadListLeftDrawer from './ThreadListLeftDrawer';
@@ -29,7 +29,44 @@ export default function ChatBoxOverlay({
     const [isChatSheetOpen, setIsChatSheetOpen] = useState(false);
     const [isThreadListSheetOpen, setIsThreadListSheetOpen] = useState(false);
     const { userId } = useGameState();
-    const { threads, setCurrentThreadId } = useThreadStore();
+    const { threads, userThreads, setCurrentThreadId, setUserThreads } = useThreadStore();
+
+    useEffect(() => {
+      if (!userId) return;
+
+      const loadThreadMappings = async () => {
+          try {
+              const response = await fetch(`/api/threads?userId=${userId}`);
+              if (!response.ok) {
+                  console.error('Failed to load thread mappings');
+                  return;
+              }
+
+              const data = await response.json();
+              if (data.success && data.threads) {
+                  // Convert thread mappings to our format
+                  const mappings: { [threadName: string]: string } = {};
+                  const fullData: { [threadName: string]: { backendThreadId: string; agentNames: string[] } } = {};
+
+                  for (const [threadName, threadData] of Object.entries(data.threads)) {
+                      const td = threadData as { backendThreadId: string; agentNames: string[] };
+                      mappings[threadName] = td.backendThreadId;
+                      fullData[threadName] = {
+                          backendThreadId: td.backendThreadId,
+                          agentNames: td.agentNames || []
+                      };
+                  }
+
+                  setUserThreads(data.threads);
+                  console.log('Loaded thread mappings:', mappings);
+              }
+          } catch (error) {
+              console.error('Error loading thread mappings:', error);
+          }
+      };
+
+      loadThreadMappings();
+  }, [userId, setUserThreads]);
 
     const handleChatSheetOpen = (open: boolean) => {
       setIsChatSheetOpen(open);
@@ -117,7 +154,7 @@ export default function ChatBoxOverlay({
             <ThreadListLeftDrawer
                 open={isThreadListSheetOpen}
                 onOpenChange={handleThreadListSheetOpen}
-                threads={threads}
+                threads={userThreads}
                 onThreadSelect={setCurrentThreadId}
             />
         </div>
