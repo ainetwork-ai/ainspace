@@ -233,7 +233,6 @@ export default function MapTab({
       const fetchThreads = async () => {
         const response = await fetch(`/api/threads?userId=${address}`);
         const data = await response.json();
-        console.log('data', data);
         if (data.success && data.threads) {
           setThreads(data.threads);
         }
