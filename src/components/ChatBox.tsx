@@ -753,123 +753,6 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
 
     return (
         <div className={cn('flex flex-col min-h-0 h-full w-full bg-transparent', className)}>
-            {/* Thread info - Top left corner */}
-            {/* <div className="absolute top-0 left-0 z-10 p-3">
-                <div className="flex items-start gap-2"> */}
-                    {/* Thread menu button */}
-                    {/* <button
-                        onClick={() => setShowThreadList(!showThreadList)}
-                        className="rounded-lg bg-black/60 px-3 py-2 hover:bg-black/80 transition-colors"
-                    >
-                        <div className="flex items-center gap-2">
-                            <span className="text-xs text-white/80">☰</span>
-                            <span className="text-xs text-white/80 font-semibold">
-                                {allThreads.length} Thread{allThreads.length !== 1 ? 's' : ''}
-                            </span>
-                        </div>
-                    </button> */}
-
-                    {/* Current thread info */}
-                    {/* {(activeThreadId || currentAgentNames.length > 0) && (
-                        <div className="rounded-lg bg-black/60 px-3 py-2 max-w-md">
-                            <div className="flex flex-col gap-1">
-                                <div className="flex items-center gap-2">
-                                    <span className="text-xs text-white/40">
-                                        {activeThreadId ? 'Thread:' : 'Will create:'}
-                                    </span>
-                                    <span className="text-xs text-white/60 font-mono truncate max-w-[200px]">
-                                        {activeThreadId || previewThreadName}
-                                    </span>
-                                </div>
-                                <div className="flex items-center gap-2 flex-wrap">
-                                    {(activeThreadId ? threadAgentNames : currentAgentNames).map((name) => {
-                                        const agent = agents.find(a => a.name === name);
-                                        return (
-                                            <div
-                                                key={name}
-                                                className="inline-flex items-center gap-1 rounded-md bg-white/10 px-2 py-0.5"
-                                            >
-                                                {agent && (
-                                                    <div
-                                                        className="h-2 w-2 rounded-full"
-                                                        style={{ backgroundColor: agent.color }}
-                                                    />
-                                                )}
-                                                <span className="text-xs text-white/80">{name}</span>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        </div>
-                    )} */}
-                {/* </div> */}
-
-                {/* Thread list dropdown */}
-                {/* {showThreadList && (
-                    <div className="absolute top-full left-0 mt-2 w-96 max-h-96 overflow-y-auto rounded-lg bg-black/90 shadow-xl border border-white/10">
-                        <div className="p-3">
-                            <div className="flex items-center justify-between mb-2">
-                                <h3 className="text-sm font-semibold text-white">Your Conversations</h3>
-                                <button
-                                    onClick={() => setShowThreadList(false)}
-                                    className="text-white/60 hover:text-white text-xs"
-                                >
-                                    ✕
-                                </button>
-                            </div>
-                            {allThreads.length === 0 ? (
-                                <p className="text-xs text-white/40 text-center py-4">
-                                    No conversations yet. Start chatting with agents nearby!
-                                </p>
-                            ) : (
-                                <div className="space-y-2">
-                                    {allThreads.map((thread) => (
-                                        <div
-                                            key={thread.threadName}
-                                            className={cn(
-                                                'relative group w-full text-left p-3 rounded-lg transition-colors',
-                                                thread.isActive
-                                                    ? 'bg-white/20 border border-white/30'
-                                                    : 'bg-white/5 hover:bg-white/10 border border-transparent'
-                                            )}
-                                        >
-                                            <button
-                                                onClick={() => switchToThread(thread.threadName)}
-                                                className="w-full text-left"
-                                            >
-                                                <div className="flex flex-col gap-1 pr-8">
-                                                    <div className="text-xs text-white/60 font-mono truncate">
-                                                        {thread.threadName}
-                                                    </div>
-                                                    <div className="flex items-center gap-1 flex-wrap">
-                                                        {thread.agentNames.map((name) => (
-                                                            <span
-                                                                key={name}
-                                                                className="text-xs text-white/80 bg-white/10 px-2 py-0.5 rounded"
-                                                            >
-                                                                {name}
-                                                            </span>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            </button>
-                                            <button
-                                                onClick={(e) => deleteThread(thread.threadName, e)}
-                                                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-white/40 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors opacity-0 group-hover:opacity-100"
-                                                title="Delete thread"
-                                            >
-                                                🗑️
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )} */}
-            {/* </div> */}
-
             {/* NOTE: Chat Messages */}
             <div className="flex-1 overflow-y-auto p-4 pt-2">
                 {threadMessages.slice().map((message) => (
@@ -945,7 +828,10 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                         placeholder="Typing Message..."
                         className="flex flex-1 cursor-pointer rounded-[100px] px-2.5 py-2 bg-black/30 text-white placeholder:text-[#FFFFFF66]"
                     />
-                    <button className="bg-white rounded-lg w-[30px] h-[30px] flex items-center justify-center">
+                    <button 
+                        className="bg-white rounded-lg w-[30px] h-[30px] flex items-center justify-center"
+                        onClick={() => handleSendMessage()}
+                    >
                         <Triangle className="text-xs font-bold text-black" fill="black" width={12} height={9} />
                     </button>
                 </div>
