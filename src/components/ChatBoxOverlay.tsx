@@ -72,6 +72,10 @@ export default function ChatBoxOverlay({
     const handleChatSheetOpen = (open: boolean) => {
       setIsChatSheetOpen(open);
       setJoystickVisible(!open);
+
+      if (!open) {
+        setCurrentThreadId('0');
+      }
     }
 
     const handleThreadListSheetOpen = (open: boolean) => {
@@ -140,7 +144,8 @@ export default function ChatBoxOverlay({
                     <button className="bg-white rounded-lg w-[30px] h-[30px] flex items-center justify-center">
                         <Triangle className="text-xs font-bold text-black" fill="black" width={12} height={9} />
                     </button>
-                </div>}
+                </div>
+            }
             <ChatBottomDrawer 
                 open={isChatSheetOpen}
                 onOpenChange={handleChatSheetOpen}
