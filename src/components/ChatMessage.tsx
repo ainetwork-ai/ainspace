@@ -1,3 +1,5 @@
+'use client';
+
 import { ChatMessage as ChatMessageType, useAgentStore, useGameStateStore } from "@/stores";
 import Image from "next/image";
 

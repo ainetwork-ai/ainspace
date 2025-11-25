@@ -1,3 +1,5 @@
+'use client';
+
 import { useGameState } from '@/hooks/useGameState';
 import { cn } from '@/lib/utils';
 import { AgentInformation, useThreadStore } from '@/stores';
