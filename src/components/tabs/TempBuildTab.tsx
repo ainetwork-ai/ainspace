@@ -78,7 +78,6 @@ export default function TempBuildTab({
     const { setShowCollisionMap, collisionMap, isBlocked, setCollisionMap } = useBuildStore();
     const { mapData, playerPosition, movePlayer, isAutonomous } = useGameState();
     const { playerDirection, isPlayerMoving, setIsPlayerMoving, lastMoveTime, setLastMoveTime } = useGameStateStore();
-    const { isBottomSheetOpen } = useUIStore();
 
     const handleMobileMove = useCallback(
         (direction: DIRECTION) => {
@@ -509,17 +508,15 @@ export default function TempBuildTab({
                             fixedZoom={0.5}
                             hideCoordinates={true}
                         />
-                        {!isBottomSheetOpen && (
-                            <div className="absolute -bottom-20 left-1/2 z-20 -translate-x-1/2 transform">
-                                <PlayerJoystick
-                                    onMove={handleMobileMove}
-                                    disabled={isAutonomous}
-                                    baseColor="#00000050"
-                                    stickColor="#FFF"
-                                    size={100}
-                                />
-                            </div>
-                        )}
+                        <div className="absolute -bottom-20 left-1/2 z-20 -translate-x-1/2 transform">
+                            <PlayerJoystick
+                                onMove={handleMobileMove}
+                                disabled={isAutonomous}
+                                baseColor="#00000050"
+                                stickColor="#FFF"
+                                size={100}
+                            />
+                        </div>
                     </div>
 
                     <div className="flex w-full flex-row gap-0 self-stretch">

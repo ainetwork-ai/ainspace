@@ -8,6 +8,14 @@ export interface Thread {
     agentNames: string[];
 }
 
+export interface UserThread {
+  threadName: string;
+  backendThreadId: string;
+  agentNames: string[];
+  createdAt: string;
+  lastMessageAt: string;
+}
+
 interface BroadcastStatus {
     range: number;
     agentsReached: number;
@@ -16,12 +24,17 @@ interface BroadcastStatus {
 
 interface ThreadState {
     threads: Thread[];
+    userThreads: {
+      [threadName: string]: UserThread;
+    };
     currentThreadId: string | undefined;
     broadcastMessage: string;
     broadcastStatus: BroadcastStatus | null;
 
     // Actions
+    setThreads: (threads: Thread[]) => void;
     addThread: (thread: Thread) => void;
+    setUserThreads: (threads: { [threadName: string]: UserThread }) => void;
     setCurrentThreadId: (threadId: string | undefined) => void;
     setBroadcastMessage: (message: string) => void;
     setBroadcastStatus: (status: BroadcastStatus | null) => void;
@@ -31,11 +44,14 @@ interface ThreadState {
 
 export const useThreadStore = create<ThreadState>((set, get) => ({
     threads: [],
+    userThreads: {},
     currentThreadId: '0',
     broadcastMessage: '',
     broadcastStatus: null,
 
+    setThreads: (threads) => set({ threads }),
     addThread: (thread) => set((state) => ({ threads: [thread, ...state.threads] })),
+    setUserThreads: (threads: { [threadName: string]: UserThread }) => set({ userThreads: threads }),
     setCurrentThreadId: (threadId) => set({ currentThreadId: threadId }),
     setBroadcastMessage: (message) => set({ broadcastMessage: message }),
     setBroadcastStatus: (status) => set({ broadcastStatus: status }),

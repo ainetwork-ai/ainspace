@@ -40,18 +40,17 @@ export default function ThreadTab({
     onResetLocation,
     userId
 }: ThreadTabProps) {
+    // FIXME(yoojin): unused tab. need to remove
     return (
         <BaseTabContent isActive={isActive} withPadding={false}>
             <ChatBox
                 ref={chatBoxRef}
-                className="h-full"
+                className="h-screen"
                 aiCommentary={lastCommentary}
                 agents={worldAgents}
-                currentThreadId={currentThreadId}
-                threads={threads}
                 onThreadSelect={onThreadSelect}
                 onResetLocation={onResetLocation}
-                userId={userId}
+                openThreadList={() => {}}
             />
         </BaseTabContent>
     );

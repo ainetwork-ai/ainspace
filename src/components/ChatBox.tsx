@@ -1,16 +1,18 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback, useMemo, forwardRef, useImperativeHandle } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo, forwardRef } from 'react';
 import { useWorld } from '@/hooks/useWorld';
 import { Agent, AgentResponse } from '@/lib/world';
-import { cn, shortAddress } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import Image from 'next/image';
-import { useBuildStore, useChatStore, useGameStateStore } from '@/stores';
-import { INITIAL_PLAYER_POSITION, AGENT_RESPONSE_DISTANCE } from '@/constants/game';
+import { useBuildStore, useChatStore, useGameStateStore, useThreadStore } from '@/stores';
+import { INITIAL_PLAYER_POSITION } from '@/constants/game';
 import { useAccount } from 'wagmi';
 import * as Sentry from '@sentry/nextjs';
 import { useThreadStream } from '@/hooks/useThreadStream';
 import { StreamEvent } from '@/lib/a2aOrchestration';
+import { Triangle } from 'lucide-react';
+import ChatMessage from './ChatMessage';
 
 interface Message {
     id: string;
@@ -24,19 +26,11 @@ interface Message {
 interface ChatBoxProps {
     className?: string;
     onAddMessage?: (message: Message) => void;
+    openThreadList: () => void;
     aiCommentary?: string;
     agents?: Agent[];
-    currentThreadId?: string;
-    threads?: Array<{
-        id: string;
-        message: string;
-        timestamp: Date;
-        agentsReached: number;
-        agentNames: string[];
-    }>;
     onThreadSelect?: (threadId: string | undefined) => void;
     onResetLocation?: () => void;
-    userId?: string | null;
 }
 
 export interface ChatBoxRef {
@@ -44,10 +38,11 @@ export interface ChatBoxRef {
 }
 
 const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
-    { className = '', aiCommentary, agents = [], currentThreadId, onResetLocation },
+    { className = '', aiCommentary, agents = [], onResetLocation, openThreadList },
     ref
 ) {
-    const { messages, setMessages } = useChatStore();
+    const { messages, setMessages, getMessagesByThread } = useChatStore();
+    const { currentThreadId, setCurrentThreadId } = useThreadStore();
     const [inputValue, setInputValue] = useState('');
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [filteredAgents, setFilteredAgents] = useState<Agent[]>([]);
@@ -58,19 +53,21 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     const inputRef = useRef<HTMLInputElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
-    // Manage active thread ID internally (start with undefined, only set after first message)
-    const [activeThreadId, setActiveThreadId] = useState<string | undefined>(undefined);
-    // Track which agents are in the current thread
-    const [threadAgentNames, setThreadAgentNames] = useState<string[]>([]);
+    const [displayedMessages, setDisplayedMessages] = useState<Message[]>([]);
+
     // Track if a message has been sent (to enable SSE connection)
     const [hasStartedConversation, setHasStartedConversation] = useState(false);
     // Map thread names (our generated IDs) to backend thread IDs
     const [threadNameToIdMap, setThreadNameToIdMap] = useState<{ [threadName: string]: string }>({});
-    // Thread list menu state
-    const [showThreadList, setShowThreadList] = useState(false);
 
     const { address } = useAccount();
     const { worldPosition: playerPosition } = useGameStateStore();
+
+    useEffect(() => {
+        if (currentThreadId) {
+            setDisplayedMessages(getMessagesByThread(currentThreadId));
+        }
+    }, [currentThreadId, getMessagesByThread]);
 
     // Store full thread data including agent names
     const [fullThreadData, setFullThreadData] = useState<{
@@ -79,45 +76,6 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             agentNames: string[]
         }
     }>({});
-
-    // Load thread mappings from backend when component mounts
-    useEffect(() => {
-        if (!address) return;
-
-        const loadThreadMappings = async () => {
-            try {
-                const response = await fetch(`/api/threads?userId=${address}`);
-                if (!response.ok) {
-                    console.error('Failed to load thread mappings');
-                    return;
-                }
-
-                const data = await response.json();
-                if (data.success && data.threads) {
-                    // Convert thread mappings to our format
-                    const mappings: { [threadName: string]: string } = {};
-                    const fullData: { [threadName: string]: { backendThreadId: string; agentNames: string[] } } = {};
-
-                    for (const [threadName, threadData] of Object.entries(data.threads)) {
-                        const td = threadData as { backendThreadId: string; agentNames: string[] };
-                        mappings[threadName] = td.backendThreadId;
-                        fullData[threadName] = {
-                            backendThreadId: td.backendThreadId,
-                            agentNames: td.agentNames || []
-                        };
-                    }
-
-                    setThreadNameToIdMap(mappings);
-                    setFullThreadData(fullData);
-                    console.log('Loaded thread mappings:', mappings);
-                }
-            } catch (error) {
-                console.error('Error loading thread mappings:', error);
-            }
-        };
-
-        loadThreadMappings();
-    }, [address]);
 
     // Generate deterministic thread ID from agent names and user address
     const generateThreadId = useCallback((agentNames: string[], userAddress?: string): string => {
@@ -150,26 +108,9 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             threadName,
             backendThreadId: threadNameToIdMap[threadName],
             agentNames: fullThreadData[threadName]?.agentNames || [], // Use stored agent names
-            isActive: threadName === activeThreadId
+            isActive: threadName === currentThreadId
         }));
-    }, [threadNameToIdMap, activeThreadId, fullThreadData]);
-
-    // Switch to a different thread
-    const switchToThread = useCallback((threadName: string) => {
-        console.log('Switching to thread:', threadName);
-        setActiveThreadId(threadName);
-
-        // Get agent names from stored data
-        const agentNames = fullThreadData[threadName]?.agentNames || [];
-        setThreadAgentNames(agentNames);
-
-        // If thread already exists in map, enable SSE
-        if (threadNameToIdMap[threadName]) {
-            setHasStartedConversation(true);
-        }
-
-        setShowThreadList(false);
-    }, [threadNameToIdMap, fullThreadData]);
+    }, [threadNameToIdMap, currentThreadId, fullThreadData]);
 
     // Delete a thread
     const deleteThread = useCallback(async (threadName: string, e: React.MouseEvent) => {
@@ -199,20 +140,19 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             setFullThreadData(newFullThreadData);
 
             // If this was the active thread, clear it
-            if (activeThreadId === threadName) {
-                setActiveThreadId(undefined);
-                setThreadAgentNames([]);
+            if (currentThreadId === threadName) {
+                setCurrentThreadId(undefined);
                 setHasStartedConversation(false);
             }
         } catch (error) {
             console.error('Error deleting thread:', error);
         }
-    }, [address, threadNameToIdMap, fullThreadData, activeThreadId]);
+    }, [address, threadNameToIdMap, fullThreadData, currentThreadId]);
 
     // Update activeThreadId when prop changes (only if it's a valid thread ID)
     useEffect(() => {
         if (currentThreadId && currentThreadId !== '0' && currentThreadId !== 'undefined') {
-            setActiveThreadId(currentThreadId);
+            setCurrentThreadId(currentThreadId);
         }
     }, [currentThreadId]);
 
@@ -229,14 +169,14 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 timestamp: new Date(),
                 sender: 'ai',
                 senderId: agentId,
-                threadId: threadId || activeThreadId || undefined
+                threadId: threadId || currentThreadId || undefined
             };
 
             console.log('Agent response received:', {
                 agentId: agentId,
                 message: message,
                 threadId: agentMessage.threadId,
-                activeThreadId
+                currentThreadId
             });
 
             setMessages((prev) => [...prev, agentMessage]);
@@ -295,7 +235,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 timestamp: new Date(),
                 sender: 'ai',
                 senderId: agentName,
-                threadId: activeThreadId || undefined
+                threadId: currentThreadId || undefined
             };
             setMessages((prev) => [...prev, agentMessage]);
         } else if (event.type === 'block') {
@@ -308,15 +248,15 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 text: `Error: ${event.data.error || 'Unknown error'}`,
                 timestamp: new Date(),
                 sender: 'system',
-                threadId: activeThreadId || undefined
+                threadId: currentThreadId || undefined
             };
             setMessages((prev) => [...prev, errorMessage]);
         }
-    }, [activeThreadId, setMessages]);
+    }, [currentThreadId, setMessages]);
 
     // Connect to SSE stream for current thread (only after conversation has started)
     // Use the backend thread ID from our mapping
-    const backendThreadId = activeThreadId ? threadNameToIdMap[activeThreadId] : null;
+    const backendThreadId = currentThreadId ? threadNameToIdMap[currentThreadId] : null;
 
     useThreadStream({
         threadId: backendThreadId || null,
@@ -531,19 +471,18 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             const existingBackendThreadId = threadNameToIdMap[threadName];
 
             console.log('Existing backend thread ID:', existingBackendThreadId);
-            console.log('Previous active thread ID:', activeThreadId);
+            console.log('Previous active thread ID:', currentThreadId);
 
             // Determine which backend thread ID to use
             // If we have an existing mapping, use it; otherwise send undefined to create new
             const backendThreadIdToSend = existingBackendThreadId || undefined;
 
             // Check if we're switching to a different thread
-            const threadChanged = threadName !== activeThreadId;
+            const threadChanged = threadName !== currentThreadId;
 
             if (threadChanged) {
                 console.log('Agent combination changed - switching to thread:', threadName);
-                setActiveThreadId(threadName);
-                setThreadAgentNames(currentAgentNames);
+                setCurrentThreadId(threadName);
 
                 // If we're using an existing thread, we can start conversation immediately
                 // If it's new, we'll wait for backend response
@@ -554,7 +493,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 }
 
                 // Add system message to notify user about thread change
-                if (activeThreadId) {
+                if (currentThreadId) {
                     const systemMessage: Message = {
                         id: `system-${Date.now()}`,
                         text: `Switched to conversation with: ${currentAgentNames.join(', ')}`,
@@ -583,7 +522,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 threadChanged,
                 agentsInRadius: currentAgentNames,
                 isNewThread: !backendThreadIdToSend,
-                previousThreadId: activeThreadId
+                previousThreadId: currentThreadId
             });
 
             setMessages((prev) => [...prev, newMessage]);
@@ -710,8 +649,8 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     };
 
     // Filter messages by current thread
-    const threadMessages = activeThreadId
-        ? messages.filter((msg) => msg.threadId === activeThreadId)
+    const threadMessages = currentThreadId
+        ? messages.filter((msg) => msg.threadId === currentThreadId)
         : messages.filter((msg) => !msg.threadId);
 
     const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -807,192 +746,26 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         [inputValue, cursorPosition]
     );
 
-    const getAgentNameAndPosition = (senderId: string | undefined): string => {
-        if (!senderId) return 'AI';
-        // Try to find agent by ID first, then by name (for SSE stream messages)
-        const agent = agents.find((a) => a.id === senderId || a.name === senderId);
-        if (agent && playerPosition) {
-            const distance = Math.sqrt(
-                Math.pow(agent.x - playerPosition.x, 2) + Math.pow(agent.y - playerPosition.y, 2)
-            );
-            return `${agent.name} (${agent.x}, ${agent.y}) [${distance.toFixed(1)}u]`;
-        }
-        // If agent not found in local agents array, just return the senderId as name
-        return senderId || 'AI';
-    };
-
     // Get current agents in radius for display
     const currentAgentsInRadius = getCurrentAgentsInRadius();
     const currentAgentNames = currentAgentsInRadius.map(a => a.name).sort();
     const previewThreadName = generateThreadId(currentAgentNames, address);
 
     return (
-        <div className={cn('relative flex h-full w-full flex-col bg-transparent', className)}>
-            {/* Thread info - Top left corner */}
-            <div className="absolute top-0 left-0 z-10 p-3">
-                <div className="flex items-start gap-2">
-                    {/* Thread menu button */}
-                    <button
-                        onClick={() => setShowThreadList(!showThreadList)}
-                        className="rounded-lg bg-black/60 px-3 py-2 hover:bg-black/80 transition-colors"
-                    >
-                        <div className="flex items-center gap-2">
-                            <span className="text-xs text-white/80">☰</span>
-                            <span className="text-xs text-white/80 font-semibold">
-                                {allThreads.length} Thread{allThreads.length !== 1 ? 's' : ''}
-                            </span>
-                        </div>
-                    </button>
-
-                    {/* Current thread info */}
-                    {(activeThreadId || currentAgentNames.length > 0) && (
-                        <div className="rounded-lg bg-black/60 px-3 py-2 max-w-md">
-                            <div className="flex flex-col gap-1">
-                                <div className="flex items-center gap-2">
-                                    <span className="text-xs text-white/40">
-                                        {activeThreadId ? 'Thread:' : 'Will create:'}
-                                    </span>
-                                    <span className="text-xs text-white/60 font-mono truncate max-w-[200px]">
-                                        {activeThreadId || previewThreadName}
-                                    </span>
-                                </div>
-                                <div className="flex items-center gap-2 flex-wrap">
-                                    {(activeThreadId ? threadAgentNames : currentAgentNames).map((name) => {
-                                        const agent = agents.find(a => a.name === name);
-                                        return (
-                                            <div
-                                                key={name}
-                                                className="inline-flex items-center gap-1 rounded-md bg-white/10 px-2 py-0.5"
-                                            >
-                                                {agent && (
-                                                    <div
-                                                        className="h-2 w-2 rounded-full"
-                                                        style={{ backgroundColor: agent.color }}
-                                                    />
-                                                )}
-                                                <span className="text-xs text-white/80">{name}</span>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                {/* Thread list dropdown */}
-                {showThreadList && (
-                    <div className="absolute top-full left-0 mt-2 w-96 max-h-96 overflow-y-auto rounded-lg bg-black/90 shadow-xl border border-white/10">
-                        <div className="p-3">
-                            <div className="flex items-center justify-between mb-2">
-                                <h3 className="text-sm font-semibold text-white">Your Conversations</h3>
-                                <button
-                                    onClick={() => setShowThreadList(false)}
-                                    className="text-white/60 hover:text-white text-xs"
-                                >
-                                    ✕
-                                </button>
-                            </div>
-                            {allThreads.length === 0 ? (
-                                <p className="text-xs text-white/40 text-center py-4">
-                                    No conversations yet. Start chatting with agents nearby!
-                                </p>
-                            ) : (
-                                <div className="space-y-2">
-                                    {allThreads.map((thread) => (
-                                        <div
-                                            key={thread.threadName}
-                                            className={cn(
-                                                'relative group w-full text-left p-3 rounded-lg transition-colors',
-                                                thread.isActive
-                                                    ? 'bg-white/20 border border-white/30'
-                                                    : 'bg-white/5 hover:bg-white/10 border border-transparent'
-                                            )}
-                                        >
-                                            <button
-                                                onClick={() => switchToThread(thread.threadName)}
-                                                className="w-full text-left"
-                                            >
-                                                <div className="flex flex-col gap-1 pr-8">
-                                                    <div className="text-xs text-white/60 font-mono truncate">
-                                                        {thread.threadName}
-                                                    </div>
-                                                    <div className="flex items-center gap-1 flex-wrap">
-                                                        {thread.agentNames.map((name) => (
-                                                            <span
-                                                                key={name}
-                                                                className="text-xs text-white/80 bg-white/10 px-2 py-0.5 rounded"
-                                                            >
-                                                                {name}
-                                                            </span>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            </button>
-                                            <button
-                                                onClick={(e) => deleteThread(thread.threadName, e)}
-                                                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-white/40 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors opacity-0 group-hover:opacity-100"
-                                                title="Delete thread"
-                                            >
-                                                🗑️
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            <div className="h-full space-y-2 overflow-y-auto p-3 pb-20 pt-24">
+        <div className={cn('flex flex-col min-h-0 h-full w-full bg-transparent', className)}>
+            {/* NOTE: Chat Messages */}
+            <div className="flex-1 overflow-y-auto p-4 pt-2">
                 {threadMessages.slice().map((message) => (
-                    <div key={message.id} className={cn('flex flex-col items-start gap-1')}>
-                        <div className="flex flex-row items-center gap-2">
-                            <span
-                                style={{
-                                    color:
-                                        message.sender === 'user'
-                                            ? 'white'
-                                            : agents.find((a) => a.id === message.senderId || a.name === message.senderId)?.color ||
-                                              'oklch(62.7% 0.194 149.214)'
-                                }}
-                                className="text-xs font-semibold"
-                            >
-                                {message.sender === 'user'
-                                    ? `${shortAddress(message.senderId || '')}`
-                                    : getAgentNameAndPosition(message.senderId)}
-                            </span>
-                            {message.sender === 'user' ? (
-                                <div className="inline-flex flex-col items-start justify-center gap-2 rounded-lg bg-[#7f4fe8]/50 px-2 py-0.5">
-                                    <p className="justify-start text-xs leading-5 font-normal text-[#eae0ff]">Me</p>
-                                </div>
-                            ) : (
-                                <div className="Ta inline-flex flex-col items-start justify-center gap-2 rounded-lg bg-[#4a5057] px-2 py-0.5">
-                                    <p className="justify-start text-xs leading-5 font-normal text-[#dfe2e6]">AI</p>
-                                </div>
-                            )}
-                        </div>
-                        <div
-                            className={cn(
-                                'max-w-[85%] rounded-lg px-3 py-2 text-sm',
-                                message.sender === 'user'
-                                    ? 'rounded-br-sm text-white'
-                                    : message.sender === 'ai'
-                                      ? 'rounded-bl-sm text-white'
-                                      : 'rounded-bl-sm bg-gray-200 text-gray-800'
-                            )}
-                        >
-                            <p className="justify-start text-base leading-[25px] break-words text-white">
-                                {message.text}
-                            </p>
-                        </div>
-                    </div>
+                    <ChatMessage key={message.id} message={message} />
                 ))}
                 <div ref={messagesEndRef} />
             </div>
 
-            <div className="fixed right-0 bottom-0 left-0 bg-gradient-to-t from-black/90 to-transparent p-3 backdrop-blur-sm">
+            {/* NOTE: Chat Input Area */}
+            <div className={cn(
+                "w-full bg-transparent",
+                // "absolute right-0 bottom-0"
+            )}>
 
                 {showSuggestions && filteredAgents.length > 0 && (
                     <div className="absolute right-3 bottom-full left-3 z-10 mb-1 max-h-32 overflow-y-auto rounded-md border border-gray-600 bg-gray-800 shadow-lg">
@@ -1032,7 +805,19 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     </div>
                 )}
 
-                <div className="my-auto inline-flex w-full items-center justify-start gap-2.5 rounded-[10px] px-2.5 py-2 outline-1 outline-offset-[-1px] outline-white">
+                <div className={cn(
+                    "flex w-full items-center justify-center gap-1.5 self-stretch p-3",
+                    // "fixed right-0 bottom-0"
+                )}>
+                    <div className="p-2 rounded-full bg-black/30" onClick={openThreadList}>
+                        <Image
+                            src="/footer/bottomTab/tab_icon_bubble.svg"
+                            className="h-4 w-4"
+                            alt="Chat"
+                            width={16}
+                            height={16}
+                        />
+                    </div>
                     <input
                         ref={inputRef}
                         type="text"
@@ -1041,17 +826,13 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                         onKeyDown={handleKeyPress}
                         autoFocus={true}
                         placeholder="Typing Message..."
-                        className="flex-1 bg-transparent text-base leading-tight text-white placeholder-white/40 focus:outline-none"
+                        className="flex flex-1 cursor-pointer rounded-[100px] px-2.5 py-2 bg-black/30 text-white placeholder:text-[#FFFFFF66]"
                     />
-                    <button
-                        onClick={handleSendMessage}
-                        disabled={!inputValue.trim()}
-                        className={cn(
-                            'relative h-[30px] w-[30px] cursor-pointer overflow-hidden rounded-lg transition-all',
-                            inputValue.trim() ? 'bg-white' : 'bg-white/30'
-                        )}
+                    <button 
+                        className="bg-white rounded-lg w-[30px] h-[30px] flex items-center justify-center"
+                        onClick={() => handleSendMessage()}
                     >
-                        <Image src="/footer/bottomSheet/send.svg" alt="Send" width={30} height={30} />
+                        <Triangle className="text-xs font-bold text-black" fill="black" width={12} height={9} />
                     </button>
                 </div>
             </div>
