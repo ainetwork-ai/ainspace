@@ -54,7 +54,7 @@ export default function Home() {
         setCollisionMap,
         clearPublishStatusAfterDelay
     } = useBuildStore();
-    const { worldPosition, userId, worldAgents, resetLocation, lastCommentary, visibleAgents } = useGameState();
+    const { worldPosition, userId, worldAgents, visibleAgents } = useGameState();
     const { agents, spawnAgent, removeAgent, setAgents } = useAgentStore();
     const { setFrameReady, isFrameReady } = useMiniKit();
     const [isSDKLoaded, setIsSDKLoaded] = useState(false);
@@ -181,6 +181,7 @@ export default function Home() {
                     spawnAgent(agentUrl, {
                         id: agentId,
                         name: card.name || 'Deployed Agent',
+                        behavior: 'random',
                         x: card.x!,
                         y: card.y!,
                         color: card.color || '#FF6B6B',

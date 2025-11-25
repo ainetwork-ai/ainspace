@@ -1,7 +1,6 @@
 import { AgentSkill } from '@a2a-js/sdk';
 import { useChatStore } from '@/stores/useChatStore';
-import { AGENT_RESPONSE_DISTANCE } from '@/constants/game';
-// Removed direct gemini import to ensure server-side only calls
+import { AGENT_RESPONSE_DISTANCE, DIRECTION } from '@/constants/game';
 
 export interface AgentState {
     id: string;
@@ -10,12 +9,11 @@ export interface AgentState {
     x: number;
     y: number;
     behavior: string;
-    direction?: 'up' | 'down' | 'left' | 'right';
+    direction?: DIRECTION;
     lastMoved?: number;
     moveInterval?: number;
     agentUrl?: string; // For A2A agents
     skills?: AgentSkill[];
-    characterImage?: string; // FIXME(yoojin): type automatically
 }
 
 export interface Message {

@@ -1,37 +1,26 @@
-import { AgentSkill } from '@a2a-js/sdk';
 import { create } from 'zustand';
-import { DIRECTION } from '@/constants/game';
+import { AgentState } from '@/lib/agent';
 
-export interface AgentInformation {
-    id: string;
-    x: number;
-    y: number;
-    color: string;
-    name: string;
-    characterImage?: string;
-    lastMoved?: number;
-    moveInterval?: number; // Random interval for agent movement (ms)
-    agentUrl?: string;
-    skills?: AgentSkill[];
-    spriteUrl?: string; // Sprite image for movement animation
-    spriteHeight?: number; // Height of the sprite (e.g., 40 for cat, 86 for default sprites)
-    direction?: DIRECTION; // Current facing direction (DIRECTION enum)
-    isMoving?: boolean; // Whether agent is currently moving
+export interface VisibleAgent extends AgentState {
+    isMoving?: boolean;
+    spriteUrl?: string;
+    spriteHeight?: number;
+    spriteWidth?: number;
 }
 
-interface AgentState {
-    agents: { [agentUrl: string]: AgentInformation };
+interface AgentStore {
+    agents: { [agentUrl: string]: VisibleAgent };
 
     // Actions
-    spawnAgent: (agentUrl: string, agent: AgentInformation) => void;
+    spawnAgent: (agentUrl: string, agent: VisibleAgent) => void;
     removeAgent: (agentUrl: string) => void;
     updateAgentPosition: (agentUrl: string, x: number, y: number) => void;
     updateAgentCharacterImage: (agentUrl: string, imageUrl: string) => void;
-    setAgents: (agents: { [agentUrl: string]: AgentInformation }) => void;
-    updateAgent: (agentUrl: string, updates: Partial<AgentInformation>) => void;
+    setAgents: (agents: { [agentUrl: string]: VisibleAgent }) => void;
+    updateAgent: (agentUrl: string, updates: Partial<VisibleAgent>) => void;
 }
 
-export const useAgentStore = create<AgentState>((set, get) => ({
+export const useAgentStore = create<AgentStore>((set, get) => ({
     agents: {}, // A2A agents initialized to empty on refresh
 
     spawnAgent: (agentUrl, agent) => {

@@ -9,7 +9,7 @@ import TileMap from '@/components/TileMap';
 import BaseTabContent from './BaseTabContent';
 import PlayerJoystick from '@/components/controls/PlayerJoystick';
 import { DIRECTION, TILE_SIZE } from '@/constants/game';
-import { AgentInformation, useAgentStore, useThreadStore } from '@/stores';
+import { VisibleAgent, useAgentStore } from '@/stores';
 import { useGameState } from '@/hooks/useGameState';
 import { TileLayers, useBuildStore } from '@/stores/useBuildStore';
 import { shortAddress } from '@/lib/utils';
@@ -19,7 +19,7 @@ import { ChatBoxRef } from '../ChatBox';
 
 interface MapTabProps {
     isActive: boolean;
-    visibleAgents: AgentInformation[];
+    visibleAgents: VisibleAgent[];
     publishedTiles: TileLayers;
     customTiles: TileLayers;
     broadcastMessage: string;
@@ -29,13 +29,6 @@ interface MapTabProps {
         agentsReached: number;
         agentNames: string[];
     } | null;
-    threads: {
-        id: string;
-        message: string;
-        timestamp: Date;
-        agentsReached: number;
-        agentNames: string[];
-    }[];
     onViewThread: (threadId?: string) => void;
     collisionMap: { [key: string]: boolean };
     onAgentClick?: (agentId: string, agentName: string) => void;
@@ -66,83 +59,9 @@ export default function MapTab({
         isPlayerMoving
     } = useGameState();
 
-    const {
-        setThreads,
-        addThread,
-        setCurrentThreadId,
-        setBroadcastStatus,
-        clearBroadcastMessage,
-        clearBroadcastStatusAfterDelay
-    } = useThreadStore();
-
     const { isBlocked: globalIsBlocked } = useBuildStore();
 
     const [isJoystickVisible, setIsJoystickVisible] = useState(true);
-
-    const handleBroadcast = async () => {
-      if (broadcastMessage.trim()) {
-          const messageText = broadcastMessage.trim();
-
-          // Calculate agents within range (default broadcast range: 10 units)
-          const broadcastRange = 10;
-          const agentsInRange = visibleAgents.filter((agent) => {
-              const distance = Math.sqrt(
-                  Math.pow(agent.x - worldPosition.x, 2) + Math.pow(agent.y - worldPosition.y, 2)
-              );
-              return distance <= broadcastRange;
-          });
-
-          console.log('Broadcast setup:', {
-              totalAgents: visibleAgents.length,
-              agentsInRange: agentsInRange.length,
-              agentNames: agentsInRange.map((a) => a.name),
-              agentIds: agentsInRange.map((a) => a.id)
-          });
-
-          // Set broadcast status
-          setBroadcastStatus({
-              range: broadcastRange,
-              agentsReached: agentsInRange.length,
-              agentNames: agentsInRange.map((agent) => agent.name)
-          });
-
-          clearBroadcastMessage();
-
-          // Create thread and send message if there are agents in range
-          if (agentsInRange.length > 0 && chatBoxRef.current) {
-              // Create new thread with unique ID
-              const threadId = `thread-${Date.now()}`;
-              const newThread = {
-                  id: threadId,
-                  message: messageText,
-                  timestamp: new Date(),
-                  agentsReached: agentsInRange.length,
-                  agentNames: agentsInRange.map((agent) => agent.name)
-              };
-
-              // Add to threads list and set as current thread
-              addThread(newThread);
-              setCurrentThreadId(threadId);
-
-              try {
-                  // Send the broadcast message through the ChatBox system with thread ID and radius
-                  // This now handles both regular and A2A agents through the unified system
-                  await chatBoxRef.current.sendMessage(messageText, threadId, broadcastRange);
-                  console.log(
-                      `Broadcasting "${messageText}" to ${agentsInRange.length} agents in thread ${threadId}:`,
-                      agentsInRange.map((a) => a.name)
-                  );
-              } catch (error) {
-                  console.error('Failed to broadcast message:', error);
-              }
-          } else {
-              console.log(`No agents in range - broadcast message "${messageText}" not sent, no thread created`);
-          }
-
-          // Clear broadcast status after 5 seconds
-          clearBroadcastStatusAfterDelay(5000);
-      }
-  };
 
     const handleMobileMove = useCallback(
         (direction: DIRECTION) => {
@@ -251,11 +170,7 @@ export default function MapTab({
                         tileSize={TILE_SIZE}
                         playerPosition={playerPosition}
                         worldPosition={worldPosition}
-                        agents={visibleAgents.map((agent) => ({
-                            ...agent,
-                            screenX: 0,
-                            screenY: 0,
-                        }))} // FIXME(yoojin): agent type 정리해야함
+                        agents={visibleAgents}
                         customTiles={{
                             layer0: { ...(publishedTiles.layer0 || {}), ...(customTiles.layer0 || {}) },
                             layer1: { ...(publishedTiles.layer1 || {}), ...(customTiles.layer1 || {}) },

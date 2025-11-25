@@ -4,8 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useMapData } from '@/providers/MapDataProvider';
 import { Agent } from '@/lib/world';
 import { useTileBasedCollision } from '@/hooks/useTileBasedCollision';
-import { useBuildStore, useChatStore } from '@/stores';
-import { DIRECTION, MAP_TILES, TILE_SIZE, ENABLE_AGENT_MOVEMENT } from '@/constants/game';
+import { useBuildStore, useChatStore, VisibleAgent } from '@/stores';
+import { DIRECTION, MAP_TILES, ENABLE_AGENT_MOVEMENT } from '@/constants/game';
 import { DEFAULT_AGENTS } from '@/lib/initializeAgents';
 
 export interface AgentInternal extends Agent {
@@ -45,7 +45,7 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
     const { isAgentLoading } = useChatStore();
 
     // Create initial agents from DEFAULT_AGENTS configuration
-    const createInitialAgents = (): AgentInternal[] => {
+    const createInitialAgents = (): VisibleAgent[] => {
         return DEFAULT_AGENTS.map((agent, index) => ({
             id: `agent-${index + 1}`,
             x: agent.x,
@@ -66,7 +66,7 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
         }));
     };
 
-    const [agents, setAgents] = useState<AgentInternal[]>(createInitialAgents());
+    const [agents, setAgents] = useState<VisibleAgent[]>(createInitialAgents());
 
     // Load agent names from API - with caching to prevent repeated calls
     useEffect(() => {
@@ -167,7 +167,7 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
     }, []); // Only run once on mount
 
     const isWalkable = useCallback(
-        (x: number, y: number, currentAgents: AgentInternal[], checkingAgentId?: string): boolean => {
+        (x: number, y: number, currentAgents: VisibleAgent[], checkingAgentId?: string): boolean => {
             if (x < 0 || x >= MAP_TILES || y < 0 || y >= MAP_TILES) {
                 return false;
             }
@@ -214,10 +214,10 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
 
     const getAgentBehavior = useCallback(
         (
-            agent: AgentInternal,
-            currentAgents: AgentInternal[]
+            agent: VisibleAgent,
+            currentAgents: VisibleAgent[]
         ): { newX: number; newY: number; newDirection: DIRECTION } => {
-            const { x, y, direction, behavior, id } = agent;
+            const { x, y, direction = DIRECTION.DOWN, behavior, id } = agent;
 
             switch (behavior) {
                 case 'random': {
@@ -303,6 +303,8 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
             prevAgents.map((agent) => {
                 // Check if agent is loading (calling Gemini API)
                 const isLoading = isAgentLoading(agent.id);
+                const lastMoved = agent.lastMoved || Date.now();
+                const moveInterval = agent.moveInterval || 3000; // 3 seconds
 
                 // If agent is loading, stop movement and keep them in place
                 if (isLoading) {
@@ -322,9 +324,9 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
                 }
 
                 // Check if agent is currently in animation state (within 800ms of last move)
-                const isCurrentlyAnimating = currentTime - agent.lastMoved < 800;
+                const isCurrentlyAnimating = currentTime - lastMoved < 800;
 
-                if (currentTime - agent.lastMoved < agent.moveInterval) {
+                if (currentTime - lastMoved < moveInterval) {
                     return {
                         ...agent,
                         isMoving: isCurrentlyAnimating

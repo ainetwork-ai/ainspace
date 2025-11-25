@@ -2,7 +2,7 @@
 
 import { useGameState } from '@/hooks/useGameState';
 import { cn } from '@/lib/utils';
-import { AgentInformation, Thread, useThreadStore } from '@/stores';
+import { VisibleAgent, Thread, useThreadStore } from '@/stores';
 import { Triangle } from 'lucide-react';
 import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
@@ -17,7 +17,7 @@ interface ChatBoxOverlayProps {
     setJoystickVisible: (isJoystickVisible: boolean) => void;
     className?: string;
     lastCommentary?: string;
-    worldAgents?: AgentInformation[];
+    worldAgents?: VisibleAgent[];
 }
 
 export default function ChatBoxOverlay({
