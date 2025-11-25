@@ -32,7 +32,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     { className = '', aiCommentary, agents = [], onResetLocation, openThreadList },
     ref
 ) {
-    const { messages, setMessages, getMessagesByThreadId } = useChatStore();
+    const { setMessages, getMessagesByThreadId } = useChatStore();
     const { currentThreadId, setCurrentThreadId } = useThreadStore();
     const [inputValue, setInputValue] = useState('');
     const [showSuggestions, setShowSuggestions] = useState(false);
@@ -55,14 +55,42 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     const { worldPosition: playerPosition } = useGameStateStore();
 
     useEffect(() => {
+        // FIXME(yoojin): move type
+        interface BackendMessage {
+          id: string;
+          replyTo?: string;
+          content: string;
+          speaker: string;
+          timestamp: Date;
+        }
+
+        const mappingBackendMessagesToChatMessages = (backendMessages: BackendMessage[], threadId: string) => {
+          return backendMessages.map((backendMessage) => {
+            return {
+              id: backendMessage.id,
+              text: backendMessage.content,
+              timestamp: backendMessage.timestamp,
+              sender: backendMessage.speaker,
+              senderId: backendMessage.speaker,
+              threadId: threadId,
+            } as ChatMessage;
+          });
+        }
+
         const fetchThreadMessages = async (threadId: string) => {
             const response = await fetch(`/api/threads/${threadId}`);
             const data = await response.json();
-            console.log('Thread messages fetched from backend:', data);
-            setDisplayedMessages(data);
+
+            if (data.success && data.messages) {
+              const mappedMessages = mappingBackendMessagesToChatMessages(data.messages, threadId) as ChatMessage[];
+              setDisplayedMessages(mappedMessages);
+            } else {
+              setDisplayedMessages([]);
+            }
         }
 
-        if (currentThreadId) {
+        if (currentThreadId && currentThreadId !== '0') {
+            console.log('Fetching thread messages for thread ID:', currentThreadId);
             // Get messages from local store first.
             const currentThreadMessages = getMessagesByThreadId(currentThreadId);
             setDisplayedMessages(currentThreadMessages);
@@ -104,6 +132,11 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             return distance <= broadcastRadius;
         });
     }, [agents, playerPosition]);
+
+    // Get current agents in radius for display
+    const currentAgentsInRadius = getCurrentAgentsInRadius();
+    const currentAgentNames = currentAgentsInRadius.map(a => a.name).sort();
+    const previewThreadName = generateThreadId(currentAgentNames, address);
 
     // Get all threads (from thread name map)
     const allThreads = useMemo(() => {
@@ -157,7 +190,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         if (currentThreadId && currentThreadId !== '0' && currentThreadId !== 'undefined') {
             setCurrentThreadId(currentThreadId);
         }
-    }, [currentThreadId]);
+    }, [currentThreadId, setCurrentThreadId]);
 
     // Initialize world system
     const { sendMessage: worldSendMessage, getAgentSuggestions } = useWorld({
@@ -267,34 +300,13 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         enabled: hasStartedConversation && !!backendThreadId && backendThreadId !== '0' && backendThreadId !== 'undefined'
     });
 
-    // Expose sendMessage function to parent components
-    // useImperativeHandle(
-    //     ref,
-    //     () => ({
-    //         sendMessage: async (message: string, threadId?: string, broadcastRadius?: number) => {
-    //             const newMessage: Message = {
-    //                 id: Date.now().toString(),
-    //                 text: message,
-    //                 timestamp: new Date(),
-    //                 sender: 'user',
-    //                 threadId: threadId || activeThreadId || undefined
-    //             };
-    //             console.log('SendMessage (imperative):', {
-    //                 message,
-    //                 threadId,
-    //                 broadcastRadius,
-    //                 messageId: newMessage.id
-    //             });
-    //             setMessages((prev) => [...prev, newMessage]);
-    //             await worldSendMessage(message, threadId, broadcastRadius);
-    //         }
-    //     }),
-    //     [worldSendMessage, currentThreadId]
-    // );
+    const moveToBottom = () => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    };
 
     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages]);
+        moveToBottom();
+    }, [displayedMessages]);
 
     // Add AI commentary to messages when it changes
     useEffect(() => {
@@ -651,11 +663,6 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         }
     };
 
-    // Filter messages by current thread
-    const threadMessages = currentThreadId
-        ? messages.filter((msg) => msg.threadId === currentThreadId)
-        : messages.filter((msg) => !msg.threadId);
-
     const handleKeyPress = (e: React.KeyboardEvent) => {
         if (showSuggestions && filteredAgents.length > 0) {
             if (e.key === 'ArrowDown') {
@@ -748,17 +755,12 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         },
         [inputValue, cursorPosition]
     );
-
-    // Get current agents in radius for display
-    const currentAgentsInRadius = getCurrentAgentsInRadius();
-    const currentAgentNames = currentAgentsInRadius.map(a => a.name).sort();
-    const previewThreadName = generateThreadId(currentAgentNames, address);
-
+  
     return (
         <div className={cn('flex flex-col min-h-0 h-full w-full bg-transparent', className)}>
             {/* NOTE: Chat Messages */}
             <div className="flex-1 overflow-y-auto p-4 pt-2">
-                {threadMessages.slice().map((message) => (
+                {displayedMessages.map((message) => (
                     <ChatMessageCard key={message.id} message={message} />
                 ))}
                 <div ref={messagesEndRef} />
