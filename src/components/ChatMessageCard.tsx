@@ -1,9 +1,9 @@
 'use client';
 
-import { ChatMessage as ChatMessageType, useAgentStore, useGameStateStore } from "@/stores";
+import { ChatMessage, useAgentStore, useGameStateStore } from "@/stores";
 import Image from "next/image";
 
-export default function ChatMessage({ message }: { message: ChatMessageType }) {
+export default function ChatMessageCard({ message }: { message: ChatMessage }) {
   const { agents } = useAgentStore();
   const { worldPosition: playerPosition } = useGameStateStore();
   

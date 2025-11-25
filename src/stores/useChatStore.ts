@@ -16,7 +16,7 @@ interface ChatState {
     // Actions
     setMessages: (messagesOrUpdater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => void;
     clearMessages: () => void;
-    getMessagesByThread: (threadId?: string) => ChatMessage[];
+    getMessagesByThreadId: (threadId?: string) => ChatMessage[];
     setAgentLoading: (agentId: string, isLoading: boolean) => void;
     isAgentLoading: (agentId: string) => boolean;
 }
@@ -36,7 +36,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     clearMessages: () => set({ messages: [] }),
 
-    getMessagesByThread: (threadId) => {
+    getMessagesByThreadId: (threadId) => {
         const messages = get().messages;
         if (threadId) {
             return messages.filter((msg) => msg.threadId === threadId);

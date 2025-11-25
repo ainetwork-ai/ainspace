@@ -5,27 +5,18 @@ import { useWorld } from '@/hooks/useWorld';
 import { Agent, AgentResponse } from '@/lib/world';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
-import { useBuildStore, useChatStore, useGameStateStore, useThreadStore } from '@/stores';
+import { ChatMessage, useBuildStore, useChatStore, useGameStateStore, useThreadStore } from '@/stores';
 import { INITIAL_PLAYER_POSITION } from '@/constants/game';
 import { useAccount } from 'wagmi';
 import * as Sentry from '@sentry/nextjs';
 import { useThreadStream } from '@/hooks/useThreadStream';
 import { StreamEvent } from '@/lib/a2aOrchestration';
 import { Triangle } from 'lucide-react';
-import ChatMessage from './ChatMessage';
-
-interface Message {
-    id: string;
-    text: string;
-    timestamp: Date;
-    sender: 'user' | 'system' | 'ai';
-    senderId?: string;
-    threadId?: string;
-}
+import ChatMessageCard from './ChatMessageCard';
 
 interface ChatBoxProps {
     className?: string;
-    onAddMessage?: (message: Message) => void;
+    onAddMessage?: (message: ChatMessage) => void;
     openThreadList: () => void;
     aiCommentary?: string;
     agents?: Agent[];
@@ -41,7 +32,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     { className = '', aiCommentary, agents = [], onResetLocation, openThreadList },
     ref
 ) {
-    const { messages, setMessages, getMessagesByThread } = useChatStore();
+    const { messages, setMessages, getMessagesByThreadId } = useChatStore();
     const { currentThreadId, setCurrentThreadId } = useThreadStore();
     const [inputValue, setInputValue] = useState('');
     const [showSuggestions, setShowSuggestions] = useState(false);
@@ -53,7 +44,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     const inputRef = useRef<HTMLInputElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
-    const [displayedMessages, setDisplayedMessages] = useState<Message[]>([]);
+    const [displayedMessages, setDisplayedMessages] = useState<ChatMessage[]>([]);
 
     // Track if a message has been sent (to enable SSE connection)
     const [hasStartedConversation, setHasStartedConversation] = useState(false);
@@ -64,10 +55,22 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     const { worldPosition: playerPosition } = useGameStateStore();
 
     useEffect(() => {
-        if (currentThreadId) {
-            setDisplayedMessages(getMessagesByThread(currentThreadId));
+        const fetchThreadMessages = async (threadId: string) => {
+            const response = await fetch(`/api/threads/${threadId}`);
+            const data = await response.json();
+            console.log('Thread messages fetched from backend:', data);
+            setDisplayedMessages(data);
         }
-    }, [currentThreadId, getMessagesByThread]);
+
+        if (currentThreadId) {
+            // Get messages from local store first.
+            const currentThreadMessages = getMessagesByThreadId(currentThreadId);
+            setDisplayedMessages(currentThreadMessages);
+
+            // Then fetch from backend.
+            fetchThreadMessages(currentThreadId);
+        }
+    }, [currentThreadId, getMessagesByThreadId]);
 
     // Store full thread data including agent names
     const [fullThreadData, setFullThreadData] = useState<{
@@ -163,7 +166,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         onAgentResponse: (response: AgentResponse & { threadId?: string }) => {
             const { agentId, message, threadId, nextAgentRequest } = response;
             // Add agent response to chat with thread ID
-            const agentMessage: Message = {
+            const agentMessage: ChatMessage = {
                 id: `agent-${agentId}-${Date.now()}`,
                 text: message,
                 timestamp: new Date(),
@@ -229,7 +232,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             console.log('Extracted message content:', messageContent);
 
             // Add agent message to chat
-            const agentMessage: Message = {
+            const agentMessage: ChatMessage = {
                 id: messageData.id || `stream-${Date.now()}-${Math.random()}`,
                 text: messageContent,
                 timestamp: new Date(),
@@ -243,7 +246,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             console.log('Block event (not displayed):', event.data);
         } else if (event.type === 'error') {
             // Error message
-            const errorMessage: Message = {
+            const errorMessage: ChatMessage = {
                 id: `error-${Date.now()}`,
                 text: `Error: ${event.data.error || 'Unknown error'}`,
                 timestamp: new Date(),
@@ -296,7 +299,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     // Add AI commentary to messages when it changes
     useEffect(() => {
         if (aiCommentary && aiCommentary.trim()) {
-            const aiMessage: Message = {
+            const aiMessage: ChatMessage = {
                 id: `ai-${Date.now()}`,
                 text: aiCommentary,
                 timestamp: new Date(),
@@ -327,7 +330,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             setInputValue('');
             if (onResetLocation) {
                 onResetLocation();
-                const systemMessage: Message = {
+                const systemMessage: ChatMessage = {
                     id: `system-${Date.now()}`,
                     text: 'Player and agents have been reset to their initial positions (63, 58).',
                     timestamp: new Date(),
@@ -336,7 +339,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 };
                 setMessages((prev) => [...prev, systemMessage]);
             } else {
-                const errorMessage: Message = {
+                const errorMessage: ChatMessage = {
                     id: `system-${Date.now()}`,
                     text: 'Reset location is not available.',
                     timestamp: new Date(),
@@ -347,7 +350,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             }
         } else if (inputValue.trim() === 'clear items') {
             setInputValue('');
-            const systemMessage: Message = {
+            const systemMessage: ChatMessage = {
                 id: `system-${Date.now()}`,
                 text: 'Clearing all placed items...',
                 timestamp: new Date(),
@@ -383,7 +386,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 // Reset collision map to base land_layer_1.webp only
                 await updateCollisionMapFromImage('/map/land_layer_1.webp');
 
-                const successMessage: Message = {
+                const successMessage: ChatMessage = {
                     id: `system-${Date.now()}`,
                     text: `All items have been cleared! Deleted ${data.deletedCount} tiles. All 6 items are now available for placement again.`,
                     timestamp: new Date(),
@@ -392,7 +395,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 };
                 setMessages((prev) => [...prev, successMessage]);
             } catch (error) {
-                const errorMessage: Message = {
+                const errorMessage: ChatMessage = {
                     id: `system-${Date.now()}`,
                     text: `Failed to clear items: ${error instanceof Error ? error.message : 'Unknown error'}`,
                     timestamp: new Date(),
@@ -403,7 +406,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             }
         } else if (inputValue.trim() === 'update layer1') {
             setInputValue('');
-            const systemMessage: Message = {
+            const systemMessage: ChatMessage = {
                 id: `system-${Date.now()}`,
                 text: 'Updating collision map from land_layer_1.webp and published tiles...',
                 timestamp: new Date(),
@@ -433,7 +436,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 const layer1ItemsCount = Object.keys(layer1Items).length;
                 const totalBlockedCount = Object.keys(mergedCollisionMap).length;
 
-                const successMessage: Message = {
+                const successMessage: ChatMessage = {
                     id: `system-${Date.now()}`,
                     text: `Collision map updated successfully! ${imageBlockedCount} tiles from image + ${layer1ItemsCount} published items = ${totalBlockedCount} total blocked tiles. Use "show me grid" to view.`,
                     timestamp: new Date(),
@@ -442,7 +445,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 };
                 setMessages((prev) => [...prev, successMessage]);
             } catch (error) {
-                const errorMessage: Message = {
+                const errorMessage: ChatMessage = {
                     id: `system-${Date.now()}`,
                     text: `Failed to update collision map: ${error instanceof Error ? error.message : 'Unknown error'}`,
                     timestamp: new Date(),
@@ -494,7 +497,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
 
                 // Add system message to notify user about thread change
                 if (currentThreadId) {
-                    const systemMessage: Message = {
+                    const systemMessage: ChatMessage = {
                         id: `system-${Date.now()}`,
                         text: `Switched to conversation with: ${currentAgentNames.join(', ')}`,
                         timestamp: new Date(),
@@ -505,7 +508,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 }
             }
 
-            const newMessage: Message = {
+            const newMessage: ChatMessage = {
                 id: Date.now().toString(),
                 text: userMessageText,
                 timestamp: new Date(),
@@ -622,7 +625,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     ? 'Message timeout - the conversation is taking longer than expected. Please try again.'
                     : `Failed to send message: ${error instanceof Error ? error.message : 'Unknown error'}`;
 
-                const errorMessage: Message = {
+                const errorMessage: ChatMessage = {
                     id: `error-${Date.now()}`,
                     text: errorText,
                     timestamp: new Date(),
@@ -756,7 +759,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             {/* NOTE: Chat Messages */}
             <div className="flex-1 overflow-y-auto p-4 pt-2">
                 {threadMessages.slice().map((message) => (
-                    <ChatMessage key={message.id} message={message} />
+                    <ChatMessageCard key={message.id} message={message} />
                 ))}
                 <div ref={messagesEndRef} />
             </div>
