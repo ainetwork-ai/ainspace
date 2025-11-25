@@ -1,7 +1,7 @@
-import { UserThread, useThreadStore } from "@/stores/useThreadStore";
+import { Thread, useThreadStore } from "@/stores/useThreadStore";
 
 interface ThreadCardProps {
-    thread: UserThread;
+    thread: Thread;
 }
 
 export default function ThreadCard({ thread }: ThreadCardProps) {

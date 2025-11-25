@@ -2,7 +2,7 @@
 
 import { useGameState } from '@/hooks/useGameState';
 import { cn } from '@/lib/utils';
-import { AgentInformation, useThreadStore } from '@/stores';
+import { AgentInformation, Thread, useThreadStore } from '@/stores';
 import { Triangle } from 'lucide-react';
 import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
@@ -10,6 +10,7 @@ import ChatBottomDrawer from './ChatBottomDrawer';
 import { ChatBoxRef } from './ChatBox';
 import ThreadListLeftDrawer from './ThreadListLeftDrawer';
 import { useAccount } from 'wagmi';
+import { ThreadMapping } from '@/lib/redis';
 
 interface ChatBoxOverlayProps {
     chatBoxRef: React.RefObject<ChatBoxRef | null>;
@@ -17,12 +18,6 @@ interface ChatBoxOverlayProps {
     className?: string;
     lastCommentary?: string;
     worldAgents?: AgentInformation[];
-    currentThreadId?: string;
-    threads?: {
-        id: string;
-        message: string;
-        timestamp: Date;
-    }[];
 }
 
 export default function ChatBoxOverlay({
@@ -31,13 +26,10 @@ export default function ChatBoxOverlay({
     const { worldAgents, playerPosition } = useGameState();
     const [isChatSheetOpen, setIsChatSheetOpen] = useState(false);
     const [isThreadListSheetOpen, setIsThreadListSheetOpen] = useState(false);
-    const { userId } = useGameState();
     const {
         threads,
-        userThreads,
+        setThreads,
         setCurrentThreadId,
-        setUserThreads,
-        currentThreadId,
     } = useThreadStore();
 
     const { address } = useAccount();
@@ -55,21 +47,19 @@ export default function ChatBoxOverlay({
 
               const data = await response.json();
               if (data.success && data.threads) {
-                  // Convert thread mappings to our format
-                  const mappings: { [threadName: string]: string } = {};
-                  const fullData: { [threadName: string]: { backendThreadId: string; agentNames: string[] } } = {};
-
-                  for (const [threadName, threadData] of Object.entries(data.threads)) {
-                      const td = threadData as { backendThreadId: string; agentNames: string[] };
-                      mappings[threadName] = td.backendThreadId;
-                      fullData[threadName] = {
-                          backendThreadId: td.backendThreadId,
-                          agentNames: td.agentNames || []
-                      };
+                  const _threads = data.threads as ThreadMapping;
+                  const fetchedThreads: Thread[] = [];
+                  for (const [threadName, threadData] of Object.entries(_threads)) {
+                      fetchedThreads.push({
+                        threadName,
+                        backendThreadId: threadData.backendThreadId,
+                        agentNames: threadData.agentNames,
+                        createdAt: threadData.createdAt,
+                        lastMessageAt: threadData.lastMessageAt,
+                      });
                   }
-
-                  setUserThreads(data.threads);
-                  console.log('Loaded thread mappings:', data.threads);
+                  setThreads(fetchedThreads);
+                  console.log('fetchedThreads', fetchedThreads);
               }
           } catch (error) {
               console.error('Error loading thread mappings:', error);
@@ -77,7 +67,7 @@ export default function ChatBoxOverlay({
       };
 
       loadThreadMappings();
-  }, [address, setUserThreads]);
+  }, [address, setThreads]);
 
     const handleChatSheetOpen = (open: boolean) => {
       setIsChatSheetOpen(open);
@@ -162,7 +152,7 @@ export default function ChatBoxOverlay({
             <ThreadListLeftDrawer
                 open={isThreadListSheetOpen}
                 onOpenChange={handleThreadListSheetOpen}
-                threads={userThreads}
+                threads={threads}
                 onThreadSelect={setCurrentThreadId}
             />
         </div>

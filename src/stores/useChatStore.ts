@@ -9,39 +9,46 @@ export interface ChatMessage {
     threadId?: string;
 }
 
+export interface ThreadMessages {
+  [threadId: string]: ChatMessage[];
+}
+
 interface ChatState {
-    messages: ChatMessage[];
+    messages: ThreadMessages;
     loadingAgents: Set<string>; // Set of agent IDs that are currently loading
 
     // Actions
-    setMessages: (messagesOrUpdater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => void;
+    setMessages: (threadId: string, messagesOrUpdater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => void;
+    addMessage: (threadId: string, message: ChatMessage) => void;
     clearMessages: () => void;
-    getMessagesByThreadId: (threadId?: string) => ChatMessage[];
+    getMessagesByThreadId: (threadId: string) => ChatMessage[];
     setAgentLoading: (agentId: string, isLoading: boolean) => void;
     isAgentLoading: (agentId: string) => boolean;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
-    messages: [],
+    messages: {},
     loadingAgents: new Set<string>(),
 
-    setMessages: (messagesOrUpdater) => {
+    setMessages: (threadId, messagesOrUpdater) => {
         set((state) => {
             const newMessages =
-                typeof messagesOrUpdater === 'function' ? messagesOrUpdater(state.messages) : messagesOrUpdater;
+                typeof messagesOrUpdater === 'function' ? messagesOrUpdater(state.messages[threadId]) : messagesOrUpdater;
             console.log('💬 Setting messages in store:', newMessages);
-            return { messages: newMessages };
+            return { messages: { ...state.messages, [threadId]: newMessages } };
         });
     },
 
-    clearMessages: () => set({ messages: [] }),
+    clearMessages: () => set({ messages: {} }),
+
+    addMessage: (threadId, message) => {
+        set((state) => {
+            return { messages: { ...state.messages, [threadId]: [...state.messages[threadId], message] } };
+        });
+    },
 
     getMessagesByThreadId: (threadId) => {
-        const messages = get().messages;
-        if (threadId) {
-            return messages.filter((msg) => msg.threadId === threadId);
-        }
-        return messages.filter((msg) => !msg.threadId);
+        return get().messages[threadId] || [];
     },
 
     setAgentLoading: (agentId, isLoading) => {
