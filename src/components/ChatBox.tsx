@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback, useMemo, forwardRef } from 'react';
-import { useWorld } from '@/hooks/useWorld';
-import { Agent, AgentResponse } from '@/lib/world';
+import { Agent } from '@/lib/world';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { ChatMessage, useBuildStore, useChatStore, useGameStateStore, useThreadStore } from '@/stores';
@@ -64,12 +63,13 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
 
         const mappingBackendMessagesToChatMessages = (backendMessages: BackendMessage[], threadId: string) => {
             return backendMessages.map((backendMessage) => {
+                const isUserMessage = backendMessage.speaker === 'User';
                 return {
                   id: backendMessage.id,
                   text: backendMessage.content,
                   timestamp: backendMessage.timestamp,
-                  sender: backendMessage.speaker,
-                  senderId: backendMessage.speaker,
+                  sender: isUserMessage ? 'user' : 'ai',
+                  senderId: isUserMessage ? address : backendMessage.speaker,
                   threadId: threadId,
                 } as ChatMessage;
             });
@@ -84,18 +84,22 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     data.messages,
                     threadId
                 ) as ChatMessage[];
-                setMessages(threadId, mappedMessages);
+                setMessages(mappedMessages, threadId);
             }
         }
 
         if (currentThreadId && currentThreadId !== '0') {
-            console.log('Fetching thread messages for thread ID:', currentThreadId);
-            fetchThreadMessages(currentThreadId);
+            const currnetThreadMessages = getMessagesByThreadId(currentThreadId);
+            if (currnetThreadMessages.length > 0) {
+                setDisplayedMessages(currnetThreadMessages);
+            } else {
+                console.log('Fetching thread messages for thread ID:', currentThreadId);
+                fetchThreadMessages(currentThreadId);
+            }
         }
-    }, [currentThreadId, setMessages]);
+    }, [currentThreadId, setMessages, getMessagesByThreadId]);
 
     useEffect(() => {
-        console.log('currentThreadId', currentThreadId);
         if (currentThreadId && currentThreadId !== '0') {
             const filteredMessages = getMessagesByThreadId(currentThreadId)
             setDisplayedMessages(filteredMessages);
@@ -213,7 +217,10 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 senderId: agentName,
                 threadId: currentThreadId || undefined
             };
-            setMessages(currentThreadId || '0', (prev) => [...prev, agentMessage]); // FIXME(yoojin): use currentThreadId
+            setMessages((prev) => {
+              if (!prev) return [agentMessage];
+              return [...prev, agentMessage]
+            }, currentThreadId);
         } else if (event.type === 'block') {
             // Block messages are not displayed in chat (used for internal processing only)
             console.log('Block event (not displayed):', event.data);
@@ -226,7 +233,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 sender: 'system',
                 threadId: currentThreadId || undefined
             };
-            setMessages('0', (prev) => [...prev, errorMessage]); // FIXME(yoojin): use currentThreadId
+            setMessages([errorMessage], currentThreadId);
         }
     }, [currentThreadId, setMessages]);
 
@@ -256,14 +263,16 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 threadId: undefined // AI commentary is not part of any thread
             };
 
-            setMessages(currentThreadId || '0', (prev) => {
+            setMessages((prev) => {
                 // Check if the last message is the same AI commentary to avoid duplicates
                 const lastMessage = prev[prev.length - 1];
                 if (lastMessage && lastMessage.sender === 'ai' && lastMessage.text === aiCommentary) {
                     return prev;
                     }
                     return [...prev, aiMessage]; // FIXME(yoojin): use currentThreadId
-                });
+                }, 
+                currentThreadId
+            );
         }
     }, [aiCommentary, currentThreadId]);
 
@@ -285,7 +294,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     sender: 'system',
                     threadId: undefined
                 };
-                setMessages('0', (prev) => [...prev, systemMessage]); // FIXME(yoojin): use currentThreadId
+                setMessages([systemMessage], currentThreadId);
             } else {
                 const errorMessage: ChatMessage = {
                     id: `system-${Date.now()}`,
@@ -294,7 +303,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     sender: 'system',
                     threadId: undefined
                 };
-                setMessages('0', (prev) => [...prev, errorMessage]); // FIXME(yoojin): use currentThreadId
+                setMessages([errorMessage], currentThreadId);
             }
         } else if (inputValue.trim() === 'clear items') {
             setInputValue('');
@@ -305,7 +314,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 sender: 'system',
                 threadId: undefined
             };
-            setMessages('0', (prev) => [...prev, systemMessage]);
+            setMessages([systemMessage], currentThreadId);
 
             try {
                 // Call the clear-layer1 API endpoint
@@ -341,7 +350,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     sender: 'system',
                     threadId: undefined
                 };
-                setMessages('0', (prev) => [...prev, successMessage]); // FIXME(yoojin): use currentThreadId
+                setMessages([successMessage], currentThreadId);
             } catch (error) {
                 const errorMessage: ChatMessage = {
                     id: `system-${Date.now()}`,
@@ -350,7 +359,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     sender: 'system',
                     threadId: undefined
                 };
-                setMessages('0', (prev) => [...prev, errorMessage]); // FIXME(yoojin): use currentThreadId
+                setMessages([errorMessage], currentThreadId);
             }
         } else if (inputValue.trim() === 'update layer1') {
             setInputValue('');
@@ -361,7 +370,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 sender: 'system',
                 threadId: undefined
             };
-            setMessages('0', (prev) => [...prev, systemMessage]);
+            setMessages([systemMessage], currentThreadId);
 
             try {
                 // Step 1: Update collision map from land_layer_1.webp image
@@ -391,7 +400,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     sender: 'system',
                     threadId: undefined
                 };
-                setMessages('0', (prev) => [...prev, successMessage]); // FIXME(yoojin): use currentThreadId
+                setMessages([successMessage], currentThreadId);
             } catch (error) {
                 const errorMessage: ChatMessage = {
                     id: `system-${Date.now()}`,
@@ -400,7 +409,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     sender: 'system',
                     threadId: undefined
                 };
-                setMessages('0', (prev) => [...prev, errorMessage]); // FIXME(yoojin): use currentThreadId
+                setMessages([errorMessage], currentThreadId);
             }
         } else if (inputValue.trim()) {
             const userMessageText = inputValue.trim();
@@ -431,21 +440,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             if (existingThread) {
                 console.log('Agent combination changed - switching to thread:', existingThread.threadName);
                 setCurrentThreadId(existingThread.backendThreadId);
-
-                // If we're using an existing thread, we can start conversation immediately
-                // If it's new, we'll wait for backend response
                 setHasStartedConversation(true);
-
-                // Add system message to notify user about thread change
-                // if (currentThreadId) {
-                //     const systemMessage: ChatMessage = {
-                //         id: `system-${Date.now()}`,
-                //         text: `Switched to conversation with: ${currentAgentNames.join(', ')}`,
-                //         timestamp: new Date(),
-                //         sender: 'system',
-                //         threadId: currentThreadId
-                //     };
-                //     setMessages((prev) => [...prev, systemMessage]);
             }
 
             const newMessage: ChatMessage = {
@@ -454,7 +449,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 timestamp: new Date(),
                 sender: 'user',
                 senderId: address || undefined,
-                threadId: currentThreadId
+                threadId: threadIdToSend
             };
 
             console.log('HandleSendMessage:', {
@@ -466,8 +461,11 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 isNewThread: existingThread ? false : true,
                 previousThreadId: currentThreadId
             });
-
-            setMessages(threadIdToSend || '0', (prev) => [...prev, newMessage]);
+            // FIXME(yoojin): check existing thread but new chat case
+            setMessages((prev) => {
+              if (!prev) return [newMessage];
+              return [...prev, newMessage]
+            }, threadIdToSend);
             setInputValue('');
 
             // Extract mentioned agents from message
@@ -564,7 +562,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     sender: 'system',
                     threadId: threadIdToSend,
                 };
-                setMessages(threadIdToSend || '0', (prev) => [...prev, errorMessage]);
+                setMessages((prev) => [...prev, errorMessage], threadIdToSend);
 
                 // Log to Sentry
                 Sentry.captureException(error instanceof Error ? error : new Error('Failed to send thread message'), {

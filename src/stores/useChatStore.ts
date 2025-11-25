@@ -18,7 +18,7 @@ interface ChatState {
     loadingAgents: Set<string>; // Set of agent IDs that are currently loading
 
     // Actions
-    setMessages: (threadId: string, messagesOrUpdater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => void;
+    setMessages: (messagesOrUpdater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[]), threadId?: string) => void;
     addMessage: (threadId: string, message: ChatMessage) => void;
     clearMessages: () => void;
     getMessagesByThreadId: (threadId: string) => ChatMessage[];
@@ -30,7 +30,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     messages: {},
     loadingAgents: new Set<string>(),
 
-    setMessages: (threadId, messagesOrUpdater) => {
+    setMessages: (messagesOrUpdater, threadId = '0') => {
         set((state) => {
             const newMessages =
                 typeof messagesOrUpdater === 'function' ? messagesOrUpdater(state.messages[threadId]) : messagesOrUpdater;

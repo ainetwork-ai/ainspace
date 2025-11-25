@@ -7,7 +7,7 @@ export async function GET(
     { params }: { params: Promise<{ id: string }> }
 ) {
     const { id } = await params;
-    const endpoint = `${A2A_ORCHESTRATION_BASE_URL}/threads/${id}/messages?limit=10`;
+    const endpoint = `${A2A_ORCHESTRATION_BASE_URL}/threads/${id}/messages`;
 
     try {
         const response = await fetch(endpoint);
