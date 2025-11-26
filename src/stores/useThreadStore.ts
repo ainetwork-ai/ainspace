@@ -35,6 +35,7 @@ interface ThreadState {
     setThreads: (threads: Thread[]) => void;
     addThread: (thread: Thread) => void;
     setUserThreads: (threads: { [threadName: string]: UserThread }) => void;
+    removeUserThread: (threadName: string) => void;
     setCurrentThreadId: (threadId: string | undefined) => void;
     setBroadcastMessage: (message: string) => void;
     setBroadcastStatus: (status: BroadcastStatus | null) => void;
@@ -52,6 +53,11 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
     setThreads: (threads) => set({ threads }),
     addThread: (thread) => set((state) => ({ threads: [thread, ...state.threads] })),
     setUserThreads: (threads: { [threadName: string]: UserThread }) => set({ userThreads: threads }),
+    removeUserThread: (threadName: string) => set((state) => {
+        const { [threadName]: userThread, ...remainingUserThreads } = state.userThreads
+        return {userThreads: remainingUserThreads}
+    }),
+    
     setCurrentThreadId: (threadId) => set({ currentThreadId: threadId }),
     setBroadcastMessage: (message) => set({ broadcastMessage: message }),
     setBroadcastStatus: (status) => set({ broadcastStatus: status }),
