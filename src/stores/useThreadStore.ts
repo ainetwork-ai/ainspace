@@ -2,7 +2,7 @@ import { create } from 'zustand';
 
 export interface Thread {
   threadName: string;
-  backendThreadId: string;
+  id: string;
   agentNames: string[];
   createdAt: string;
   lastMessageAt: string;
@@ -41,7 +41,7 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
     setThreads: (threads) => set({ threads }),
     addThread: (thread) => set((state) => ({ threads: [thread, ...state.threads] })),
     findThreadByName: (threadName) => get().threads.find(thread => thread.threadName === threadName),
-    findThreadById: (threadId) => get().threads.find(thread => thread.backendThreadId === threadId),
+    findThreadById: (threadId) => get().threads.find(thread => thread.id === threadId),
     setCurrentThreadId: (threadId) => set({ currentThreadId: threadId }),
     setBroadcastMessage: (message) => set({ broadcastMessage: message }),
     setBroadcastStatus: (status) => set({ broadcastStatus: status }),

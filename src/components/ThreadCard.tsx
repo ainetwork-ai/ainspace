@@ -8,8 +8,8 @@ export default function ThreadCard({ thread }: ThreadCardProps) {
     const { setCurrentThreadId } = useThreadStore();
 
     const handleClick = () => {
-        console.log('Setting current thread ID to:', thread.backendThreadId);
-        setCurrentThreadId(thread.backendThreadId);
+        console.log('Setting current thread ID to:', thread.id);
+        setCurrentThreadId(thread.id);
     }
 
     return (

@@ -75,17 +75,7 @@ export class World {
                 });
                 return existingInstance;
             } else {
-                // Create new instance
-                const agentState: AgentState = {
-                    id: agent.id,
-                    name: agent.name,
-                    color: agent.color,
-                    x: agent.x,
-                    y: agent.y,
-                    behavior: agent.behavior,
-                    agentUrl: agent.agentUrl // Include agentUrl for A2A agents
-                };
-                return createAgent(agent.behavior, agentState);
+                return createAgent(agent.behavior, agent);
             }
         });
     }

@@ -432,14 +432,14 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             
             // Determine which backend thread ID to use
             // If we have an existing mapping, use it; otherwise send undefined to create new
-            const threadIdToSend = existingThread ? existingThread.backendThreadId : undefined;
+            const threadIdToSend = existingThread ? existingThread.id : undefined;
 
             console.log('Existing backend thread ID:', threadIdToSend);
             console.log('Previous active thread ID:', currentThreadId);
 
             if (existingThread) {
                 console.log('Agent combination changed - switching to thread:', existingThread.threadName);
-                setCurrentThreadId(existingThread.backendThreadId);
+                setCurrentThreadId(existingThread.id);
                 setHasStartedConversation(true);
             }
 
@@ -513,7 +513,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                         console.log('Saving mapping:', threadName, '→', result.threadId);
                         addThread({
                             threadName,
-                            backendThreadId: result.threadId,
+                            id: result.threadId,
                             agentNames: currentAgentNames,
                             createdAt: new Date().toISOString(),
                             lastMessageAt: new Date().toISOString()
@@ -523,7 +523,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                         console.log('Saving thread mapping:', {
                             userId: address,
                             threadName,
-                            backendThreadId: result.threadId,
+                            id: result.threadId,
                             agentNames: currentAgentNames
                         });
                         if (address) {
@@ -533,7 +533,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                                 body: JSON.stringify({
                                     userId: address,
                                     threadName,
-                                    backendThreadId: result.threadId,
+                                    id: result.threadId,
                                     agentNames: currentAgentNames
                                 })
                             }).catch(err => console.error('Failed to save thread mapping:', err));

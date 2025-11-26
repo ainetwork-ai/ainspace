@@ -140,10 +140,6 @@ export default function Home() {
                     return;
                 }
 
-                // Get default agent URLs to exclude them from restoration
-                const { DEFAULT_AGENTS } = await import('@/lib/initializeAgents');
-                const defaultAgentUrls = new Set(DEFAULT_AGENTS.map(agent => agent.a2aUrl));
-
                 // Filter out default agents (they're already in worldAgents)
                 // Only load user-deployed agents that have position/sprite data
                 type DeployedAgentData = {
@@ -153,18 +149,16 @@ export default function Home() {
                 };
                 const deployedAgents = data.agents.filter((agentData: DeployedAgentData) => {
                     const card = agentData.card;
-                    const url = agentData.url;
                     const state = agentData.state;
                     // Exclude default agents and only include agents with deployment data
-                    return !defaultAgentUrls.has(url) &&
-                           card &&
+                    return card &&
                            state &&
                            typeof state.x === 'number' &&
                            typeof state.y === 'number' &&
                            state.spriteUrl;
                 });
 
-                console.log(`Found ${deployedAgents.length} user-deployed agents in Redis (excluding ${defaultAgentUrls.size} default agents)`);
+                console.log(`Found ${deployedAgents.length} user-deployed agents in Redis`);
 
                 // Restore agents to useAgentStore
                 deployedAgents.forEach((agentData: DeployedAgentData) => {

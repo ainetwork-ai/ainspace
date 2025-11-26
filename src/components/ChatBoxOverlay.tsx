@@ -53,7 +53,7 @@ export default function ChatBoxOverlay({
                   for (const [threadName, threadData] of Object.entries(_threads)) {
                       fetchedThreads.push({
                         threadName,
-                        backendThreadId: threadData.backendThreadId,
+                        id: threadData.backendThreadId,
                         agentNames: threadData.agentNames,
                         createdAt: threadData.createdAt,
                         lastMessageAt: threadData.lastMessageAt,
