@@ -1,93 +1,69 @@
-import { AgentSkill } from '@a2a-js/sdk';
 import { create } from 'zustand';
-import { DIRECTION } from '@/constants/game';
+import { AgentState } from '@/lib/agent';
 
-export interface AgentInformation {
-    id: string;
-    x: number;
-    y: number;
-    color: string;
-    name: string;
-    characterImage?: string;
-    lastMoved?: number;
-    moveInterval?: number; // Random interval for agent movement (ms)
-    agentUrl?: string;
-    skills?: AgentSkill[];
-    spriteUrl?: string; // Sprite image for movement animation
-    spriteHeight?: number; // Height of the sprite (e.g., 40 for cat, 86 for default sprites)
-    direction?: DIRECTION; // Current facing direction (DIRECTION enum)
-    isMoving?: boolean; // Whether agent is currently moving
-}
-
-interface AgentState {
-    agents: { [agentUrl: string]: AgentInformation };
+interface AgentStore {
+    agents: AgentState[];
 
     // Actions
-    spawnAgent: (agentUrl: string, agent: AgentInformation) => void;
+    spawnAgent: (agent: AgentState) => void;
     removeAgent: (agentUrl: string) => void;
     updateAgentPosition: (agentUrl: string, x: number, y: number) => void;
     updateAgentCharacterImage: (agentUrl: string, imageUrl: string) => void;
-    setAgents: (agents: { [agentUrl: string]: AgentInformation }) => void;
-    updateAgent: (agentUrl: string, updates: Partial<AgentInformation>) => void;
+    setAgents: (agents: AgentState[]) => void;
+    updateAgent: (agentUrl: string, updates: Partial<AgentState>) => void;
 }
 
-export const useAgentStore = create<AgentState>((set, get) => ({
-    agents: {}, // A2A agents initialized to empty on refresh
+export const useAgentStore = create<AgentStore>((set, get) => ({
+    agents: [], // A2A agents initialized to empty on refresh
 
-    spawnAgent: (agentUrl, agent) => {
-        console.log(`🔄 A2A Agent spawned: ${agent.name} at (${agent.x}, ${agent.y})`);
-        return set((state) => ({
-            agents: {
-                ...state.agents,
-                [agentUrl]: agent
-            }
+    spawnAgent: (agent) => {
+        const newAgentUrl = agent.agentUrl;
+        const isExist = get().agents.find((agent) => agent.agentUrl === newAgentUrl);
+        if (isExist) {
+            console.log(`🔄 A2A Agent already exists: ${agent.name}`);
+            return;
+        }
+        set((state) => ({
+            agents: [...state.agents, agent]
         }));
+        console.log(`🔄 A2A Agent spawned: ${agent.name} at (${agent.x}, ${agent.y})`);
     },
 
     removeAgent: (agentUrl) =>
         set((state) => {
-            const { [agentUrl]: removed, ...rest } = state.agents;
+            const removed = state.agents.find((agent) => agent.agentUrl === agentUrl);
             if (removed) {
                 console.log(`🔄 A2A Agent removed: ${removed.name}`);
             }
-            return { agents: rest };
+            return { agents: state.agents.filter((agent) => agent.agentUrl !== agentUrl) };
         }),
 
     updateAgentPosition: (agentUrl, x, y) =>
         set((state) => {
-            const agent = state.agents[agentUrl];
+            const agent = state.agents.find((agent) => agent.agentUrl === agentUrl);
             if (!agent) return state;
             return {
-                agents: {
-                    ...state.agents,
-                    [agentUrl]: { ...agent, x, y, lastMoved: Date.now() }
-                }
+                agents: state.agents.map((agent) => agent.agentUrl === agentUrl ? { ...agent, x, y, lastMoved: Date.now() } : agent)
             };
         }),
 
     updateAgentCharacterImage: (agentUrl, imageUrl) =>
         set((state) => {
-            const agent = state.agents[agentUrl];
+            const agent = state.agents.find((agent) => agent.agentUrl === agentUrl);
             if (!agent) return state;
             return {
-                agents: {
-                    ...state.agents,
-                    [agentUrl]: { ...agent, characterImage: imageUrl }
-                }
+                agents: state.agents.map((agent) => agent.agentUrl === agentUrl ? { ...agent, characterImage: imageUrl } : agent)
             };
         }),
 
-    setAgents: (agents) => set({ agents: agents }),
+    setAgents: (agents: AgentState[]) => set({ agents }),
 
     updateAgent: (agentUrl, updates) =>
         set((state) => {
-            const agent = state.agents[agentUrl];
+            const agent = state.agents.find((agent) => agent.agentUrl === agentUrl);
             if (!agent) return state;
             return {
-                agents: {
-                    ...state.agents,
-                    [agentUrl]: { ...agent, ...updates }
-                }
+                agents: state.agents.map((agent) => agent.agentUrl === agentUrl ? { ...agent, ...updates } : agent)
             };
         })
 }));

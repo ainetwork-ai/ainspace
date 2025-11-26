@@ -1,16 +1,18 @@
 'use client';
 
-import { ChatMessage as ChatMessageType, useAgentStore, useGameStateStore } from "@/stores";
+import { ChatMessage, useAgentStore, useGameStateStore } from "@/stores";
 import Image from "next/image";
+import { useMemo } from "react";
 
-export default function ChatMessage({ message }: { message: ChatMessageType }) {
+export default function ChatMessageCard({ message }: { message: ChatMessage }) {
   const { agents } = useAgentStore();
   const { worldPosition: playerPosition } = useGameStateStore();
   
-  const getAgentNameAndPosition = (senderId: string | undefined): string => {
-    if (!senderId) return 'AI';
+  const getAgentNameAndPosition = useMemo(() => {
+    if (!message.senderId) return 'AI';
     // Try to find agent by ID first, then by name (for SSE stream messages)
-    const agent = agents[senderId];
+    // FIXME(yoojin): need to change senderId to agent id. now senderId is agent name.
+    const agent = agents.find((agent) => agent.name === message.senderId);
     if (agent && playerPosition) {
         const distance = Math.sqrt(
             Math.pow(agent.x - playerPosition.x, 2) + Math.pow(agent.y - playerPosition.y, 2)
@@ -18,10 +20,10 @@ export default function ChatMessage({ message }: { message: ChatMessageType }) {
         return `${agent.name} (${agent.x}, ${agent.y}) [${distance.toFixed(1)}u]`;
     }
     // If agent not found in local agents array, just return the senderId as name
-    return senderId || 'AI';
-};
+    return message.senderId || 'AI';
+}, [agents, playerPosition, message.senderId]);
 
-const renderSenderName = message.sender === 'user' ? 'Me' : getAgentNameAndPosition(message.senderId)
+const renderSenderName = message.sender === 'user' ? 'Me' : getAgentNameAndPosition
 
 
   return (

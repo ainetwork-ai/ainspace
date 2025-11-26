@@ -36,21 +36,21 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { userId, threadName, backendThreadId, agentNames } = body;
+        const { userId, threadName, id, agentNames } = body;
 
-        if (!userId || !threadName || !backendThreadId || !agentNames) {
+        if (!userId || !threadName || !id || !agentNames) {
             return NextResponse.json(
-                { error: 'userId, threadName, backendThreadId, and agentNames are required' },
+                { error: 'userId, threadName, id, and agentNames are required' },
                 { status: 400 }
             );
         }
 
-        await saveThreadMapping(userId, threadName, backendThreadId, agentNames);
+        await saveThreadMapping(userId, threadName, id, agentNames);
 
         return NextResponse.json({
             success: true,
             threadName,
-            backendThreadId,
+            id,
         });
     } catch (error) {
         console.error('Error saving thread:', error);

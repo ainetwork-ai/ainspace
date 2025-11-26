@@ -1,16 +1,8 @@
 import { create } from 'zustand';
 
 export interface Thread {
-    id: string;
-    message: string;
-    timestamp: Date;
-    agentsReached: number;
-    agentNames: string[];
-}
-
-export interface UserThread {
   threadName: string;
-  backendThreadId: string;
+  id: string;
   agentNames: string[];
   createdAt: string;
   lastMessageAt: string;
@@ -24,9 +16,6 @@ interface BroadcastStatus {
 
 interface ThreadState {
     threads: Thread[];
-    userThreads: {
-      [threadName: string]: UserThread;
-    };
     currentThreadId: string | undefined;
     broadcastMessage: string;
     broadcastStatus: BroadcastStatus | null;
@@ -34,8 +23,9 @@ interface ThreadState {
     // Actions
     setThreads: (threads: Thread[]) => void;
     addThread: (thread: Thread) => void;
-    setUserThreads: (threads: { [threadName: string]: UserThread }) => void;
-    removeUserThread: (threadName: string) => void;
+    findThreadByName: (threadName: string) => Thread | undefined;
+    findThreadById: (threadId: string) => Thread | undefined;
+    removeThread: (threadName: string) => void;
     setCurrentThreadId: (threadId: string | undefined) => void;
     setBroadcastMessage: (message: string) => void;
     setBroadcastStatus: (status: BroadcastStatus | null) => void;
@@ -45,17 +35,16 @@ interface ThreadState {
 
 export const useThreadStore = create<ThreadState>((set, get) => ({
     threads: [],
-    userThreads: {},
     currentThreadId: '0',
     broadcastMessage: '',
     broadcastStatus: null,
 
     setThreads: (threads) => set({ threads }),
     addThread: (thread) => set((state) => ({ threads: [thread, ...state.threads] })),
-    setUserThreads: (threads: { [threadName: string]: UserThread }) => set({ userThreads: threads }),
-    removeUserThread: (threadName: string) => set((state) => {
-        const { [threadName]: userThread, ...remainingUserThreads } = state.userThreads
-        return {userThreads: remainingUserThreads}
+    findThreadByName: (threadName) => get().threads.find(thread => thread.threadName === threadName),
+    findThreadById: (threadId) => get().threads.find(thread => thread.id === threadId),
+    removeThread: (threadName: string) => set((state) => {
+        return { threads: state.threads.filter(thread => thread.threadName !== threadName) }
     }),
     
     setCurrentThreadId: (threadId) => set({ currentThreadId: threadId }),

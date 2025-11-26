@@ -2,7 +2,8 @@
 
 import { useGameState } from '@/hooks/useGameState';
 import { cn } from '@/lib/utils';
-import { AgentInformation, useThreadStore } from '@/stores';
+import { Thread, useThreadStore } from '@/stores';
+import { AgentState } from '@/lib/agent';
 import { Triangle } from 'lucide-react';
 import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
@@ -10,34 +11,29 @@ import ChatBottomDrawer from './ChatBottomDrawer';
 import { ChatBoxRef } from './ChatBox';
 import ThreadListLeftDrawer from './ThreadListLeftDrawer';
 import { useAccount } from 'wagmi';
+import { ThreadMapping } from '@/lib/redis';
 
 interface ChatBoxOverlayProps {
     chatBoxRef: React.RefObject<ChatBoxRef | null>;
     setJoystickVisible: (isJoystickVisible: boolean) => void;
     className?: string;
     lastCommentary?: string;
-    worldAgents?: AgentInformation[];
-    currentThreadId?: string;
-    threads?: {
-        id: string;
-        message: string;
-        timestamp: Date;
-    }[];
+    currentAgentsInRadius: AgentState[];
 }
 
 export default function ChatBoxOverlay({
-  chatBoxRef, className, lastCommentary, setJoystickVisible,
+  chatBoxRef,
+  className,
+  lastCommentary,
+  setJoystickVisible,
+  currentAgentsInRadius,
 }: ChatBoxOverlayProps) {
-    const { worldAgents, playerPosition } = useGameState();
     const [isChatSheetOpen, setIsChatSheetOpen] = useState(false);
     const [isThreadListSheetOpen, setIsThreadListSheetOpen] = useState(false);
-    const { userId } = useGameState();
     const {
         threads,
-        userThreads,
+        setThreads,
         setCurrentThreadId,
-        setUserThreads,
-        currentThreadId,
     } = useThreadStore();
 
     const { address } = useAccount();
@@ -55,21 +51,19 @@ export default function ChatBoxOverlay({
 
               const data = await response.json();
               if (data.success && data.threads) {
-                  // Convert thread mappings to our format
-                  const mappings: { [threadName: string]: string } = {};
-                  const fullData: { [threadName: string]: { backendThreadId: string; agentNames: string[] } } = {};
-
-                  for (const [threadName, threadData] of Object.entries(data.threads)) {
-                      const td = threadData as { backendThreadId: string; agentNames: string[] };
-                      mappings[threadName] = td.backendThreadId;
-                      fullData[threadName] = {
-                          backendThreadId: td.backendThreadId,
-                          agentNames: td.agentNames || []
-                      };
+                  const _threads = data.threads as ThreadMapping;
+                  const fetchedThreads: Thread[] = [];
+                  for (const [threadName, threadData] of Object.entries(_threads)) {
+                      fetchedThreads.push({
+                        threadName,
+                        id: threadData.backendThreadId,
+                        agentNames: threadData.agentNames,
+                        createdAt: threadData.createdAt,
+                        lastMessageAt: threadData.lastMessageAt,
+                      });
                   }
-
-                  setUserThreads(data.threads);
-                  console.log('Loaded thread mappings:', data.threads);
+                  setThreads(fetchedThreads);
+                  console.log('fetchedThreads', fetchedThreads);
               }
           } catch (error) {
               console.error('Error loading thread mappings:', error);
@@ -77,11 +71,15 @@ export default function ChatBoxOverlay({
       };
 
       loadThreadMappings();
-  }, [address, setUserThreads]);
+  }, [address, setThreads]);
 
     const handleChatSheetOpen = (open: boolean) => {
       setIsChatSheetOpen(open);
       setJoystickVisible(!open);
+
+      if (!open) {
+        setCurrentThreadId('0');
+      }
     }
 
     const handleThreadListSheetOpen = (open: boolean) => {
@@ -89,37 +87,28 @@ export default function ChatBoxOverlay({
       setJoystickVisible(!open);
     }
 
-    // Calculate agents within broadcast radius (10 units)
-    const agentsInRadius = useMemo(() => {
-      if (!playerPosition || worldAgents.length === 0) return [];
-
-      const broadcastRadius = 10;
-      return worldAgents.filter(agent => {
-          const distance = Math.sqrt(
-              Math.pow(agent.x - playerPosition.x, 2) +
-              Math.pow(agent.y - playerPosition.y, 2)
-          );
-          return distance <= broadcastRadius;
-      });
-    }, [worldAgents, playerPosition]);
-
     // Generate placeholder text
     const chatPlaceholder = useMemo(() => {
-      if (agentsInRadius.length === 0) {
-          return "No agents nearby";
-      }
-      const agentNames = agentsInRadius.map(a => a.name).join(', ');
-      return `Talk to: ${agentNames}`;
-    }, [agentsInRadius]);
+        if (currentAgentsInRadius.length === 0) {
+            return "No agents nearby";
+        }
+        const agentNames = currentAgentsInRadius.map(a => a.name).join(', ');
+        return `Talk to: ${agentNames}`;
+    }, [currentAgentsInRadius]);
 
     const openChatSheet = () => {
-      handleChatSheetOpen(true);
+        handleChatSheetOpen(true);
     };
 
     const openThreadListSheet = () => {
-      console.log('openThreadListSheet');
-      handleThreadListSheetOpen(true);
+        handleThreadListSheetOpen(true);
     };
+
+    const handleThreadSelect = (threadId: string) => {
+        setCurrentThreadId(threadId);
+        openChatSheet();
+        handleThreadListSheetOpen(false);
+    }
 
     return (
         <div className={cn("relative w-full z-50", className)}>
@@ -127,10 +116,8 @@ export default function ChatBoxOverlay({
                 <div
                     className={
                         cn(
-                            // "fixed left-0 right-0",
                             "flex w-full items-center justify-center gap-1.5 self-stretch rounded-tl-lg rounded-tr-lg backdrop-blur-[6px] bg-black/50 p-3",
                         )}
-                    // style={{ bottom: `${FOOTER_HEIGHT}px` }}
                 >
                     <div 
                         className="p-2 rounded-full bg-black/30"
@@ -150,20 +137,21 @@ export default function ChatBoxOverlay({
                     <button className="bg-white rounded-lg w-[30px] h-[30px] flex items-center justify-center">
                         <Triangle className="text-xs font-bold text-black" fill="black" width={12} height={9} />
                     </button>
-                </div>}
+                </div>
+            }
             <ChatBottomDrawer 
                 open={isChatSheetOpen}
                 onOpenChange={handleChatSheetOpen}
                 openThreadList={() => handleThreadListSheetOpen(true)}
                 chatBoxRef={chatBoxRef as React.RefObject<ChatBoxRef>}
-                worldAgents={worldAgents}
                 onThreadSelect={setCurrentThreadId}
+                currentAgentsInRadius={currentAgentsInRadius}
             />
             <ThreadListLeftDrawer
                 open={isThreadListSheetOpen}
                 onOpenChange={handleThreadListSheetOpen}
-                threads={userThreads}
-                onThreadSelect={setCurrentThreadId}
+                threads={threads}
+                onThreadSelect={handleThreadSelect}
             />
         </div>
     );

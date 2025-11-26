@@ -6,22 +6,7 @@ import { TILE_SIZE, MAP_TILES, DIRECTION } from '@/constants/game';
 import { useBuildStore, useChatStore } from '@/stores';
 import { useTileBasedMap, drawTiledMap } from '@/hooks/useTileBasedMap';
 import * as Sentry from '@sentry/nextjs';
-
-interface Agent {
-    id: string;
-    screenX: number;
-    screenY: number;
-    x?: number; // world position
-    y?: number; // world position
-    color: string;
-    name: string;
-    hasCharacterImage?: boolean;
-    direction?: DIRECTION;
-    isMoving?: boolean;
-    spriteUrl?: string;
-    spriteHeight?: number;
-    spriteWidth?: number;
-}
+import { AgentState } from '@/lib/agent';
 
 // Data structure for multi-tile items
 interface ItemTileData {
@@ -44,7 +29,7 @@ interface TileMapProps {
     tileSize: number;
     playerPosition: { x: number; y: number };
     worldPosition: { x: number; y: number };
-    agents?: Agent[];
+    agents?: AgentState[];
     customTiles?: TileLayers | { [key: string]: string };
     layerVisibility?: { [key: number]: boolean };
     buildMode?: 'view' | 'paint';
@@ -64,7 +49,6 @@ interface TileMapProps {
 function TileMap({
     mapData,
     tileSize: baseTileSize,
-    playerPosition,
     worldPosition,
     agents = [],
     customTiles = {},
@@ -756,16 +740,8 @@ function TileMap({
 
             {/* Render Agents using SpriteAnimator */}
             {agents.map((agent) => {
-                let agentScreenX: number;
-                let agentScreenY: number;
-
-                if (agent.x !== undefined && agent.y !== undefined) {
-                    agentScreenX = agent.x - cameraTileX;
-                    agentScreenY = agent.y - cameraTileY;
-                } else {
-                    agentScreenX = agent.screenX;
-                    agentScreenY = agent.screenY;
-                }
+                const agentScreenX = agent.x - cameraTileX;
+                const agentScreenY = agent.y - cameraTileY;
 
                 if (agentScreenX < -1 || agentScreenX > tilesX || agentScreenY < -1 || agentScreenY > tilesY) {
                     return null;
@@ -776,7 +752,6 @@ function TileMap({
                 const agentStartFrame = getStartFrame(agentDirection);
                 const agentSpriteUrl = agent.spriteUrl || '/sprite/sprite_user.png';
                 const agentSpriteHeight = agent.spriteHeight || TILE_SIZE;
-                const agentSpriteWidth = agent.spriteWidth || TILE_SIZE;
 
                 const topOffset = agentSpriteHeight === TILE_SIZE ? agentSpriteHeight / 4 : agentSpriteHeight / 1.5;
 

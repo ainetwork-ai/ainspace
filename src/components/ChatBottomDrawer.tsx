@@ -1,6 +1,6 @@
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import ChatBox, { ChatBoxRef } from './ChatBox';
-import { AgentInformation } from '@/stores';
+import { AgentState } from '@/lib/agent';
 import { cn } from '@/lib/utils';
 
 interface ChatBottomDrawerProps {
@@ -9,8 +9,8 @@ interface ChatBottomDrawerProps {
     openThreadList: () => void;
     chatBoxRef: React.RefObject<ChatBoxRef>;
     lastCommentary?: string;
-    worldAgents: AgentInformation[];
     onThreadSelect: (threadId: string | undefined) => void;
+    currentAgentsInRadius: AgentState[];
 }
 
 export default function ChatBottomDrawer({
@@ -19,8 +19,8 @@ export default function ChatBottomDrawer({
     openThreadList,
     chatBoxRef,
     lastCommentary,
-    worldAgents,
     onThreadSelect,
+    currentAgentsInRadius,
   }: ChatBottomDrawerProps) {
     return (
         <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" >
@@ -38,12 +38,9 @@ export default function ChatBottomDrawer({
                 <ChatBox
                       ref={chatBoxRef}
                       aiCommentary={lastCommentary}
-                      agents={worldAgents.map(agent => ({
-                        ...agent,
-                        behavior: 'random', // FIXME(yoojin): temp behavior
-                      }))}
                       onThreadSelect={onThreadSelect}
                       openThreadList={openThreadList}
+                      currentAgentsInRadius={currentAgentsInRadius}
                 />
             </DrawerContent>
         </Drawer>

@@ -3,6 +3,7 @@
  */
 
 import { TILE_SIZE } from "@/constants/game";
+import { AgentStateForDB } from "./agent";
 
 export interface DefaultAgent {
   a2aUrl: string;
@@ -96,9 +97,8 @@ async function registerAgent(agent: DefaultAgent): Promise<boolean> {
       },
       body: JSON.stringify({
         agentUrl: agent.a2aUrl,
-        agentCard: {
-          ...agentCard,
-          // Add visual properties
+        agentCard: agentCard,
+        state: {
           x: agent.x,
           y: agent.y,
           color: agent.color,
@@ -107,7 +107,7 @@ async function registerAgent(agent: DefaultAgent): Promise<boolean> {
           spriteWidth: agent.spriteWidth,
           behavior: agent.behavior,
           moveInterval: agent.moveInterval,
-        },
+        } as AgentStateForDB
       }),
     });
 

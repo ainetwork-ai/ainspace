@@ -1,22 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect, useCallback } from 'react';
 import { useMapData } from '@/providers/MapDataProvider';
-import { Agent } from '@/lib/world';
 import { useTileBasedCollision } from '@/hooks/useTileBasedCollision';
-import { useBuildStore, useChatStore } from '@/stores';
-import { DIRECTION, MAP_TILES, TILE_SIZE, ENABLE_AGENT_MOVEMENT } from '@/constants/game';
-import { DEFAULT_AGENTS } from '@/lib/initializeAgents';
-
-export interface AgentInternal extends Agent {
-    direction: DIRECTION;
-    lastMoved: number;
-    moveInterval: number;
-    isMoving?: boolean;
-    spriteUrl?: string;
-    spriteHeight?: number;
-    spriteWidth?: number;
-}
+import { useAgentStore, useBuildStore, useChatStore } from '@/stores';
+import { AgentState } from '@/lib/agent';
+import { DIRECTION, MAP_TILES, ENABLE_AGENT_MOVEMENT } from '@/constants/game';
 
 interface UseAgentsProps {
     playerWorldPosition: { x: number; y: number };
@@ -34,9 +23,9 @@ interface CachedAgentData {
     }>;
 }
 
-let cachedAgentData: CachedAgentData | null = null;
-let isFetchingAgents = false;
-const agentDataCallbacks: ((data: CachedAgentData) => void)[] = [];
+// let cachedAgentData: CachedAgentData | null = null;
+// let isFetchingAgents = false;
+// const agentDataCallbacks: ((data: CachedAgentData) => void)[] = [];
 
 export function useAgents({ playerWorldPosition }: UseAgentsProps) {
     const { generateTileAt } = useMapData();
@@ -44,121 +33,7 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
     const { isBlocked: isBuildStoreBlocked } = useBuildStore();
     const { isAgentLoading } = useChatStore();
 
-    // Create initial agents from DEFAULT_AGENTS configuration
-    const createInitialAgents = (): AgentInternal[] => {
-        return DEFAULT_AGENTS.map((agent, index) => ({
-            id: `agent-${index + 1}`,
-            x: agent.x,
-            y: agent.y,
-            color: agent.color,
-            name: '', // Will be loaded from API
-            agentUrl: agent.a2aUrl,
-            direction: ENABLE_AGENT_MOVEMENT ?
-                (agent.behavior === 'random' ? DIRECTION.RIGHT :
-                 agent.behavior === 'patrol' ? DIRECTION.UP : DIRECTION.LEFT) :
-                DIRECTION.DOWN,
-            lastMoved: Date.now(),
-            moveInterval: agent.moveInterval,
-            behavior: agent.behavior,
-            spriteUrl: agent.spriteUrl,
-            spriteHeight: agent.spriteHeight,
-            spriteWidth: agent.spriteWidth
-        }));
-    };
-
-    const [agents, setAgents] = useState<AgentInternal[]>(createInitialAgents());
-
-    // Load agent names from API - with caching to prevent repeated calls
-    useEffect(() => {
-        const loadAgentNames = async () => {
-            // If data is already cached, use it immediately
-            if (cachedAgentData) {
-                const cached = cachedAgentData;
-                setAgents((prevAgents) =>
-                    prevAgents.map((agent) => {
-                        const apiAgent = cached.agents.find((a) => a.url === agent.agentUrl);
-                        if (apiAgent && apiAgent.card) {
-                            return {
-                                ...agent,
-                                name: apiAgent.card.name || agent.name
-                            };
-                        }
-                        return agent;
-                    })
-                );
-                return;
-            }
-
-            // If already fetching, wait for the result
-            if (isFetchingAgents) {
-                const callback = (data: CachedAgentData) => {
-                    setAgents((prevAgents) =>
-                        prevAgents.map((agent) => {
-                            const apiAgent = data.agents.find((a) => a.url === agent.agentUrl);
-                            if (apiAgent && apiAgent.card) {
-                                return {
-                                    ...agent,
-                                    name: apiAgent.card.name || agent.name
-                                };
-                            }
-                            return agent;
-                        })
-                    );
-                };
-                agentDataCallbacks.push(callback);
-                return;
-            }
-
-            // Start fetching
-            isFetchingAgents = true;
-
-            try {
-                const response = await fetch('/api/agents');
-                if (!response.ok) {
-                    console.error('Failed to load agents from API');
-                    isFetchingAgents = false;
-                    return;
-                }
-
-                const data = await response.json();
-                if (!data.success || !data.agents) {
-                    console.error('Invalid agents data from API');
-                    isFetchingAgents = false;
-                    return;
-                }
-
-                // Cache the data
-                cachedAgentData = data;
-
-                // Update agent names from API
-                const agentList: Array<{ url: string; card: { name: string } }> = data.agents;
-                setAgents((prevAgents) =>
-                    prevAgents.map((agent) => {
-                        const apiAgent = agentList.find((a) => a.url === agent.agentUrl);
-                        if (apiAgent && apiAgent.card) {
-                            return {
-                                ...agent,
-                                name: apiAgent.card.name || agent.name
-                            };
-                        }
-                        return agent;
-                    })
-                );
-
-                // Notify any waiting callbacks
-                agentDataCallbacks.forEach(callback => callback(data));
-                agentDataCallbacks.length = 0;
-
-                console.log('✓ Agent names loaded from API');
-            } catch (error) {
-                console.error('Error loading agents from API:', error);
-            } finally {
-                isFetchingAgents = false;
-            }
-        };
-
-        loadAgentNames();
-    }, []);
+    const { agents, setAgents, updateAgent: updateStoredAgent } = useAgentStore();
 
     // Log initialization on mount only
     useEffect(() => {
@@ -167,7 +42,7 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
     }, []); // Only run once on mount
 
     const isWalkable = useCallback(
-        (x: number, y: number, currentAgents: AgentInternal[], checkingAgentId?: string): boolean => {
+        (x: number, y: number, currentAgents: AgentState[], checkingAgentId?: string): boolean => {
             if (x < 0 || x >= MAP_TILES || y < 0 || y >= MAP_TILES) {
                 return false;
             }
@@ -214,10 +89,10 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
 
     const getAgentBehavior = useCallback(
         (
-            agent: AgentInternal,
-            currentAgents: AgentInternal[]
+            agent: AgentState,
+            currentAgents: AgentState[]
         ): { newX: number; newY: number; newDirection: DIRECTION } => {
-            const { x, y, direction, behavior, id } = agent;
+            const { x, y, direction = DIRECTION.DOWN, behavior, id } = agent;
 
             switch (behavior) {
                 case 'random': {
@@ -299,57 +174,53 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
     const updateAgents = useCallback(() => {
         const currentTime = Date.now();
 
-        setAgents((prevAgents) =>
-            prevAgents.map((agent) => {
-                // Check if agent is loading (calling Gemini API)
-                const isLoading = isAgentLoading(agent.id);
+        agents.forEach((agent) => {
+            const isLoading = isAgentLoading(agent.id);
+            const lastMoved = agent.lastMoved || Date.now();
+            const moveInterval = agent.moveInterval || 3000; // 3 seconds
 
-                // If agent is loading, stop movement and keep them in place
-                if (isLoading) {
-                    return {
-                        ...agent,
-                        isMoving: false // Stop animation during loading
-                    };
-                }
+            if (isLoading) {
+                updateStoredAgent(agent.agentUrl, { isMoving: false });
+                return;
+            }
 
-                // If agent movement is disabled, keep agents in place with down direction
-                if (!ENABLE_AGENT_MOVEMENT) {
-                    return {
-                        ...agent,
-                        direction: DIRECTION.DOWN,
-                        isMoving: false
-                    };
-                }
+            // If agent movement is disabled, keep agents in place with down direction
+            if (!ENABLE_AGENT_MOVEMENT) {
+                updateStoredAgent(agent.agentUrl, {
+                    direction: DIRECTION.DOWN,
+                    isMoving: false
+                });
+                return;
+            }
 
-                // Check if agent is currently in animation state (within 800ms of last move)
-                const isCurrentlyAnimating = currentTime - agent.lastMoved < 800;
+            // Check if agent is currently in animation state (within 800ms of last move)
+            const isCurrentlyAnimating = currentTime - lastMoved < 800;
 
-                if (currentTime - agent.lastMoved < agent.moveInterval) {
-                    return {
-                        ...agent,
-                        isMoving: isCurrentlyAnimating
-                    };
-                }
-
-                const { newX, newY, newDirection } = getAgentBehavior(agent, prevAgents);
-
-                // Check if agent actually moved
-                const didMove = newX !== agent.x || newY !== agent.y;
-
+            if (currentTime - lastMoved < moveInterval) {
                 return {
                     ...agent,
-                    x: newX,
-                    y: newY,
-                    direction: newDirection,
-                    lastMoved: currentTime,
-                    isMoving: didMove
+                    isMoving: isCurrentlyAnimating
                 };
-            })
-        );
-    }, [getAgentBehavior, isAgentLoading]);
+            }
+
+            const { newX, newY, newDirection } = getAgentBehavior(agent, agents);
+
+            // Check if agent actually moved
+            const didMove = newX !== agent.x || newY !== agent.y;
+
+            updateStoredAgent(agent.agentUrl, {
+                x: newX,
+                y: newY,
+                direction: newDirection,
+                lastMoved: currentTime,
+                isMoving: didMove
+            });
+        })
+
+    }, [getAgentBehavior, isAgentLoading, agents, updateStoredAgent]);
 
     const getVisibleAgents = useCallback(() => {
-        return agents.map((agent) => ({
+        return Object.values(agents).map((agent) => ({
             ...agent,
             x: agent.x,
             y: agent.y,
@@ -368,26 +239,13 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
         return () => clearInterval(interval);
     }, [updateAgents]);
 
-    const getWorldAgents = useCallback((): Agent[] => {
-        return agents.map((agent) => ({
-            id: agent.id,
-            name: agent.name,
-            color: agent.color,
-            x: agent.x,
-            y: agent.y,
-            behavior: agent.behavior,
-            agentUrl: agent.agentUrl
-        }));
-    }, [agents]);
-
     // Reset agents to initial positions
     const resetAgents = useCallback(() => {
-        setAgents(createInitialAgents());
+        setAgents([]);
     }, []);
 
     return {
         agents,
-        worldAgents: getWorldAgents(),
         visibleAgents: getVisibleAgents(),
         updateAgents,
         resetAgents
