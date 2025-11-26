@@ -38,6 +38,10 @@ export interface StreamEvent {
       replyTo?: string;
       status?: 'accepted' | 'dropped';
     };
+    next?: {
+      id: string;
+      name: string;
+    }
     // Direct fields (fallback)
     content?: string;
     message?: string;

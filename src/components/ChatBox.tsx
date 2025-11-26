@@ -38,6 +38,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     const [filteredAgents, setFilteredAgents] = useState<AgentState[]>([]);
     const [cursorPosition, setCursorPosition] = useState(0);
     const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
+    const [isMessageLoading, setIsMessageLoading] = useState(false)
     const { showCollisionMap, setShowCollisionMap, updateCollisionMapFromImage, publishedTiles, setCollisionMap } =
         useBuildStore();
     const inputRef = useRef<HTMLInputElement>(null);
@@ -111,7 +112,10 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         if (agentNames.length === 0) return '';
         // Sort names for consistency and create hash-like ID
         const sortedNames = [...agentNames].sort();
-        const agentString = sortedNames.join('-').toLowerCase().replace(/[^a-z0-9-]/g, '');
+        const agentString = sortedNames
+            .join('-')
+            .toLowerCase()
+            .replace(/[^a-z0-9-]/g, '');
         // Include user address (shortened) to make threads user-specific
         const userPrefix = userAddress ? userAddress.slice(0, 8).toLowerCase() : 'anon';
         return `thread-${userPrefix}-${agentString}`;
@@ -122,10 +126,9 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         if (!playerPosition) return [];
 
         const broadcastRadius = 10;
-        return agents.filter(agent => {
+        return agents.filter((agent) => {
             const distance = Math.sqrt(
-                Math.pow(agent.x - playerPosition.x, 2) +
-                Math.pow(agent.y - playerPosition.y, 2)
+                Math.pow(agent.x - playerPosition.x, 2) + Math.pow(agent.y - playerPosition.y, 2)
             );
             return distance <= broadcastRadius;
         });
@@ -168,79 +171,87 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     // });
 
     // Handle SSE stream messages from A2A Orchestration
-    const handleStreamEvent = useCallback((event: StreamEvent) => {
-        console.log('SSE Event received:', JSON.stringify(event, null, 2));
+    const handleStreamEvent = useCallback(
+        (event: StreamEvent) => {
+            console.log('SSE Event received:', JSON.stringify(event, null, 2));
 
-        if (event.type === 'connected') {
-            console.log('Connected to thread stream');
-            return;
-        }
+            if (event.type === 'connected') {
+                console.log('Connected to thread stream');
+                return;
+            }
 
-        if (event.type === 'message') {
-            // Message data is in data.data (nested structure from A2A Orchestration)
-            const eventData = event.data as {
-                data?: { speaker?: string; content?: string };
-                sender?: string;
-                agentName?: string;
-                agent?: { name?: string };
-                name?: string;
-                content?: string;
-                message?: string;
-            };
-            const messageData = (eventData.data || eventData) as { speaker?: string; content?: string; id?: string };
+            if (event.type === 'message') {
+                // Message data is in data.data (nested structure from A2A Orchestration)
+                const eventData = event.data as {
+                    data?: { speaker?: string; content?: string };
+                    sender?: string;
+                    agentName?: string;
+                    agent?: { name?: string };
+                    name?: string;
+                    content?: string;
+                    message?: string;
+                };
+                const messageData = (eventData.data || eventData) as {
+                    speaker?: string;
+                    content?: string;
+                    id?: string;
+                };
 
-            // Extract agent name from speaker field (A2A Orchestration format)
-            const agentName =
-                messageData.speaker ||
-                eventData.sender ||
-                eventData.agentName ||
-                eventData.agent?.name ||
-                eventData.name ||
-                'agent';
+                // Extract agent name from speaker field (A2A Orchestration format)
+                const agentName =
+                    messageData.speaker ||
+                    eventData.sender ||
+                    eventData.agentName ||
+                    eventData.agent?.name ||
+                    eventData.name ||
+                    'agent';
 
-            // Extract message content
-            const messageContent =
-                messageData.content ||
-                eventData.content ||
-                eventData.message ||
-                JSON.stringify(eventData);
+                // Extract message content
+                const messageContent =
+                    messageData.content || eventData.content || eventData.message || JSON.stringify(eventData);
 
-            console.log('Extracted agent name:', agentName);
-            console.log('Extracted message content:', messageContent);
+                console.log('Extracted agent name:', agentName);
+                console.log('Extracted message content:', messageContent);
 
-            // Add agent message to chat
-            const agentMessage: ChatMessage = {
-                id: messageData.id || `stream-${Date.now()}-${Math.random()}`,
-                text: messageContent,
-                timestamp: new Date(),
-                sender: 'ai',
-                senderId: agentName,
-                threadId: currentThreadId || undefined
-            };
-            setMessages((prev) => {
+                // Add agent message to chat
+                const agentMessage: ChatMessage = {
+                    id: messageData.id || `stream-${Date.now()}-${Math.random()}`,
+                    text: messageContent,
+                    timestamp: new Date(),
+                    sender: 'ai',
+                    senderId: agentName,
+                    threadId: currentThreadId || undefined
+                };
+                setMessages((prev) => {
               if (!prev) return [agentMessage];
               return [...prev, agentMessage]
             }, currentThreadId);
-        } else if (event.type === 'block') {
-            // Block messages are not displayed in chat (used for internal processing only)
-            console.log('Block event (not displayed):', event.data);
-        } else if (event.type === 'error') {
-            // Error message
-            const errorMessage: ChatMessage = {
-                id: `error-${Date.now()}`,
-                text: `Error: ${event.data.error || 'Unknown error'}`,
-                timestamp: new Date(),
-                sender: 'system',
-                threadId: currentThreadId || undefined
-            };
-            setMessages([errorMessage], currentThreadId);
-        }
-    }, [currentThreadId, setMessages]);
+            } else if (event.type === 'block') {
+                // Block messages are not displayed in chat (used for internal processing only)
+                console.log('Block event (not displayed):', event.data);
+                if (event.data.next?.id === 'user') {
+                    setIsMessageLoading(false)
+                }
+            } else if (event.type === 'error') {
+                // Error message
+                const errorMessage: ChatMessage = {
+                    id: `error-${Date.now()}`,
+                    text: `Error: ${event.data.error || 'Unknown error'}`,
+                    timestamp: new Date(),
+                    sender: 'system',
+                    threadId: currentThreadId || undefined
+                };
+                setMessages([errorMessage], currentThreadId);
+            }
+        },
+        [currentThreadId, setMessages]
+    );
 
     useThreadStream({
         threadId: currentThreadId && currentThreadId !== '0' ? currentThreadId : null,
         onMessage: handleStreamEvent,
-        enabled: hasStartedConversation && !!currentThreadId && currentThreadId !== '0'
+        enabled:
+            hasStartedConversation && !!currentThreadId && currentThreadId !== '0'
     });
 
     const moveToBottom = () => {
@@ -419,7 +430,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             const agentsInRadius = getCurrentAgentsInRadius();
 
             // Sort agent names for consistent comparison
-            const currentAgentNames = agentsInRadius.map(a => a.name).sort();
+            const currentAgentNames = agentsInRadius.map((a) => a.name).sort();
 
             // Generate deterministic thread name from agent combination and user address
             const threadName = generateThreadId(currentAgentNames, address);
@@ -470,17 +481,17 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
 
             // Extract mentioned agents from message
             const mentionMatches = userMessageText.match(/@(\w+)/g);
-            const mentionedAgents = mentionMatches?.map(m => m.substring(1)) || [];
+            const mentionedAgents = mentionMatches?.map((m) => m.substring(1)) || [];
 
             try {
                 // Send message through A2A Orchestration API with timeout
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-
+                setIsMessageLoading(true);
                 const response = await fetch('/api/thread-message', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
                         message: userMessageText,
@@ -490,7 +501,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                         agentNames: currentAgentNames, // Explicitly pass the agent list calculated on frontend
                         mentionedAgents: mentionedAgents.length > 0 ? mentionedAgents : undefined
                     }),
-                    signal: controller.signal,
+                    signal: controller.signal
                 });
 
                 clearTimeout(timeoutId);
@@ -536,7 +547,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                                     id: result.threadId,
                                     agentNames: currentAgentNames
                                 })
-                            }).catch(err => console.error('Failed to save thread mapping:', err));
+                            }).catch((err) => console.error('Failed to save thread mapping:', err));
                         }
                     }
 
@@ -574,14 +585,14 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 Sentry.captureException(error instanceof Error ? error : new Error('Failed to send thread message'), {
                     tags: {
                         component: 'ChatBox',
-                        action: 'sendMessage',
+                        action: 'sendMessage'
                     },
                     extra: {
                         threadName,
                         threadId: threadIdToSend,
                         agentNames: currentAgentNames,
-                        isTimeout,
-                    },
+                        isTimeout
+                    }
                 });
             }
         }
@@ -618,7 +629,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             }
         }
 
-        if (e.key === 'Enter') {
+        if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
             e.preventDefault();
             handleSendMessage();
         }
@@ -627,6 +638,8 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     // Handle input changes and check for @ mentions
     const handleInputChange = useCallback(
         (e: React.ChangeEvent<HTMLInputElement>) => {
+            e.preventDefault();
+
             const value = e.target.value;
             const cursorPos = e.target.selectionStart || 0;
 
@@ -682,7 +695,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     );
   
     return (
-        <div className={cn('flex flex-col min-h-0 h-full w-full bg-transparent', className)}>
+        <div className={cn('flex h-full min-h-0 w-full flex-col bg-transparent', className)}>
             {/* NOTE: Chat Messages */}
             <div className="flex-1 overflow-y-auto p-4 pt-2">
                 {displayedMessages.map((message) => (
@@ -692,10 +705,11 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             </div>
 
             {/* NOTE: Chat Input Area */}
-            <div className={cn(
-                "w-full bg-transparent",
-            )}>
-
+            <div
+                className={cn(
+                    'w-full bg-transparent'
+                    )}
+            >
                 {showSuggestions && filteredAgents.length > 0 && (
                     <div className="absolute right-3 bottom-full left-3 z-10 mb-1 max-h-32 overflow-y-auto rounded-md border border-gray-600 bg-gray-800 shadow-lg">
                         {filteredAgents.map((agent, index) => {
@@ -734,10 +748,12 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     </div>
                 )}
 
-                <div className={cn(
-                    "flex w-full items-center justify-center gap-1.5 self-stretch p-3",
-                )}>
-                    <div className="p-2 rounded-full bg-black/30" onClick={openThreadList}>
+                <div
+                    className={cn(
+                        'flex w-full items-center justify-center gap-1.5 self-stretch p-3'
+                        )}
+                >
+                    <div className="rounded-full bg-black/30 p-2" onClick={openThreadList}>
                         <Image
                             src="/footer/bottomTab/tab_icon_bubble.svg"
                             className="h-4 w-4"
@@ -753,12 +769,14 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                         onChange={handleInputChange}
                         onKeyDown={handleKeyPress}
                         autoFocus={true}
-                        placeholder="Typing Message..."
-                        className="flex flex-1 cursor-pointer rounded-[100px] px-2.5 py-2 bg-black/30 text-white placeholder:text-[#FFFFFF66]"
+                        placeholder={isMessageLoading ? 'Agents are talking...' : 'Typing Message...'}
+                        className={`flex flex-1 cursor-pointer rounded-[100px] px-2.5 py-2 bg-black/30 text-white  ${isMessageLoading ? 'placeholder:text-[#49C7FF] placeholder:font-light' : 'placeholder:text-[#FFFFFF66]'}`}
+                        disabled={isMessageLoading}
                     />
-                    <button 
-                        className="bg-white rounded-lg w-[30px] h-[30px] flex items-center justify-center"
+                    <button
+                        className={`flex h-[30px] w-[30px] items-center justify-center rounded-lg  ${isMessageLoading ? 'bg-gray-300/60' : 'bg-white'}`}
                         onClick={() => handleSendMessage()}
+                        disabled={isMessageLoading}
                     >
                         <Triangle className="text-xs font-bold text-black" fill="black" width={12} height={9} />
                     </button>

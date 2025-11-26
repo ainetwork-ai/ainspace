@@ -13,6 +13,7 @@
         "@coinbase/onchainkit": "latest",
         "@farcaster/miniapp-sdk": "^0.2.1",
         "@google/generative-ai": "^0.24.1",
+        "@radix-ui/react-context-menu": "^2.2.16",
         "@radix-ui/react-dialog": "^1.1.15",
         "@sentry/nextjs": "^10.22.0",
         "@types/uuid": "^10.0.0",
