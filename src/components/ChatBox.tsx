@@ -248,6 +248,9 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             } else if (event.type === 'block') {
                 // Block messages are not displayed in chat (used for internal processing only)
                 console.log('Block event (not displayed):', event.data);
+                if (event.data.next?.id === 'user') {
+                    setIsMessageLoading(false)
+                }
             } else if (event.type === 'error') {
                 // Error message
                 const errorMessage: Message = {
@@ -546,7 +549,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 // Send message through A2A Orchestration API with timeout
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-
+                setIsMessageLoading(true);
                 const response = await fetch('/api/thread-message', {
                     method: 'POST',
                     headers: {
