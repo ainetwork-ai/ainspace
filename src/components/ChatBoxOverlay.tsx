@@ -18,13 +18,16 @@ interface ChatBoxOverlayProps {
     setJoystickVisible: (isJoystickVisible: boolean) => void;
     className?: string;
     lastCommentary?: string;
-    worldAgents?: AgentState[];
+    currentAgentsInRadius: AgentState[];
 }
 
 export default function ChatBoxOverlay({
-  chatBoxRef, className, lastCommentary, setJoystickVisible,
+  chatBoxRef,
+  className,
+  lastCommentary,
+  setJoystickVisible,
+  currentAgentsInRadius,
 }: ChatBoxOverlayProps) {
-    const { agents: worldAgents, playerPosition } = useGameState();
     const [isChatSheetOpen, setIsChatSheetOpen] = useState(false);
     const [isThreadListSheetOpen, setIsThreadListSheetOpen] = useState(false);
     const {
@@ -84,28 +87,14 @@ export default function ChatBoxOverlay({
       setJoystickVisible(!open);
     }
 
-    // Calculate agents within broadcast radius (10 units)
-    const agentsInRadius = useMemo(() => {
-        if (!playerPosition || worldAgents.length === 0) return [];
-
-        const broadcastRadius = 10;
-        return worldAgents.filter(agent => {
-            const distance = Math.sqrt(
-                Math.pow(agent.x - playerPosition.x, 2) +
-                Math.pow(agent.y - playerPosition.y, 2)
-            );
-            return distance <= broadcastRadius;
-        });
-    }, [worldAgents, playerPosition]);
-
     // Generate placeholder text
     const chatPlaceholder = useMemo(() => {
-        if (agentsInRadius.length === 0) {
+        if (currentAgentsInRadius.length === 0) {
             return "No agents nearby";
         }
-        const agentNames = agentsInRadius.map(a => a.name).join(', ');
+        const agentNames = currentAgentsInRadius.map(a => a.name).join(', ');
         return `Talk to: ${agentNames}`;
-    }, [agentsInRadius]);
+    }, [currentAgentsInRadius]);
 
     const openChatSheet = () => {
         handleChatSheetOpen(true);
@@ -155,8 +144,8 @@ export default function ChatBoxOverlay({
                 onOpenChange={handleChatSheetOpen}
                 openThreadList={() => handleThreadListSheetOpen(true)}
                 chatBoxRef={chatBoxRef as React.RefObject<ChatBoxRef>}
-                worldAgents={worldAgents}
                 onThreadSelect={setCurrentThreadId}
+                currentAgentsInRadius={currentAgentsInRadius}
             />
             <ThreadListLeftDrawer
                 open={isThreadListSheetOpen}

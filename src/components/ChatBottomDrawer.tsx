@@ -9,8 +9,8 @@ interface ChatBottomDrawerProps {
     openThreadList: () => void;
     chatBoxRef: React.RefObject<ChatBoxRef>;
     lastCommentary?: string;
-    worldAgents: AgentState[];
     onThreadSelect: (threadId: string | undefined) => void;
+    currentAgentsInRadius: AgentState[];
 }
 
 export default function ChatBottomDrawer({
@@ -19,8 +19,8 @@ export default function ChatBottomDrawer({
     openThreadList,
     chatBoxRef,
     lastCommentary,
-    worldAgents,
     onThreadSelect,
+    currentAgentsInRadius,
   }: ChatBottomDrawerProps) {
     return (
         <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" >
@@ -38,9 +38,9 @@ export default function ChatBottomDrawer({
                 <ChatBox
                       ref={chatBoxRef}
                       aiCommentary={lastCommentary}
-                      agents={worldAgents}
                       onThreadSelect={onThreadSelect}
                       openThreadList={openThreadList}
+                      currentAgentsInRadius={currentAgentsInRadius}
                 />
             </DrawerContent>
         </Drawer>

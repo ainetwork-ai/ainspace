@@ -61,6 +61,20 @@ export default function MapTab({
 
     const [isJoystickVisible, setIsJoystickVisible] = useState(true);
 
+    // Get current agents in radius
+    const getCurrentAgentsInRadius = useCallback(() => {
+        if (!worldPosition) return [];
+
+        const broadcastRadius = 10;
+        return agents.filter((agent) => {
+            const distance = Math.sqrt(
+                Math.pow(agent.x - worldPosition.x, 2) + Math.pow(agent.y - worldPosition.y, 2)
+            );
+            return distance <= broadcastRadius;
+        });
+  }, [agents, worldPosition]);
+
+
     const handleMobileMove = useCallback(
         (direction: DIRECTION) => {
             if (isAutonomous) return;
@@ -207,6 +221,7 @@ export default function MapTab({
                 chatBoxRef={chatBoxRef}
                 className="fixed bottom-[73px] left-0"
                 setJoystickVisible={setIsJoystickVisible}
+                currentAgentsInRadius={getCurrentAgentsInRadius() || []}
             />
         </BaseTabContent>
     );

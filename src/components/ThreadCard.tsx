@@ -10,7 +10,7 @@ interface ThreadCardProps {
 
 export default function ThreadCard({ thread, onThreadSelect }: ThreadCardProps) {
     const { address } = useAccount();
-    const { setCurrentThreadId, removeThread } = useThreadStore();
+    const { removeThread } = useThreadStore();
 
     const deleteThread = async (e: React.MouseEvent) => {
         e.stopPropagation(); // Prevent thread selection when clicking delete

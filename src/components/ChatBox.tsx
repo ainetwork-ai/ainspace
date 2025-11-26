@@ -18,9 +18,9 @@ interface ChatBoxProps {
     onAddMessage?: (message: ChatMessage) => void;
     openThreadList: () => void;
     aiCommentary?: string;
-    agents?: AgentState[];
     onThreadSelect?: (threadId: string | undefined) => void;
     onResetLocation?: () => void;
+    currentAgentsInRadius: AgentState[];
 }
 
 export interface ChatBoxRef {
@@ -28,7 +28,7 @@ export interface ChatBoxRef {
 }
 
 const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
-    { className = '', aiCommentary, agents = [], onResetLocation, openThreadList },
+    { className = '', aiCommentary, onResetLocation, openThreadList, currentAgentsInRadius },
     ref
 ) {
     const { messages, setMessages, getMessagesByThreadId } = useChatStore();
@@ -120,24 +120,6 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         const userPrefix = userAddress ? userAddress.slice(0, 8).toLowerCase() : 'anon';
         return `thread-${userPrefix}-${agentString}`;
     }, []);
-
-    // Get current agents in radius
-    const getCurrentAgentsInRadius = useCallback(() => {
-        if (!playerPosition) return [];
-
-        const broadcastRadius = 10;
-        return agents.filter((agent) => {
-            const distance = Math.sqrt(
-                Math.pow(agent.x - playerPosition.x, 2) + Math.pow(agent.y - playerPosition.y, 2)
-            );
-            return distance <= broadcastRadius;
-        });
-    }, [agents, playerPosition]);
-
-    // Get current agents in radius for display
-    const currentAgentsInRadius = getCurrentAgentsInRadius();
-    const currentAgentNames = currentAgentsInRadius.map(a => a.name).sort();
-    const previewThreadName = generateThreadId(currentAgentNames, address);
 
     // Initialize world system
     // const { sendMessage: worldSendMessage, getAgentSuggestions } = useWorld({
@@ -428,11 +410,8 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             const userMessageText = inputValue.trim();
             const currentPlayerPosition = playerPosition || INITIAL_PLAYER_POSITION;
 
-            // Get current agents in radius
-            const agentsInRadius = getCurrentAgentsInRadius();
-
             // Sort agent names for consistent comparison
-            const currentAgentNames = agentsInRadius.map((a) => a.name).sort();
+            const currentAgentNames = currentAgentsInRadius.map((a: AgentState) => a.name).sort();
 
             // Generate deterministic thread name from agent combination and user address
             const threadName = generateThreadId(currentAgentNames, address);
