@@ -86,35 +86,40 @@ export default function ChatBoxOverlay({
 
     // Calculate agents within broadcast radius (10 units)
     const agentsInRadius = useMemo(() => {
-      if (!playerPosition || worldAgents.length === 0) return [];
+        if (!playerPosition || worldAgents.length === 0) return [];
 
-      const broadcastRadius = 10;
-      return worldAgents.filter(agent => {
-          const distance = Math.sqrt(
-              Math.pow(agent.x - playerPosition.x, 2) +
-              Math.pow(agent.y - playerPosition.y, 2)
-          );
-          return distance <= broadcastRadius;
-      });
+        const broadcastRadius = 10;
+        return worldAgents.filter(agent => {
+            const distance = Math.sqrt(
+                Math.pow(agent.x - playerPosition.x, 2) +
+                Math.pow(agent.y - playerPosition.y, 2)
+            );
+            return distance <= broadcastRadius;
+        });
     }, [worldAgents, playerPosition]);
 
     // Generate placeholder text
     const chatPlaceholder = useMemo(() => {
-      if (agentsInRadius.length === 0) {
-          return "No agents nearby";
-      }
-      const agentNames = agentsInRadius.map(a => a.name).join(', ');
-      return `Talk to: ${agentNames}`;
+        if (agentsInRadius.length === 0) {
+            return "No agents nearby";
+        }
+        const agentNames = agentsInRadius.map(a => a.name).join(', ');
+        return `Talk to: ${agentNames}`;
     }, [agentsInRadius]);
 
     const openChatSheet = () => {
-      handleChatSheetOpen(true);
+        handleChatSheetOpen(true);
     };
 
     const openThreadListSheet = () => {
-      console.log('openThreadListSheet');
-      handleThreadListSheetOpen(true);
+        handleThreadListSheetOpen(true);
     };
+
+    const handleThreadSelect = (threadId: string) => {
+        setCurrentThreadId(threadId);
+        openChatSheet();
+        handleThreadListSheetOpen(false);
+    }
 
     return (
         <div className={cn("relative w-full z-50", className)}>
@@ -157,7 +162,7 @@ export default function ChatBoxOverlay({
                 open={isThreadListSheetOpen}
                 onOpenChange={handleThreadListSheetOpen}
                 threads={threads}
-                onThreadSelect={setCurrentThreadId}
+                onThreadSelect={handleThreadSelect}
             />
         </div>
     );

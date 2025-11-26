@@ -5,9 +5,10 @@ import { useAccount } from 'wagmi';
 
 interface ThreadCardProps {
     thread: Thread;
+    onThreadSelect: (threadId: string) => void;
 }
 
-export default function ThreadCard({ thread }: ThreadCardProps) {
+export default function ThreadCard({ thread, onThreadSelect }: ThreadCardProps) {
     const { address } = useAccount();
     const { setCurrentThreadId, removeThread } = useThreadStore();
 
@@ -34,7 +35,7 @@ export default function ThreadCard({ thread }: ThreadCardProps) {
     };
     const handleClick = () => {
         console.log('Setting current thread ID to:', thread.id);
-        setCurrentThreadId(thread.id);
+        onThreadSelect(thread.id);
     }
 
     return (

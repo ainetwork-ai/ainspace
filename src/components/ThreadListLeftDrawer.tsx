@@ -10,7 +10,7 @@ interface ThreadListLeftDrawerProps {
     threads: Thread[];
 }
 
-export default function ThreadListLeftDrawer({ open, onOpenChange, threads }: ThreadListLeftDrawerProps) {
+export default function ThreadListLeftDrawer({ open, onOpenChange, threads, onThreadSelect }: ThreadListLeftDrawerProps) {
     return (
         <Drawer open={open} onOpenChange={onOpenChange} direction="left">
             <DrawerContent
@@ -26,7 +26,7 @@ export default function ThreadListLeftDrawer({ open, onOpenChange, threads }: Th
                 </DrawerHeader>
                 <div className='flex flex-col w-full'>
                   {threads.map((thread) => (
-                      <ThreadCard key={thread.threadName} thread={thread} />
+                      <ThreadCard key={thread.threadName} thread={thread} onThreadSelect={onThreadSelect} />
                   ))}
                 </div>
             </DrawerContent>
