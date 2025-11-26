@@ -849,9 +849,9 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                         disabled={isMessageLoading}
                     />
                     <button
-                        className="flex h-[30px] w-[30px] items-center justify-center rounded-lg bg-white"
+                        className={`flex h-[30px] w-[30px] items-center justify-center rounded-lg  ${isMessageLoading ? 'bg-gray-300/60' : 'bg-white'}`}
                         onClick={() => handleSendMessage()}
-                        hidden={isMessageLoading}
+                        disabled={isMessageLoading}
                     >
                         <Triangle className="text-xs font-bold text-black" fill="black" width={12} height={9} />
                     </button>
