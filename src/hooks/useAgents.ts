@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useMapData } from '@/providers/MapDataProvider';
 import { Agent } from '@/lib/world';
 import { useTileBasedCollision } from '@/hooks/useTileBasedCollision';
-import { useBuildStore, useChatStore, VisibleAgent } from '@/stores';
+import { useBuildStore, useChatStore } from '@/stores';
+import { AgentState } from '@/lib/agent';
 import { DIRECTION, MAP_TILES, ENABLE_AGENT_MOVEMENT } from '@/constants/game';
 import { DEFAULT_AGENTS } from '@/lib/initializeAgents';
 
@@ -45,7 +46,7 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
     const { isAgentLoading } = useChatStore();
 
     // Create initial agents from DEFAULT_AGENTS configuration
-    const createInitialAgents = (): VisibleAgent[] => {
+    const createInitialAgents = (): AgentState[] => {
         return DEFAULT_AGENTS.map((agent, index) => ({
             id: `agent-${index + 1}`,
             x: agent.x,
@@ -66,7 +67,7 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
         }));
     };
 
-    const [agents, setAgents] = useState<VisibleAgent[]>(createInitialAgents());
+    const [agents, setAgents] = useState<AgentState[]>(createInitialAgents());
 
     // Load agent names from API - with caching to prevent repeated calls
     useEffect(() => {
@@ -167,7 +168,7 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
     }, []); // Only run once on mount
 
     const isWalkable = useCallback(
-        (x: number, y: number, currentAgents: VisibleAgent[], checkingAgentId?: string): boolean => {
+        (x: number, y: number, currentAgents: AgentState[], checkingAgentId?: string): boolean => {
             if (x < 0 || x >= MAP_TILES || y < 0 || y >= MAP_TILES) {
                 return false;
             }
@@ -214,8 +215,8 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
 
     const getAgentBehavior = useCallback(
         (
-            agent: VisibleAgent,
-            currentAgents: VisibleAgent[]
+            agent: AgentState,
+            currentAgents: AgentState[]
         ): { newX: number; newY: number; newDirection: DIRECTION } => {
             const { x, y, direction = DIRECTION.DOWN, behavior, id } = agent;
 

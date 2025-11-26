@@ -7,5 +7,4 @@ export { useChatStore } from './useChatStore';
 
 export type { Thread } from './useThreadStore';
 export type { TileLayers } from './useBuildStore';
-export type { VisibleAgent } from './useAgentStore';
 export type { ChatMessage } from './useChatStore';

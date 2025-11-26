@@ -1,6 +1,6 @@
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import ChatBox, { ChatBoxRef } from './ChatBox';
-import { VisibleAgent } from '@/stores';
+import { AgentState } from '@/lib/agent';
 import { cn } from '@/lib/utils';
 
 interface ChatBottomDrawerProps {
@@ -9,7 +9,7 @@ interface ChatBottomDrawerProps {
     openThreadList: () => void;
     chatBoxRef: React.RefObject<ChatBoxRef>;
     lastCommentary?: string;
-    worldAgents: VisibleAgent[];
+    worldAgents: AgentState[];
     onThreadSelect: (threadId: string | undefined) => void;
 }
 

@@ -6,7 +6,7 @@ import { TILE_SIZE, MAP_TILES, DIRECTION } from '@/constants/game';
 import { useBuildStore, useChatStore } from '@/stores';
 import { useTileBasedMap, drawTiledMap } from '@/hooks/useTileBasedMap';
 import * as Sentry from '@sentry/nextjs';
-import { VisibleAgent } from '@/stores';
+import { AgentState } from '@/lib/agent';
 
 // Data structure for multi-tile items
 interface ItemTileData {
@@ -29,7 +29,7 @@ interface TileMapProps {
     tileSize: number;
     playerPosition: { x: number; y: number };
     worldPosition: { x: number; y: number };
-    agents?: VisibleAgent[];
+    agents?: AgentState[];
     customTiles?: TileLayers | { [key: string]: string };
     layerVisibility?: { [key: number]: boolean };
     buildMode?: 'view' | 'paint';

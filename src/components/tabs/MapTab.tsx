@@ -9,7 +9,8 @@ import TileMap from '@/components/TileMap';
 import BaseTabContent from './BaseTabContent';
 import PlayerJoystick from '@/components/controls/PlayerJoystick';
 import { DIRECTION, TILE_SIZE } from '@/constants/game';
-import { VisibleAgent, useAgentStore } from '@/stores';
+import { useAgentStore } from '@/stores';
+import { AgentState } from '@/lib/agent';
 import { useGameState } from '@/hooks/useGameState';
 import { TileLayers, useBuildStore } from '@/stores/useBuildStore';
 import { shortAddress } from '@/lib/utils';
@@ -19,7 +20,7 @@ import { ChatBoxRef } from '../ChatBox';
 
 interface MapTabProps {
     isActive: boolean;
-    visibleAgents: VisibleAgent[];
+    visibleAgents: AgentState[];
     publishedTiles: TileLayers;
     customTiles: TileLayers;
     broadcastMessage: string;

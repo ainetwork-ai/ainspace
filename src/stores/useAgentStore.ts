@@ -1,23 +1,16 @@
 import { create } from 'zustand';
 import { AgentState } from '@/lib/agent';
 
-export interface VisibleAgent extends AgentState {
-    isMoving?: boolean;
-    spriteUrl?: string;
-    spriteHeight?: number;
-    spriteWidth?: number;
-}
-
 interface AgentStore {
-    agents: { [agentUrl: string]: VisibleAgent };
+    agents: { [agentUrl: string]: AgentState };
 
     // Actions
-    spawnAgent: (agentUrl: string, agent: VisibleAgent) => void;
+    spawnAgent: (agentUrl: string, agent: AgentState) => void;
     removeAgent: (agentUrl: string) => void;
     updateAgentPosition: (agentUrl: string, x: number, y: number) => void;
     updateAgentCharacterImage: (agentUrl: string, imageUrl: string) => void;
-    setAgents: (agents: { [agentUrl: string]: VisibleAgent }) => void;
-    updateAgent: (agentUrl: string, updates: Partial<VisibleAgent>) => void;
+    setAgents: (agents: { [agentUrl: string]: AgentState }) => void;
+    updateAgent: (agentUrl: string, updates: Partial<AgentState>) => void;
 }
 
 export const useAgentStore = create<AgentStore>((set, get) => ({

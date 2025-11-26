@@ -2,19 +2,29 @@ import { AgentSkill } from '@a2a-js/sdk';
 import { useChatStore } from '@/stores/useChatStore';
 import { AGENT_RESPONSE_DISTANCE, DIRECTION } from '@/constants/game';
 
-export interface AgentState {
+export interface AgentInfo {
     id: string;
     name: string;
     color: string;
-    x: number;
-    y: number;
-    behavior: string;
-    direction?: DIRECTION;
-    lastMoved?: number;
-    moveInterval?: number;
     agentUrl?: string; // For A2A agents
     skills?: AgentSkill[];
 }
+
+export interface AgentWorldState {
+    x: number;
+    y: number;
+    behavior: string;
+
+    direction?: DIRECTION;
+    lastMoved?: number;
+    moveInterval?: number;
+    isMoving?: boolean;
+    spriteUrl?: string;
+    spriteHeight?: number;
+    spriteWidth?: number;
+};
+
+export interface AgentState extends AgentInfo, AgentWorldState {}
 
 export interface Message {
     id: string;
