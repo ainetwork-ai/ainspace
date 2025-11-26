@@ -48,6 +48,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     const [filteredAgents, setFilteredAgents] = useState<Agent[]>([]);
     const [cursorPosition, setCursorPosition] = useState(0);
     const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
+    const [isMessageLoading, setIsMessageLoading] = useState(false)
     const { showCollisionMap, setShowCollisionMap, updateCollisionMapFromImage, publishedTiles, setCollisionMap } =
         useBuildStore();
     const inputRef = useRef<HTMLInputElement>(null);
@@ -248,6 +249,9 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             } else if (event.type === 'block') {
                 // Block messages are not displayed in chat (used for internal processing only)
                 console.log('Block event (not displayed):', event.data);
+                if (event.data.next?.id === 'user') {
+                    setIsMessageLoading(false)
+                }
             } else if (event.type === 'error') {
                 // Error message
                 const errorMessage: Message = {
@@ -546,7 +550,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 // Send message through A2A Orchestration API with timeout
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-
+                setIsMessageLoading(true);
                 const response = await fetch('/api/thread-message', {
                     method: 'POST',
                     headers: {
@@ -840,12 +844,14 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                         onChange={handleInputChange}
                         onKeyDown={handleKeyPress}
                         autoFocus={true}
-                        placeholder="Typing Message..."
-                        className="flex flex-1 cursor-pointer rounded-[100px] bg-black/30 px-2.5 py-2 text-white placeholder:text-[#FFFFFF66]"
+                        placeholder={isMessageLoading ? 'Agents are talking...' : 'Typing Message...'}
+                        className={`flex flex-1 cursor-pointer rounded-[100px] px-2.5 py-2 bg-black/30 text-white  ${isMessageLoading ? 'placeholder:text-[#49C7FF] placeholder:font-light' : 'placeholder:text-[#FFFFFF66]'}`}
+                        disabled={isMessageLoading}
                     />
                     <button
-                        className="flex h-[30px] w-[30px] items-center justify-center rounded-lg bg-white"
+                        className={`flex h-[30px] w-[30px] items-center justify-center rounded-lg  ${isMessageLoading ? 'bg-gray-300/60' : 'bg-white'}`}
                         onClick={() => handleSendMessage()}
+                        disabled={isMessageLoading}
                     >
                         <Triangle className="text-xs font-bold text-black" fill="black" width={12} height={9} />
                     </button>
