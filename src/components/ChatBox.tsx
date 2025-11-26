@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback, useMemo, forwardRef } from 'react';
-import { Agent } from '@/lib/world';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { ChatMessage, useBuildStore, useChatStore, useGameStateStore, useThreadStore } from '@/stores';
@@ -12,13 +11,14 @@ import { useThreadStream } from '@/hooks/useThreadStream';
 import { StreamEvent } from '@/lib/a2aOrchestration';
 import { Triangle } from 'lucide-react';
 import ChatMessageCard from './ChatMessageCard';
+import { AgentState } from '@/lib/agent';
 
 interface ChatBoxProps {
     className?: string;
     onAddMessage?: (message: ChatMessage) => void;
     openThreadList: () => void;
     aiCommentary?: string;
-    agents?: Agent[];
+    agents?: AgentState[];
     onThreadSelect?: (threadId: string | undefined) => void;
     onResetLocation?: () => void;
 }
@@ -35,7 +35,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     const { currentThreadId, setCurrentThreadId, findThreadByName, findThreadById, addThread } = useThreadStore();
     const [inputValue, setInputValue] = useState('');
     const [showSuggestions, setShowSuggestions] = useState(false);
-    const [filteredAgents, setFilteredAgents] = useState<Agent[]>([]);
+    const [filteredAgents, setFilteredAgents] = useState<AgentState[]>([]);
     const [cursorPosition, setCursorPosition] = useState(0);
     const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
     const { showCollisionMap, setShowCollisionMap, updateCollisionMapFromImage, publishedTiles, setCollisionMap } =
@@ -520,6 +520,12 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                         });
 
                         // Save to backend (async, don't wait)
+                        console.log('Saving thread mapping:', {
+                            userId: address,
+                            threadName,
+                            backendThreadId: result.threadId,
+                            agentNames: currentAgentNames
+                        });
                         if (address) {
                             fetch('/api/threads', {
                                 method: 'POST',
@@ -649,7 +655,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
 
     // Handle suggestion selection
     const selectSuggestion = useCallback(
-        (agent: Agent) => {
+        (agent: AgentState) => {
             const beforeCursor = inputValue.substring(0, cursorPosition);
             const afterCursor = inputValue.substring(cursorPosition);
             const atMatch = beforeCursor.match(/@(\w*)$/);

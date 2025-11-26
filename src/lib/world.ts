@@ -1,18 +1,5 @@
-import { AgentSkill } from '@a2a-js/sdk';
 import { BaseAgent, createAgent, AgentState, Message as AgentMessage } from './agent';
 import { INITIAL_PLAYER_POSITION } from '@/constants/game';
-
-export interface Agent {
-    id: string;
-    name: string;
-    color: string;
-    x: number;
-    y: number;
-    behavior: string;
-    // For A2A agents
-    agentUrl?: string;
-    skills?: AgentSkill[];
-}
 
 export interface Player {
     x: number;
@@ -38,12 +25,12 @@ export interface AgentResponse {
 }
 
 export class World {
-    private agents: Agent[] = [];
+    private agents: AgentState[] = [];
     private agentInstances: BaseAgent[] = [];
     private player: Player = INITIAL_PLAYER_POSITION;
     private readonly MAX_SPEED = 10; // units per second
 
-    constructor(agents: Agent[], player: Player) {
+    constructor(agents: AgentState[], player: Player) {
         this.agents = agents;
         this.player = player;
         this.initializeAgentInstances();
@@ -69,7 +56,7 @@ export class World {
         this.player = position;
     }
 
-    updateAgents(agents: Agent[]) {
+    updateAgents(agents: AgentState[]) {
         this.agents = agents;
         // Update existing agent instances or create new ones
         this.agentInstances = agents.map((agent) => {
@@ -139,7 +126,7 @@ export class World {
     }
 
     // Find agents that are mentioned in the message
-    private findMentionedAgents(mentions: string[]): Agent[] {
+    private findMentionedAgents(mentions: string[]): AgentState[] {
         return this.agents.filter((agent) =>
             mentions.some(
                 (mention) =>
@@ -251,7 +238,7 @@ export class World {
     }
 
     // Get all agents within a certain radius (for autocomplete suggestions)
-    getAgentsInRange(radius?: number): Agent[] {
+    getAgentsInRange(radius?: number): AgentState[] {
         if (radius === undefined) {
             return this.agents;
         }
@@ -263,7 +250,7 @@ export class World {
     }
 
     // Get agent suggestions for autocomplete based on partial name
-    getAgentSuggestions(partialName: string): Agent[] {
+    getAgentSuggestions(partialName: string): AgentState[] {
         const searchTerm = partialName.toLowerCase();
         return this.agents.filter((agent) => agent.name.toLowerCase().includes(searchTerm));
     }
@@ -274,7 +261,7 @@ export class World {
     }
 
     // Get all agents
-    getAllAgents(): Agent[] {
+    getAllAgents(): AgentState[] {
         return [...this.agents];
     }
 }

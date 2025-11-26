@@ -38,10 +38,7 @@ export default function ChatBottomDrawer({
                 <ChatBox
                       ref={chatBoxRef}
                       aiCommentary={lastCommentary}
-                      agents={worldAgents.map(agent => ({
-                        ...agent,
-                        behavior: 'random', // FIXME(yoojin): temp behavior
-                      }))}
+                      agents={worldAgents}
                       onThreadSelect={onThreadSelect}
                       openThreadList={openThreadList}
                 />

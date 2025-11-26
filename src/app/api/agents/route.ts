@@ -31,6 +31,8 @@ export async function GET() {
       agents = Array.from(agentStore.values());
     }
 
+    console.log('agents from Redis:', agents);
+
     return NextResponse.json({ 
       success: true,
       agents: agents.sort((a, b) => b.timestamp - a.timestamp) // Sort by newest first
@@ -46,7 +48,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const { agentUrl, agentCard } = await request.json();
+    const { agentUrl, agentCard, state } = await request.json();
 
     if (!agentUrl || !agentCard) {
       return NextResponse.json(
@@ -59,6 +61,7 @@ export async function POST(request: NextRequest) {
     const agentData = {
       url: agentUrl,
       card: agentCard,
+      state: state,
       timestamp: Date.now()
     };
 

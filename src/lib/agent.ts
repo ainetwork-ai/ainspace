@@ -5,15 +5,15 @@ import { AGENT_RESPONSE_DISTANCE, DIRECTION } from '@/constants/game';
 export interface AgentInfo {
     id: string;
     name: string;
-    color: string;
-    agentUrl?: string; // For A2A agents
-    skills?: AgentSkill[];
+    agentUrl: string;
+    skills: AgentSkill[];
 }
 
 export interface AgentWorldState {
     x: number;
     y: number;
     behavior: string;
+    color: string;
 
     direction?: DIRECTION;
     lastMoved?: number;
@@ -25,6 +25,9 @@ export interface AgentWorldState {
 };
 
 export interface AgentState extends AgentInfo, AgentWorldState {}
+
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export interface AgentStateForDB extends Omit<AgentWorldState, 'direction' | 'lastMoved' | 'isMoving'> {}
 
 export interface Message {
     id: string;
@@ -58,9 +61,6 @@ export abstract class BaseAgent {
     }
     get name(): string {
         return this.state.name;
-    }
-    get color(): string {
-        return this.state.color;
     }
     get x(): number {
         return this.state.x;

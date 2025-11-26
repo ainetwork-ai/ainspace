@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { World, Agent, Player, AgentResponse } from '@/lib/world';
+import { World, Player, AgentResponse } from '@/lib/world';
+import { AgentState } from '@/lib/agent';
 
 interface UseWorldProps {
-    agents: Agent[];
+    agents: AgentState[];
     playerPosition: Player;
     onAgentResponse?: (response: AgentResponse & { threadId?: string }) => void;
 }

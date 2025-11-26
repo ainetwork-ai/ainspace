@@ -10,7 +10,7 @@ export default function ChatMessageCard({ message }: { message: ChatMessage }) {
   const getAgentNameAndPosition = (senderId: string | undefined): string => {
     if (!senderId) return 'AI';
     // Try to find agent by ID first, then by name (for SSE stream messages)
-    const agent = agents[senderId];
+    const agent = agents.find((agent) => agent.id === senderId);
     if (agent && playerPosition) {
         const distance = Math.sqrt(
             Math.pow(agent.x - playerPosition.x, 2) + Math.pow(agent.y - playerPosition.y, 2)

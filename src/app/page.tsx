@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import MapTab from '@/components/tabs/MapTab';
 import AgentTab from '@/components/tabs/AgentTab';
 import Footer from '@/components/Footer';
-import { DIRECTION, MAP_TILES, ENABLE_AGENT_MOVEMENT } from '@/constants/game';
+import { DIRECTION, MAP_TILES, ENABLE_AGENT_MOVEMENT, TILE_SIZE } from '@/constants/game';
 import { AgentCard } from '@a2a-js/sdk';
 import { useUIStore, useThreadStore, useBuildStore, useAgentStore } from '@/stores';
 import TempBuildTab from '@/components/tabs/TempBuildTab';
@@ -14,6 +14,7 @@ import { useSwitchChain, useWriteContract } from 'wagmi';
 import { ADD_AGENT_ABI, AGENT_CONTRACT_ADDRESS } from '@/constants/agentContract';
 import { baseSepolia } from 'viem/chains';
 import sdk from '@farcaster/miniapp-sdk';
+import { AgentStateForDB } from '@/lib/agent';
 
 // Spawn zones for deployed agents
 // Default agents center: (59, 70) with radius ~2-3 tiles
@@ -54,7 +55,7 @@ export default function Home() {
         setCollisionMap,
         clearPublishStatusAfterDelay
     } = useBuildStore();
-    const { worldPosition, userId, worldAgents, visibleAgents } = useGameState();
+    const { worldPosition, userId, agents: worldAgents, visibleAgents } = useGameState();
     const { agents, spawnAgent, removeAgent, setAgents } = useAgentStore();
     const { setFrameReady, isFrameReady } = useMiniKit();
     const [isSDKLoaded, setIsSDKLoaded] = useState(false);
@@ -146,18 +147,21 @@ export default function Home() {
                 // Filter out default agents (they're already in worldAgents)
                 // Only load user-deployed agents that have position/sprite data
                 type DeployedAgentData = {
-                    card: AgentCard & { x?: number; y?: number; spriteUrl?: string; color?: string; spriteHeight?: number; moveInterval?: number };
+                    card: AgentCard
+                    state: AgentStateForDB
                     url: string
                 };
                 const deployedAgents = data.agents.filter((agentData: DeployedAgentData) => {
                     const card = agentData.card;
                     const url = agentData.url;
+                    const state = agentData.state;
                     // Exclude default agents and only include agents with deployment data
                     return !defaultAgentUrls.has(url) &&
                            card &&
-                           typeof card.x === 'number' &&
-                           typeof card.y === 'number' &&
-                           card.spriteUrl;
+                           state &&
+                           typeof state.x === 'number' &&
+                           typeof state.y === 'number' &&
+                           state.spriteUrl;
                 });
 
                 console.log(`Found ${deployedAgents.length} user-deployed agents in Redis (excluding ${defaultAgentUrls.size} default agents)`);
@@ -166,10 +170,11 @@ export default function Home() {
                 deployedAgents.forEach((agentData: DeployedAgentData) => {
                     const card = agentData.card;
                     const agentUrl = agentData.url;
+                    const state = agentData.state;
 
                     // Check if agent is already in store (avoid duplicates)
                     const existingAgents = useAgentStore.getState().agents;
-                    if (existingAgents[agentUrl]) {
+                    if (existingAgents.find((agent) => agent.agentUrl === agentUrl)) {
                         console.log(`Agent already in store: ${card.name}`);
                         return;
                     }
@@ -178,22 +183,22 @@ export default function Home() {
 
                     // Restore agent to store with saved position and sprite
                     // We know x and y are numbers because they were filtered above
-                    spawnAgent(agentUrl, {
+                    spawnAgent({
                         id: agentId,
                         name: card.name || 'Deployed Agent',
+                        color: state.color,
                         behavior: 'random',
-                        x: card.x!,
-                        y: card.y!,
-                        color: card.color || '#FF6B6B',
+                        x: state.x!,
+                        y: state.y!,
                         agentUrl: agentUrl,
                         lastMoved: Date.now(),
-                        moveInterval: card.moveInterval || 800,
+                        moveInterval: state.moveInterval || 800,
                         skills: card.skills || [],
-                        spriteUrl: card.spriteUrl || '/sprite/sprite_cat.png',
-                        spriteHeight: card.spriteHeight || 40
+                        spriteUrl: state.spriteUrl || '/sprite/sprite_cat.png',
+                        spriteHeight: state.spriteHeight || 40
                     });
 
-                    console.log(`✓ Restored deployed agent: ${card.name} at (${card.x}, ${card.y})`);
+                    console.log(`✓ Restored deployed agent: ${card.name} at (${state.x}, ${state.y})`);
                 });
 
             } catch (error) {
@@ -431,16 +436,16 @@ export default function Home() {
                 },
                 body: JSON.stringify({
                     agentUrl: importedAgent.url,
-                    agentCard: {
-                        ...importedAgent.card,
-                        x: spawnX,
-                        y: spawnY,
-                        color: randomColor,
-                        spriteUrl: importedAgent.spriteUrl || '/sprite/sprite_cat.png',
-                        spriteHeight: importedAgent.spriteHeight || 40,
-                        behavior: 'random',
-                        moveInterval: 600 + Math.random() * 400
-                    }
+                    agentCard: importedAgent.card,
+                    state: {
+                      x: spawnX,
+                      y: spawnY,
+                      behavior: 'random',
+                      spriteUrl: importedAgent.spriteUrl || '/sprite/sprite_cat.png',
+                      spriteHeight: importedAgent.spriteHeight || TILE_SIZE,
+                      spriteWidth: TILE_SIZE,
+                      moveInterval: 600 + Math.random() * 400
+                    } as AgentStateForDB
                 })
             });
 
@@ -454,13 +459,14 @@ export default function Home() {
         }
 
         // Add to spawned A2A agents for UI tracking
-        spawnAgent(importedAgent.url, {
+        spawnAgent({
             id: agentId,
             name: importedAgent.card.name || 'A2A Agent',
             x: spawnX,
             y: spawnY,
             color: randomColor,
             agentUrl: importedAgent.url,
+            behavior: 'random',
             lastMoved: Date.now(),
             moveInterval: 600 + Math.random() * 400, // Random 600-1000ms interval, matching original agents
             skills: importedAgent.card.skills || [],
@@ -533,10 +539,10 @@ export default function Home() {
 
         const moveA2AAgents = () => {
             const now = Date.now();
-            const updated = { ...agents };
+            const updated = agents;
             let hasUpdates = false;
 
-            Object.values(updated).forEach((agent) => {
+            updated.forEach((agent) => {
                 // Use the stored moveInterval (or default if not set)
                 const moveInterval = agent.moveInterval || 5000;
                 const timeSinceLastMove = now - (agent.lastMoved || 0);
@@ -572,7 +578,7 @@ export default function Home() {
                     }
 
                     // Check if another agent (A2A or world agent) is at this position
-                    const isOccupiedByA2A = Object.values(updated).some(
+                    const isOccupiedByA2A = updated.some(
                         (otherAgent) => otherAgent.id !== agent.id && otherAgent.x === newX && otherAgent.y === newY
                     );
                     const isOccupiedByWorldAgent = worldAgents.some(
@@ -608,7 +614,7 @@ export default function Home() {
                     if (agentUrl) {
                         setTimeout(() => {
                             const currentAgents = useAgentStore.getState().agents;
-                            const currentAgent = currentAgents[agentUrl];
+                            const currentAgent = currentAgents.find((agent) => agent.agentUrl === agentUrl);
                             if (currentAgent) {
                                 useAgentStore.getState().updateAgent(agentUrl, { isMoving: false });
                             }
@@ -634,7 +640,7 @@ export default function Home() {
 
         const interval = setInterval(moveA2AAgents, 100); // Check every 100ms, matching original agents
         return () => clearInterval(interval);
-    }, [globalIsBlocked, agents, worldAgents, worldPosition, setAgents, ENABLE_AGENT_MOVEMENT]);
+    }, [globalIsBlocked, agents, worldAgents, worldPosition, setAgents]);
 
     useEffect(() => {
         const load = async () => {
@@ -651,13 +657,11 @@ export default function Home() {
             <div className="flex-1 overflow-hidden">
                 <MapTab
                     isActive={activeTab === 'map'}
-                    visibleAgents={combinedVisibleAgents}
                     publishedTiles={publishedTiles}
                     customTiles={customTiles}
                     broadcastMessage={broadcastMessage}
                     setBroadcastMessage={setBroadcastMessage}
                     broadcastStatus={broadcastStatus}
-                    threads={threads}
                     onViewThread={handleViewThread}
                     collisionMap={globalCollisionMap}
                     onAgentClick={handleAgentClick}
@@ -698,7 +702,7 @@ export default function Home() {
                     isActive={activeTab === 'agent'}
                     onSpawnAgent={handleSpawnAgent}
                     onRemoveAgentFromMap={handleRemoveAgentFromMap}
-                    spawnedAgents={Object.keys(agents)}
+                    spawnedAgents={agents.map((agent) => agent.agentUrl) || []}
                 />
             </div>
             <Footer

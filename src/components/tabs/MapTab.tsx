@@ -9,18 +9,16 @@ import TileMap from '@/components/TileMap';
 import BaseTabContent from './BaseTabContent';
 import PlayerJoystick from '@/components/controls/PlayerJoystick';
 import { DIRECTION, TILE_SIZE } from '@/constants/game';
-import { useAgentStore } from '@/stores';
-import { AgentState } from '@/lib/agent';
 import { useGameState } from '@/hooks/useGameState';
 import { TileLayers, useBuildStore } from '@/stores/useBuildStore';
 import { shortAddress } from '@/lib/utils';
 import { config } from '@/lib/wagmi-config';
 import ChatBoxOverlay from '../ChatBoxOverlay';
 import { ChatBoxRef } from '../ChatBox';
+import { useAgentStore } from '@/stores';
 
 interface MapTabProps {
     isActive: boolean;
-    visibleAgents: AgentState[];
     publishedTiles: TileLayers;
     customTiles: TileLayers;
     broadcastMessage: string;
@@ -37,7 +35,6 @@ interface MapTabProps {
 
 export default function MapTab({
     isActive,
-    visibleAgents,
     publishedTiles,
     customTiles,
     broadcastMessage,
@@ -57,7 +54,7 @@ export default function MapTab({
         isAutonomous,
         resetLocation,
         playerDirection,
-        isPlayerMoving
+        isPlayerMoving,
     } = useGameState();
 
     const { isBlocked: globalIsBlocked } = useBuildStore();
@@ -171,7 +168,7 @@ export default function MapTab({
                         tileSize={TILE_SIZE}
                         playerPosition={playerPosition}
                         worldPosition={worldPosition}
-                        agents={visibleAgents}
+                        agents={agents}
                         customTiles={{
                             layer0: { ...(publishedTiles.layer0 || {}), ...(customTiles.layer0 || {}) },
                             layer1: { ...(publishedTiles.layer1 || {}), ...(customTiles.layer1 || {}) },

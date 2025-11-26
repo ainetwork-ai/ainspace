@@ -24,7 +24,7 @@ interface ChatBoxOverlayProps {
 export default function ChatBoxOverlay({
   chatBoxRef, className, lastCommentary, setJoystickVisible,
 }: ChatBoxOverlayProps) {
-    const { worldAgents, playerPosition } = useGameState();
+    const { agents: worldAgents, playerPosition } = useGameState();
     const [isChatSheetOpen, setIsChatSheetOpen] = useState(false);
     const [isThreadListSheetOpen, setIsThreadListSheetOpen] = useState(false);
     const {
