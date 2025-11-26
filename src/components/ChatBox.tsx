@@ -98,7 +98,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 fetchThreadMessages(currentThreadId);
             }
         }
-    }, [currentThreadId, setMessages, getMessagesByThreadId]);
+    }, [currentThreadId, setMessages, getMessagesByThreadId, address]);
 
     useEffect(() => {
         if (currentThreadId && currentThreadId !== '0') {
@@ -288,6 +288,8 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     }, [aiCommentary, currentThreadId]);
 
     const handleSendMessage = async () => {
+        if (!address) return;
+
         if (inputValue.trim() === 'show me grid') {
             setShowCollisionMap(true);
             setInputValue('');
@@ -459,7 +461,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 text: userMessageText,
                 timestamp: new Date(),
                 sender: 'user',
-                senderId: address || undefined,
+                senderId: address,
                 threadId: threadIdToSend
             };
 
@@ -477,6 +479,8 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
               if (!prev) return [newMessage];
               return [...prev, newMessage]
             }, threadIdToSend);
+            setDisplayedMessages([newMessage]);
+
             setInputValue('');
 
             // Extract mentioned agents from message
@@ -530,6 +534,13 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                             lastMessageAt: new Date().toISOString()
                         });
 
+                        setMessages((prev) => {
+                          if (!prev) return [newMessage];
+                          return [...prev, newMessage];
+                        }, result.threadId);
+
+                        setMessages((prev) => [], '0');
+
                         // Save to backend (async, don't wait)
                         console.log('Saving thread mapping:', {
                             userId: address,
@@ -537,6 +548,9 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                             id: result.threadId,
                             agentNames: currentAgentNames
                         });
+
+                        setCurrentThreadId(result.threadId);
+
                         if (address) {
                             fetch('/api/threads', {
                                 method: 'POST',

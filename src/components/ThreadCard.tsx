@@ -9,7 +9,7 @@ interface ThreadCardProps {
 
 export default function ThreadCard({ thread }: ThreadCardProps) {
     const { address } = useAccount();
-    const { setCurrentThreadId, removeUserThread } = useThreadStore();
+    const { setCurrentThreadId, removeThread } = useThreadStore();
 
     const deleteThread = async (e: React.MouseEvent) => {
         e.stopPropagation(); // Prevent thread selection when clicking delete
@@ -26,7 +26,7 @@ export default function ThreadCard({ thread }: ThreadCardProps) {
                 return;
             }
 
-            removeUserThread(thread.threadName);
+            removeThread(thread.threadName);
             console.log('Thread deleted:', thread.threadName);
         } catch (error) {
             console.error('Error deleting thread:', error);

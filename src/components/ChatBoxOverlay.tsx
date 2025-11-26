@@ -122,10 +122,8 @@ export default function ChatBoxOverlay({
                 <div
                     className={
                         cn(
-                            // "fixed left-0 right-0",
                             "flex w-full items-center justify-center gap-1.5 self-stretch rounded-tl-lg rounded-tr-lg backdrop-blur-[6px] bg-black/50 p-3",
                         )}
-                    // style={{ bottom: `${FOOTER_HEIGHT}px` }}
                 >
                     <div 
                         className="p-2 rounded-full bg-black/30"
