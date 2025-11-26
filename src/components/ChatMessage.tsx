@@ -21,13 +21,15 @@ export default function ChatMessage({ message }: { message: ChatMessageType }) {
     return senderId || 'AI';
 };
 
+const nameOfPlayer = message.sender === 'user' ? 'Me' : getAgentNameAndPosition(message.senderId)
+
 
   return (
     <div className="flex flex-col items-start gap-1">
         <div className="flex flex-row items-center gap-2">
             <Image src={"/chat/default_profile.png"} alt="Profile" width={30} height={30} />
             <span className="text-sm font-normal text-white">
-                {message.sender === 'user' ? 'Me' : getAgentNameAndPosition(message.senderId)}
+                {nameOfPlayer}
             </span>
         </div>
         <p className="justify-start font-semibold leading-[25px] text-white">
