@@ -823,7 +823,7 @@ function TileMap({
                         style={{
                             position: 'absolute',
                             left: `${playerScreenTileX * tileSize - TILE_SIZE / 4}px`,
-                            top: `${playerScreenTileY * tileSize - 60}px`,
+                            top: `${playerScreenTileY * tileSize - 30}px`,
                             width: `${tileSize}px`,
                             height: `${tileSize}px`,
                             pointerEvents: 'none',
@@ -834,7 +834,7 @@ function TileMap({
                             key={`player-${playerDirection}`}
                             sprite="/sprite/sprite_user.png"
                             width={TILE_SIZE}
-                            height={86}
+                            height={50}
                             scale={1}
                             fps={6}
                             frameCount={playerStartFrame + 3}
