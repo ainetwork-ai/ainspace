@@ -1,8 +1,8 @@
 'use client';
 
-import { ChatMessage, useAgentStore, useGameStateStore } from "@/stores";
-import Image from "next/image";
-import { useMemo } from "react";
+import { ChatMessage, useAgentStore, useGameStateStore } from '@/stores';
+import Image from 'next/image';
+import { useMemo } from 'react';
 
 export default function ChatMessageCard({ message }: { message: ChatMessage }) {
   const { agents } = useAgentStore();
@@ -27,14 +27,14 @@ const renderSenderName = message.sender === 'user' ? 'Me' : getAgentNameAndPosit
 
 
   return (
-    <div className="flex flex-col items-start gap-1">
-        <div className="flex flex-row items-center gap-2">
-            <Image src={"/chat/default_profile.png"} alt="Profile" width={30} height={30} />
-            <span className="text-sm font-normal text-white">
+    <div className='flex flex-col items-start gap-1'>
+        <div className='flex flex-row items-center gap-2'>
+            <Image src={'/chat/default_profile.png'} alt='Profile' width={30} height={30} />
+            <span className='text-sm font-normal text-white'>
                 {renderSenderName}
             </span>
         </div>
-        <p className="justify-start font-semibold leading-[25px] text-white">
+        <p className='justify-start font-semibold leading-[25px] text-white'>
             {message.text}
         </p>
     </div>
