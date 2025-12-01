@@ -14,6 +14,7 @@ export default function ChatMessageCard({ message }: { message: ChatMessage }) {
 
   const agent = getAgentByName(message.senderId || '');
 
+  // FIXME(yoojin): need system profile image.
   const [imgUrl] = useState<string>(agent?.spriteUrl || '/sprite/sprite_user.png');
 
   const getAgentNameAndPosition = useMemo(() => {
