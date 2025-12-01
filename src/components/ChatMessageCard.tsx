@@ -3,7 +3,7 @@
 import { TILE_SIZE } from '@/constants/game';
 import { ChatMessage, useAgentStore, useGameStateStore } from '@/stores';
 import Image from 'next/image';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 const PROFILE_SIZE = 30;
 const IMAGE_X_START_POSITION = (TILE_SIZE - PROFILE_SIZE) / 2 * -1;
@@ -11,25 +11,10 @@ const IMAGE_X_START_POSITION = (TILE_SIZE - PROFILE_SIZE) / 2 * -1;
 export default function ChatMessageCard({ message }: { message: ChatMessage }) {
   const { getAgentByName } = useAgentStore();
   const { worldPosition: playerPosition } = useGameStateStore();
-  const [imgUrl, setImgUrl] = useState<string>('/sprite/sprite_user.png');
 
-  useEffect(() => {
-    let _imgUrl = '/sprite/sprite_user.png';
-    if (!message.senderId) return;
-    if (message.sender === 'ai') {
-      const agent = getAgentByName(message.senderId);
-      console.log('agent', message.senderId, agent);
-      if (!agent) return;
-      if (agent && agent.spriteUrl) {
-        _imgUrl = agent.spriteUrl;
-      }
-    }
-    const image = new window.Image();
-    image.src = _imgUrl;
-    image.onload = () => {
-      setImgUrl(_imgUrl);
-    }
-  }, [getAgentByName, message.senderId, message.sender]);
+  const agent = getAgentByName(message.senderId || '');
+
+  const [imgUrl] = useState<string>(agent?.spriteUrl || '/sprite/sprite_user.png');
 
   const getAgentNameAndPosition = useMemo(() => {
     if (!message.senderId) return 'AI';
@@ -48,9 +33,6 @@ export default function ChatMessageCard({ message }: { message: ChatMessage }) {
 
   const renderSenderName = message.sender === 'user' ? 'Me' : getAgentNameAndPosition;
   const renderAgentProfile = () => {
-    if (message.sender === 'user') {
-      // console.log('user profile', imgUrl, imgSize);
-    }
     return (
       <div className='bg-white flex items-center justify-center w-[30px] h-[30px] overflow-hidden relative rounded-sm'>
           <div className='w-[40px] h-[40px]'>
