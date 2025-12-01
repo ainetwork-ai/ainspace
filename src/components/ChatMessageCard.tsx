@@ -1,8 +1,12 @@
 'use client';
 
+import { TILE_SIZE } from '@/constants/game';
 import { ChatMessage, useAgentStore, useGameStateStore } from '@/stores';
 import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
+
+const PROFILE_SIZE = 30;
+const IMAGE_X_START_POSITION = (TILE_SIZE - PROFILE_SIZE) / 2 * -1;
 
 export default function ChatMessageCard({ message }: { message: ChatMessage }) {
   const { getAgentByName } = useAgentStore();
@@ -56,7 +60,7 @@ export default function ChatMessageCard({ message }: { message: ChatMessage }) {
                 className='absolute object-none'
                 fill
                 unoptimized
-                style={{ objectPosition: '-5px 0', top: 0, left: 0}}
+                style={{ objectPosition: `${IMAGE_X_START_POSITION}px 0`, top: 0, left: 0}}
               />
           </div>
       </div>
