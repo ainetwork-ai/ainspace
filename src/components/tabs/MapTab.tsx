@@ -72,7 +72,7 @@ export default function MapTab({
             );
             return distance <= broadcastRadius;
         });
-  }, [agents, worldPosition]);
+    }, [agents, worldPosition]);
 
 
     const handleMobileMove = useCallback(
@@ -154,23 +154,6 @@ export default function MapTab({
         window.addEventListener('keydown', handleKeyPress);
         return () => window.removeEventListener('keydown', handleKeyPress);
     }, [handleMobileMove, isLoading, isAutonomous, resetLocation]);
-
-    // FIXME(yoojin): get threads need to move here from ChatBoxOverlay
-    // useEffect(() => {
-    //   if (!isActive) {
-    //     console.log('not active why?');
-    //     return;
-    //   }
-
-    //   const fetchThreads = async () => {
-    //     const response = await fetch(`/api/threads?userId=${address}`);
-    //     const data = await response.json();
-    //     if (data.success && data.threads) {
-    //       setThreads(data.threads);
-    //     }
-    //   }
-    //   fetchThreads();
-    // }, [isActive, address, setThreads]);
 
     return (
         <BaseTabContent isActive={isActive} withPadding={false}>
