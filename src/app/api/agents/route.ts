@@ -31,8 +31,6 @@ export async function GET() {
       agents = Array.from(agentStore.values());
     }
 
-    console.log('agents from Redis:', agents);
-
     return NextResponse.json({ 
       success: true,
       agents: agents.sort((a, b) => b.timestamp - a.timestamp) // Sort by newest first
