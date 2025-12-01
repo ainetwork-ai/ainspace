@@ -71,7 +71,7 @@ export default function ChatMessageCard({ message }: { message: ChatMessage }) {
     <div className='flex flex-col items-start gap-1'>
         <div className='flex flex-row items-center gap-2'>
             {renderAgentProfile()}
-            <span className='text-sm font-normal text-white'>
+            <span className={`text-sm font-normal ${message.sender === 'user' ? 'text-orange-300' : 'text-blue-300'}`}>
                 {renderSenderName}
             </span>
         </div>
