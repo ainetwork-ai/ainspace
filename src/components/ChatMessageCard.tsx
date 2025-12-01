@@ -15,6 +15,7 @@ export default function ChatMessageCard({ message }: { message: ChatMessage }) {
     const agent = getAgentByName(message.senderId || '');
 
     // FIXME(yoojin): need system profile image.
+    // FIXME(yoojin): add default profile image not user sprite
     const [imgUrl] = useState<string>(agent?.spriteUrl || '/sprite/sprite_user.png');
 
     const getAgentNameAndPosition = useMemo(() => {
