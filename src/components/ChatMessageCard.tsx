@@ -2,17 +2,36 @@
 
 import { ChatMessage, useAgentStore, useGameStateStore } from '@/stores';
 import Image from 'next/image';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 export default function ChatMessageCard({ message }: { message: ChatMessage }) {
-  const { agents } = useAgentStore();
+  const { getAgentByName } = useAgentStore();
   const { worldPosition: playerPosition } = useGameStateStore();
-  
+  const [imgUrl, setImgUrl] = useState<string>('/sprite/sprite_user.png');
+
+  useEffect(() => {
+    let _imgUrl = '/sprite/sprite_user.png';
+    if (!message.senderId) return;
+    if (message.sender === 'ai') {
+      const agent = getAgentByName(message.senderId);
+      console.log('agent', message.senderId, agent);
+      if (!agent) return;
+      if (agent && agent.spriteUrl) {
+        _imgUrl = agent.spriteUrl;
+      }
+    }
+    const image = new window.Image();
+    image.src = _imgUrl;
+    image.onload = () => {
+      setImgUrl(_imgUrl);
+    }
+  }, [getAgentByName, message.senderId, message.sender]);
+
   const getAgentNameAndPosition = useMemo(() => {
     if (!message.senderId) return 'AI';
     // Try to find agent by ID first, then by name (for SSE stream messages)
     // FIXME(yoojin): need to change senderId to agent id. now senderId is agent name.
-    const agent = agents.find((agent) => agent.name === message.senderId);
+    const agent = getAgentByName(message.senderId);
     if (agent && playerPosition) {
         const distance = Math.sqrt(
             Math.pow(agent.x - playerPosition.x, 2) + Math.pow(agent.y - playerPosition.y, 2)
@@ -21,15 +40,33 @@ export default function ChatMessageCard({ message }: { message: ChatMessage }) {
     }
     // If agent not found in local agents array, just return the senderId as name
     return message.senderId || 'AI';
-}, [agents, playerPosition, message.senderId]);
+  }, [getAgentByName, playerPosition, message.senderId]);
 
-const renderSenderName = message.sender === 'user' ? 'Me' : getAgentNameAndPosition
-
+  const renderSenderName = message.sender === 'user' ? 'Me' : getAgentNameAndPosition;
+  const renderAgentProfile = () => {
+    if (message.sender === 'user') {
+      // console.log('user profile', imgUrl, imgSize);
+    }
+    return (
+      <div className='bg-white flex items-center justify-center w-[30px] h-[30px] overflow-hidden relative rounded-sm'>
+          <div className='w-[40px] h-[40px]'>
+              <Image
+                src={imgUrl}
+                alt='Profile'
+                className='absolute object-none'
+                fill
+                unoptimized
+                style={{ objectPosition: '-5px 0', top: 0, left: 0}}
+              />
+          </div>
+      </div>
+    )
+  }
 
   return (
     <div className='flex flex-col items-start gap-1'>
         <div className='flex flex-row items-center gap-2'>
-            <Image src={'/chat/default_profile.png'} alt='Profile' width={30} height={30} />
+            {renderAgentProfile()}
             <span className='text-sm font-normal text-white'>
                 {renderSenderName}
             </span>

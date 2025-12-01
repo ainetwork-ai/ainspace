@@ -5,6 +5,7 @@ interface AgentStore {
     agents: AgentState[];
 
     // Actions
+    getAgentByName: (name: string) => AgentState | undefined;
     spawnAgent: (agent: AgentState) => void;
     removeAgent: (agentUrl: string) => void;
     updateAgentPosition: (agentUrl: string, x: number, y: number) => void;
@@ -15,6 +16,10 @@ interface AgentStore {
 
 export const useAgentStore = create<AgentStore>((set, get) => ({
     agents: [], // A2A agents initialized to empty on refresh
+
+    getAgentByName: (name) => {
+        return get().agents.find((agent) => agent.name === name);
+    },
 
     spawnAgent: (agent) => {
         const newAgentUrl = agent.agentUrl;
