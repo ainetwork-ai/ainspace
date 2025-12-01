@@ -108,7 +108,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     }, [messages, currentThreadId, getMessagesByThreadId]);
 
     // Generate deterministic thread ID from agent names and user address
-    const generateThreadId = useCallback((agentNames: string[], userAddress?: string): string => {
+    const generateThreadName = useCallback((agentNames: string[], userAddress?: string): string => {
         if (agentNames.length === 0) return '';
         // Sort names for consistency and create hash-like ID
         const sortedNames = [...agentNames].sort();
@@ -410,30 +410,36 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             const userMessageText = inputValue.trim();
             const currentPlayerPosition = playerPosition || INITIAL_PLAYER_POSITION;
 
-            // Sort agent names for consistent comparison
-            const currentAgentNames = currentAgentsInRadius.map((a: AgentState) => a.name).sort();
+            const agnetNames: string[] = [];
 
-            // Generate deterministic thread name from agent combination and user address
-            const threadName = generateThreadId(currentAgentNames, address);
+            const isCurrentThreadSelected = currentThreadId && currentThreadId !== '0';
 
-            console.log('Current agents in radius:', currentAgentNames);
-            console.log('Generated thread name:', threadName);
+            const currentThread = isCurrentThreadSelected ? findThreadById(currentThreadId) : undefined;
+            let threadIdToSend: string | undefined = undefined;
+            let threadName = '';
 
-            // Check if we already have a backend thread ID for this agent combination
-            const existingThread = findThreadByName(threadName);
-            
-            // Determine which backend thread ID to use
-            // If we have an existing mapping, use it; otherwise send undefined to create new
-            const threadIdToSend = existingThread ? existingThread.id : undefined;
+            if (currentThread) {
+                agnetNames.push(...currentThread.agentNames);
+                threadName = currentThread.threadName;
+                threadIdToSend = currentThread.id;
+            } else {
+                currentAgentsInRadius.forEach((a: AgentState) => {
+                    agnetNames.push(a.name);
+                });
+                threadName = generateThreadName(agnetNames, address);
+                const existingThread = findThreadByName(threadName);
+                console.log(threadName, existingThread?.threadName)
 
-            console.log('Existing backend thread ID:', threadIdToSend);
-            console.log('Previous active thread ID:', currentThreadId);
-
-            if (existingThread) {
-                console.log('Agent combination changed - switching to thread:', existingThread.threadName);
-                setCurrentThreadId(existingThread.id);
-                setHasStartedConversation(true);
+                if (existingThread) {
+                    console.log('Agent combination changed - switching to thread:', existingThread.threadName);
+                    setCurrentThreadId(existingThread.id);
+                    setHasStartedConversation(true);
+                    threadIdToSend = existingThread.id;
+                }
             }
+
+            console.log('Selected agents:', agnetNames);
+            console.log('Generated thread name:', threadName);
 
             const newMessage: ChatMessage = {
                 id: Date.now().toString(),
@@ -447,13 +453,13 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             console.log('HandleSendMessage:', {
                 text: newMessage.text,
                 threadName: threadName,
-                threadIdToSend: threadIdToSend,
+                threadId: threadIdToSend,
                 messageId: newMessage.id,
-                agentsInRadius: currentAgentNames,
-                isNewThread: existingThread ? false : true,
+                agentsInRadius: agnetNames,
+                isNewThread: !isCurrentThreadSelected,
                 previousThreadId: currentThreadId
             });
-            // FIXME(yoojin): check existing thread but new chat case
+
             setMessages((prev) => {
               if (!prev) return [newMessage];
               return [...prev, newMessage]
@@ -481,7 +487,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                         playerPosition: currentPlayerPosition,
                         broadcastRadius: 10,
                         threadId: threadIdToSend,
-                        agentNames: currentAgentNames, // Explicitly pass the agent list calculated on frontend
+                        agentNames: agnetNames, // Explicitly pass the agent list calculated on frontend
                         mentionedAgents: mentionedAgents.length > 0 ? mentionedAgents : undefined
                     }),
                     signal: controller.signal
@@ -508,7 +514,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                         addThread({
                             threadName,
                             id: result.threadId,
-                            agentNames: currentAgentNames,
+                            agentNames: agnetNames,
                             createdAt: new Date().toISOString(),
                             lastMessageAt: new Date().toISOString()
                         });
@@ -525,7 +531,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                             userId: address,
                             threadName,
                             id: result.threadId,
-                            agentNames: currentAgentNames
+                            agentNames: agnetNames
                         });
 
                         setCurrentThreadId(result.threadId);
@@ -538,7 +544,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                                     userId: address,
                                     threadName,
                                     id: result.threadId,
-                                    agentNames: currentAgentNames
+                                    agentNames: agnetNames
                                 })
                             }).catch((err) => console.error('Failed to save thread mapping:', err));
                         }
@@ -583,7 +589,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     extra: {
                         threadName,
                         threadId: threadIdToSend,
-                        agentNames: currentAgentNames,
+                        agentNames: agnetNames,
                         isTimeout
                     }
                 });
