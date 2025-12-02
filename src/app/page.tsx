@@ -10,7 +10,7 @@ import { DIRECTION, MAP_TILES, ENABLE_AGENT_MOVEMENT, TILE_SIZE } from '@/consta
 import { AgentCard } from '@a2a-js/sdk';
 import { useUIStore, useThreadStore, useBuildStore, useAgentStore } from '@/stores';
 import TempBuildTab from '@/components/tabs/TempBuildTab';
-import { useSwitchChain, useWriteContract } from 'wagmi';
+import { useAccount, useSwitchChain, useWriteContract } from 'wagmi';
 import { ADD_AGENT_ABI, AGENT_CONTRACT_ADDRESS } from '@/constants/agentContract';
 import { baseSepolia } from 'viem/chains';
 import sdk from '@farcaster/miniapp-sdk';
@@ -62,6 +62,8 @@ export default function Home() {
 
     const { writeContractAsync } = useWriteContract();
     const { switchChainAsync } = useSwitchChain();
+
+    const { address } = useAccount();
 
     // Initialize collision map on first load
     useEffect(() => {
@@ -128,7 +130,11 @@ export default function Home() {
     useEffect(() => {
         const loadDeployedAgents = async () => {
             try {
-                const response = await fetch('/api/agents');
+                if (!address) {
+                    console.error('Address is not connected');
+                    return;
+                }
+                const response = await fetch(`/api/agents`);
                 if (!response.ok) {
                     console.error('Failed to load deployed agents from Redis');
                     return;
@@ -423,6 +429,9 @@ export default function Home() {
 
         // Register agent with backend Redis
         try {
+            if (!address) {
+              throw new Error('Address is not connected');
+            }
             const registerResponse = await fetch('/api/agents', {
                 method: 'POST',
                 headers: {
@@ -439,7 +448,8 @@ export default function Home() {
                       spriteHeight: importedAgent.spriteHeight || TILE_SIZE,
                       spriteWidth: TILE_SIZE,
                       moveInterval: 600 + Math.random() * 400
-                    } as AgentStateForDB
+                    } as AgentStateForDB,
+                    creator: address
                 })
             });
 
@@ -648,7 +658,7 @@ export default function Home() {
 
     return (
         <div className="flex h-screen w-full flex-col bg-gray-100">
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 overflow-hidden pb-[73px]">
                 <MapTab
                     isActive={activeTab === 'map'}
                     publishedTiles={publishedTiles}

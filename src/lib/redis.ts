@@ -226,6 +226,7 @@ export interface StoredAgent {
         role?: string;
         [key: string]: unknown;
     };
+    creator: string;
     timestamp: number;
     x?: number;
     y?: number;

@@ -7,7 +7,10 @@ const AGENTS_KEY = 'agents:';
 // Fallback in-memory store if Redis is not available
 const agentStore = new Map<string, { url: string; card: AgentCard; timestamp: number }>();
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const address = searchParams.get('address');
+
   try {
     let agents: { url: string; card: AgentCard; timestamp: number }[] = [];
     
@@ -21,7 +24,13 @@ export async function GET() {
         agents = values
           .filter(value => value !== null)
           .map(value => JSON.parse(value!))
-          .filter(agent => agent && agent.url && agent.card);
+          .filter(agent => agent && agent.url && agent.card)
+          .filter(agent => {
+            if (!address) {
+              return true;
+            }
+            return !agent.creator || agent.creator === address
+          });
         
         console.log(`Loaded ${agents.length} agents from Redis`);
       }
@@ -46,7 +55,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const { agentUrl, agentCard, state } = await request.json();
+    const { agentUrl, agentCard, state, creator } = await request.json();
 
     if (!agentUrl || !agentCard) {
       return NextResponse.json(
@@ -60,6 +69,7 @@ export async function POST(request: NextRequest) {
       url: agentUrl,
       card: agentCard,
       state: state,
+      creator: creator,
       timestamp: Date.now()
     };
 
