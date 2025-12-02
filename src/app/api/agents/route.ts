@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
             if (!address) {
               return true;
             }
-            return !agent.creator || agent.creator === address
+            return agent.creator && agent.creator === address
           });
         
         console.log(`Loaded ${agents.length} agents from Redis`);
