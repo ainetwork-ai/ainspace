@@ -1,13 +1,14 @@
 'use client';
 
-import Image from 'next/image';
 import React, { useEffect, useState } from 'react';
 import { AgentCard } from '@a2a-js/sdk';
 import { SpriteAnimator } from 'react-sprite-animator';
 import BaseTabContent from './BaseTabContent';
-import { CameraIcon, Trash2Icon, User } from 'lucide-react';
+import { CameraIcon, MapPinIcon, Trash2Icon } from 'lucide-react';
 import { useAccount } from 'wagmi';
 import Button from '../ui/Button';
+import { AgentProfile } from '../AgentProfile';
+import { StoredAgent } from '@/lib/redis';
 
 interface ImportedAgent {
     url?: string;
@@ -18,7 +19,7 @@ interface ImportedAgent {
 
 interface AgentTabProps {
     isActive: boolean;
-    onSpawnAgent: (agent: ImportedAgent) => void;
+    onSpawnAgent: (agent: StoredAgent) => void;
     onRemoveAgentFromMap: (agentUrl: string) => void;
     spawnedAgents: string[];
 }
@@ -146,30 +147,36 @@ const CreateNewAgent = () => {
   )
 }
 
-function MyAgentCard({ agent }: { agent: ImportedAgent }) {
-    const { url, card, spriteUrl, spriteHeight } = agent;
+function MyAgentCard({ agent, onSpawnAgent, onRemoveAgent }: { agent: StoredAgent, onSpawnAgent: (agent: StoredAgent) => void, onRemoveAgent: (url: string) => void }) {
+    const { url, card, spriteUrl } = agent;
     const handleRemoveAgent = () => {
-        console.log('remove agent', url);
+        onRemoveAgent(url);
     }
     return (
       <div className="flex flex-col gap-2 p-[14px] border border-[#E6EAEF] rounded-[8px]">
           <div className="flex flex-row justify-between">
-              <div className="flex items-center justify-center w-12 h-12 rounded-lg overflow-hidden bg-[#F5F7FB]">
-                  {
-                      // spriteUrl ?
-                          // <Image src={spriteUrl} alt={card.name} width={48} height={48} /> :
-                          <User className="w-[35px] h-[35px] text-[#CAD0D7] fill-[#CAD0D7]" strokeWidth={0.7} />
-                  }
-              </div>
+              <AgentProfile width={40} height={40} imageUrl={spriteUrl} />
               <div className="flex flex-row gap-1">
+                  {
+                    spriteUrl &&
+                      <Button
+                          onClick={() => onSpawnAgent(agent)}
+                          type="small"
+                          variant="primary"
+                          className="h-fit p-[9px] flex flex-row gap-1 items-center justify-center"
+                      >
+                          <MapPinIcon className="w-4 h-4" type="icon" strokeWidth={1.3} />
+                          <p className="text-sm font-medium leading-none">Place</p>
+                      </Button>
+                  }
                   <Button
                       onClick={() => console.log('edit agent', url)}
                       type="small"
                       variant={`${spriteUrl ? 'secondary' : 'primary'}`}
                       className="h-fit p-[9px] flex flex-row gap-1 items-center justify-center"
                   >
-                      <CameraIcon className="w-4 h-4 text-white" type="icon" strokeWidth={1.3} />
-                      <p className="text-sm font-medium text-white leading-none">Edit</p>
+                      <CameraIcon className="w-4 h-4" type="icon" strokeWidth={1.3} />
+                      <p className="text-sm font-medium leading-none">Edit</p>
                   </Button>
                   <Button
                       onClick={handleRemoveAgent}
@@ -187,7 +194,7 @@ function MyAgentCard({ agent }: { agent: ImportedAgent }) {
     )
 }
 
-function MyAgentList({ agents }: { agents: ImportedAgent[] }) {
+function MyAgentList({ agents, onSpawnAgent, onRemoveAgent }: { agents: StoredAgent[], onSpawnAgent: (agent: StoredAgent) => void, onRemoveAgent: (url: string) => void }) {
   return (
     <div className="flex flex-col gap-4 px-5 bg-white">
         <h3 className="text-xl font-semibold text-black text-center">My Agents ({agents.length})</h3>
@@ -195,15 +202,19 @@ function MyAgentList({ agents }: { agents: ImportedAgent[] }) {
           <NoAgentNotice/>
         ) : (
             agents.map((agent) => (
-                <MyAgentCard key={agent.url} agent={agent} />
+                <MyAgentCard key={agent.url} agent={agent} onSpawnAgent={onSpawnAgent} onRemoveAgent={onRemoveAgent} />
             ))
         )}
     </div>
   )
 }
 
-export default function AgentTab({ isActive, onSpawnAgent, onRemoveAgentFromMap, spawnedAgents }: AgentTabProps) {
-    const [agents, setAgents] = useState<ImportedAgent[]>([]);
+export default function AgentTab({
+    isActive,
+    onSpawnAgent,
+    onRemoveAgentFromMap,
+}: AgentTabProps) {
+    const [agents, setAgents] = useState<StoredAgent[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [selectedSprites, setSelectedSprites] = useState<{ [key: string]: string }>({});
@@ -216,8 +227,8 @@ export default function AgentTab({ isActive, onSpawnAgent, onRemoveAgentFromMap,
                 headers: { 'Content-Type': 'application/json' }
             })
             if (result.ok) {
-            const agentsData = await result.json();
-            setAgents(agentsData.agents)
+                const agentsData = await result.json();
+                setAgents(agentsData.agents)
             }
         }
         try {
@@ -225,7 +236,7 @@ export default function AgentTab({ isActive, onSpawnAgent, onRemoveAgentFromMap,
         } catch (error) {
             console.log(error)
         }
-    }, []) //NOTE(chanho): 이ㅣㄹ시적으로 에이전트 조회용 추후에 삭제 가능
+    }, [address])
 
     const handleImportAgent = async (agentUrl: string) => {
         if (!agentUrl.trim()) {
@@ -258,18 +269,30 @@ export default function AgentTab({ isActive, onSpawnAgent, onRemoveAgentFromMap,
                 return;
             }
 
-            const newAgent = {
+            const newAgent: StoredAgent = {
                 url: agentUrl,
                 card: agentCard,
-                spriteUrl: SPRITE_OPTIONS[0].url, // Default to first sprite option
-                spriteHeight: SPRITE_OPTIONS[0].height
+                isPlaced: false,
+                creator: address!,
+                timestamp: Date.now(),
+                state: {
+                    x: 0,
+                    y: 0,
+                    behavior: 'random',
+                    color: '#ffffff',
+                    moveInterval: 600 + Math.random() * 400
+                }
             };
 
-            setAgents([...agents, newAgent]);
-            setSelectedSprites((prev) => ({
-                ...prev,
-                [agentUrl]: SPRITE_OPTIONS[0].url
-            }));
+            setAgents([newAgent, ...agents]);
+
+            await fetch('/api/agents', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(newAgent)
+            });
         } catch (err) {
             setError(`Failed to import agent: ${err instanceof Error ? err.message : 'Unknown error'}`);
         } finally {
@@ -278,9 +301,6 @@ export default function AgentTab({ isActive, onSpawnAgent, onRemoveAgentFromMap,
     };
 
     const handleRemoveAgent = (url: string) => {
-        if (spawnedAgents.includes(url)) {
-            onRemoveAgentFromMap(url);
-        }
         setAgents(agents.filter((agent) => agent.url !== url));
     };
 
@@ -304,7 +324,7 @@ export default function AgentTab({ isActive, onSpawnAgent, onRemoveAgentFromMap,
                     <ImportAgent handleImportAgent={handleImportAgent} isLoading={isLoading} />
                     {error && <div className="mt-2 text-sm text-red-600">⚠️ {error}</div>}
                 </div>
-                <MyAgentList agents={agents} />
+                <MyAgentList agents={agents} onSpawnAgent={onSpawnAgent} onRemoveAgent={handleRemoveAgent} />
             </div>
         </BaseTabContent>
     );
