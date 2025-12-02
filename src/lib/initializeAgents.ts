@@ -133,14 +133,15 @@ async function registerAgent(agent: DefaultAgent): Promise<boolean> {
  * Call this on app startup (e.g., in a provider or layout component)
  */
 export async function initializeDefaultAgents(): Promise<void> {
-  console.log('🚀 Initializing default A2A agents...');
+  // NOTE(yoojin): tmp disable default agents
+  // console.log('🚀 Initializing default A2A agents...');
 
-  const results = await Promise.allSettled(
-    DEFAULT_AGENTS.map((agent) => registerAgent(agent))
-  );
+  // const results = await Promise.allSettled(
+  //   DEFAULT_AGENTS.map((agent) => registerAgent(agent))
+  // );
 
-  const successful = results.filter((r) => r.status === 'fulfilled' && r.value).length;
-  const failed = results.length - successful;
+  // const successful = results.filter((r) => r.status === 'fulfilled' && r.value).length;
+  // const failed = results.length - successful;
 
-  console.log(`✓ Agent initialization complete: ${successful} successful, ${failed} failed`);
+  // console.log(`✓ Agent initialization complete: ${successful} successful, ${failed} failed`);
 }
