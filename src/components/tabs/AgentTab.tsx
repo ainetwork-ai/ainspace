@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { AgentCard } from '@a2a-js/sdk';
 import { SpriteAnimator } from 'react-sprite-animator';
 import BaseTabContent from './BaseTabContent';
-import { CameraIcon, MapPinIcon, Trash2Icon } from 'lucide-react';
+import { CameraIcon, MapPinIcon, MapPinOffIcon, Trash2Icon } from 'lucide-react';
 import { useAccount } from 'wagmi';
 import Button from '../ui/Button';
 import { AgentProfile } from '../AgentProfile';
@@ -148,7 +148,7 @@ const CreateNewAgent = () => {
 }
 
 function MyAgentCard({ agent, onSpawnAgent, onRemoveAgent }: { agent: StoredAgent, onSpawnAgent: (agent: StoredAgent) => void, onRemoveAgent: (url: string) => void }) {
-    const { url, card, spriteUrl } = agent;
+    const { url, card, spriteUrl, isPlaced } = agent;
     const handleRemoveAgent = () => {
         onRemoveAgent(url);
     }
@@ -162,11 +162,15 @@ function MyAgentCard({ agent, onSpawnAgent, onRemoveAgent }: { agent: StoredAgen
                       <Button
                           onClick={() => onSpawnAgent(agent)}
                           type="small"
-                          variant="primary"
+                          variant={isPlaced ? 'secondary' : 'primary'}
                           className="h-fit p-[9px] flex flex-row gap-1 items-center justify-center"
                       >
-                          <MapPinIcon className="w-4 h-4" type="icon" strokeWidth={1.3} />
-                          <p className="text-sm font-medium leading-none">Place</p>
+                          {
+                              isPlaced ?
+                                  <MapPinOffIcon className="w-4 h-4" type="icon" strokeWidth={1.3} /> :
+                                  <MapPinIcon className="w-4 h-4" type="icon" strokeWidth={1.3} />
+                          }
+                          <p className="text-sm font-medium leading-none">{isPlaced ? 'Unplace' : 'Place'}</p>
                       </Button>
                   }
                   <Button
@@ -300,8 +304,22 @@ export default function AgentTab({
         }
     };
 
-    const handleRemoveAgent = (url: string) => {
-        setAgents(agents.filter((agent) => agent.url !== url));
+    const handleRemoveAgent = async (url: string) => {
+        const response = await fetch('/api/agents?url=' + url, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+        });
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+                setAgents(agents.filter((agent) => agent.url !== url));
+                return;
+            }
+        } else {
+            setError('Failed to remove agent');
+        }
     };
 
     const handleSpriteChange = (agentUrl: string, spriteUrl: string) => {
