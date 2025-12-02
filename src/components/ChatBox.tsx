@@ -108,7 +108,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             const filteredMessages = getMessagesByThreadId(currentThreadId)
             setDisplayedMessages(filteredMessages);
         }
-    }, [messages, currentThreadId, getMessagesByThreadId, displayedMessages]);
+    }, [messages, currentThreadId, getMessagesByThreadId]);
 
     // Generate deterministic thread ID from agent names and user address
     const generateThreadName = useCallback((agentNames: string[], userAddress?: string): string => {

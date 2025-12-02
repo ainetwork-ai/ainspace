@@ -1,22 +1,16 @@
 'use client';
 
-import { TILE_SIZE } from '@/constants/game';
 import { ChatMessage, useAgentStore, useGameStateStore } from '@/stores';
-import Image from 'next/image';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
+import { AgentProfile } from './AgentProfile';
 
 const PROFILE_SIZE = 30;
-const IMAGE_X_START_POSITION = (TILE_SIZE - PROFILE_SIZE) / 2 * -1;
 
 export default function ChatMessageCard({ message }: { message: ChatMessage }) {
     const { getAgentByName } = useAgentStore();
     const { worldPosition: playerPosition } = useGameStateStore();
 
     const agent = getAgentByName(message.senderId || '');
-
-    // FIXME(yoojin): need system profile image.
-    // FIXME(yoojin): add default profile image not user sprite
-    const [imgUrl] = useState<string>(agent?.spriteUrl || '/sprite/sprite_user.png');
 
     const getAgentNameAndPosition = useMemo(() => {
         if (!message.senderId) return 'AI';
@@ -34,27 +28,16 @@ export default function ChatMessageCard({ message }: { message: ChatMessage }) {
     }, [getAgentByName, playerPosition, message.senderId]);
 
     const renderSenderName = message.sender === 'user' ? 'Me' : getAgentNameAndPosition;
-    const renderAgentProfile = () => {
-        return (
-            <div className='bg-white flex items-center justify-center w-[30px] h-[30px] overflow-hidden relative rounded-sm'>
-                <div className='w-[40px] h-[40px]'>
-                    <Image
-                      src={imgUrl}
-                      alt='Profile'
-                      className='absolute object-none'
-                      fill
-                      unoptimized
-                      style={{ objectPosition: `${IMAGE_X_START_POSITION}px 0`, top: 0, left: 0}}
-                    />
-                </div>
-            </div>
-        )
-    }
-
+    
     return (
         <div className='flex flex-col items-start gap-1'>
             <div className='flex flex-row items-center gap-2'>
-                {renderAgentProfile()}
+                {/* {renderAgentProfile()} */}
+                <AgentProfile
+                    width={PROFILE_SIZE}
+                    height={PROFILE_SIZE}
+                    imageUrl={message.sender === 'user' ? '/sprite/sprite_user.png' : agent?.spriteUrl}
+                />
                 <span className={`text-sm font-normal ${message.sender === 'user' ? 'text-orange-300' : 'text-blue-300'}`}>
                     {renderSenderName}
                 </span>
