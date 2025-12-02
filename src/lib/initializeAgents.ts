@@ -53,7 +53,7 @@ export const DEFAULT_AGENTS: DefaultAgent[] = [
     moveInterval: 600,
   },
   {
-    a2aUrl: 'https://a2a-builder.ainetwork.ai/api/agents/kkaebi-1761332302116/.well-known/agent.json',
+    a2aUrl: 'https://kkaebi.ainetwork.xyz/.well-known/agent-card.json',
     x: 59,
     y: 72,
     color: '#0000FF',
