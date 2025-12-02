@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback, useMemo, forwardRef } from 'react';
+import { useState, useRef, useEffect, useCallback, forwardRef } from 'react';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { ChatMessage, useBuildStore, useChatStore, useGameStateStore, useThreadStore } from '@/stores';
@@ -52,60 +52,63 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     const { address } = useAccount();
     const { worldPosition: playerPosition } = useGameStateStore();
 
+    // FIXME(yoojin): move type
+    interface BackendMessage {
+        id: string;
+        replyTo?: string;
+        content: string;
+        speaker: string;
+        timestamp: Date;
+    }
+
+    const mappingBackendMessagesToChatMessages = useCallback((backendMessages: BackendMessage[], threadId: string) => {
+        return backendMessages.map((backendMessage) => {
+            const isUserMessage = backendMessage.speaker === 'User';
+            return {
+              id: backendMessage.id,
+              text: backendMessage.content,
+              timestamp: backendMessage.timestamp,
+              sender: isUserMessage ? 'user' : 'ai',
+              senderId: isUserMessage ? address : backendMessage.speaker,
+              threadId: threadId,
+            } as ChatMessage;
+        });
+    }, [address]);
+
+    const fetchThreadMessages = useCallback(async (threadId: string) => {
+        const response = await fetch(`/api/threads/${threadId}`);
+        const data = await response.json();
+
+        if (data.success && data.messages) {
+            const mappedMessages = mappingBackendMessagesToChatMessages(
+                data.messages,
+                threadId
+            ) as ChatMessage[];
+            return mappedMessages;
+        }
+        return [];
+    }, [mappingBackendMessagesToChatMessages]);
+
     useEffect(() => {
-        // FIXME(yoojin): move type
-        interface BackendMessage {
-            id: string;
-            replyTo?: string;
-            content: string;
-            speaker: string;
-            timestamp: Date;
-        }
-
-        const mappingBackendMessagesToChatMessages = (backendMessages: BackendMessage[], threadId: string) => {
-            return backendMessages.map((backendMessage) => {
-                const isUserMessage = backendMessage.speaker === 'User';
-                return {
-                  id: backendMessage.id,
-                  text: backendMessage.content,
-                  timestamp: backendMessage.timestamp,
-                  sender: isUserMessage ? 'user' : 'ai',
-                  senderId: isUserMessage ? address : backendMessage.speaker,
-                  threadId: threadId,
-                } as ChatMessage;
-            });
-        }
-
-        const fetchThreadMessages = async (threadId: string) => {
-            const response = await fetch(`/api/threads/${threadId}`);
-            const data = await response.json();
-
-            if (data.success && data.messages) {
-                const mappedMessages = mappingBackendMessagesToChatMessages(
-                    data.messages,
-                    threadId
-                ) as ChatMessage[];
-                setMessages(mappedMessages, threadId);
-            }
-        }
-
         if (currentThreadId && currentThreadId !== '0') {
             const currnetThreadMessages = getMessagesByThreadId(currentThreadId);
             if (currnetThreadMessages.length > 0) {
                 setDisplayedMessages(currnetThreadMessages);
             } else {
                 console.log('Fetching thread messages for thread ID:', currentThreadId);
-                fetchThreadMessages(currentThreadId);
+                fetchThreadMessages(currentThreadId).then((messages) => {
+                    setMessages(messages, currentThreadId);
+                });
             }
         }
-    }, [currentThreadId, setMessages, getMessagesByThreadId, address]);
+    }, [currentThreadId, setMessages, getMessagesByThreadId, address, fetchThreadMessages]);
 
     useEffect(() => {
         if (currentThreadId && currentThreadId !== '0') {
             const filteredMessages = getMessagesByThreadId(currentThreadId)
             setDisplayedMessages(filteredMessages);
         }
-    }, [messages, currentThreadId, getMessagesByThreadId]);
+    }, [messages, currentThreadId, getMessagesByThreadId, displayedMessages]);
 
     // Generate deterministic thread ID from agent names and user address
     const generateThreadName = useCallback((agentNames: string[], userAddress?: string): string => {
@@ -205,9 +208,9 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     threadId: currentThreadId || undefined
                 };
                 setMessages((prev) => {
-              if (!prev) return [agentMessage];
-              return [...prev, agentMessage]
-            }, currentThreadId);
+                    if (!prev) return [agentMessage];
+                    return [...prev, agentMessage]
+                }, currentThreadId);
             } else if (event.type === 'block') {
                 // Block messages are not displayed in chat (used for internal processing only)
                 console.log('Block event (not displayed):', event.data);
@@ -410,6 +413,9 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             const userMessageText = inputValue.trim();
             const currentPlayerPosition = playerPosition || INITIAL_PLAYER_POSITION;
 
+            setInputValue('');
+            setIsMessageLoading(true);
+
             const agnetNames: string[] = [];
 
             const isCurrentThreadSelected = currentThreadId && currentThreadId !== '0';
@@ -417,6 +423,20 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             const currentThread = isCurrentThreadSelected ? findThreadById(currentThreadId) : undefined;
             let threadIdToSend: string | undefined = undefined;
             let threadName = '';
+
+            const newMessage: ChatMessage = {
+                id: Date.now().toString(),
+                text: userMessageText,
+                timestamp: new Date(),
+                sender: 'user',
+                senderId: address,
+                threadId: threadIdToSend
+            };
+
+            setDisplayedMessages((prev) => {
+                if (!prev) return [newMessage];
+                return [...prev, newMessage];
+            });
 
             if (currentThread) {
                 agnetNames.push(...currentThread.agentNames);
@@ -432,23 +452,14 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
 
                 if (existingThread) {
                     console.log('Agent combination changed - switching to thread:', existingThread.threadName);
+                    const existingThreadMessages = await fetchThreadMessages(existingThread.id);
+                    setMessages(existingThreadMessages, existingThread.id);
+                    setDisplayedMessages(existingThreadMessages);
                     setCurrentThreadId(existingThread.id);
                     setHasStartedConversation(true);
                     threadIdToSend = existingThread.id;
                 }
             }
-
-            console.log('Selected agents:', agnetNames);
-            console.log('Generated thread name:', threadName);
-
-            const newMessage: ChatMessage = {
-                id: Date.now().toString(),
-                text: userMessageText,
-                timestamp: new Date(),
-                sender: 'user',
-                senderId: address,
-                threadId: threadIdToSend
-            };
 
             console.log('HandleSendMessage:', {
                 text: newMessage.text,
@@ -460,14 +471,11 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 previousThreadId: currentThreadId
             });
 
+            let newDPMessages: ChatMessage[] = [];
             setMessages((prev) => {
-              if (!prev) return [newMessage];
-              return [...prev, newMessage]
+                newDPMessages = [...(prev || []), newMessage];
+                return newDPMessages;
             }, threadIdToSend);
-            setDisplayedMessages([newMessage]);
-
-            setInputValue('');
-
             // Extract mentioned agents from message
             const mentionMatches = userMessageText.match(/@(\w+)/g);
             const mentionedAgents = mentionMatches?.map((m) => m.substring(1)) || [];
@@ -476,7 +484,6 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 // Send message through A2A Orchestration API with timeout
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-                setIsMessageLoading(true);
                 const response = await fetch('/api/thread-message', {
                     method: 'POST',
                     headers: {
@@ -524,7 +531,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                           return [...prev, newMessage];
                         }, result.threadId);
 
-                        setMessages((prev) => [], '0');
+                        setMessages([], '0');
 
                         // Save to backend (async, don't wait)
                         console.log('Saving thread mapping:', {
@@ -593,6 +600,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                         isTimeout
                     }
                 });
+                setIsMessageLoading(false);
             }
         }
     };
