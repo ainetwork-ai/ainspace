@@ -53,10 +53,11 @@ async function findAgentsInRange(
 
   // Filter agents by distance (if they have position data)
   return allAgents.filter((agent) => {
-    if (!agent.x || !agent.y) {
+    const { x, y } = agent.state;
+    if (!x || !y) {
       return true; // Include agents without position data
     }
-    const distance = calculateDistance(playerPosition, { x: agent.x, y: agent.y });
+    const distance = calculateDistance(playerPosition, { x, y });
     return distance <= broadcastRadius;
   });
 }
@@ -67,9 +68,8 @@ async function findAgentsInRange(
 function convertToA2AAgent(agent: StoredAgent): A2AAgent {
   return {
     name: agent.card.name,
-    role: agent.card.role || 'Assistant',
+    role: 'Assistant', // NOTE(yoojin): 이게 왜 필요할까요.
     a2aUrl: agent.url,
-    color: agent.color || 'bg-blue-100 border-blue-400',
   };
 }
 
