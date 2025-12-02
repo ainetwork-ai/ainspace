@@ -1,21 +1,13 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { AgentCard } from '@a2a-js/sdk';
 import { SpriteAnimator } from 'react-sprite-animator';
 import BaseTabContent from './BaseTabContent';
-import { CameraIcon, MapPinIcon, MapPinOffIcon, Trash2Icon } from 'lucide-react';
 import { useAccount } from 'wagmi';
-import Button from '../ui/Button';
-import { AgentProfile } from '../AgentProfile';
+import ImportAgentSection from '@/components/agent-builder/ImportAgentSection';
 import { StoredAgent } from '@/lib/redis';
-
-interface ImportedAgent {
-    url?: string;
-    card: AgentCard;
-    spriteUrl?: string;
-    spriteHeight?: number;
-}
+import CreateAgentSection from '@/components/agent-builder/CreateAgentSection';
+import ImportedAgentList from '@/components/agent-builder/ImportedAgentList';
 
 interface AgentTabProps {
     isActive: boolean;
@@ -66,151 +58,6 @@ function SpritePreview({
             </div>
         </div>
     );
-}
-
-function NoAgentNotice() {
-    return (
-        <div className="inline-flex h-[150px] w-full flex-col items-center justify-center gap-3.5 rounded-lg bg-[#eff1f4] p-3.5">
-            <p className="justify-start self-stretch text-center font-['SF_Pro'] text-base text-[#838d9d]">
-                No agent imported yet.
-                <br />
-                Import from URL or create with AI above.
-            </p>
-        </div>
-    )
-}
-
-function ImportAgent({
-    handleImportAgent,
-    isLoading
-}: {
-    handleImportAgent: (agentUrl: string) => void;
-    isLoading: boolean;
-}) {
-    const [agentUrl, setAgentUrl] = useState<string>('');
-
-    const handleImportAgentClick = () => {
-        handleImportAgent(agentUrl);
-        setAgentUrl('');
-    }
-
-    return (
-        <div className='flex flex-col gap-4 p-6 border border-[#E6EAEF] rounded-[8px] bg-white'>
-            <h3 className="text-xl font-semibold text-black text-center">Use deployed Agent 👨‍👩‍👧‍👦</h3>
-            <div className="flex flex-row gap-2">
-                <input
-                    type="url"
-                    autoFocus={true}
-                    value={agentUrl}
-                    onChange={(e) => setAgentUrl(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleImportAgentClick()}
-                    placeholder="https://your.agent.url/.well-known/agent.json"
-                    className="flex flex-1 min-w-0 rounded-sm border border-[#cdd3de] bg-[#f3f4f5] px-2.5 py-4 text-black placeholder:text-[#C6CDD5] placeholder:truncate"
-                    disabled={isLoading} />
-                <Button
-                    onClick={handleImportAgentClick}
-                    disabled={isLoading || !agentUrl.trim()}
-                    type="large"
-                >
-                    {isLoading ? 'Importing...' : 'Import'}
-                </Button>
-            </div>
-            <div className="flex flex-col gap-2 text-[#838D9D]">
-                <p className="text-sm font-bold text-center">Agent Card URL Example</p>
-                <p className="text-sm font-medium text-center">https://your.agent.url/.well-known/agent.json</p>
-            </div>
-            <p className="text-xs font-medium text-[#B78213] text-center">
-                ⚠️Your agent must support <span className="text-[#7F4FE8] underline">A2A (Agent-to-Agent)</span>
-            </p>
-        </div>
-    )
-}
-
-const CreateNewAgent = () => {
-  const handleCreateAgent = async () => {
-      window.open('https://a2a-agent-builder.vercel.app/', '_blank');
-  }
-
-  return (
-      <div className='flex flex-col gap-4 p-6 border border-[#E6EAEF] rounded-[8px] bg-white'>
-          <div className="flex flex-col gap-2">
-              <p className="text-xl font-semibold text-black text-center">Create New Agent 🔮</p>
-              <p className="text-sm font-medium text-center text-[#838D9D]">Generate AI Agent with A2A Builder</p>
-          </div>
-          <Button
-              onClick={handleCreateAgent}
-              type="large"
-          >
-              A2A Builder
-          </Button>
-      </div>
-  )
-}
-
-function MyAgentCard({ agent, onSpawnAgent, onRemoveAgent }: { agent: StoredAgent, onSpawnAgent: (agent: StoredAgent) => void, onRemoveAgent: (url: string) => void }) {
-    const { url, card, spriteUrl, isPlaced } = agent;
-    const handleRemoveAgent = () => {
-        onRemoveAgent(url);
-    }
-    return (
-      <div className="flex flex-col gap-2 p-[14px] border border-[#E6EAEF] rounded-[8px]">
-          <div className="flex flex-row justify-between">
-              <AgentProfile width={40} height={40} imageUrl={spriteUrl} />
-              <div className="flex flex-row gap-1">
-                  {
-                    spriteUrl &&
-                      <Button
-                          onClick={() => onSpawnAgent(agent)}
-                          type="small"
-                          variant={isPlaced ? 'secondary' : 'primary'}
-                          className="h-fit p-[9px] flex flex-row gap-1 items-center justify-center"
-                      >
-                          {
-                              isPlaced ?
-                                  <MapPinOffIcon className="w-4 h-4" type="icon" strokeWidth={1.3} /> :
-                                  <MapPinIcon className="w-4 h-4" type="icon" strokeWidth={1.3} />
-                          }
-                          <p className="text-sm font-medium leading-none">{isPlaced ? 'Unplace' : 'Place'}</p>
-                      </Button>
-                  }
-                  <Button
-                      onClick={() => console.log('edit agent', url)}
-                      type="small"
-                      variant={`${spriteUrl ? 'secondary' : 'primary'}`}
-                      className="h-fit p-[9px] flex flex-row gap-1 items-center justify-center"
-                  >
-                      <CameraIcon className="w-4 h-4" type="icon" strokeWidth={1.3} />
-                      <p className="text-sm font-medium leading-none">Edit</p>
-                  </Button>
-                  <Button
-                      onClick={handleRemoveAgent}
-                      type="small"
-                      variant="ghost"
-                      className="h-fit p-[9px]"
-                  >
-                      <Trash2Icon className="w-4 h-4 text-[#969EAA]" type="icon" strokeWidth={1.3} />
-                  </Button>
-              </div>
-          </div>
-          <p className="text-black font-semibold text-sm">{card.name}</p>
-          <p className="text-[#838D9D] font-medium text-sm line-clamp-4">{card.description}</p>
-      </div>
-    )
-}
-
-function MyAgentList({ agents, onSpawnAgent, onRemoveAgent }: { agents: StoredAgent[], onSpawnAgent: (agent: StoredAgent) => void, onRemoveAgent: (url: string) => void }) {
-  return (
-    <div className="flex flex-col gap-4 px-5 bg-white">
-        <h3 className="text-xl font-semibold text-black text-center">My Agents ({agents.length})</h3>
-        {agents.length === 0 ? (
-          <NoAgentNotice/>
-        ) : (
-            agents.map((agent) => (
-                <MyAgentCard key={agent.url} agent={agent} onSpawnAgent={onSpawnAgent} onRemoveAgent={onRemoveAgent} />
-            ))
-        )}
-    </div>
-  )
 }
 
 export default function AgentTab({
@@ -338,11 +185,11 @@ export default function AgentTab({
             <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-[30px] overflow-auto">
                 <div className="flex flex-col gap-4 px-5">
                     <p className="text-xl font-bold text-black text-center">Place your Agent to AINSpace</p>
-                    <CreateNewAgent />
-                    <ImportAgent handleImportAgent={handleImportAgent} isLoading={isLoading} />
+                    <CreateAgentSection />
+                    <ImportAgentSection handleImportAgent={handleImportAgent} isLoading={isLoading} />
                     {error && <div className="mt-2 text-sm text-red-600">⚠️ {error}</div>}
                 </div>
-                <MyAgentList agents={agents} onSpawnAgent={onSpawnAgent} onRemoveAgent={handleRemoveAgent} />
+                <ImportedAgentList agents={agents} onSpawnAgent={onSpawnAgent} onRemoveAgent={handleRemoveAgent} />
             </div>
         </BaseTabContent>
     );
