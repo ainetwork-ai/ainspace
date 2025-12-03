@@ -27,7 +27,7 @@ export default function ImportedAgentCard({
     return (
         <div className="flex flex-col gap-2 p-[14px] border border-[#E6EAEF] rounded-[8px]">
             <div className="flex flex-row justify-between">
-                <AgentProfile width={40} height={40} imageUrl={spriteUrl} />
+                <AgentProfile width={40} height={40} imageUrl={spriteUrl} backgroundColor={"#F5F7FB"} />
                 <div className="flex flex-row gap-1">
                     {
                       spriteUrl &&
