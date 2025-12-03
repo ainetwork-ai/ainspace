@@ -10,11 +10,11 @@ import { DIRECTION, MAP_TILES, ENABLE_AGENT_MOVEMENT, TILE_SIZE } from '@/consta
 import { AgentCard } from '@a2a-js/sdk';
 import { useUIStore, useThreadStore, useBuildStore, useAgentStore } from '@/stores';
 import TempBuildTab from '@/components/tabs/TempBuildTab';
-import { useSwitchChain, useWriteContract } from 'wagmi';
+import { useAccount, useSwitchChain, useWriteContract } from 'wagmi';
 import { ADD_AGENT_ABI, AGENT_CONTRACT_ADDRESS } from '@/constants/agentContract';
 import { baseSepolia } from 'viem/chains';
 import sdk from '@farcaster/miniapp-sdk';
-import { AgentStateForDB } from '@/lib/agent';
+import { StoredAgent } from '@/lib/redis';
 
 // Spawn zones for deployed agents
 // Default agents center: (59, 70) with radius ~2-3 tiles
@@ -62,6 +62,8 @@ export default function Home() {
 
     const { writeContractAsync } = useWriteContract();
     const { switchChainAsync } = useSwitchChain();
+
+    const { address } = useAccount();
 
     // Initialize collision map on first load
     useEffect(() => {
@@ -128,7 +130,11 @@ export default function Home() {
     useEffect(() => {
         const loadDeployedAgents = async () => {
             try {
-                const response = await fetch('/api/agents');
+                if (!address) {
+                    console.error('Address is not connected');
+                    return;
+                }
+                const response = await fetch(`/api/agents`);
                 if (!response.ok) {
                     console.error('Failed to load deployed agents from Redis');
                     return;
@@ -140,35 +146,19 @@ export default function Home() {
                     return;
                 }
 
-                // Filter out default agents (they're already in worldAgents)
-                // Only load user-deployed agents that have position/sprite data
-                type DeployedAgentData = {
-                    card: AgentCard
-                    state: AgentStateForDB
-                    url: string
-                };
-                const deployedAgents = data.agents.filter((agentData: DeployedAgentData) => {
-                    const card = agentData.card;
-                    const state = agentData.state;
-                    // Exclude default agents and only include agents with deployment data
-                    return card &&
-                           state &&
-                           typeof state.x === 'number' &&
-                           typeof state.y === 'number' &&
-                           state.spriteUrl;
+                const deployedAgents = data.agents.filter((agentData: StoredAgent) => {
+                    return agentData.isPlaced === undefined || agentData.isPlaced === true;
                 });
 
                 console.log(`Found ${deployedAgents.length} user-deployed agents in Redis`);
 
                 // Restore agents to useAgentStore
-                deployedAgents.forEach((agentData: DeployedAgentData) => {
-                    const card = agentData.card;
-                    const agentUrl = agentData.url;
-                    const state = agentData.state;
+                deployedAgents.forEach((agentData: StoredAgent) => {
+                    const { url, card, state, spriteUrl, spriteHeight } = agentData;
 
                     // Check if agent is already in store (avoid duplicates)
                     const existingAgents = useAgentStore.getState().agents;
-                    if (existingAgents.find((agent) => agent.agentUrl === agentUrl)) {
+                    if (existingAgents.find((agent) => agent.agentUrl === url)) {
                         console.log(`Agent already in store: ${card.name}`);
                         return;
                     }
@@ -184,12 +174,12 @@ export default function Home() {
                         behavior: 'random',
                         x: state.x!,
                         y: state.y!,
-                        agentUrl: agentUrl,
+                        agentUrl: url,
                         lastMoved: Date.now(),
                         moveInterval: state.moveInterval || 800,
                         skills: card.skills || [],
-                        spriteUrl: state.spriteUrl || '/sprite/sprite_cat.png',
-                        spriteHeight: state.spriteHeight || 40
+                        spriteUrl: spriteUrl || '/sprite/sprite_cat.png',
+                        spriteHeight: spriteHeight || 40
                     });
 
                     console.log(`✓ Restored deployed agent: ${card.name} at (${state.x}, ${state.y})`);
@@ -423,24 +413,31 @@ export default function Home() {
 
         // Register agent with backend Redis
         try {
+            if (!address) {
+              throw new Error('Address is not connected');
+            }
+            const agent: StoredAgent = {
+              url: importedAgent.url,
+              card: importedAgent.card,
+              state: {
+                x: spawnX,
+                y: spawnY,
+                behavior: 'random',
+                color: randomColor,
+                moveInterval: 600 + Math.random() * 400
+              },
+              spriteUrl: importedAgent.spriteUrl || '/sprite/sprite_cat.png',
+              spriteHeight: importedAgent.spriteHeight || TILE_SIZE,
+              isPlaced: false,
+              creator: address,
+              timestamp: Date.now()
+            }
             const registerResponse = await fetch('/api/agents', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                    agentUrl: importedAgent.url,
-                    agentCard: importedAgent.card,
-                    state: {
-                      x: spawnX,
-                      y: spawnY,
-                      behavior: 'random',
-                      spriteUrl: importedAgent.spriteUrl || '/sprite/sprite_cat.png',
-                      spriteHeight: importedAgent.spriteHeight || TILE_SIZE,
-                      spriteWidth: TILE_SIZE,
-                      moveInterval: 600 + Math.random() * 400
-                    } as AgentStateForDB
-                })
+                body: JSON.stringify(agent),
             });
 
             if (!registerResponse.ok && registerResponse.status !== 409) {
@@ -648,7 +645,7 @@ export default function Home() {
 
     return (
         <div className="flex h-screen w-full flex-col bg-gray-100">
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 overflow-hidden pb-[73px]">
                 <MapTab
                     isActive={activeTab === 'map'}
                     publishedTiles={publishedTiles}

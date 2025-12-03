@@ -19,12 +19,15 @@ export interface AgentWorldState {
     lastMoved?: number;
     moveInterval?: number;
     isMoving?: boolean;
+};
+
+export interface AgentVisualState {
     spriteUrl?: string;
     spriteHeight?: number;
     spriteWidth?: number;
-};
+}
 
-export interface AgentState extends AgentInfo, AgentWorldState {}
+export interface AgentState extends AgentInfo, AgentWorldState, AgentVisualState {}
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface AgentStateForDB extends Omit<AgentWorldState, 'direction' | 'lastMoved' | 'isMoving'> {}

@@ -1,4 +1,6 @@
 import { createClient } from 'redis';
+import { AgentStateForDB } from './agent';
+import { AgentCard } from '@a2a-js/sdk';
 
 const client = createClient({
     url: process.env.AINSPACE_STORAGE_REDIS_URL || 'redis://localhost:6379'
@@ -221,15 +223,13 @@ export async function deleteCustomTiles(userId: string): Promise<void> {
 
 export interface StoredAgent {
     url: string;
-    card: {
-        name: string;
-        role?: string;
-        [key: string]: unknown;
-    };
+    card: AgentCard;
+    state: AgentStateForDB;
+    spriteUrl?: string;
+    spriteHeight?: number;
+    isPlaced: boolean;
+    creator: string;
     timestamp: number;
-    x?: number;
-    y?: number;
-    color?: string;
 }
 
 const AGENTS_KEY = 'agents:';

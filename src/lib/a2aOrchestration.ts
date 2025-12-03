@@ -9,7 +9,7 @@ export interface Agent {
   name: string;
   role: string;
   a2aUrl: string;
-  color: string;
+  color?: string;
 }
 
 export interface Thread {
