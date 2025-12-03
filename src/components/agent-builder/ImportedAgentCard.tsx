@@ -5,6 +5,7 @@ import { AgentProfile } from '@/components/AgentProfile';
 import Button from '@/components/ui/Button';
 import { MapPinIcon, MapPinOffIcon, Trash2Icon, CameraIcon } from 'lucide-react';
 import UploadImageModal from './UploadImageModal';
+import DeleteConfirmModal from './DeleteConfirmModal';
 
 interface ImportedAgentCardProps {
     agent: StoredAgent;
@@ -22,9 +23,6 @@ export default function ImportedAgentCard({
     onRemoveAgent,
 }: ImportedAgentCardProps) {
     const { url, card, spriteUrl, isPlaced } = agent;
-    const handleRemoveAgent = () => {
-        onRemoveAgent(url);
-    }
 
     return (
         <div className="flex flex-col gap-2 p-[14px] border border-[#E6EAEF] rounded-[8px]">
@@ -57,14 +55,15 @@ export default function ImportedAgentCard({
                             <p className="text-sm font-medium leading-none">Edit</p>
                         </Button>
                     </UploadImageModal>
-                    <Button
-                        onClick={handleRemoveAgent}
-                        type="small"
-                        variant="ghost"
-                        className="h-fit p-[9px]"
-                    >
-                        <Trash2Icon className="w-4 h-4 text-[#969EAA]" type="icon" strokeWidth={1.3} />
-                    </Button>
+                    <DeleteConfirmModal onConfirm={() => onRemoveAgent(url)}>
+                        <Button
+                            type="small"
+                            variant="ghost"
+                            className="h-fit p-[9px]"
+                        >
+                            <Trash2Icon className="w-4 h-4 text-[#969EAA]" type="icon" strokeWidth={1.3} />
+                        </Button>
+                    </DeleteConfirmModal>
                 </div>
             </div>
             <p className="text-black font-semibold text-sm">{card.name}</p>
