@@ -4,6 +4,7 @@ import ImportedAgentCard from './ImportedAgentCard';
 interface ImportedAgentListProps {
   agents: StoredAgent[];
   onPlaceAgent: (agent: StoredAgent) => void;
+  onUnplaceAgent: (agent: StoredAgent) => void;
   onRemoveAgent: (url: string) => void;
   onUploadImage: (agent: StoredAgent, spriteUrl: string) => void;
 }
@@ -20,17 +21,23 @@ function NoAgentNotice() {
   )
 }
 
-export default function ImportedAgentList({ agents, onPlaceAgent, onRemoveAgent, onUploadImage }: ImportedAgentListProps) {
-  return (
-    <div className="flex flex-col gap-4 px-5 bg-white">
-        <h3 className="text-xl font-semibold text-black text-center">My Agents ({agents.length})</h3>
-        {agents.length === 0 ? (
-          <NoAgentNotice/>
-        ) : (
-            agents.map((agent) => (
-                <ImportedAgentCard key={agent.url} agent={agent} onPlaceAgent={onPlaceAgent} onRemoveAgent={onRemoveAgent} onUploadImage={onUploadImage} />
-            ))
-        )}
-    </div>
-  )
+export default function ImportedAgentList({
+    agents,
+    onPlaceAgent,
+    onUnplaceAgent,
+    onRemoveAgent,
+    onUploadImage,
+}: ImportedAgentListProps) {
+    return (
+        <div className="flex flex-col gap-4 px-5 bg-white">
+            <h3 className="text-xl font-semibold text-black text-center">My Agents ({agents.length})</h3>
+            {agents.length === 0 ? (
+              <NoAgentNotice/>
+            ) : (
+                agents.map((agent) => (
+                    <ImportedAgentCard key={agent.url} agent={agent} onPlaceAgent={onPlaceAgent} onUnplaceAgent={onUnplaceAgent} onRemoveAgent={onRemoveAgent} onUploadImage={onUploadImage} />
+                ))
+            )}
+        </div>
+    )
 }

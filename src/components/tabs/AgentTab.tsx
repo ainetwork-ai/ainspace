@@ -68,7 +68,6 @@ export default function AgentTab({
     const [agents, setAgents] = useState<StoredAgent[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [selectedSprites, setSelectedSprites] = useState<{ [key: string]: string }>({});
     const { address } = useAccount();
 
     useEffect(() => {
@@ -174,6 +173,11 @@ export default function AgentTab({
       setAgents(agents.map((a) => (a.url === agent.url ? { ...a, isPlaced: true } : a)));
     }
 
+    const handleUnplaceAgent = async (agent: StoredAgent) => {
+      await onRemoveAgentFromMap(agent.url);
+      setAgents(agents.map((a) => (a.url === agent.url ? { ...a, isPlaced: false } : a)));
+    }
+
     const handleUploadImage = async (agent: StoredAgent, spriteUrl: string) => {
         const response = await fetch('/api/agents', {
             method: 'PUT',
@@ -202,6 +206,7 @@ export default function AgentTab({
                 <ImportedAgentList
                     agents={agents}
                     onPlaceAgent={handlePlaceAgent}
+                    onUnplaceAgent={handleUnplaceAgent}
                     onRemoveAgent={handleRemoveAgent}
                     onUploadImage={handleUploadImage}
                 />
