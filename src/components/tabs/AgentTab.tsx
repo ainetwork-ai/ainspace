@@ -169,16 +169,21 @@ export default function AgentTab({
         }
     };
 
-    const handleSpriteChange = (agentUrl: string, spriteUrl: string) => {
-        const selectedSprite = SPRITE_OPTIONS.find((sprite) => sprite.url === spriteUrl);
-        const spriteHeight = selectedSprite?.height || 40;
-
-        setSelectedSprites((prev) => ({
-            ...prev,
-            [agentUrl]: spriteUrl
-        }));
-        setAgents(agents.map((agent) => (agent.url === agentUrl ? { ...agent, spriteUrl, spriteHeight } : agent)));
-    };
+    const handleUploadImage = async (agent: StoredAgent, spriteUrl: string) => {
+        const response = await fetch('/api/agents', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                url: agent.url,
+                spriteUrl: spriteUrl,
+            }),
+        });
+        if (response.ok) {
+            setAgents(agents.map((agent) => (agent.url === agent.url ? { ...agent, spriteUrl } : agent)));
+        }
+    }
 
     return (
         <BaseTabContent isActive={isActive} className="bg-white">
@@ -189,7 +194,12 @@ export default function AgentTab({
                     <ImportAgentSection handleImportAgent={handleImportAgent} isLoading={isLoading} />
                     {error && <div className="mt-2 text-sm text-red-600">⚠️ {error}</div>}
                 </div>
-                <ImportedAgentList agents={agents} onSpawnAgent={onSpawnAgent} onRemoveAgent={handleRemoveAgent} />
+                <ImportedAgentList
+                    agents={agents}
+                    onSpawnAgent={onSpawnAgent}
+                    onRemoveAgent={handleRemoveAgent}
+                    onUploadImage={handleUploadImage}
+                />
             </div>
         </BaseTabContent>
     );

@@ -4,22 +4,26 @@ import { StoredAgent } from '@/lib/redis';
 import { AgentProfile } from '@/components/AgentProfile';
 import Button from '@/components/ui/Button';
 import { MapPinIcon, MapPinOffIcon, Trash2Icon, CameraIcon } from 'lucide-react';
+import UploadImageModal from './UploadImageModal';
 
 interface ImportedAgentCardProps {
     agent: StoredAgent;
     onSpawnAgent: (agent: StoredAgent) => void;
     onRemoveAgent: (url: string) => void;
+    onUploadImage: (agent: StoredAgent, spriteUrl: string) => void;
 }
 
 export default function ImportedAgentCard({
     agent,
     onSpawnAgent,
+    onUploadImage,
     onRemoveAgent,
 }: ImportedAgentCardProps) {
     const { url, card, spriteUrl, isPlaced } = agent;
     const handleRemoveAgent = () => {
         onRemoveAgent(url);
     }
+
     return (
         <div className="flex flex-col gap-2 p-[14px] border border-[#E6EAEF] rounded-[8px]">
             <div className="flex flex-row justify-between">
@@ -41,15 +45,16 @@ export default function ImportedAgentCard({
                             <p className="text-sm font-medium leading-none">{isPlaced ? 'Unplace' : 'Place'}</p>
                         </Button>
                     }
-                    <Button
-                        onClick={() => console.log('edit agent', url)}
-                        type="small"
-                        variant={`${spriteUrl ? 'secondary' : 'primary'}`}
-                        className="h-fit p-[9px] flex flex-row gap-1 items-center justify-center"
-                    >
-                        <CameraIcon className="w-4 h-4" type="icon" strokeWidth={1.3} />
-                        <p className="text-sm font-medium leading-none">Edit</p>
-                    </Button>
+                    <UploadImageModal onConfirm={onUploadImage} agent={agent}>
+                        <Button
+                            type="small"
+                            variant={`${spriteUrl ? 'secondary' : 'primary'}`}
+                            className="h-fit p-[9px] flex flex-row gap-1 items-center justify-center"
+                        >
+                            <CameraIcon className="w-4 h-4" type="icon" strokeWidth={1.3} />
+                            <p className="text-sm font-medium leading-none">Edit</p>
+                        </Button>
+                    </UploadImageModal>
                     <Button
                         onClick={handleRemoveAgent}
                         type="small"

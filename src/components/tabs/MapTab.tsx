@@ -21,14 +21,6 @@ interface MapTabProps {
     isActive: boolean;
     publishedTiles: TileLayers;
     customTiles: TileLayers;
-    broadcastMessage: string;
-    setBroadcastMessage: (message: string) => void;
-    broadcastStatus: {
-        range: number;
-        agentsReached: number;
-        agentNames: string[];
-    } | null;
-    onViewThread: (threadId?: string) => void;
     collisionMap: { [key: string]: boolean };
     onAgentClick?: (agentId: string, agentName: string) => void;
 }
@@ -37,7 +29,6 @@ export default function MapTab({
     isActive,
     publishedTiles,
     customTiles,
-    broadcastMessage,
     collisionMap,
     onAgentClick
 }: MapTabProps) {
