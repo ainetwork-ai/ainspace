@@ -8,14 +8,14 @@ import UploadImageModal from './UploadImageModal';
 
 interface ImportedAgentCardProps {
     agent: StoredAgent;
-    onSpawnAgent: (agent: StoredAgent) => void;
+    onPlaceAgent: (agent: StoredAgent) => void;
     onRemoveAgent: (url: string) => void;
     onUploadImage: (agent: StoredAgent, spriteUrl: string) => void;
 }
 
 export default function ImportedAgentCard({
     agent,
-    onSpawnAgent,
+    onPlaceAgent,
     onUploadImage,
     onRemoveAgent,
 }: ImportedAgentCardProps) {
@@ -32,7 +32,7 @@ export default function ImportedAgentCard({
                     {
                       spriteUrl &&
                         <Button
-                            onClick={() => onSpawnAgent(agent)}
+                            onClick={() => onPlaceAgent(agent)}
                             type="small"
                             variant={isPlaced ? 'secondary' : 'primary'}
                             className="h-fit p-[9px] flex flex-row gap-1 items-center justify-center"

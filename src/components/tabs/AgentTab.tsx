@@ -169,6 +169,11 @@ export default function AgentTab({
         }
     };
 
+    const handlePlaceAgent = async (agent: StoredAgent) => {
+      await onSpawnAgent(agent);
+      setAgents(agents.map((a) => (a.url === agent.url ? { ...a, isPlaced: true } : a)));
+    }
+
     const handleUploadImage = async (agent: StoredAgent, spriteUrl: string) => {
         const response = await fetch('/api/agents', {
             method: 'PUT',
@@ -196,7 +201,7 @@ export default function AgentTab({
                 </div>
                 <ImportedAgentList
                     agents={agents}
-                    onSpawnAgent={onSpawnAgent}
+                    onPlaceAgent={handlePlaceAgent}
                     onRemoveAgent={handleRemoveAgent}
                     onUploadImage={handleUploadImage}
                 />
