@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AgentCard } from '@a2a-js/sdk';
 import { getRedisClient, StoredAgent } from '@/lib/redis';
+import { deleteFileFromBucket, getFirebaseStorage, uploadImageToBucket } from '@/lib/firebase';
 
 const AGENTS_KEY = 'agents:';
 
@@ -171,9 +172,10 @@ export async function PUT(request: NextRequest) {
           { status: 404 }
         );
       }
-
+      
       // Parse existing data and merge with updates (partial update)
       const existingData: StoredAgent = JSON.parse(existing);
+
       const agentData: StoredAgent = {
         url: existingData.url, // Always preserve original url
         card: card !== undefined ? card : existingData.card,

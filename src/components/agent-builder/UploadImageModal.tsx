@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import Button from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
@@ -11,7 +11,7 @@ type TabType = 'default' | 'custom';
 type SpriteType = 'sprite_default_male' | 'sprite_default_female' | 'sprite_cat';
 
 interface UploadImageModalProps {
-    onConfirm?: (agent: StoredAgent, spriteUrl: string) => void;
+    onConfirm?: (agent: StoredAgent, spriteUrl: string | File) => void;
     agent: StoredAgent;
     children: React.ReactNode;
 }
@@ -26,14 +26,28 @@ export default function UploadImageModal({ onConfirm, agent, children }: UploadI
     const [activeTab, setActiveTab] = useState<TabType>('default');
     const [selectedSprite, setSelectedSprite] = useState<SpriteType>('sprite_default_male');
     const [isOpen, setIsOpen] = useState(false);
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setSelectedFile(file);
+        }
+    };
+
+    const handleUploadClick = () => {
+        fileInputRef.current?.click();
+    };
 
     const handleConfirm = () => {
         if (activeTab === 'default') {
-            console.log('selectedSprite', selectedSprite);
             const selectedSpriteData = DEFAULT_SPRITES.find(s => s.id === selectedSprite);
             if (selectedSpriteData && onConfirm) {
-                onConfirm(agent, selectedSpriteData.url);
+                onConfirm(agent, selectedSpriteData.url as string);
             }
+        } else if (activeTab === 'custom' && selectedFile && onConfirm) {
+            onConfirm(agent, selectedFile);
         }
         setIsOpen(false);
     };
@@ -98,10 +112,51 @@ export default function UploadImageModal({ onConfirm, agent, children }: UploadI
                             ))}
                         </div>
                     ) : (
-                        <div className="flex flex-col items-center justify-center py-8 text-center">
-                            <p className="text-[#838D9D] text-sm font-medium">
-                                Custom upload coming soon
-                            </p>
+                        <div className="flex flex-col gap-4">
+                            {/* File Input and Upload Button */}
+                            <div className="flex gap-3">
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept="image/png"
+                                    onChange={handleFileSelect}
+                                    className="hidden"
+                                />
+                                <input
+                                    type="text"
+                                    readOnly
+                                    value={selectedFile?.name || ''}
+                                    placeholder="PNG image"
+                                    className="flex-1 px-4 py-2 border border-[#E6EAEF] rounded-lg text-sm text-black placeholder:text-[#838D9D] bg-white"
+                                />
+                                <Button
+                                    onClick={handleUploadClick}
+                                    type="small"
+                                    variant="primary"
+                                    className="px-6 py-2"
+                                >
+                                    Upload
+                                </Button>
+                            </div>
+
+                            {/* Info Box */}
+                            <div className="bg-[#FFF9E6] border-2 border-dashed border-[#E6D5A3] rounded-lg p-4">
+                                <div className="flex flex-col items-center gap-2">
+                                    {/* Sprite Preview Area - 레이아웃만 */}
+                                    <div className="flex flex-wrap gap-1 justify-center w-full min-h-[60px]">
+                                        {/* 12개의 스프라이트 슬롯 레이아웃 */}
+                                        {Array.from({ length: 12 }).map((_, index) => (
+                                            <div
+                                                key={index}
+                                                className="w-8 h-8 bg-gray-200 border border-gray-300 rounded"
+                                            />
+                                        ))}
+                                    </div>
+                                    <p className="text-[#B8860B] text-sm text-center">
+                                        Upload a 40×40 transparent PNG sprite. (front-left-back-right)
+                                    </p>
+                                </div>
+                            </div>
                         </div>
                     )}
                 </div>

@@ -12,7 +12,7 @@ interface ImportedAgentCardProps {
     onPlaceAgent: (agent: StoredAgent) => void;
     onUnplaceAgent: (agent: StoredAgent) => void;
     onRemoveAgent: (url: string) => void;
-    onUploadImage: (agent: StoredAgent, spriteUrl: string) => void;
+    onUploadImage: (agent: StoredAgent, spriteUrl: string | File) => void;
 }
 
 export default function ImportedAgentCard({
