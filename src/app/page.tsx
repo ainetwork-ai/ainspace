@@ -146,9 +146,7 @@ export default function Home() {
                     return;
                 }
 
-                const deployedAgents = data.agents.filter((agentData: StoredAgent) => {
-                    return agentData.isPlaced === undefined || agentData.isPlaced === true;
-                });
+                const deployedAgents = data.agents.filter((agentData: StoredAgent) => agentData.isPlaced);
 
                 console.log(`Found ${deployedAgents.length} user-deployed agents in Redis`);
 
@@ -177,8 +175,8 @@ export default function Home() {
                         agentUrl: url,
                         lastMoved: Date.now(),
                         moveInterval: state.moveInterval || 800,
-                        skills: card.skills || [],
-                        spriteUrl: spriteUrl || '/sprite/sprite_cat.png',
+                        skills: card.skills,
+                        spriteUrl: spriteUrl,
                         spriteHeight: spriteHeight || 40
                     });
 
