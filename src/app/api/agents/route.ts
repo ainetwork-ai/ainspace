@@ -149,8 +149,16 @@ export async function PUT(request: NextRequest) {
   try {
     const { url, card, state, creator, isPlaced, spriteUrl, spriteHeight } = await request.json();
 
-    const agentKey = `${AGENTS_KEY}${Buffer.from(url).toString('base64')}`;
+    // url is required to identify the agent
+    if (!url) {
+      return NextResponse.json(
+        { error: 'Agent URL is required' },
+        { status: 400 }
+      );
+    }
 
+    const agentKey = `${AGENTS_KEY}${Buffer.from(url).toString('base64')}`;
+    
     try {
       // Try Redis first
       const redis = await getRedisClient();
@@ -164,22 +172,22 @@ export async function PUT(request: NextRequest) {
         );
       }
 
-      // Parse existing data to preserve timestamp or update it
-      const existingData = JSON.parse(existing);
-      const agentData = {
-        url: url,
-        card: card,
+      // Parse existing data and merge with updates (partial update)
+      const existingData: StoredAgent = JSON.parse(existing);
+      const agentData: StoredAgent = {
+        url: existingData.url, // Always preserve original url
+        card: card !== undefined ? card : existingData.card,
         state: state !== undefined ? state : existingData.state,
         creator: creator !== undefined ? creator : existingData.creator,
-        timestamp: existingData.timestamp, // Preserve original timestamp, or use Date.now() to update
+        timestamp: existingData.timestamp, // Preserve original timestamp
         isPlaced: isPlaced !== undefined ? isPlaced : existingData.isPlaced,
         spriteUrl: spriteUrl !== undefined ? spriteUrl : existingData.spriteUrl,
         spriteHeight: spriteHeight !== undefined ? spriteHeight : existingData.spriteHeight
       };
 
-      // Update agent in Redis
+      // Update agent in Redis (partial update - only provided fields are updated)
       await redis.set(agentKey, JSON.stringify(agentData));
-      console.log(`Updated agent in Redis: ${card.name} (${url})`);
+      console.log(`Updated agent in Redis: ${agentData.card?.name || url} (${url})`);
     } catch (redisError) {
       console.warn('Redis unavailable, using fallback storage:', redisError);
       
@@ -191,29 +199,25 @@ export async function PUT(request: NextRequest) {
         );
       }
 
-      // Update agent in fallback storage
+      // Update agent in fallback storage (partial update)
       const existingData = agentStore.get(url)!;
       const agentData: StoredAgent = {
-        url: url,
-        card: card,
+        url: existingData.url, // Always preserve original url
+        card: card !== undefined ? card : existingData.card,
         state: state !== undefined ? state : existingData.state,
         creator: creator !== undefined ? creator : existingData.creator,
         timestamp: existingData.timestamp, // Preserve original timestamp
         isPlaced: isPlaced !== undefined ? isPlaced : existingData.isPlaced,
         spriteUrl: spriteUrl !== undefined ? spriteUrl : existingData.spriteUrl,
         spriteHeight: spriteHeight !== undefined ? spriteHeight : existingData.spriteHeight
-      }
+      };
       agentStore.set(url, agentData);
-      console.log(`Updated agent in memory: ${card.name} (${url})`);
+      console.log(`Updated agent in memory: ${agentData.card?.name || url} (${url})`);
     }
 
     return NextResponse.json({ 
       success: true,
-      message: 'Agent updated successfully',
-      agent: {
-        url: url,
-        card: card
-      }
+      message: 'Agent updated successfully'
     });
 
   } catch (error) {

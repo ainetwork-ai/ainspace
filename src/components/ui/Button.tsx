@@ -5,7 +5,7 @@ type ButtonVariant = 'primary' | 'secondary' | 'ghost';
 
 interface ButtonProps {
   children: React.ReactNode;
-  onClick: () => void;
+  onClick?: () => void;
   className?: string;
   disabled?: boolean;
   type?: ButtonType;
@@ -13,7 +13,7 @@ interface ButtonProps {
 }
 export default function Button({
   children,
-  onClick,
+  onClick = () => {},
   className = '',
   disabled = false,
   type = 'large',

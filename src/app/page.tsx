@@ -146,9 +146,7 @@ export default function Home() {
                     return;
                 }
 
-                const deployedAgents = data.agents.filter((agentData: StoredAgent) => {
-                    return agentData.isPlaced === undefined || agentData.isPlaced === true;
-                });
+                const deployedAgents = data.agents.filter((agentData: StoredAgent) => agentData.isPlaced);
 
                 console.log(`Found ${deployedAgents.length} user-deployed agents in Redis`);
 
@@ -177,8 +175,8 @@ export default function Home() {
                         agentUrl: url,
                         lastMoved: Date.now(),
                         moveInterval: state.moveInterval || 800,
-                        skills: card.skills || [],
-                        spriteUrl: spriteUrl || '/sprite/sprite_cat.png',
+                        skills: card.skills,
+                        spriteUrl: spriteUrl,
                         spriteHeight: spriteHeight || 40
                     });
 
@@ -192,17 +190,6 @@ export default function Home() {
 
         loadDeployedAgents();
     }, [spawnAgent]);
-
-    const handleViewThread = (threadId?: string) => {
-        // Set current thread if specified, otherwise use most recent
-        if (threadId) {
-            setCurrentThreadId(threadId);
-        } else if (threads.length > 0) {
-            setCurrentThreadId(threads[0].id);
-        }
-        // Switch to thread tab to view the conversation
-        setActiveTab('thread');
-    };
 
     const handleAgentClick = (agentId: string, agentName: string) => {
         console.log(`Agent clicked: ${agentName} (${agentId})`);
@@ -305,12 +292,7 @@ export default function Home() {
     };
 
     // A2A Agent handlers - now integrated into worldAgents
-    const handleSpawnAgent = async (importedAgent: {
-        url: string;
-        card: AgentCard;
-        spriteUrl?: string;
-        spriteHeight?: number;
-    }) => {
+    const handleSpawnAgent = async (agent: StoredAgent) => {
         const agentId = `a2a-${Date.now()}`;
         const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8'];
         const randomColor = colors[Math.floor(Math.random() * colors.length)];
@@ -393,51 +375,45 @@ export default function Home() {
         const { x: spawnX, y: spawnY } = spawnPosition;
         console.log(`✓ Spawning agent at (${spawnX}, ${spawnY}) - separated from default agents`);
 
-        await switchChainAsync({
-            chainId: baseSepolia.id
-        });
-
-        try {
-            await writeContractAsync({
-                address: AGENT_CONTRACT_ADDRESS,
-                abi: ADD_AGENT_ABI,
-                functionName: 'addAgent',
-                args: [importedAgent.url, spawnX, spawnY],
-                chain: baseSepolia
-            }).catch((error) => {
-                console.error('User denied transaction:', error);
-            });
-        } catch (error) {
-            console.error('User denied transaction:', error);
-        }
+        // NOTE(yoojin): Disable contract action.
+        // await switchChainAsync({
+        //     chainId: baseSepolia.id
+        // });
+        // try {
+        //     await writeContractAsync({
+        //         address: AGENT_CONTRACT_ADDRESS,
+        //         abi: ADD_AGENT_ABI,
+        //         functionName: 'addAgent',
+        //         args: [importedAgent.url, spawnX, spawnY],
+        //         chain: baseSepolia
+        //     }).catch((error) => {
+        //         console.error('User denied transaction:', error);
+        //     });
+        // } catch (error) {
+        //     console.error('User denied transaction:', error);
+        // }
 
         // Register agent with backend Redis
         try {
             if (!address) {
               throw new Error('Address is not connected');
             }
-            const agent: StoredAgent = {
-              url: importedAgent.url,
-              card: importedAgent.card,
-              state: {
-                x: spawnX,
-                y: spawnY,
-                behavior: 'random',
-                color: randomColor,
-                moveInterval: 600 + Math.random() * 400
-              },
-              spriteUrl: importedAgent.spriteUrl || '/sprite/sprite_cat.png',
-              spriteHeight: importedAgent.spriteHeight || TILE_SIZE,
-              isPlaced: false,
-              creator: address,
-              timestamp: Date.now()
-            }
             const registerResponse = await fetch('/api/agents', {
-                method: 'POST',
+                method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(agent),
+                body: JSON.stringify({
+                    url: agent.url,
+                    state: {
+                      x: spawnX,
+                      y: spawnY,
+                      behavior: 'random',
+                      color: randomColor,
+                      moveInterval: 600 + Math.random() * 400
+                    },
+                    isPlaced: true,
+                }),
             });
 
             if (!registerResponse.ok && registerResponse.status !== 409) {
@@ -452,25 +428,41 @@ export default function Home() {
         // Add to spawned A2A agents for UI tracking
         spawnAgent({
             id: agentId,
-            name: importedAgent.card.name || 'A2A Agent',
+            name: agent.card.name,
             x: spawnX,
             y: spawnY,
-            color: randomColor,
-            agentUrl: importedAgent.url,
+            color: agent.state.color,
+            agentUrl: agent.url,
             behavior: 'random',
             lastMoved: Date.now(),
-            moveInterval: 600 + Math.random() * 400, // Random 600-1000ms interval, matching original agents
-            skills: importedAgent.card.skills || [],
-            spriteUrl: importedAgent.spriteUrl || '/sprite/sprite_cat.png', // Use selected sprite or default
-            spriteHeight: importedAgent.spriteHeight || 40 // Use selected sprite height or default
+            moveInterval: agent.state.moveInterval || 600 + Math.random() * 400,
+            skills: agent.card.skills || [],
+            spriteUrl: agent.spriteUrl,
+            spriteHeight: agent.spriteHeight || 50
         });
 
         // Switch to map tab
         setActiveTab('map');
     };
 
-    const handleRemoveAgentFromMap = (agentUrl: string) => {
-        removeAgent(agentUrl);
+    const handleRemoveAgentFromMap = async (agentUrl: string) => {
+        const removeResponse = await fetch('/api/agents', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                url: agentUrl,
+                isPlaced: false,
+            }),
+        });
+
+        if (removeResponse.ok) {
+            console.log('✓ Agent removed from map');
+            removeAgent(agentUrl);
+        } else {
+            console.error('Failed to remove agent from map:', await removeResponse.text());
+        }
     };
 
     // // Combine existing world agents with spawned A2A agents
@@ -650,10 +642,6 @@ export default function Home() {
                     isActive={activeTab === 'map'}
                     publishedTiles={publishedTiles}
                     customTiles={customTiles}
-                    broadcastMessage={broadcastMessage}
-                    setBroadcastMessage={setBroadcastMessage}
-                    broadcastStatus={broadcastStatus}
-                    onViewThread={handleViewThread}
                     collisionMap={globalCollisionMap}
                     onAgentClick={handleAgentClick}
                 />
