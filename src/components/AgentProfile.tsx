@@ -14,6 +14,7 @@ interface AgentProfileProps {
 export const AgentProfile = ({ width, height, imageUrl, backgroundColor = '#FFFFFF' }: AgentProfileProps) => {
   const displayWidth = width > TILE_SIZE ? TILE_SIZE : width;
   const imageXStartPosition = (TILE_SIZE - displayWidth) / 2 * -1;
+  const needCentering = height > TILE_SIZE;
 
   return (
       <div 
@@ -31,7 +32,7 @@ export const AgentProfile = ({ width, height, imageUrl, backgroundColor = '#FFFF
                             fill
                             unoptimized
                             style={{ 
-                                objectPosition: `${imageXStartPosition}px center`, 
+                                objectPosition: `${imageXStartPosition}px ${needCentering ? 'center' : '0'}`, 
                                 top: 0, 
                                 left: 0
                             }}
