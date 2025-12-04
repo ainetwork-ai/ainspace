@@ -36,7 +36,7 @@ export function useKeyboardOpen(): boolean {
         } else {
             // visualViewport가 지원되지 않는 경우 fallback
             // window.innerHeight 변화로 감지 (덜 정확함)
-            let initialHeight = window.innerHeight;
+            const initialHeight = window.innerHeight;
 
             const handleResize = () => {
                 const currentHeight = window.innerHeight;
