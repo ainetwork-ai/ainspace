@@ -775,7 +775,6 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                         value={inputValue}
                         onChange={handleInputChange}
                         onKeyDown={handleKeyPress}
-                        autoFocus={true}
                         placeholder={isMessageLoading ? 'Agents are talking...' : 'Typing Message...'}
                         className={`flex flex-1 cursor-pointer rounded-[100px] px-2.5 py-2 bg-black/30 text-white  ${isMessageLoading ? 'placeholder:text-[#49C7FF] placeholder:font-light' : 'placeholder:text-[#FFFFFF66]'}`}
                         disabled={isMessageLoading}
