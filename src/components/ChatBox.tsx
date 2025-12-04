@@ -12,7 +12,7 @@ import { StreamEvent } from '@/lib/a2aOrchestration';
 import { Triangle } from 'lucide-react';
 import ChatMessageCard from './ChatMessageCard';
 import { AgentState } from '@/lib/agent';
-import { generateAgentComboId } from '@/lib/redis';
+import { generateAgentComboId } from '@/lib/hash';
 
 interface ChatBoxProps {
     className?: string;
@@ -516,7 +516,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     // Save the mapping if it's new
                     if (!resultThread) {
                         console.log('Saving mapping:', threadName, '→', result.threadId);
-                        const agentComboId = generateAgentComboId(agentNames);
+                        const agentComboId = await generateAgentComboId(agentNames);
                         addThread({
                             threadName,
                             id: result.threadId,

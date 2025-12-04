@@ -55,11 +55,12 @@ export default function ChatBoxOverlay({
                   const _threads = data.threads as { [id: string]: Thread };
                   const fetchedThreads: Thread[] = [];
                   for (const [id, threadData] of Object.entries(_threads)) {
+                      const agentComboId = threadData.agentComboId || await generateAgentComboId(threadData.agentNames);
                       fetchedThreads.push({
                         id: threadData.id,
                         threadName: threadData.threadName,
                         agentNames: threadData.agentNames,
-                        agentComboId: threadData.agentComboId || generateAgentComboId(threadData.agentNames),
+                        agentComboId,
                         createdAt: threadData.createdAt,
                         lastMessageAt: threadData.lastMessageAt
                       });

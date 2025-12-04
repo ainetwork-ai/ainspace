@@ -2,7 +2,8 @@ import { createClient } from 'redis';
 import { AgentStateForDB } from './agent';
 import { AgentCard } from '@a2a-js/sdk';
 import { Thread } from '@/types/thread';
-import crypto from 'crypto';
+import { generateAgentComboId } from './hash';
+export { generateAgentComboId } from './hash';
 
 const client = createClient({
     url: process.env.AINSPACE_STORAGE_REDIS_URL || 'redis://localhost:6379'
@@ -261,18 +262,6 @@ export async function getAgents(): Promise<StoredAgent[]> {
     }
 }
 
-/**
- * Generate a unique hash for agent combination
- */
-export function generateAgentComboId(agentNames: string[]): string {
-    const sorted = [...agentNames]
-        .map(n => n.trim().toLowerCase())
-        .sort();
-    const combined = sorted.join('|');
-    return crypto.createHash('sha256')
-        .update(combined, 'utf-8')
-        .digest('hex');
-}
 
 /**
  * Save thread for a user
@@ -336,7 +325,7 @@ export async function findThreadByAgentCombo(
 ): Promise<Thread | null> {
     try {
         const redis = await getRedisClient();
-        const agentComboId = generateAgentComboId(agentNames);
+        const agentComboId = await generateAgentComboId(agentNames);
 
         // Get thread id from agent combo mapping
         const id = await redis.hGet(`user:${userId}:agent_combos`, agentComboId);
