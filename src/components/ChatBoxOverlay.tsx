@@ -11,8 +11,8 @@ import ChatBottomDrawer from './ChatBottomDrawer';
 import { ChatBoxRef } from './ChatBox';
 import ThreadListLeftDrawer from './ThreadListLeftDrawer';
 import { useAccount } from 'wagmi';
-import { Thread } from '@/types/thread';
-import { generateAgentComboId } from '@/lib/redis';
+import { Thread } from '@/stores';
+import { generateAgentComboId } from '@/lib/hash';
 
 interface ChatBoxOverlayProps {
     chatBoxRef: React.RefObject<ChatBoxRef | null>;

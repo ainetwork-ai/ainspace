@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getThreads, saveThread, generateAgentComboId } from '@/lib/redis';
-import { Thread } from '@/types/thread';
+import { getThreads, saveThread } from '@/lib/redis';
+import { generateAgentComboId } from '@/lib/hash';
+import { Thread } from '@/stores';
 
 /**
  * GET /api/threads?userId={address}
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const agentComboId = generateAgentComboId(agentNames);
+        const agentComboId = await generateAgentComboId(agentNames);
         const thread: Thread = {
             id,
             threadName,

@@ -3,7 +3,6 @@ import { AgentStateForDB } from './agent';
 import { AgentCard } from '@a2a-js/sdk';
 import { Thread } from '@/types/thread';
 import { generateAgentComboId } from './hash';
-export { generateAgentComboId } from './hash';
 
 const client = createClient({
     url: process.env.AINSPACE_STORAGE_REDIS_URL || 'redis://localhost:6379'
