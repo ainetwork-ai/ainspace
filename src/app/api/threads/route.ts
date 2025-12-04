@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getThreadMappings, saveThreadMapping, getRedisClient } from '@/lib/redis';
+import { getThreads, saveThread, generateAgentComboId } from '@/lib/redis';
+import { Thread } from '@/types/thread';
 
 /**
  * GET /api/threads?userId={address}
- * Get all thread mappings for a user
+ * Get all threads for a user
  */
 export async function GET(request: NextRequest) {
     try {
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'userId is required' }, { status: 400 });
         }
 
-        const threads = await getThreadMappings(userId);
+        const threads = await getThreads(userId);
 
         return NextResponse.json({
             success: true,
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/threads
- * Save a thread mapping
+ * Save a thread
  */
 export async function POST(request: NextRequest) {
     try {
@@ -45,7 +46,17 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        await saveThreadMapping(userId, threadName, id, agentNames);
+        const agentComboId = generateAgentComboId(agentNames);
+        const thread: Thread = {
+            id,
+            threadName,
+            agentNames,
+            agentComboId,
+            createdAt: new Date().toISOString(),
+            lastMessageAt: new Date().toISOString()
+        };
+
+        await saveThread(userId, thread);
 
         return NextResponse.json({
             success: true,
@@ -61,35 +72,3 @@ export async function POST(request: NextRequest) {
     }
 }
 
-/**
- * DELETE /api/threads?userId={address}&threadName={threadName}
- * Delete a specific thread mapping
- */
-export async function DELETE(request: NextRequest) {
-    try {
-        const { searchParams } = new URL(request.url);
-        const userId = searchParams.get('userId');
-        const threadName = searchParams.get('threadName');
-
-        if (!userId || !threadName) {
-            return NextResponse.json(
-                { error: 'userId and threadName are required' },
-                { status: 400 }
-            );
-        }
-
-        const redis = await getRedisClient();
-        await redis.hDel(`user:${userId}:threads`, threadName);
-
-        return NextResponse.json({
-            success: true,
-            message: `Thread ${threadName} deleted successfully`,
-        });
-    } catch (error) {
-        console.error('Error deleting thread:', error);
-        return NextResponse.json(
-            { error: 'Failed to delete thread' },
-            { status: 500 }
-        );
-    }
-}

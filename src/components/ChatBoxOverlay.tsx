@@ -2,7 +2,7 @@
 
 import { useGameState } from '@/hooks/useGameState';
 import { cn } from '@/lib/utils';
-import { Thread, useThreadStore } from '@/stores';
+import { useThreadStore } from '@/stores';
 import { AgentState } from '@/lib/agent';
 import { Triangle } from 'lucide-react';
 import Image from 'next/image';
@@ -11,7 +11,8 @@ import ChatBottomDrawer from './ChatBottomDrawer';
 import { ChatBoxRef } from './ChatBox';
 import ThreadListLeftDrawer from './ThreadListLeftDrawer';
 import { useAccount } from 'wagmi';
-import { ThreadMapping } from '@/lib/redis';
+import { Thread } from '@/types/thread';
+import { generateAgentComboId } from '@/lib/redis';
 
 interface ChatBoxOverlayProps {
     chatBoxRef: React.RefObject<ChatBoxRef | null>;
@@ -45,19 +46,20 @@ export default function ChatBoxOverlay({
           try {
               const response = await fetch(`/api/threads?userId=${address}`);
               if (!response.ok) {
-                  console.error('Failed to load thread mappings');
+                  console.error('Failed to load threads');
                   return;
               }
 
               const data = await response.json();
               if (data.success && data.threads) {
-                  const _threads = data.threads as ThreadMapping;
+                  const _threads = data.threads as { [id: string]: Thread };
                   const fetchedThreads: Thread[] = [];
-                  for (const [threadName, threadData] of Object.entries(_threads)) {
+                  for (const [id, threadData] of Object.entries(_threads)) {
                       fetchedThreads.push({
-                        threadName,
-                        id: threadData.backendThreadId,
+                        threadName: threadData.threadName,
+                        id: threadData.id,
                         agentNames: threadData.agentNames,
+                        agentComboId: threadData.agentComboId || generateAgentComboId(threadData.agentNames),
                         createdAt: threadData.createdAt,
                         lastMessageAt: threadData.lastMessageAt,
                       });
@@ -66,7 +68,7 @@ export default function ChatBoxOverlay({
                   console.log('fetchedThreads', fetchedThreads);
               }
           } catch (error) {
-              console.error('Error loading thread mappings:', error);
+              console.error('Error loading threads:', error);
           }
       };
 
