@@ -25,7 +25,6 @@ export default function ImportAgentSection({
             <div className="flex flex-row gap-2">
                 <input
                     type="url"
-                    autoFocus={true}
                     value={agentUrl}
                     onChange={(e) => setAgentUrl(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleImportAgentClick()}

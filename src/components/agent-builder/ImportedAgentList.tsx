@@ -13,9 +13,9 @@ function NoAgentNotice() {
   return (
       <div className="inline-flex h-[150px] w-full flex-col items-center justify-center gap-3.5 rounded-lg bg-[#eff1f4] p-3.5">
           <p className="justify-start self-stretch text-center font-['SF_Pro'] text-base text-[#838d9d]">
-              No agent imported yet.
+              No agents imported yet.
               <br />
-              Import from URL or create with AI above.
+              Directly Import an deployed agent, or use the A2A Builder button to create one and then import it.
           </p>
       </div>
   )
