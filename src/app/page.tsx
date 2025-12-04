@@ -6,13 +6,10 @@ import { useEffect, useState } from 'react';
 import MapTab from '@/components/tabs/MapTab';
 import AgentTab from '@/components/tabs/AgentTab';
 import Footer from '@/components/Footer';
-import { DIRECTION, MAP_TILES, ENABLE_AGENT_MOVEMENT, TILE_SIZE } from '@/constants/game';
-import { AgentCard } from '@a2a-js/sdk';
+import { DIRECTION, MAP_TILES, ENABLE_AGENT_MOVEMENT } from '@/constants/game';
 import { useUIStore, useThreadStore, useBuildStore, useAgentStore } from '@/stores';
 import TempBuildTab from '@/components/tabs/TempBuildTab';
-import { useAccount, useSwitchChain, useWriteContract } from 'wagmi';
-import { ADD_AGENT_ABI, AGENT_CONTRACT_ADDRESS } from '@/constants/agentContract';
-import { baseSepolia } from 'viem/chains';
+import { useAccount } from 'wagmi';
 import sdk from '@farcaster/miniapp-sdk';
 import { StoredAgent } from '@/lib/redis';
 
@@ -27,17 +24,14 @@ const DEPLOY_ZONE_CENTERS = [
     { x: 59, y: 95 },   // South zone (25 tiles down)
     { x: 81, y: 48 },   // Northeast zone (diagonal, ~31 tiles away)
 ];
-const MAX_SEARCH_RADIUS = 10;  // Tight clustering within each zone
+const MAX_SEARCH_RADIUS = 3;  // Tight clustering within each zone
 
 export default function Home() {
     // Global stores
     const { activeTab, setActiveTab } = useUIStore();
     const {
         threads,
-        broadcastMessage,
-        broadcastStatus,
         setCurrentThreadId,
-        setBroadcastMessage,
     } = useThreadStore();
     const {
         customTiles,
@@ -59,10 +53,6 @@ export default function Home() {
     const { agents, spawnAgent, removeAgent, setAgents } = useAgentStore();
     const { setFrameReady, isFrameReady } = useMiniKit();
     const [isSDKLoaded, setIsSDKLoaded] = useState(false);
-
-    const { writeContractAsync } = useWriteContract();
-    const { switchChainAsync } = useSwitchChain();
-
     const { address } = useAccount();
 
     // Initialize collision map on first load
@@ -322,9 +312,11 @@ export default function Home() {
             };
 
             // Randomly select one of the 5 deployment zones
-            const selectedCenter = DEPLOY_ZONE_CENTERS[
-                Math.floor(Math.random() * DEPLOY_ZONE_CENTERS.length)
-            ];
+            // const selectedCenter = DEPLOY_ZONE_CENTERS[
+            //     Math.floor(Math.random() * DEPLOY_ZONE_CENTERS.length)
+            // ];
+
+            const selectedCenter = worldPosition;
 
             console.log(`Selected deployment zone: (${selectedCenter.x}, ${selectedCenter.y})`);
 
