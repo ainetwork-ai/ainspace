@@ -1,57 +1,19 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { SpriteAnimator } from 'react-sprite-animator';
 import BaseTabContent from './BaseTabContent';
 import { useAccount } from 'wagmi';
 import ImportAgentSection from '@/components/agent-builder/ImportAgentSection';
 import { StoredAgent } from '@/lib/redis';
 import CreateAgentSection from '@/components/agent-builder/CreateAgentSection';
 import ImportedAgentList from '@/components/agent-builder/ImportedAgentList';
+import { useAgentStore } from '@/stores';
 
 interface AgentTabProps {
     isActive: boolean;
     onSpawnAgent: (agent: StoredAgent) => void;
     onRemoveAgentFromMap: (agentUrl: string) => void;
     spawnedAgents: string[];
-}
-
-// Animated sprite preview component
-function SpritePreview({
-    spriteUrl,
-    spriteHeight,
-    isSelected,
-    onClick
-}: {
-    spriteUrl: string;
-    spriteHeight: number;
-    isSelected: boolean;
-    onClick: () => void;
-}) {
-    return (
-        <div
-            onClick={onClick}
-            className={`flex cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 p-1 transition-all ${
-                isSelected
-                    ? 'border-purple-600 bg-purple-50'
-                    : 'hover:bg-purple-25 border-gray-200 bg-white hover:border-purple-300'
-            }`}
-        >
-            <div style={{ height: spriteHeight }} className="flex w-20 items-center justify-center">
-                <SpriteAnimator
-                    sprite={spriteUrl}
-                    width={40}
-                    height={spriteHeight}
-                    scale={1}
-                    fps={6}
-                    frameCount={3}
-                    direction={'horizontal'}
-                    shouldAnimate={true}
-                    startFrame={0}
-                />
-            </div>
-        </div>
-    );
 }
 
 export default function AgentTab({
@@ -63,6 +25,7 @@ export default function AgentTab({
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const { address } = useAccount();
+    const { updateAgent } = useAgentStore();
 
     useEffect(() => {
         const fetchAgent = async () => {
@@ -188,13 +151,16 @@ export default function AgentTab({
             if (response && response.ok) {
                 const result = await response.json();
                 if (result.success) {
+                    const updatedAgent = { spriteUrl: result.agent.spriteUrl, spriteHeight: result.agent.spriteHeight };
                     setAgents(agents.map((a) => {
                         if (a.url === agent.url) {
                             console.log('Image Changed!: ', a.card.name, a.spriteUrl, result.agent.spriteUrl, result.agent.spriteHeight);
-                            return { ...a, spriteUrl: result.agent.spriteUrl, spriteHeight: result.agent.spriteHeight };
+                            return { ...a, ...updatedAgent };
                         }
                         return a;
                     }));
+                    
+                    updateAgent(agent.url, updatedAgent);
                     return;
                 }
             }
@@ -209,13 +175,17 @@ export default function AgentTab({
         }
         if (response && response.ok) {
             const result = await response.json();
+            const updatedAgent = { spriteUrl: result.spriteUrl, spriteHeight: result.spriteHeight };
+            
             setAgents(agents.map((a) => {
               if (a.url === agent.url) {
                 console.log('Image Changed!: ', a.card.name, a.spriteUrl, result.spriteUrl);
-                return { ...a, spriteUrl: result.spriteUrl, spriteHeight: result.spriteHeight };
+                return { ...a, ...updatedAgent };
               }
               return a;
             }));
+            
+            updateAgent(agent.url, updatedAgent);
         }
     }
 
