@@ -2,7 +2,7 @@
 
 import { useGameState } from '@/hooks/useGameState';
 import { useMiniKit } from '@coinbase/onchainkit/minikit';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import MapTab from '@/components/tabs/MapTab';
 import AgentTab from '@/components/tabs/AgentTab';
 import Footer from '@/components/Footer';
@@ -153,6 +153,21 @@ export default function Home() {
 
                     const agentId = `a2a-deployed-${Date.now()}-${Math.random()}`;
 
+                    let spawnX = state.x!;
+                    let spawnY = state.y!;
+
+                    console.log(agentId, isPositionValid(spawnX, spawnY))
+                    if (!isPositionValid(spawnX, spawnY)) {
+                        const validPosition = findAvailableSpawnPosition({ x: spawnX, y: spawnY });
+                        if (!validPosition) {
+                            console.error('Cannot spawn agent: no available positions found in deployment zones');
+                            alert('Cannot spawn agent: no available space found in deployment zones. Please remove some agents or clear space on the map.');
+                            return;
+                        }
+                        spawnX = validPosition.x;
+                        spawnY = validPosition.y;
+                    }
+
                     // Restore agent to store with saved position and sprite
                     // We know x and y are numbers because they were filtered above
                     spawnAgent({
@@ -160,8 +175,8 @@ export default function Home() {
                         name: card.name || 'Deployed Agent',
                         color: state.color,
                         behavior: 'random',
-                        x: state.x!,
-                        y: state.y!,
+                        x: spawnX,
+                        y: spawnY,
                         agentUrl: url,
                         lastMoved: Date.now(),
                         moveInterval: state.moveInterval || 800,
@@ -287,73 +302,8 @@ export default function Home() {
         const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8'];
         const randomColor = colors[Math.floor(Math.random() * colors.length)];
 
-        // Find a non-blocked spawn position in one of the deployment zones
-        const findAvailableSpawnPosition = (): { x: number; y: number } | null => {
-            // Helper function to check if a position is valid
-            const isPositionValid = (x: number, y: number): boolean => {
-                // Check boundaries
-                if (x < 0 || x >= MAP_TILES || y < 0 || y >= MAP_TILES) {
-                    return false;
-                }
-
-                // Check if position is blocked by collision map
-                if (globalIsBlocked(x, y)) {
-                    return false;
-                }
-
-                // Check if position is occupied by player
-                if (x === worldPosition.x && y === worldPosition.y) {
-                    return false;
-                }
-
-                // Check if position is occupied by another agent
-                const isOccupied = combinedVisibleAgents.some((agent) => agent.x === x && agent.y === y);
-                return !isOccupied;
-            };
-
-            // Randomly select one of the 5 deployment zones
-            // const selectedCenter = DEPLOY_ZONE_CENTERS[
-            //     Math.floor(Math.random() * DEPLOY_ZONE_CENTERS.length)
-            // ];
-
-            const selectedCenter = worldPosition;
-
-            console.log(`Selected deployment zone: (${selectedCenter.x}, ${selectedCenter.y})`);
-
-            // Search in expanding radius from selected zone center
-            for (let radius = 1; radius <= MAX_SEARCH_RADIUS; radius++) {
-                // Collect all positions at current radius
-                const positionsAtRadius: { x: number; y: number }[] = [];
-
-                for (let dx = -radius; dx <= radius; dx++) {
-                    for (let dy = -radius; dy <= radius; dy++) {
-                        // Only check positions on the perimeter (not interior)
-                        if (Math.abs(dx) === radius || Math.abs(dy) === radius) {
-                            positionsAtRadius.push({
-                                x: selectedCenter.x + dx,
-                                y: selectedCenter.y + dy
-                            });
-                        }
-                    }
-                }
-
-                // Shuffle to add randomness and avoid clustering
-                positionsAtRadius.sort(() => Math.random() - 0.5);
-
-                // Check each position at this radius
-                for (const pos of positionsAtRadius) {
-                    if (isPositionValid(pos.x, pos.y)) {
-                        console.log(`Found spawn position at (${pos.x}, ${pos.y}) - radius ${radius} from zone center`);
-                        return pos;
-                    }
-                }
-            }
-
-            return null; // No valid position found in this zone
-        };
-
         // Try to find spawn position
-        const spawnPosition = findAvailableSpawnPosition();
+        const spawnPosition = findAvailableSpawnPosition(worldPosition);
 
         if (!spawnPosition) {
             // Show error if no valid spawn position found
@@ -503,7 +453,77 @@ export default function Home() {
         isMoving?: boolean;
     }>;
 
-    const combinedVisibleAgents = [...visibleAgents, ...a2aVisibleAgents];
+    const combinedVisibleAgents = useMemo(() => {
+        return [...visibleAgents, ...a2aVisibleAgents];
+    }, [visibleAgents, a2aVisibleAgents]);
+
+    const isPositionValid = useCallback((x: number, y: number): boolean => {
+      // Check boundaries
+      if (x < 0 || x >= MAP_TILES || y < 0 || y >= MAP_TILES) {
+          return false;
+      }
+
+      // Check if position is blocked by collision map
+      if (globalIsBlocked(x, y)) {
+          return false;
+      }
+
+      // Check if position is occupied by player
+      if (x === worldPosition.x && y === worldPosition.y) {
+          return false;
+      }
+
+      // Check if position is occupied by another agent
+      // Get latest agents from store to avoid stale closure
+      const currentA2AAgents = useAgentStore.getState().agents;
+      const allAgents = [...visibleAgents, ...currentA2AAgents];
+      console.log('Checking position:', x, y, 'allAgents length:', allAgents.length);
+      const isOccupied = allAgents.some((agent) => 
+        {
+          console.log('Agent check:', agent.id, agent.x, agent.y, 'vs', x, y)
+          return agent.x === x && agent.y === y;
+        }
+      );
+      console.log('isOccupied result:', isOccupied);
+      return !isOccupied;
+  }, [globalIsBlocked, worldPosition, visibleAgents]);
+
+  // Find a non-blocked spawn position in one of the deployment zones
+  const findAvailableSpawnPosition = useCallback((selectedCenter: { x: number; y: number }): { x: number; y: number } | null => {
+    console.log(`Selected deployment zone: (${selectedCenter.x}, ${selectedCenter.y})`);
+
+    // Search in expanding radius from selected zone center
+    for (let radius = 1; radius <= MAX_SEARCH_RADIUS; radius++) {
+        // Collect all positions at current radius
+        const positionsAtRadius: { x: number; y: number }[] = [];
+
+        for (let dx = -radius; dx <= radius; dx++) {
+            for (let dy = -radius; dy <= radius; dy++) {
+                // Only check positions on the perimeter (not interior)
+                if (Math.abs(dx) === radius || Math.abs(dy) === radius) {
+                    positionsAtRadius.push({
+                        x: selectedCenter.x + dx,
+                        y: selectedCenter.y + dy
+                    });
+                }
+            }
+        }
+
+        // Shuffle to add randomness and avoid clustering
+        positionsAtRadius.sort(() => Math.random() - 0.5);
+
+        // Check each position at this radius
+        for (const pos of positionsAtRadius) {
+            if (isPositionValid(pos.x, pos.y)) {
+                console.log(`Found spawn position at (${pos.x}, ${pos.y}) - radius ${radius} from zone center`);
+                return pos;
+            }
+        }
+    }
+
+    return null; // No valid position found in this zone
+}, [isPositionValid, worldPosition]);
+
 
     // A2A Agent movement system
     useEffect(() => {
