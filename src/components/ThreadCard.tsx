@@ -1,4 +1,5 @@
-import { Thread, useThreadStore } from '@/stores/useThreadStore';
+import { useThreadStore } from '@/stores/useThreadStore';
+import { Thread } from '@/types/thread';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from './ui/context-menu';
 import { Trash2Icon } from 'lucide-react';
 import { useAccount } from 'wagmi';
@@ -18,7 +19,7 @@ export default function ThreadCard({ thread, onThreadSelect }: ThreadCardProps) 
         if (!address) return;
 
         try {
-            const response = await fetch(`/api/threads?userId=${address}&threadName=${thread.threadName}`, {
+            const response = await fetch(`/api/threads/${thread.id}?userId=${address}`, {
                 method: 'DELETE'
             });
 
@@ -27,8 +28,8 @@ export default function ThreadCard({ thread, onThreadSelect }: ThreadCardProps) 
                 return;
             }
 
-            removeThread(thread.threadName);
-            console.log('Thread deleted:', thread.threadName);
+            removeThread(thread.id);
+            console.log('Thread deleted:', thread.id);
         } catch (error) {
             console.error('Error deleting thread:', error);
         }

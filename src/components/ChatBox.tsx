@@ -12,6 +12,7 @@ import { StreamEvent } from '@/lib/a2aOrchestration';
 import { Triangle } from 'lucide-react';
 import ChatMessageCard from './ChatMessageCard';
 import { AgentState } from '@/lib/agent';
+import { generateAgentComboId } from '@/lib/hash';
 
 interface ChatBoxProps {
     className?: string;
@@ -110,18 +111,15 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         }
     }, [messages, currentThreadId, getMessagesByThreadId]);
 
-    // Generate deterministic thread ID from agent names and user address
-    const generateThreadName = useCallback((agentNames: string[], userAddress?: string): string => {
+    // Generate thread name from agent names (supports korean)
+    const generateThreadName = useCallback((agentNames: string[]): string => {
         if (agentNames.length === 0) return '';
-        // Sort names for consistency and create hash-like ID
+        // Sort names for consistency
         const sortedNames = [...agentNames].sort();
         const agentString = sortedNames
-            .join('-')
-            .toLowerCase()
-            .replace(/[^a-z0-9-]/g, '');
-        // Include user address (shortened) to make threads user-specific
-        const userPrefix = userAddress ? userAddress.slice(0, 8).toLowerCase() : 'anon';
-        return `thread-${userPrefix}-${agentString}`;
+            .join(', ')
+            .replace(/[^a-z0-9가-힣\s,]/gi, '');
+        return agentString;
     }, []);
 
     // Initialize world system
@@ -416,7 +414,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             setInputValue('');
             setIsMessageLoading(true);
 
-            const agnetNames: string[] = [];
+            const agentNames: string[] = [];
 
             const isCurrentThreadSelected = currentThreadId && currentThreadId !== '0';
 
@@ -439,14 +437,14 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             });
 
             if (currentThread) {
-                agnetNames.push(...currentThread.agentNames);
+                agentNames.push(...currentThread.agentNames);
                 threadName = currentThread.threadName;
                 threadIdToSend = currentThread.id;
             } else {
                 currentAgentsInRadius.forEach((a: AgentState) => {
-                    agnetNames.push(a.name);
+                    agentNames.push(a.name);
                 });
-                threadName = generateThreadName(agnetNames, address);
+                threadName = generateThreadName(agentNames);
                 const existingThread = findThreadByName(threadName);
                 console.log(threadName, existingThread?.threadName)
 
@@ -466,7 +464,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 threadName: threadName,
                 threadId: threadIdToSend,
                 messageId: newMessage.id,
-                agentsInRadius: agnetNames,
+                agentsInRadius: agentNames,
                 isNewThread: !isCurrentThreadSelected,
                 previousThreadId: currentThreadId
             });
@@ -494,7 +492,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                         playerPosition: currentPlayerPosition,
                         broadcastRadius: 10,
                         threadId: threadIdToSend,
-                        agentNames: agnetNames, // Explicitly pass the agent list calculated on frontend
+                        agentNames: agentNames, // Explicitly pass the agent list calculated on frontend
                         mentionedAgents: mentionedAgents.length > 0 ? mentionedAgents : undefined
                     }),
                     signal: controller.signal
@@ -518,10 +516,12 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     // Save the mapping if it's new
                     if (!resultThread) {
                         console.log('Saving mapping:', threadName, '→', result.threadId);
+                        const agentComboId = await generateAgentComboId(agentNames);
                         addThread({
                             threadName,
                             id: result.threadId,
-                            agentNames: agnetNames,
+                            agentNames: agentNames,
+                            agentComboId,
                             createdAt: new Date().toISOString(),
                             lastMessageAt: new Date().toISOString()
                         });
@@ -538,7 +538,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                             userId: address,
                             threadName,
                             id: result.threadId,
-                            agentNames: agnetNames
+                            agentNames: agentNames
                         });
 
                         setCurrentThreadId(result.threadId);
@@ -551,7 +551,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                                     userId: address,
                                     threadName,
                                     id: result.threadId,
-                                    agentNames: agnetNames
+                                    agentNames: agentNames
                                 })
                             }).catch((err) => console.error('Failed to save thread mapping:', err));
                         }
@@ -596,7 +596,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     extra: {
                         threadName,
                         threadId: threadIdToSend,
-                        agentNames: agnetNames,
+                        agentNames: agentNames,
                         isTimeout
                     }
                 });

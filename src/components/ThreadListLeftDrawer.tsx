@@ -1,6 +1,6 @@
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { cn } from '@/lib/utils';
-import { Thread } from '@/stores/useThreadStore';
+import { Thread } from '@/types/thread';
 import ThreadCard from './ThreadCard';
 
 interface ThreadListLeftDrawerProps {
@@ -26,7 +26,7 @@ export default function ThreadListLeftDrawer({ open, onOpenChange, threads, onTh
                 </DrawerHeader>
                 <div className='flex flex-col w-full'>
                   {threads.map((thread) => (
-                      <ThreadCard key={thread.threadName} thread={thread} onThreadSelect={onThreadSelect} />
+                      <ThreadCard key={thread.id} thread={thread} onThreadSelect={onThreadSelect} />
                   ))}
                 </div>
             </DrawerContent>
