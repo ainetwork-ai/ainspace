@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { uploadImageToBucket, deleteFileFromBucket } from '@/lib/firebase';
 import { getRedisClient, StoredAgent } from '@/lib/redis';
+import sharp from 'sharp';
 
 const AGENTS_KEY = 'agents:';
 
@@ -45,6 +46,16 @@ export async function POST(request: NextRequest) {
     // Upload image to Firebase Storage
     const arrayBuffer = await imageFile.arrayBuffer();
     const fileBuffer = Buffer.from(arrayBuffer);
+    
+    // Extract image dimensions using sharp
+    let height: number | undefined;
+    try {
+      const metadata = await sharp(fileBuffer).metadata();
+      height = metadata.height;
+    } catch (error) {
+      console.warn('Failed to extract image dimensions:', error);
+      // Continue even if dimension extraction fails
+    }
     
     // Generate agentKey
     const agentKey = `${AGENTS_KEY}${Buffer.from(agentUrl).toString('base64')}`;
@@ -92,7 +103,8 @@ export async function POST(request: NextRequest) {
           // Update agent with new spriteUrl
           const updatedData: StoredAgent = {
             ...existingData,
-            spriteUrl: spriteUrl
+            spriteUrl: spriteUrl,
+            spriteHeight: height
           };
           
           await redis.set(agentKey, JSON.stringify(updatedData));
@@ -113,6 +125,7 @@ export async function POST(request: NextRequest) {
       success: true,
       spriteUrl: spriteUrl,
       agentUpdated: agentUpdated,
+      spriteHeight: height,
       message: agentUpdated 
         ? 'Image uploaded and agent updated successfully' 
         : 'Image uploaded successfully'

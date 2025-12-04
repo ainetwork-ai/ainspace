@@ -9,9 +9,14 @@ import { StoredAgent } from '@/lib/redis';
 
 type TabType = 'default' | 'custom';
 type SpriteType = 'sprite_default_male' | 'sprite_default_female' | 'sprite_cat';
+const SPRITE_HEIGHTS: { [key in SpriteType]: number } = {
+    'sprite_default_male': 50,
+    'sprite_default_female': 50,
+    'sprite_cat': 40,
+};
 
 interface UploadImageModalProps {
-    onConfirm?: (agent: StoredAgent, spriteUrl: string | File) => void;
+    onConfirm?: (agent: StoredAgent, sprite: {url:string, height:number} | File) => void;
     agent: StoredAgent;
     children: React.ReactNode;
 }
@@ -44,7 +49,7 @@ export default function UploadImageModal({ onConfirm, agent, children }: UploadI
         if (activeTab === 'default') {
             const selectedSpriteData = DEFAULT_SPRITES.find(s => s.id === selectedSprite);
             if (selectedSpriteData && onConfirm) {
-                onConfirm(agent, selectedSpriteData.url as string);
+                onConfirm(agent, {url: selectedSpriteData.url, height: SPRITE_HEIGHTS[selectedSprite]});
             }
         } else if (activeTab === 'custom' && selectedFile && onConfirm) {
             onConfirm(agent, selectedFile);

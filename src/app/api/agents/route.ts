@@ -159,6 +159,8 @@ export async function PUT(request: NextRequest) {
     }
 
     const agentKey = `${AGENTS_KEY}${Buffer.from(url).toString('base64')}`;
+
+    let agentData: StoredAgent;
     
     try {
       // Try Redis first
@@ -176,7 +178,7 @@ export async function PUT(request: NextRequest) {
       // Parse existing data and merge with updates (partial update)
       const existingData: StoredAgent = JSON.parse(existing);
 
-      const agentData: StoredAgent = {
+      agentData = {
         url: existingData.url, // Always preserve original url
         card: card !== undefined ? card : existingData.card,
         state: state !== undefined ? state : existingData.state,
@@ -203,7 +205,7 @@ export async function PUT(request: NextRequest) {
 
       // Update agent in fallback storage (partial update)
       const existingData = agentStore.get(url)!;
-      const agentData: StoredAgent = {
+      agentData = {
         url: existingData.url, // Always preserve original url
         card: card !== undefined ? card : existingData.card,
         state: state !== undefined ? state : existingData.state,
@@ -217,9 +219,15 @@ export async function PUT(request: NextRequest) {
       console.log(`Updated agent in memory: ${agentData.card?.name || url} (${url})`);
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
-      message: 'Agent updated successfully'
+      message: 'Agent updated successfully',
+      agent: {
+        url: url,
+        card: agentData.card,
+        spriteUrl: agentData.spriteUrl,
+        spriteHeight: agentData.spriteHeight
+      }
     });
 
   } catch (error) {

@@ -172,20 +172,35 @@ export default function AgentTab({
       setAgents(agents.map((a) => (a.url === agent.url ? { ...a, isPlaced: false } : a)));
     }
 
-    const handleUploadImage = async (agent: StoredAgent, sprite: string | File) => {
+    const handleUploadImage = async (agent: StoredAgent, sprite: {url: string, height: number} | File) => {
         let response: Response | null = null;
         const isFile = sprite instanceof File;
+        console.log('isFile', isFile, sprite);
         if (!isFile) {
             response = await fetch('/api/agents', {
                 method: 'PUT',
                 body: JSON.stringify({
                     url: agent.url,
-                    spriteUrl: sprite,
+                    spriteUrl: sprite.url,
+                    spriteHeight: sprite.height,
                 }),
             });
+            if (response && response.ok) {
+                const result = await response.json();
+                if (result.success) {
+                    setAgents(agents.map((a) => {
+                        if (a.url === agent.url) {
+                            console.log('Image Changed!: ', a.card.name, a.spriteUrl, result.agent.spriteUrl, result.agent.spriteHeight);
+                            return { ...a, spriteUrl: result.agent.spriteUrl, spriteHeight: result.agent.spriteHeight };
+                        }
+                        return a;
+                    }));
+                    return;
+                }
+            }
         } else {
             const formData = new FormData();
-            formData.append('image', sprite);
+            formData.append('image', sprite as File);
             formData.append('agentUrl', agent.url);
             response = await fetch('/api/agents/upload-image', {
                 method: 'POST',
@@ -195,10 +210,9 @@ export default function AgentTab({
         if (response && response.ok) {
             const result = await response.json();
             setAgents(agents.map((a) => {
-              const newSpriteUrl = isFile ? result.spriteUrl : sprite as string;
               if (a.url === agent.url) {
-                console.log('Image Changed!: ', a.card.name, a.spriteUrl, newSpriteUrl);
-                return { ...a, spriteUrl: newSpriteUrl };
+                console.log('Image Changed!: ', a.card.name, a.spriteUrl, result.spriteUrl);
+                return { ...a, spriteUrl: result.spriteUrl, spriteHeight: result.spriteHeight };
               }
               return a;
             }));

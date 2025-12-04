@@ -6,7 +6,7 @@ interface ImportedAgentListProps {
   onPlaceAgent: (agent: StoredAgent) => void;
   onUnplaceAgent: (agent: StoredAgent) => void;
   onRemoveAgent: (url: string) => void;
-  onUploadImage: (agent: StoredAgent, spriteUrl: string | File) => void;
+  onUploadImage: (agent: StoredAgent, sprite: {url:string, height:number} | File) => void;
 }
 
 function NoAgentNotice() {
