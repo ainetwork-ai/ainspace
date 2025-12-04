@@ -2,6 +2,7 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/u
 import ChatBox, { ChatBoxRef } from './ChatBox';
 import { AgentState } from '@/lib/agent';
 import { cn } from '@/lib/utils';
+import { useKeyboardOpen } from '@/hooks/useKeyboardOpen';
 
 interface ChatBottomDrawerProps {
     open: boolean;
@@ -22,12 +23,15 @@ export default function ChatBottomDrawer({
     onThreadSelect,
     currentAgentsInRadius,
   }: ChatBottomDrawerProps) {
+    const isKeyboardOpen = useKeyboardOpen();
+    
     return (
         <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" >
             <DrawerContent 
                 className={
                     cn(
-                        "h-dvh max-h-[calc(100dvh-73px)] z-49 pb-[73px]",
+                        "h-dvh max-h-[calc(100dvh-73px)] z-49",
+                        isKeyboardOpen ? "pb-0" : "pb-[73px]",
                         "bg-black/50",
                     )
                 }
