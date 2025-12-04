@@ -16,12 +16,6 @@ interface AgentTabProps {
     spawnedAgents: string[];
 }
 
-const SPRITE_OPTIONS = [
-    { name: 'Cat', url: '/sprite/sprite_cat.png', height: 40 },
-    { name: 'Default 1', url: '/sprite/sprite_default_1.png', height: 86 },
-    { name: 'Default 2', url: '/sprite/sprite_default_2.png', height: 86 }
-];
-
 // Animated sprite preview component
 function SpritePreview({
     spriteUrl,
@@ -178,19 +172,50 @@ export default function AgentTab({
       setAgents(agents.map((a) => (a.url === agent.url ? { ...a, isPlaced: false } : a)));
     }
 
-    const handleUploadImage = async (agent: StoredAgent, spriteUrl: string) => {
-        const response = await fetch('/api/agents', {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                url: agent.url,
-                spriteUrl: spriteUrl,
-            }),
-        });
-        if (response.ok) {
-            setAgents(agents.map((agent) => (agent.url === agent.url ? { ...agent, spriteUrl } : agent)));
+    const handleUploadImage = async (agent: StoredAgent, sprite: {url: string, height: number} | File) => {
+        let response: Response | null = null;
+        const isFile = sprite instanceof File;
+        console.log('isFile', isFile, sprite);
+        if (!isFile) {
+            response = await fetch('/api/agents', {
+                method: 'PUT',
+                body: JSON.stringify({
+                    url: agent.url,
+                    spriteUrl: sprite.url,
+                    spriteHeight: sprite.height,
+                }),
+            });
+            if (response && response.ok) {
+                const result = await response.json();
+                if (result.success) {
+                    setAgents(agents.map((a) => {
+                        if (a.url === agent.url) {
+                            console.log('Image Changed!: ', a.card.name, a.spriteUrl, result.agent.spriteUrl, result.agent.spriteHeight);
+                            return { ...a, spriteUrl: result.agent.spriteUrl, spriteHeight: result.agent.spriteHeight };
+                        }
+                        return a;
+                    }));
+                    return;
+                }
+            }
+        } else {
+            const formData = new FormData();
+            formData.append('image', sprite as File);
+            formData.append('agentUrl', agent.url);
+            response = await fetch('/api/agents/upload-image', {
+                method: 'POST',
+                body: formData,
+            });
+        }
+        if (response && response.ok) {
+            const result = await response.json();
+            setAgents(agents.map((a) => {
+              if (a.url === agent.url) {
+                console.log('Image Changed!: ', a.card.name, a.spriteUrl, result.spriteUrl);
+                return { ...a, spriteUrl: result.spriteUrl, spriteHeight: result.spriteHeight };
+              }
+              return a;
+            }));
         }
     }
 
