@@ -20,7 +20,7 @@ async function migrate() {
     await redis.connect();
     console.log('Connected to Redis');
 
-    let cursor = 0;
+    let cursor = '0';
     const userThreadKeys: string[] = [];
 
     // 1. Find all user:*:threads keys
@@ -30,9 +30,9 @@ async function migrate() {
             MATCH: 'user:*:threads',
             COUNT: 100
         });
-        cursor = result.cursor;
+        cursor = result.cursor.toString();
         userThreadKeys.push(...result.keys);
-    } while (cursor !== 0);
+    } while (cursor !== '0');
 
     console.log(`Found ${userThreadKeys.length} user thread keys\n`);
 
@@ -65,11 +65,18 @@ async function migrate() {
                 // Calculate agentComboId
                 const agentComboId = generateAgentComboId(data.agentNames || []);
 
+                // Generate new threadName from agent names (supports Korean)
+                const agentNames = data.agentNames || [];
+                const sortedNames = [...agentNames].sort();
+                const newThreadName = sortedNames
+                    .join(', ')
+                    .replace(/[^a-z0-9가-힣\s,]/gi, '');
+
                 // Build Thread object
                 const thread = {
-                    threadName: data.threadName,
+                    threadName: newThreadName,
                     id: threadId,
-                    agentNames: data.agentNames || [],
+                    agentNames: agentNames,
                     agentComboId,
                     createdAt: data.createdAt || new Date().toISOString(),
                     lastMessageAt: data.lastMessageAt || new Date().toISOString()
