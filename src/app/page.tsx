@@ -71,6 +71,12 @@ export default function Home() {
             setFrameReady();
         }
 
+        if (process.env.NEXT_PUBLIC_ENV !== 'production') {
+            setTimeout(() => {
+                import('eruda').then((eruda) => eruda.default.init());
+            }, 2000);
+        }
+
         const initCollisionMap = async () => {
             if (Object.keys(globalCollisionMap).length === 0) {
                 try {
