@@ -27,7 +27,7 @@ export default function ChatBottomDrawer({
             <DrawerContent 
                 className={
                     cn(
-                        "h-dvh max-h-dvh z-49 pb-[73px]",
+                        "h-dvh max-h-[calc(100dvh-73px)] z-49 pb-[73px]",
                         "bg-black/50",
                     )
                 }
