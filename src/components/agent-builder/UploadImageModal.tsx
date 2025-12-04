@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import Image from 'next/image';
+import { useState, useRef, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import Button from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
@@ -32,7 +33,21 @@ export default function UploadImageModal({ onConfirm, agent, children }: UploadI
     const [selectedSprite, setSelectedSprite] = useState<SpriteType>('sprite_default_male');
     const [isOpen, setIsOpen] = useState(false);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Create preview URL when file is selected
+    useEffect(() => {
+        if (selectedFile) {
+            const url = URL.createObjectURL(selectedFile);
+            setPreviewUrl(url);
+            return () => {
+                URL.revokeObjectURL(url);
+            };
+        } else {
+            setPreviewUrl(null);
+        }
+    }, [selectedFile]);
 
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -57,126 +72,140 @@ export default function UploadImageModal({ onConfirm, agent, children }: UploadI
         setIsOpen(false);
     };
 
+    const renderActiveTabContent = () => {
+        if (activeTab === 'default') {
+            return (
+              <div className="flex flex-col gap-6">
+                <div className="flex flex-row justify-center gap-2">
+                  {DEFAULT_SPRITES.map((sprite) => (
+                    <button key={sprite.id} onClick={() => setSelectedSprite(sprite.id)} className={cn(
+                      'relative w-22 h-22 rounded-lg overflow-hidden border-2 transition-all',
+                      selectedSprite === sprite.id ? 'border-[#7F4FE8]' : 'border-[#E6EAEF] hover:border-[#C0A9F1]'
+                    )}>
+                        <AgentProfile
+                          width={88}
+                          height={88}
+                          imageUrl={sprite.url}
+                          backgroundColor={'#EDEFF2'}
+                        />
+                    </button>
+                  ))}
+                </div>
+                <Button
+                    onClick={handleConfirm}
+                    type="large"
+                    variant="primary"
+                    className="px-4 py-[18px]"
+                >
+                    Confirm
+                </Button>
+              </div>
+            )
+        } else {
+            return (
+                <div className="flex flex-col gap-6">
+                    <div className="flex flex-col gap-2">
+                        {/* Uploaded image preview */}
+                        {previewUrl && (
+                            <div className="flex flex-col items-center gap-2">
+                                <div className="relative w-full h-full min-h-[22px]">
+                                    <Image
+                                        src={previewUrl}
+                                        alt="Preview"
+                                        fill
+                                        className="object-contain"
+                                        unoptimized
+                                    />
+                                </div>
+                            </div>
+                        )}
+                        {/* File Input and Upload Button */}
+                        <div className="flex gap-3">
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/png"
+                                onChange={handleFileSelect}
+                                className="hidden"
+                            />
+                            <input
+                                type="text"
+                                readOnly
+                                value={selectedFile?.name || ''}
+                                onClick={handleUploadClick}
+                                placeholder="PNG image"
+                                className="flex-1 px-4 py-2.5 border border-[#CDD4DE] rounded-[4px] bg-[#F3F4F5] text-sm text-black placeholder:text-[#C6CDD5] hover:cursor-pointer"
+                            />
+                            <Button
+                                onClick={handleConfirm}
+                                type="small"
+                                variant="primary"
+                                className="px-6 py-2"
+                                disabled={!selectedFile}
+                            >
+                                Upload
+                            </Button>
+                        </div>
+                    </div>
+
+                    {/* Info Box */}
+                    <div className="bg-[#FFF9E6] border-2 border-dashed border-[#E6D5A3] rounded-lg p-4">
+                        <div className="flex flex-col items-center gap-2">
+                            {/* Sprite Preview Area - 레이아웃만 */}
+                            <div className="flex flex-wrap gap-1 justify-center w-full min-h-[22px]">
+                                <Image
+                                    src={'/sprite/sprite_cat.png'}
+                                    height={22}
+                                    width={22/40*480} // 480 is the width of the sprite_cat.png
+                                    alt="Sprite Preview"
+                                />
+                            </div>
+                            <p className="text-[#B8860B] text-sm text-center">
+                                Upload a 40×40 transparent PNG sprite. (front-left-back-right)
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )
+        }
+    }
+
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>{children}</DialogTrigger>
-            <DialogContent className="max-w-md p-0">
-                <DialogHeader className="px-6 pt-6 pb-4">
+            <DialogContent className="max-w-md px-4 py-6">
+                <DialogHeader className="flex flex-col gap-3">
                     <DialogTitle className="text-xl font-bold text-black text-center">
                         Set Agent Appearance
                     </DialogTitle>
+                    {/* Tabs */}
+                    <div className="flex flex-row gap-0 px-6 border-b border-[#EAEAEA]">
+                        <button
+                            onClick={() => setActiveTab('default')}
+                            className={cn(
+                                'flex-1 pb-3 font-semibold transition-colors',
+                                activeTab === 'default'
+                                    ? 'text-black border-b-2 border-[#7F4FE8]'
+                                    : 'text-[#838D9D] border-b-2 border-transparent'
+                            )}
+                        >
+                            Default
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('custom')}
+                            className={cn(
+                                'flex-1 pb-3 font-semibold transition-colors',
+                                activeTab === 'custom'
+                                    ? 'text-black border-b-2 border-[#7F4FE8]'
+                                    : 'text-[#838D9D] border-b-2 border-transparent'
+                            )}
+                        >
+                            Custom
+                        </button>
+                    </div>
                 </DialogHeader>
-                
-                {/* Tabs */}
-                <div className="flex flex-row gap-0 px-6 border-b border-[#EAEAEA]">
-                    <button
-                        onClick={() => setActiveTab('default')}
-                        className={cn(
-                            'flex-1 pb-3 font-semibold transition-colors',
-                            activeTab === 'default'
-                                ? 'text-black border-b-2 border-[#7F4FE8]'
-                                : 'text-[#838D9D] border-b-2 border-transparent'
-                        )}
-                    >
-                        Default
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('custom')}
-                        className={cn(
-                            'flex-1 pb-3 font-semibold transition-colors',
-                            activeTab === 'custom'
-                                ? 'text-black border-b-2 border-[#7F4FE8]'
-                                : 'text-[#838D9D] border-b-2 border-transparent'
-                        )}
-                    >
-                        Custom
-                    </button>
-                </div>
-
                 {/* Content */}
-                <div className="px-6 py-6">
-                    {activeTab === 'default' ? (
-                        <div className="grid grid-cols-3 gap-4">
-                            {DEFAULT_SPRITES.map((sprite) => (
-                                <button
-                                    key={sprite.id}
-                                    onClick={() => setSelectedSprite(sprite.id)}
-                                    className={cn(
-                                        'relative aspect-square rounded-lg overflow-hidden border-2 transition-all',
-                                        selectedSprite === sprite.id
-                                            ? 'border-[#7F4FE8]'
-                                            : 'border-[#E6EAEF] hover:border-[#C0A9F1]'
-                                    )}
-                                >
-                                    <AgentProfile
-                                        width={88}
-                                        height={88}
-                                        imageUrl={sprite.url}
-                                    />
-                                </button>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="flex flex-col gap-4">
-                            {/* File Input and Upload Button */}
-                            <div className="flex gap-3">
-                                <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    accept="image/png"
-                                    onChange={handleFileSelect}
-                                    className="hidden"
-                                />
-                                <input
-                                    type="text"
-                                    readOnly
-                                    value={selectedFile?.name || ''}
-                                    placeholder="PNG image"
-                                    className="flex-1 px-4 py-2 border border-[#E6EAEF] rounded-lg text-sm text-black placeholder:text-[#838D9D] bg-white"
-                                />
-                                <Button
-                                    onClick={handleUploadClick}
-                                    type="small"
-                                    variant="primary"
-                                    className="px-6 py-2"
-                                >
-                                    Upload
-                                </Button>
-                            </div>
-
-                            {/* Info Box */}
-                            <div className="bg-[#FFF9E6] border-2 border-dashed border-[#E6D5A3] rounded-lg p-4">
-                                <div className="flex flex-col items-center gap-2">
-                                    {/* Sprite Preview Area - 레이아웃만 */}
-                                    <div className="flex flex-wrap gap-1 justify-center w-full min-h-[60px]">
-                                        {/* 12개의 스프라이트 슬롯 레이아웃 */}
-                                        {Array.from({ length: 12 }).map((_, index) => (
-                                            <div
-                                                key={index}
-                                                className="w-8 h-8 bg-gray-200 border border-gray-300 rounded"
-                                            />
-                                        ))}
-                                    </div>
-                                    <p className="text-[#B8860B] text-sm text-center">
-                                        Upload a 40×40 transparent PNG sprite. (front-left-back-right)
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                {/* Footer */}
-                <div className="px-6 pb-6">
-                    <Button
-                        onClick={handleConfirm}
-                        type="large"
-                        variant="primary"
-                        className="w-full"
-                    >
-                        Confirm
-                    </Button>
-                </div>
+                {renderActiveTabContent()}
             </DialogContent>
         </Dialog>
     );
