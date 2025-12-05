@@ -13,6 +13,7 @@ import { Triangle } from 'lucide-react';
 import ChatMessageCard from './ChatMessageCard';
 import { AgentState } from '@/lib/agent';
 import { generateAgentComboId } from '@/lib/hash';
+import { Spinner } from './ui/spinner';
 
 interface ChatBoxProps {
     className?: string;
@@ -708,6 +709,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 {displayedMessages.map((message) => (
                     <ChatMessageCard key={message.id} message={message} />
                 ))}
+                {isMessageLoading && <Spinner className='text-white size-4' />}
                 <div ref={messagesEndRef} />
             </div>
 
