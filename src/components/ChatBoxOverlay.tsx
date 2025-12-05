@@ -65,6 +65,7 @@ export default function ChatBoxOverlay({
                         lastMessageAt: threadData.lastMessageAt
                       });
                   }
+                  fetchedThreads.sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
                   setThreads(fetchedThreads);
                   console.log('fetchedThreads', fetchedThreads);
               }
