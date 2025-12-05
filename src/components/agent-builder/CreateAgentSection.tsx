@@ -1,10 +1,11 @@
 'use client';
 
 import Button from '@/components/ui/Button';
+import { A2A_BUILDER_URL } from '@/constants/agentContract';
 
 export default function CreateAgentSection() {
     const handleCreateAgent = async () => {
-        window.open('https://a2a-agent-builder.vercel.app/', '_blank');
+        window.open(A2A_BUILDER_URL, '_blank');
     }
 
     return (
