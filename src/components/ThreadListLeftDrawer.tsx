@@ -2,15 +2,23 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/u
 import { cn } from '@/lib/utils';
 import { Thread } from '@/types/thread';
 import ThreadCard from './ThreadCard';
+import { useThreadStore } from '@/stores';
+import { useEffect, useState } from 'react';
 
 interface ThreadListLeftDrawerProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onThreadSelect: (threadId: string) => void;
-    threads: Thread[];
 }
 
-export default function ThreadListLeftDrawer({ open, onOpenChange, threads, onThreadSelect }: ThreadListLeftDrawerProps) {
+export default function ThreadListLeftDrawer({ open, onOpenChange, onThreadSelect }: ThreadListLeftDrawerProps) {
+    const { threads } = useThreadStore();
+
+    const [displayedThreads, setDisplayedThreads] = useState<Thread[]>([]);
+    useEffect(() => {
+        setDisplayedThreads(threads.sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()));
+    }, [threads]);
+
     return (
         <Drawer open={open} onOpenChange={onOpenChange} direction="left">
             <DrawerContent
@@ -25,7 +33,7 @@ export default function ThreadListLeftDrawer({ open, onOpenChange, threads, onTh
                     <DrawerTitle />
                 </DrawerHeader>
                 <div className='flex flex-col w-full'>
-                  {threads.map((thread) => (
+                  {displayedThreads.map((thread) => (
                       <ThreadCard key={thread.id} thread={thread} onThreadSelect={onThreadSelect} />
                   ))}
                 </div>
