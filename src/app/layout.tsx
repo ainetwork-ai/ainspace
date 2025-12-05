@@ -1,4 +1,4 @@
-import { Geist, Geist_Mono } from 'next/font/google';
+import { Geist, Geist_Mono, Manrope } from 'next/font/google';
 import './globals.css';
 import '@coinbase/onchainkit/styles.css';
 import { Providers } from '@/providers/Providers';
@@ -13,6 +13,11 @@ const geistSans = Geist({
 
 const geistMono = Geist_Mono({
     variable: '--font-geist-mono',
+    subsets: ['latin']
+});
+
+const manrope = Manrope({
+    variable: '--font-manrope',
     subsets: ['latin']
 });
 
@@ -126,7 +131,7 @@ export default function RootLayout({
                     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
                 />
             </head>
-            <body className={`${geistSans.variable} ${geistMono.variable} antialiased`} suppressHydrationWarning>
+            <body className={`${geistSans.variable} ${geistMono.variable} ${manrope.variable} antialiased`} suppressHydrationWarning>
                 <Providers>
                     <AuthGuard>{children}</AuthGuard>
                 </Providers>

@@ -191,7 +191,7 @@ export default function AgentTab({
 
     return (
         <BaseTabContent isActive={isActive} className="bg-white">
-            <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-[30px] overflow-auto">
+            <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-[30px] overflow-auto font-manrope">
                 <div className="flex flex-col gap-4 px-5">
                     <p className="text-xl font-bold text-black text-center">Place your Agent to AINSpace</p>
                     <CreateAgentSection />
