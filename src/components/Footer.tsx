@@ -21,7 +21,7 @@ export default function Footer({ activeTab, onTabChange }: FooterProps) {
                             activeTab === 'agent' ? 'text-gray-100' : 'bg-[#424049] text-white'
                         )}
                     >
-                        <Image src="/footer/bottomTab/tab_icon_agent.png" alt="Agent" width={46} height={40} />
+                        <Image src="/footer/bottomTab/tab_icon_agent.svg" alt="Agent" width={46} height={40} />
                         <p className={'text-xs font-bold text-white'}>Agent</p>
                     </button>
                     <button
@@ -31,7 +31,7 @@ export default function Footer({ activeTab, onTabChange }: FooterProps) {
                             activeTab === 'map' ? 'text-gray-100' : 'bg-[#424049] text-white'
                         )}
                     >
-                        <Image src="/footer/bottomTab/tab_icon_map.png" alt="Map" width={46} height={40} />
+                        <Image src="/footer/bottomTab/tab_icon_map.svg" alt="Map" width={46} height={40} />
                         <p className={'text-xs font-bold text-white'}>Map</p>
                     </button>
                     <button
@@ -41,7 +41,7 @@ export default function Footer({ activeTab, onTabChange }: FooterProps) {
                             activeTab === 'build' ? 'text-gray-100' : 'bg-[#424049] text-white'
                         )}
                     >
-                        <Image src="/footer/bottomTab/tab_icon_build.png" alt="Build" width={46} height={40} />
+                        <Image src="/footer/bottomTab/tab_icon_build.svg" alt="Build" width={46} height={40} />
                         <p className={'text-xs font-bold text-white'}>Build</p>
                     </button>
                 </div>

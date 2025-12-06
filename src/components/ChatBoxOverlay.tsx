@@ -1,6 +1,5 @@
 'use client';
 
-import { useGameState } from '@/hooks/useGameState';
 import { cn } from '@/lib/utils';
 import { useThreadStore } from '@/stores';
 import { AgentState } from '@/lib/agent';
@@ -32,7 +31,6 @@ export default function ChatBoxOverlay({
     const [isChatSheetOpen, setIsChatSheetOpen] = useState(false);
     const [isThreadListSheetOpen, setIsThreadListSheetOpen] = useState(false);
     const {
-        threads,
         setThreads,
         setCurrentThreadId,
     } = useThreadStore();
@@ -65,6 +63,7 @@ export default function ChatBoxOverlay({
                         lastMessageAt: threadData.lastMessageAt
                       });
                   }
+                  fetchedThreads.sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
                   setThreads(fetchedThreads);
                   console.log('fetchedThreads', fetchedThreads);
               }
@@ -153,7 +152,6 @@ export default function ChatBoxOverlay({
             <ThreadListLeftDrawer
                 open={isThreadListSheetOpen}
                 onOpenChange={handleThreadListSheetOpen}
-                threads={threads}
                 onThreadSelect={handleThreadSelect}
             />
         </div>

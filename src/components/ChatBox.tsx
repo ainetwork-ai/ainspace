@@ -13,6 +13,7 @@ import { Triangle } from 'lucide-react';
 import ChatMessageCard from './ChatMessageCard';
 import { AgentState } from '@/lib/agent';
 import { generateAgentComboId } from '@/lib/hash';
+import { Spinner } from './ui/spinner';
 
 interface ChatBoxProps {
     className?: string;
@@ -52,6 +53,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
 
     const { address } = useAccount();
     const { worldPosition: playerPosition } = useGameStateStore();
+    const { updateThread } = useThreadStore();
 
     // FIXME(yoojin): move type
     interface BackendMessage {
@@ -474,6 +476,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 newDPMessages = [...(prev || []), newMessage];
                 return newDPMessages;
             }, threadIdToSend);
+
             // Extract mentioned agents from message
             const mentionMatches = userMessageText.match(/@(\w+)/g);
             const mentionedAgents = mentionMatches?.map((m) => m.substring(1)) || [];
@@ -510,6 +513,9 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
 
                 // Store the mapping between thread name and backend thread ID
                 if (result.threadId) {
+                    updateThread(result.threadId, {
+                        lastMessageAt: new Date().toISOString()
+                    });
                     console.log('Backend thread ID:', result.threadId);
                     const resultThread = findThreadById(result.threadId);
 
@@ -708,6 +714,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 {displayedMessages.map((message) => (
                     <ChatMessageCard key={message.id} message={message} />
                 ))}
+                {isMessageLoading && <Spinner className='text-white size-4' />}
                 <div ref={messagesEndRef} />
             </div>
 

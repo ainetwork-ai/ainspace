@@ -35,7 +35,14 @@ export default function ImportedAgentList({
               <NoAgentNotice/>
             ) : (
                 agents.map((agent) => (
-                    <ImportedAgentCard key={agent.url} agent={agent} onPlaceAgent={onPlaceAgent} onUnplaceAgent={onUnplaceAgent} onRemoveAgent={onRemoveAgent} onUploadImage={onUploadImage} />
+                    <ImportedAgentCard
+                        key={agent.url}
+                        agent={agent}
+                        onPlaceAgent={onPlaceAgent}
+                        onUnplaceAgent={onUnplaceAgent}
+                        onRemoveAgent={onRemoveAgent}
+                        onUploadImage={onUploadImage}
+                    />
                 ))
             )}
         </div>

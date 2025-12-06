@@ -18,6 +18,7 @@ interface ThreadState {
     addThread: (thread: Thread) => void;
     findThreadByName: (threadName: string) => Thread | undefined;
     findThreadById: (threadId: string) => Thread | undefined;
+    updateThread: (threadId: string, updates: Partial<Thread>) => void;
     removeThread: (threadId: string) => void;
     setCurrentThreadId: (threadId: string | undefined) => void;
     setBroadcastMessage: (message: string) => void;
@@ -36,6 +37,9 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
     addThread: (thread) => set((state) => ({ threads: [thread, ...state.threads] })),
     findThreadByName: (threadName) => get().threads.find(thread => thread.threadName === threadName),
     findThreadById: (threadId) => get().threads.find(thread => thread.id === threadId),
+    updateThread: (threadId, updates) => set((state) => {
+        return { threads: state.threads.map(t => t.id === threadId ? { ...t, ...updates } : t) }
+    }),
     removeThread: (threadId: string) => set((state) => {
         return { threads: state.threads.filter(thread => thread.id !== threadId) }
     }),
