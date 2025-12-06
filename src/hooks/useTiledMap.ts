@@ -4,6 +4,16 @@ import { useMapStore } from "@/stores/useMapStore";
 import { useGameStateStore } from "@/stores";
 import { TILE_SIZE } from "@/constants/game";
 
+// Tiled flip flags (비트 플래그)
+const FLIPPED_HORIZONTALLY_FLAG = 0x80000000;
+const FLIPPED_VERTICALLY_FLAG = 0x40000000;
+const FLIPPED_DIAGONALLY_FLAG = 0x20000000;
+const FLIP_MASK = ~(FLIPPED_HORIZONTALLY_FLAG | FLIPPED_VERTICALLY_FLAG | FLIPPED_DIAGONALLY_FLAG);
+
+function getActualGid(gid: number): number {
+  return (gid & FLIP_MASK) >>> 0;
+}
+
 type TiledLayer = {
   data: number[];
   name: string;
@@ -48,6 +58,7 @@ export function useTiledMap(
   const { 
     setMapData,
     setTilesets,
+    setCollisionTiles,
     mapData,
     tilesets,
   } = useMapStore();
@@ -102,9 +113,41 @@ export function useTiledMap(
         }),
       );
       setTilesets(_tilesets);
+
+      // 3️⃣ Layer1로 시작하는 레이어에서 충돌 타일 좌표 수집
+      const collisionTiles: Array<{ x: number; y: number }> = [];
+      const { width, height } = _mapData;
+
+      // 맵 중앙을 (0, 0)으로 설정하기 위한 오프셋 계산 (drawMap과 동일한 좌표계 사용)
+      const mapCenterX = Math.floor(width / 2);
+      const mapCenterY = Math.floor(height / 2);
+
+      for (const layer of _mapData.layers) {
+        // Layer1로 시작하는 레이어만 처리
+        if (layer.type === "tilelayer" && layer.name.startsWith("Layer1")) {
+          // 타일 데이터 순회 (맵 좌표계)
+          for (let mapY = 0; mapY < height; mapY++) {
+            for (let mapX = 0; mapX < width; mapX++) {
+              const tileIndex = mapY * width + mapX;
+              const rawGid = layer.data[tileIndex];
+              // flip 플래그 제거하여 실제 gid 추출
+              const gid = getActualGid(rawGid);
+              // gid가 0이 아니면 충돌 타일로 판정
+              if (gid !== 0) {
+                // 맵 좌표계를 월드 좌표계로 변환 (맵 중앙이 0, 0)
+                const worldX = mapX - mapCenterX;
+                const worldY = mapY - mapCenterY;
+                collisionTiles.push({ x: worldX, y: worldY });
+              }
+            }
+          }
+        }
+      }
+
+      setCollisionTiles(collisionTiles);
     }
     loadMap();
-  }, [mapUrl]);
+  }, [mapUrl, setMapData, setTilesets, setCollisionTiles]);
 
   useEffect(() => {
     async function drawMap() {
@@ -175,8 +218,12 @@ export function useTiledMap(
 
             // 타일 인덱스 계산 (맵 좌표계 사용)
             const tileIndex = mapTileY * width + mapTileX;
-            const gid = layer.data[tileIndex];
+            const rawGid = layer.data[tileIndex];
 
+            if (rawGid === 0) continue;
+
+            // flip 플래그 제거하여 실제 gid 추출
+            const gid = getActualGid(rawGid);
             if (gid === 0) continue;
 
             // gid에 맞는 tileset 찾기
@@ -190,8 +237,8 @@ export function useTiledMap(
             // 화면 좌표 계산 (맵 중앙 기준 좌표계로 직접 계산)
             const screenTileX = centerTileX - cameraTilePositionX;
             const screenTileY = centerTileY - cameraTilePositionY;
-            const dx = screenTileX * TILE_SIZE;
-            const dy = screenTileY * TILE_SIZE;
+            const dx = screenTileX * TILE_SIZE - TILE_SIZE / 4;
+            const dy = screenTileY * TILE_SIZE - TILE_SIZE / 4;
 
             // 화면 밖 타일도 그리되, 클리핑은 브라우저가 처리
             ctx.drawImage(
@@ -213,7 +260,7 @@ export function useTiledMap(
     }
 
     drawMap();
-  }, [mapData, tilesets, worldPosition]);
+  }, [mapData, tilesets, worldPosition, canvasSize]);
 
   return { canvasRef, isLoaded, cameraTilePosition };
 }

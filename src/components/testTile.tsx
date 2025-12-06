@@ -78,17 +78,19 @@ const getStartFrame = (direction: DIRECTION) => {
                 const agentSpriteUrl = agent.spriteUrl || '/sprite/sprite_user.png';
                 const agentSpriteHeight = agent.spriteHeight || TILE_SIZE;
 
-                const topOffset = agentSpriteHeight === TILE_SIZE ? agentSpriteHeight / 4 : agentSpriteHeight / 1.5;
+                const agentTopOffset = agentSpriteHeight - TILE_SIZE;
 
                 return (
                     <div
                         key={agent.id}
                         style={{
                             position: 'absolute',
-                            left: `${agentScreenX * TILE_SIZE - TILE_SIZE / 4}px`,
-                            top: `${agentScreenY * TILE_SIZE - topOffset}px`,
+                            left: `${agentScreenX * TILE_SIZE}px`,
+                            top: `${agentScreenY * TILE_SIZE - agentTopOffset}px`,
                             width: `${TILE_SIZE}px`,
                             height: `${TILE_SIZE}px`,
+                            display: 'flex',
+                            alignItems: 'flex-end',
                             pointerEvents: 'auto',
                             cursor: 'default'
                         }}
@@ -136,14 +138,19 @@ const getStartFrame = (direction: DIRECTION) => {
                 const playerScreenTileY = worldPosition.y - cameraTilePosition.y;
                 const playerStartFrame = getStartFrame(playerDirection);
 
+                const playerSpriteHeight = 50;
+                const playerTopOffset = playerSpriteHeight - TILE_SIZE;
+
                 return (
                     <div
                         style={{
                             position: 'absolute',
                             left: `${playerScreenTileX * TILE_SIZE - TILE_SIZE / 4}px`,
-                            top: `${playerScreenTileY * TILE_SIZE - 60}px`,
+                            top: `${playerScreenTileY * TILE_SIZE - playerTopOffset}px`,
                             width: `${TILE_SIZE}px`,
                             height: `${TILE_SIZE}px`,
+                            display: 'flex',
+                            alignItems: 'flex-end',
                             pointerEvents: 'none',
                             zIndex: 10
                         }}
@@ -152,7 +159,7 @@ const getStartFrame = (direction: DIRECTION) => {
                             key={`player-${playerDirection}`}
                             sprite="/sprite/sprite_user.png"
                             width={TILE_SIZE}
-                            height={50}
+                            height={playerSpriteHeight}
                             scale={1}
                             fps={6}
                             frameCount={playerStartFrame + 3}

@@ -35,15 +35,21 @@ type TiledMap = {
 interface MapState {
   mapData: TiledMap | null;
   tilesets: TilesetResource[];
+  collisionTiles: Array<{ x: number; y: number }>;
 
   setMapData: (mapData: TiledMap) => void;
   setTilesets: (tilesets: TilesetResource[]) => void;
+  setCollisionTiles: (collisionTiles: Array<{ x: number; y: number }>) => void;
+  isCollisionTile: (x: number, y: number) => boolean;
 }
 
-export const useMapStore = create<MapState>((set) => ({
+export const useMapStore = create<MapState>((set, get) => ({
   mapData: null,
   tilesets: [],
+  collisionTiles: [],
   
   setMapData: (mapData: TiledMap) => set({ mapData }),
   setTilesets: (tilesets: TilesetResource[]) => set({ tilesets }),
+  setCollisionTiles: (collisionTiles: Array<{ x: number; y: number }>) => set({ collisionTiles }),
+  isCollisionTile: (x: number, y: number) => get().collisionTiles.some((tile) => tile.x === x && tile.y === y),
 }));

@@ -5,10 +5,9 @@ import { useAccount } from 'wagmi';
 import Image from 'next/image';
 import { disconnect } from '@wagmi/core';
 
-import TileMap from '@/components/TileMap';
 import BaseTabContent from './BaseTabContent';
 import PlayerJoystick from '@/components/controls/PlayerJoystick';
-import { DIRECTION, TILE_SIZE } from '@/constants/game';
+import { DIRECTION } from '@/constants/game';
 import { useGameState } from '@/hooks/useGameState';
 import { TileLayers, useBuildStore } from '@/stores/useBuildStore';
 import { shortAddress } from '@/lib/utils';
@@ -17,6 +16,7 @@ import ChatBoxOverlay from '../ChatBoxOverlay';
 import { ChatBoxRef } from '../ChatBox';
 import { useAgentStore } from '@/stores';
 import TiledMapCanvas from '../testTile';
+import { useMapStore } from '@/stores/useMapStore';
 
 interface MapTabProps {
     isActive: boolean;
@@ -50,6 +50,7 @@ export default function MapTab({
     } = useGameState();
 
     const { isBlocked: globalIsBlocked } = useBuildStore();
+    const { isCollisionTile } = useMapStore();
 
     const [isJoystickVisible, setIsJoystickVisible] = useState(true);
 
@@ -98,6 +99,11 @@ export default function MapTab({
             // if (globalIsBlocked(newX, newY)) {
             //     return;
             // }
+
+            if (isCollisionTile(newX, newY)) {
+                console.log("@@@@@@@@@@@ isCollisionTile", newX, newY);
+                return;
+            }
 
             // Check if A2A agent is at this position
             const isOccupiedByA2A = Object.values(agents).some((agent) => agent.x === newX && agent.y === newY);
