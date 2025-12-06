@@ -49,7 +49,7 @@ export default function MapTab({
         isPlayerMoving,
     } = useGameState();
 
-    const { isCollisionTile } = useMapStore();
+    const { isCollisionTile, mapStartPosition, mapEndPosition } = useMapStore();
 
     const [isJoystickVisible, setIsJoystickVisible] = useState(true);
 
@@ -65,7 +65,10 @@ export default function MapTab({
             return distance <= broadcastRadius;
         });
     }, [agents, worldPosition]);
-
+    
+    const isOutOfBounds = useCallback((x: number, y: number) => {
+      return x < mapStartPosition.x || x > mapEndPosition.x || y < mapStartPosition.y || y > mapEndPosition.y;
+    }, [mapStartPosition.x, mapStartPosition.y, mapEndPosition.x, mapEndPosition.y]);
 
     const handleMobileMove = useCallback(
         (direction: DIRECTION) => {
@@ -102,17 +105,20 @@ export default function MapTab({
                 return;
             }
 
+            if (isOutOfBounds(newX, newY)) {
+                return;
+            }
+
             // Check if A2A agent is at this position
             const isOccupiedByA2A = Object.values(agents).some((agent) => agent.x === newX && agent.y === newY);
 
             if (isOccupiedByA2A) {
-                const blockingAgent = Object.values(agents).find((agent) => agent.x === newX && agent.y === newY);
                 return;
             }
             // Move player (this will also check worldAgents in useGameState)
             movePlayer(direction);
         },
-        [isAutonomous, worldPosition, agents, movePlayer]
+        [isAutonomous, worldPosition, agents, movePlayer, isOutOfBounds, isCollisionTile]
     );
 
     // Keyboard handling for player movement (works alongside joystick)
@@ -173,7 +179,6 @@ export default function MapTab({
                         collisionMap={collisionMap}
                         onAgentClick={onAgentClick}
                     />
-                    {/* <TiledMapCanvas worldPosition={worldPosition} agents={agents} /> */}
                 </div>
 
                 {address && (
@@ -186,7 +191,7 @@ export default function MapTab({
                     </button>
                 )}
                 {isJoystickVisible && (
-                    <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 transform">
+                    <div className="absolute bottom-4 left-1/2 z-1001 -translate-x-1/2 transform">
                         <PlayerJoystick
                             onMove={handleMobileMove}
                             disabled={isAutonomous}
@@ -199,7 +204,7 @@ export default function MapTab({
             </div>
             <ChatBoxOverlay
                 chatBoxRef={chatBoxRef}
-                className="fixed bottom-[73px] left-0"
+                className="fixed bottom-[73px] left-0 z-1000"
                 setJoystickVisible={setIsJoystickVisible}
                 currentAgentsInRadius={getCurrentAgentsInRadius() || []}
             />

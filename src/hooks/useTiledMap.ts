@@ -270,5 +270,6 @@ export function useTiledMap(
     drawMap();
   }, [mapData, tilesets, worldPosition, canvasSize, setIsLoaded]);
 
+  
   return { canvasRef, isLoaded, cameraTilePosition, mapStartPosition, mapEndPosition };
 }
