@@ -5,30 +5,14 @@ import { useTiledMap } from '@/hooks/useTiledMap';
 import { DIRECTION, MAP_TILES, TILE_SIZE } from '@/constants/game';
 import { SpriteAnimator } from 'react-sprite-animator';
 import { useGameStateStore } from '@/stores';
-
-// FIXME(yoojin):  type 통일
-interface Agent {
-  id: string;
-  screenX: number;
-  screenY: number;
-  x?: number; // world position
-  y?: number; // world position
-  color: string;
-  name: string;
-  hasCharacterImage?: boolean;
-  direction?: DIRECTION;
-  isMoving?: boolean;
-  spriteUrl?: string;
-  spriteHeight?: number;
-  spriteWidth?: number;
-}
+import { AgentState } from '@/lib/agent';
 
 export default function TiledMapCanvas({ 
   worldPosition,
   agents,
 }: { 
   worldPosition: { x: number; y: number };
-  agents: Agent[];
+  agents: AgentState[];
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { playerDirection } = useGameStateStore();
@@ -80,16 +64,9 @@ const getStartFrame = (direction: DIRECTION) => {
 
             {/* Render Agents using SpriteAnimator */}
             {agents.map((agent) => {
-                let agentScreenX: number;
-                let agentScreenY: number;
 
-                if (agent.x !== undefined && agent.y !== undefined) {
-                    agentScreenX = agent.x - cameraTilePosition.x;
-                    agentScreenY = agent.y - cameraTilePosition.y;
-                } else {
-                    agentScreenX = agent.screenX;
-                    agentScreenY = agent.screenY;
-                }
+                const agentScreenX = agent.x - cameraTilePosition.x;
+                const agentScreenY = agent.y - cameraTilePosition.y;
 
                 if (agentScreenX < -1 || agentScreenX > MAP_TILES || agentScreenY < -1 || agentScreenY > MAP_TILES) {
                     return null;
