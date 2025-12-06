@@ -494,6 +494,7 @@ function TileMap({
                 const agentSpriteHeight = agent.spriteHeight || TILE_SIZE;
 
                 const topOffset = agentSpriteHeight === TILE_SIZE ? agentSpriteHeight / 4 : agentSpriteHeight / 1.5;
+                const agentZIndex = 100 + (agent.y || 0);
 
                 return (
                     <div
@@ -505,7 +506,8 @@ function TileMap({
                             width: `${tileSize}px`,
                             height: `${tileSize}px`,
                             pointerEvents: 'auto',
-                            cursor: onAgentClick ? 'pointer' : 'default'
+                            cursor: onAgentClick ? 'pointer' : 'default',
+                            zIndex: agentZIndex
                         }}
                         onClick={(e) => {
                             e.stopPropagation();
@@ -557,6 +559,7 @@ function TileMap({
                 const playerScreenTileX = worldPosition.x - cameraTilePosition.x;
                 const playerScreenTileY = worldPosition.y - cameraTilePosition.y;
                 const playerStartFrame = getStartFrame(playerDirection);
+                const playerZIndex = 100 + worldPosition.y;
 
                 return (
                     <div
@@ -567,7 +570,7 @@ function TileMap({
                             width: `${tileSize}px`,
                             height: `${tileSize}px`,
                             pointerEvents: 'none',
-                            zIndex: 10
+                            zIndex: playerZIndex
                         }}
                     >
                         <SpriteAnimator
