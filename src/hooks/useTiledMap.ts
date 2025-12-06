@@ -51,7 +51,6 @@ export function useTiledMap(
   canvasSize: { width: number; height: number },
 ) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [isLoaded, setIsLoaded] = useState(false);
   const [cameraTilePosition, setCameraTilePosition] = useState({ x: 0, y: 0 });
   const { worldPosition } = useGameStateStore();
 
@@ -59,8 +58,14 @@ export function useTiledMap(
     setMapData,
     setTilesets,
     setCollisionTiles,
+    setMapStartPosition,
+    setMapEndPosition,
     mapData,
+    mapStartPosition,
+    mapEndPosition,
     tilesets,
+    setIsLoaded,
+    isLoaded,
   } = useMapStore();
 
   useEffect(() => {
@@ -145,9 +150,12 @@ export function useTiledMap(
       }
 
       setCollisionTiles(collisionTiles);
+      console.log('@@@@@@@@@@', mapCenterX, mapCenterY)
+      setMapStartPosition({ x: -mapCenterX, y: -mapCenterY });
+      setMapEndPosition({ x: mapCenterX, y: mapCenterY });
     }
     loadMap();
-  }, [mapUrl, setMapData, setTilesets, setCollisionTiles]);
+  }, [mapUrl, setMapData, setTilesets, setCollisionTiles, setMapStartPosition, setMapEndPosition]);
 
   useEffect(() => {
     async function drawMap() {
@@ -260,7 +268,7 @@ export function useTiledMap(
     }
 
     drawMap();
-  }, [mapData, tilesets, worldPosition, canvasSize]);
+  }, [mapData, tilesets, worldPosition, canvasSize, setIsLoaded]);
 
-  return { canvasRef, isLoaded, cameraTilePosition };
+  return { canvasRef, isLoaded, cameraTilePosition, mapStartPosition, mapEndPosition };
 }
