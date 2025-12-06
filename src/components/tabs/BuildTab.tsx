@@ -614,7 +614,6 @@ export default function BuildTab({
                             mapData={mapData}
                             tileSize={tileSize}
                             playerPosition={playerPosition}
-                            worldPosition={worldPosition}
                             agents={agents}
                             customTiles={{
                                 layer0: { ...(publishedTiles.layer0 || {}), ...(customTiles.layer0 || {}) },
