@@ -66,33 +66,40 @@ export function useTiledMap(
         ignoreDeclaration: true,
       });
 
+      console.log(_mapData.tilesets);
+
       const _tilesets: TilesetResource[] = await Promise.all(
         _mapData.tilesets.map(async (ts) => {
-          const tsxPath = "/map/" + ts.source;
-          const tsxText = await (await fetch(tsxPath)).text();
-          const tsx = parser.parse(tsxText).tileset;
-
-          const imagePath = "/map/" + tsx.image.source.replace("./", "");
-          const image = new Image();
-          await new Promise<void>((resolve) => {
-            image.onload = () => resolve();
-            image.src = imagePath;
-          });
-
-          const columns = parseInt(tsx.columns);
-          const tilecount = parseInt(tsx.tilecount);
-          const tilewidth = parseInt(tsx.tilewidth);
-          const tileheight = parseInt(tsx.tileheight);
-
-          return {
-            firstgid: ts.firstgid,
-            image,
-            columns,
-            tilecount,
-            tilewidth,
-            tileheight,
-          };
-        })
+          try {
+            const tsxPath = "/map/image-sources/" + ts.source;
+            const tsxText = await (await fetch(tsxPath)).text();
+            const tsx = parser.parse(tsxText).tileset;
+  
+            const imagePath = "/map/image-sources/" + tsx.image.source.replace("./", "");
+            const image = new Image();
+            await new Promise<void>((resolve) => {
+              image.onload = () => resolve();
+              image.src = imagePath;
+            });
+  
+            const columns = parseInt(tsx.columns);
+            const tilecount = parseInt(tsx.tilecount);
+            const tilewidth = parseInt(tsx.tilewidth);
+            const tileheight = parseInt(tsx.tileheight);
+  
+            return {
+              firstgid: ts.firstgid,
+              image,
+              columns,
+              tilecount,
+              tilewidth,
+              tileheight,
+            };
+          } catch (err) {
+            console.error(err);
+            return null as unknown as TilesetResource;
+          }
+        }),
       );
       setTilesets(_tilesets);
     }

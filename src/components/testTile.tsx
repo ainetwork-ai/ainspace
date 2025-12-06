@@ -53,7 +53,7 @@ const getStartFrame = (direction: DIRECTION) => {
 
 
   const { canvasRef, isLoaded, cameraTilePosition } = useTiledMap(
-    '/map/design map_640x640_gallery test(11.11).tmj',
+    '/map/map.tmj',
     canvasSize
   );
 
@@ -132,8 +132,6 @@ const getStartFrame = (direction: DIRECTION) => {
             })}
             {/* Render Player using SpriteAnimator */}
             {(() => {
-                // worldPosition과 cameraTilePosition 모두 맵 중앙 기준 좌표계 (맵 중앙 = 0,0)
-                // 따라서 변환 없이 직접 계산 가능
                 const playerScreenTileX = worldPosition.x - cameraTilePosition.x;
                 const playerScreenTileY = worldPosition.y - cameraTilePosition.y;
                 const playerStartFrame = getStartFrame(playerDirection);
@@ -154,7 +152,7 @@ const getStartFrame = (direction: DIRECTION) => {
                             key={`player-${playerDirection}`}
                             sprite="/sprite/sprite_user.png"
                             width={TILE_SIZE}
-                            height={86}
+                            height={50}
                             scale={1}
                             fps={6}
                             frameCount={playerStartFrame + 3}
@@ -162,28 +160,6 @@ const getStartFrame = (direction: DIRECTION) => {
                             shouldAnimate={true}
                             startFrame={playerStartFrame}
                         />
-                        {/* Show player coordinates when grid is visible */}
-                        {/* {showCollisionMap && !hideCoordinates && (
-                            <div
-                                style={{
-                                    position: 'absolute',
-                                    bottom: '-18px',
-                                    left: '50%',
-                                    transform: 'translateX(-50%)',
-                                    fontSize: '11px',
-                                    fontWeight: 'bold',
-                                    color: '#fff',
-                                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                                    padding: '2px 6px',
-                                    borderRadius: '4px',
-                                    whiteSpace: 'nowrap',
-                                    zIndex: 20,
-                                    pointerEvents: 'none'
-                                }}
-                            >
-                                ({worldPosition.x}, {worldPosition.y})
-                            </div>
-                        )} */}
                     </div>
                 );
             })()}
