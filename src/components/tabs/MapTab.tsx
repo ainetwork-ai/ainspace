@@ -7,16 +7,16 @@ import { disconnect } from '@wagmi/core';
 
 import BaseTabContent from './BaseTabContent';
 import PlayerJoystick from '@/components/controls/PlayerJoystick';
-import { DIRECTION } from '@/constants/game';
+import { DIRECTION, TILE_SIZE } from '@/constants/game';
 import { useGameState } from '@/hooks/useGameState';
-import { TileLayers, useBuildStore } from '@/stores/useBuildStore';
+import { TileLayers } from '@/stores/useBuildStore';
 import { shortAddress } from '@/lib/utils';
 import { config } from '@/lib/wagmi-config';
 import ChatBoxOverlay from '../ChatBoxOverlay';
 import { ChatBoxRef } from '../ChatBox';
 import { useAgentStore } from '@/stores';
-import TiledMapCanvas from '../testTile';
 import { useMapStore } from '@/stores/useMapStore';
+import TileMap from '../TileMap';
 
 interface MapTabProps {
     isActive: boolean;
@@ -49,7 +49,6 @@ export default function MapTab({
         isPlayerMoving,
     } = useGameState();
 
-    const { isBlocked: globalIsBlocked } = useBuildStore();
     const { isCollisionTile } = useMapStore();
 
     const [isJoystickVisible, setIsJoystickVisible] = useState(true);
@@ -93,7 +92,6 @@ export default function MapTab({
                     break;
             }
 
-
             // FIXME(yoojin): temp comment out
             // // Check if tile is blocked by collision map
             // if (globalIsBlocked(newX, newY)) {
@@ -101,7 +99,6 @@ export default function MapTab({
             // }
 
             if (isCollisionTile(newX, newY)) {
-                console.log("@@@@@@@@@@@ isCollisionTile", newX, newY);
                 return;
             }
 
@@ -134,7 +131,6 @@ export default function MapTab({
             switch (event.key) {
                 case 'ArrowUp':
                     event.preventDefault();
-                    console.log("@@@@@@@@@@@ ArrowUp");
                     handleMobileMove(DIRECTION.UP);
                     break;
                 case 'ArrowDown':
@@ -161,11 +157,10 @@ export default function MapTab({
             {/* Game Area */}
             <div className="relative flex h-full w-full flex-col" style={{ touchAction: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}>
                 <div className="flex h-full w-full items-center justify-center select-none" style={{ WebkitUserSelect: 'none', userSelect: 'none' }}>
-                    {/* <TileMap
+                    <TileMap
                         mapData={mapData}
                         tileSize={TILE_SIZE}
                         playerPosition={playerPosition}
-                        worldPosition={worldPosition}
                         agents={agents}
                         customTiles={{
                             layer0: { ...(publishedTiles.layer0 || {}), ...(customTiles.layer0 || {}) },
@@ -177,8 +172,8 @@ export default function MapTab({
                         playerIsMoving={isPlayerMoving}
                         collisionMap={collisionMap}
                         onAgentClick={onAgentClick}
-                    /> */}
-                    <TiledMapCanvas worldPosition={worldPosition} agents={agents} />
+                    />
+                    {/* <TiledMapCanvas worldPosition={worldPosition} agents={agents} /> */}
                 </div>
 
                 {address && (
