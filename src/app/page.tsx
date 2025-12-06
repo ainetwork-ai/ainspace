@@ -483,21 +483,16 @@ export default function Home() {
       // Get latest agents from store to avoid stale closure
       const currentA2AAgents = useAgentStore.getState().agents;
       const allAgents = [...visibleAgents, ...currentA2AAgents];
-      console.log('Checking position:', x, y, 'allAgents length:', allAgents.length);
       const isOccupied = allAgents.some((agent) => 
         {
-          console.log('Agent check:', agent.id, agent.x, agent.y, 'vs', x, y)
           return agent.x === x && agent.y === y;
         }
       );
-      console.log('isOccupied result:', isOccupied);
       return !isOccupied;
   }, [globalIsBlocked, worldPosition, visibleAgents]);
 
   // Find a non-blocked spawn position in one of the deployment zones
   const findAvailableSpawnPosition = useCallback((selectedCenter: { x: number; y: number }): { x: number; y: number } | null => {
-    console.log(`Selected deployment zone: (${selectedCenter.x}, ${selectedCenter.y})`);
-
     // Search in expanding radius from selected zone center
     for (let radius = 1; radius <= MAX_SEARCH_RADIUS; radius++) {
         // Collect all positions at current radius
