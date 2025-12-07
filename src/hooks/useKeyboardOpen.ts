@@ -12,6 +12,7 @@ export function useKeyboardOpen(): boolean {
     useEffect(() => {
         // visualViewport API가 지원되는 경우
         if (typeof window !== 'undefined' && window.visualViewport) {
+            console.log('visualViewport API is supported');
             const handleResize = () => {
                 const viewport = window.visualViewport;
                 if (!viewport) return;
@@ -36,6 +37,7 @@ export function useKeyboardOpen(): boolean {
         } else {
             // visualViewport가 지원되지 않는 경우 fallback
             // window.innerHeight 변화로 감지 (덜 정확함)
+            console.log('visualViewport API is not supported');
             const initialHeight = window.innerHeight;
 
             const handleResize = () => {
