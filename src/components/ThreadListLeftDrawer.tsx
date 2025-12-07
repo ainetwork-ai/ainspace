@@ -4,6 +4,7 @@ import { Thread } from '@/types/thread';
 import ThreadCard from './ThreadCard';
 import { useThreadStore } from '@/stores';
 import { useEffect, useState } from 'react';
+import { Z_INDEX_OFFSETS } from '@/constants/common';
 
 interface ThreadListLeftDrawerProps {
     open: boolean;
@@ -28,6 +29,7 @@ export default function ThreadListLeftDrawer({ open, onOpenChange, onThreadSelec
                         "bg-[#1A1D22]",
                     )
                 }
+                style={{ zIndex: Z_INDEX_OFFSETS.UI + 2 }}
             >
                 <DrawerHeader>
                     <DrawerTitle />

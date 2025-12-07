@@ -21,6 +21,7 @@ type TilesetResource = {
   tilecount: number;
   tilewidth: number;
   tileheight: number;
+  imageScale?: number;
 };
 
 type TiledMap = {

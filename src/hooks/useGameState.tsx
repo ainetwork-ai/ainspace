@@ -114,29 +114,11 @@ export function useGameState() {
                     break;
             }
 
-            // if (
-            //     newWorldPosition.x < MIN_WORLD_X ||
-            //     newWorldPosition.x > MAX_WORLD_X ||
-            //     newWorldPosition.y < MIN_WORLD_Y ||
-            //     newWorldPosition.y > MAX_WORLD_Y
-            // ) {
-            //     return;
-            // }
-
             // Check if the new world position is walkable
             const tileType = generateTileAt(newWorldPosition.x, newWorldPosition.y);
             if (tileType === 3) {
-                // Stone/wall - can't move there
-                console.log("@@@@@@@@@@@ movePlayer blocked by stone");
                 return;
             }
-
-            // FIXME(yoojin): temp comment out
-            // // Check layer1 collision
-            // if (isLayer1Blocked(newWorldPosition.x, newWorldPosition.y)) {
-            //     console.log("@@@@@@@@@@@ movePlayer blocked by layer1");
-            //     return;
-            // }
 
             // Check if a world agent is at this position
             const isOccupiedByWorldAgent = agents.some(

@@ -3,6 +3,8 @@ import ChatBox, { ChatBoxRef } from './ChatBox';
 import { AgentState } from '@/lib/agent';
 import { cn } from '@/lib/utils';
 import { useKeyboardOpen } from '@/hooks/useKeyboardOpen';
+import { Z_INDEX_OFFSETS } from '@/constants/common';
+import { useEffect, useState } from 'react';
 
 interface ChatBottomDrawerProps {
     open: boolean;
@@ -23,18 +25,40 @@ export default function ChatBottomDrawer({
     onThreadSelect,
     currentAgentsInRadius,
   }: ChatBottomDrawerProps) {
-    const isKeyboardOpen = useKeyboardOpen();
-    
+    const { isKeyboardOpen } = useKeyboardOpen();
+    const [viewportHeight, setViewportHeight] = useState(800);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        const updateHeight = () => setTimeout(() => {
+            setViewportHeight(window.innerHeight);
+        }, 300);
+
+        // 초기 높이 설정
+        updateHeight();
+
+        // resize 이벤트로 높이 추적
+        window.addEventListener('resize', updateHeight);
+
+        return () => {
+            window.removeEventListener('resize', updateHeight);
+        };
+    }, []);
     return (
         <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" >
-            <DrawerContent 
+            <DrawerContent
                 className={
                     cn(
-                        "h-dvh max-h-[calc(100dvh-73px)] z-49",
+                        "max-h-[calc(100dvh-73px)]",
                         isKeyboardOpen ? "pb-0" : "pb-[73px]",
                         "bg-black/50",
                     )
                 }
+                style={{
+                  zIndex: Z_INDEX_OFFSETS.UI + 1,
+                  height: viewportHeight < 500 ? `${viewportHeight}px` : '100%',
+                }}
             >
                 <DrawerHeader hidden>
                     <DrawerTitle />

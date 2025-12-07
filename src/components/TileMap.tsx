@@ -7,6 +7,7 @@ import { useBuildStore, useChatStore, useGameStateStore } from '@/stores';
 import * as Sentry from '@sentry/nextjs';
 import { AgentState } from '@/lib/agent';
 import { useTiledMap } from '@/hooks/useTiledMap';
+import { Z_INDEX_OFFSETS } from '@/constants/common';
 
 // Data structure for multi-tile items
 interface ItemTileData {
@@ -494,7 +495,7 @@ function TileMap({
                 const agentSpriteHeight = agent.spriteHeight || TILE_SIZE;
 
                 const topOffset = agentSpriteHeight === TILE_SIZE ? agentSpriteHeight / 4 : agentSpriteHeight / 1.5;
-                const agentZIndex = 100 + (agent.y || 0);
+                const agentZIndex = Z_INDEX_OFFSETS.GAME + (agent.y || 0);
 
                 return (
                     <div
@@ -559,7 +560,7 @@ function TileMap({
                 const playerScreenTileX = worldPosition.x - cameraTilePosition.x;
                 const playerScreenTileY = worldPosition.y - cameraTilePosition.y;
                 const playerStartFrame = getStartFrame(playerDirection);
-                const playerZIndex = 100 + worldPosition.y;
+                const playerZIndex = Z_INDEX_OFFSETS.GAME + worldPosition.y;
 
                 return (
                     <div

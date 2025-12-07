@@ -12,6 +12,7 @@ import ThreadListLeftDrawer from './ThreadListLeftDrawer';
 import { useAccount } from 'wagmi';
 import { Thread } from '@/stores';
 import { generateAgentComboId } from '@/lib/hash';
+import { Z_INDEX_OFFSETS } from '@/constants/common';
 
 interface ChatBoxOverlayProps {
     chatBoxRef: React.RefObject<ChatBoxRef | null>;
@@ -77,7 +78,6 @@ export default function ChatBoxOverlay({
 
     const handleChatSheetOpen = (open: boolean) => {
       setIsChatSheetOpen(open);
-      setJoystickVisible(!open);
 
       if (!open) {
         setCurrentThreadId('0');
@@ -86,8 +86,11 @@ export default function ChatBoxOverlay({
 
     const handleThreadListSheetOpen = (open: boolean) => {
       setIsThreadListSheetOpen(open);
-      setJoystickVisible(!open);
     }
+
+    useEffect(() => {
+      setJoystickVisible(!isChatSheetOpen && !isThreadListSheetOpen);
+    }, [isChatSheetOpen, isThreadListSheetOpen, setJoystickVisible])
 
     // Generate placeholder text
     const chatPlaceholder = useMemo(() => {
@@ -113,7 +116,7 @@ export default function ChatBoxOverlay({
     }
 
     return (
-        <div className={cn("relative w-full z-50", className)}>
+        <div className={cn("relative w-full", className)} style={{ zIndex: Z_INDEX_OFFSETS.UI }}>
             {!isChatSheetOpen &&
                 <div
                     className={

@@ -25,13 +25,11 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
         const newAgentUrl = agent.agentUrl;
         const isExist = get().agents.find((agent) => agent.agentUrl === newAgentUrl);
         if (isExist) {
-            console.log(`🔄 A2A Agent already exists: ${agent.name}`);
             return;
         }
         set((state) => ({
             agents: [...state.agents, agent]
         }));
-        console.log(`🔄 A2A Agent spawned: ${agent.name} at (${agent.x}, ${agent.y})`);
     },
 
     removeAgent: (agentUrl) =>

@@ -3,6 +3,7 @@
 import React from 'react';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
+import { Z_INDEX_OFFSETS } from '@/constants/common';
 
 interface FooterProps {
     activeTab: 'map' | 'thread' | 'build' | 'agent';
@@ -11,7 +12,7 @@ interface FooterProps {
 
 export default function Footer({ activeTab, onTabChange }: FooterProps) {
     return (
-        <div className="fixed right-0 bottom-0 left-0 z-50">
+        <div className="fixed right-0 bottom-0 left-0" style={{ zIndex: Z_INDEX_OFFSETS.UI }}>
             <div className="border-t border-black bg-black">
                 <div className="flex h-[72px] w-full">
                     <button
