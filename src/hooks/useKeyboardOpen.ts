@@ -21,8 +21,9 @@ export function useKeyboardOpen(): { isKeyboardOpen: boolean; remountKey: number
 
                 // visualViewport 높이가 window.innerHeight보다 작으면 키보드가 열린 것으로 간주
                 // 임계값은 보통 150px 정도 (키보드가 최소한 이 정도는 화면을 가림)
-                const threshold = 150;
-                const isOpen = viewport.height < window.innerHeight - threshold;
+                const threshold = 500;
+                console.error(viewport.height, window.innerHeight - threshold);
+                const isOpen = viewport.height < threshold;
                 setIsKeyboardOpen(isOpen);
             };
 
