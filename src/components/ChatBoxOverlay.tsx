@@ -78,7 +78,6 @@ export default function ChatBoxOverlay({
 
     const handleChatSheetOpen = (open: boolean) => {
       setIsChatSheetOpen(open);
-      setJoystickVisible(!open);
 
       if (!open) {
         setCurrentThreadId('0');
@@ -87,8 +86,11 @@ export default function ChatBoxOverlay({
 
     const handleThreadListSheetOpen = (open: boolean) => {
       setIsThreadListSheetOpen(open);
-      setJoystickVisible(!open);
     }
+
+    useEffect(() => {
+      setJoystickVisible(!isChatSheetOpen && !isThreadListSheetOpen);
+    }, [isChatSheetOpen, isThreadListSheetOpen, setJoystickVisible])
 
     // Generate placeholder text
     const chatPlaceholder = useMemo(() => {
