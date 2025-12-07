@@ -31,10 +31,10 @@ export default function ChatBottomDrawer({
     useEffect(() => {
         if (typeof window === 'undefined') return;
 
-        const updateHeight = () => {
+        const updateHeight = () => setTimeout(() => {
             console.info('updateHeight', window.innerHeight);
             setViewportHeight(window.innerHeight);
-        };
+        }, 1000);
 
         // 초기 높이 설정
         updateHeight();
