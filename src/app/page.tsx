@@ -66,7 +66,7 @@ export default function Home() {
         if (process.env.NEXT_PUBLIC_NODE_ENV !== 'production') {
             setTimeout(() => {
                 import('eruda').then((eruda) => eruda.default.init());
-            }, 2000);
+            }, 100);
         }
 
         const initCollisionMap = async () => {
