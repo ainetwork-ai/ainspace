@@ -25,6 +25,8 @@ interface MapTabProps {
     customTiles: TileLayers;
     collisionMap: { [key: string]: boolean };
     onAgentClick?: (agentId: string, agentName: string) => void;
+    HUDOff: boolean;
+    onHUDOffChange: (hudOff: boolean) => void;
 }
 
 export default function MapTab({
@@ -32,7 +34,9 @@ export default function MapTab({
     publishedTiles,
     customTiles,
     collisionMap,
-    onAgentClick
+    onAgentClick,
+    HUDOff,
+    onHUDOffChange,
 }: MapTabProps) {
     const { address } = useAccount();
     const { agents } = useAgentStore();
@@ -126,11 +130,16 @@ export default function MapTab({
     useEffect(() => {
         const handleKeyPress = (event: KeyboardEvent) => {
             // Reset location with Ctrl+R
-            if (event.ctrlKey && event.key.toLowerCase() === 'r') {
-                event.preventDefault();
-                resetLocation();
-                console.log('Location reset to initial position (63, 58)');
-                return;
+            if (event.ctrlKey) {
+                if (event.key.toLowerCase() === 'r') {
+                    event.preventDefault();
+                    resetLocation();
+                    console.log('Location reset to initial position (63, 58)');
+                    return;
+                } else if (event.key.toLowerCase() === 'h') {
+                    onHUDOffChange(!HUDOff);
+                    return;
+                }
             }
 
             if (isLoading || isAutonomous) return;
@@ -157,7 +166,7 @@ export default function MapTab({
 
         window.addEventListener('keydown', handleKeyPress);
         return () => window.removeEventListener('keydown', handleKeyPress);
-    }, [handleMobileMove, isLoading, isAutonomous, resetLocation]);
+    }, [handleMobileMove, isLoading, isAutonomous, resetLocation, onHUDOffChange, HUDOff]);
 
     return (
         <BaseTabContent isActive={isActive} withPadding={false}>
@@ -193,7 +202,11 @@ export default function MapTab({
                     </button>
                 )}
                 {isJoystickVisible && (
-                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 transform" style={{ zIndex: Z_INDEX_OFFSETS.GAME + 1 }}>
+                    <div 
+                        className="absolute bottom-4 left-1/2 -translate-x-1/2 transform"
+                        style={{ zIndex: Z_INDEX_OFFSETS.GAME + 1 }}
+                        hidden={HUDOff}
+                    >
                         <PlayerJoystick
                             onMove={handleMobileMove}
                             disabled={isAutonomous}
@@ -209,6 +222,7 @@ export default function MapTab({
                 className="fixed bottom-[73px] left-0 z-1000"
                 setJoystickVisible={setIsJoystickVisible}
                 currentAgentsInRadius={getCurrentAgentsInRadius() || []}
+                HUDOff={HUDOff}
             />
         </BaseTabContent>
     );
