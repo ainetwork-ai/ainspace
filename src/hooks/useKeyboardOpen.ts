@@ -10,6 +10,7 @@ export function useKeyboardOpen(): boolean {
     const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
 
     useEffect(() => {
+        console.log('useKeyboardOpen', window, window?.visualViewport);
         // visualViewport API가 지원되는 경우
         if (typeof window !== 'undefined' && window.visualViewport) {
             console.log('visualViewport API is supported');
