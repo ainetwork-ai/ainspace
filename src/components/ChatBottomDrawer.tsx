@@ -56,7 +56,7 @@ export default function ChatBottomDrawer({
                         "bg-black/50",
                     )
                 }
-                style={{ 
+                style={{
                   zIndex: Z_INDEX_OFFSETS.UI + 1,
                   height: viewportHeight < 500 ? `${viewportHeight}px` : '100%',
                 }}
