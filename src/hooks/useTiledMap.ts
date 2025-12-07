@@ -150,7 +150,6 @@ export function useTiledMap(
       }
 
       setCollisionTiles(collisionTiles);
-      console.log('@@@@@@@@@@', mapCenterX, mapCenterY)
       setMapStartPosition({ x: -mapCenterX, y: -mapCenterY });
       setMapEndPosition({ x: mapCenterX, y: mapCenterY });
     }
