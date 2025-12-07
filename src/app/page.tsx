@@ -12,6 +12,7 @@ import TempBuildTab from '@/components/tabs/TempBuildTab';
 import { useAccount } from 'wagmi';
 import sdk from '@farcaster/miniapp-sdk';
 import { StoredAgent } from '@/lib/redis';
+import { useMapStore } from '@/stores/useMapStore';
 
 // Spawn zones for deployed agents
 // Default agents center: (59, 70) with radius ~2-3 tiles
@@ -51,6 +52,7 @@ export default function Home() {
     } = useBuildStore();
     const { worldPosition, userId, agents: worldAgents, visibleAgents } = useGameState();
     const { agents, spawnAgent, removeAgent, setAgents } = useAgentStore();
+    const { mapStartPosition, mapEndPosition, isCollisionTile, isLoaded: isMapLoaded } = useMapStore();
     const { setFrameReady, isFrameReady } = useMiniKit();
     const [isSDKLoaded, setIsSDKLoaded] = useState(false);
     const { address } = useAccount();
@@ -162,7 +164,7 @@ export default function Home() {
                     let spawnX = state.x!;
                     let spawnY = state.y!;
 
-                    console.log(agentId, isPositionValid(spawnX, spawnY))
+                    console.log(agentId, spawnX, spawnY, isPositionValid(spawnX, spawnY))
                     if (!isPositionValid(spawnX, spawnY)) {
                         const validPosition = findAvailableSpawnPosition({ x: spawnX, y: spawnY });
                         if (!validPosition) {
@@ -199,8 +201,10 @@ export default function Home() {
             }
         };
 
-        loadDeployedAgents();
-    }, [spawnAgent]);
+        if (isMapLoaded) {
+            loadDeployedAgents();
+        }
+    }, [spawnAgent, isMapLoaded]);
 
     const handleAgentClick = (agentId: string, agentName: string) => {
         console.log(`Agent clicked: ${agentName} (${agentId})`);
@@ -465,12 +469,12 @@ export default function Home() {
 
     const isPositionValid = useCallback((x: number, y: number): boolean => {
       // Check boundaries
-      if (x < 0 || x >= MAP_TILES || y < 0 || y >= MAP_TILES) {
+      if (x < mapStartPosition.x || x > mapEndPosition.x || y < mapStartPosition.y || y > mapEndPosition.y) {
           return false;
       }
 
       // Check if position is blocked by collision map
-      if (globalIsBlocked(x, y)) {
+      if (isCollisionTile(x, y)) {
           return false;
       }
 
@@ -483,21 +487,16 @@ export default function Home() {
       // Get latest agents from store to avoid stale closure
       const currentA2AAgents = useAgentStore.getState().agents;
       const allAgents = [...visibleAgents, ...currentA2AAgents];
-      console.log('Checking position:', x, y, 'allAgents length:', allAgents.length);
       const isOccupied = allAgents.some((agent) => 
         {
-          console.log('Agent check:', agent.id, agent.x, agent.y, 'vs', x, y)
           return agent.x === x && agent.y === y;
         }
       );
-      console.log('isOccupied result:', isOccupied);
       return !isOccupied;
-  }, [globalIsBlocked, worldPosition, visibleAgents]);
+  }, [isCollisionTile, mapStartPosition, mapEndPosition, worldPosition, visibleAgents]);
 
   // Find a non-blocked spawn position in one of the deployment zones
   const findAvailableSpawnPosition = useCallback((selectedCenter: { x: number; y: number }): { x: number; y: number } | null => {
-    console.log(`Selected deployment zone: (${selectedCenter.x}, ${selectedCenter.y})`);
-
     // Search in expanding radius from selected zone center
     for (let radius = 1; radius <= MAX_SEARCH_RADIUS; radius++) {
         // Collect all positions at current radius

@@ -5,17 +5,18 @@ import { useAccount } from 'wagmi';
 import Image from 'next/image';
 import { disconnect } from '@wagmi/core';
 
-import TileMap from '@/components/TileMap';
 import BaseTabContent from './BaseTabContent';
 import PlayerJoystick from '@/components/controls/PlayerJoystick';
 import { DIRECTION, TILE_SIZE } from '@/constants/game';
 import { useGameState } from '@/hooks/useGameState';
-import { TileLayers, useBuildStore } from '@/stores/useBuildStore';
+import { TileLayers } from '@/stores/useBuildStore';
 import { shortAddress } from '@/lib/utils';
 import { config } from '@/lib/wagmi-config';
 import ChatBoxOverlay from '../ChatBoxOverlay';
 import { ChatBoxRef } from '../ChatBox';
 import { useAgentStore } from '@/stores';
+import { useMapStore } from '@/stores/useMapStore';
+import TileMap from '../TileMap';
 
 interface MapTabProps {
     isActive: boolean;
@@ -48,7 +49,7 @@ export default function MapTab({
         isPlayerMoving,
     } = useGameState();
 
-    const { isBlocked: globalIsBlocked } = useBuildStore();
+    const { isCollisionTile, mapStartPosition, mapEndPosition } = useMapStore();
 
     const [isJoystickVisible, setIsJoystickVisible] = useState(true);
 
@@ -64,7 +65,10 @@ export default function MapTab({
             return distance <= broadcastRadius;
         });
     }, [agents, worldPosition]);
-
+    
+    const isOutOfBounds = useCallback((x: number, y: number) => {
+      return x < mapStartPosition.x || x > mapEndPosition.x || y < mapStartPosition.y || y > mapEndPosition.y;
+    }, [mapStartPosition.x, mapStartPosition.y, mapEndPosition.x, mapEndPosition.y]);
 
     const handleMobileMove = useCallback(
         (direction: DIRECTION) => {
@@ -91,8 +95,17 @@ export default function MapTab({
                     break;
             }
 
-            // Check if tile is blocked by collision map
-            if (globalIsBlocked(newX, newY)) {
+            // FIXME(yoojin): temp comment out
+            // // Check if tile is blocked by collision map
+            // if (globalIsBlocked(newX, newY)) {
+            //     return;
+            // }
+
+            if (isCollisionTile(newX, newY)) {
+                return;
+            }
+
+            if (isOutOfBounds(newX, newY)) {
                 return;
             }
 
@@ -100,13 +113,12 @@ export default function MapTab({
             const isOccupiedByA2A = Object.values(agents).some((agent) => agent.x === newX && agent.y === newY);
 
             if (isOccupiedByA2A) {
-                const blockingAgent = Object.values(agents).find((agent) => agent.x === newX && agent.y === newY);
                 return;
             }
             // Move player (this will also check worldAgents in useGameState)
             movePlayer(direction);
         },
-        [isAutonomous, worldPosition, agents, movePlayer]
+        [isAutonomous, worldPosition, agents, movePlayer, isOutOfBounds, isCollisionTile]
     );
 
     // Keyboard handling for player movement (works alongside joystick)
@@ -155,7 +167,6 @@ export default function MapTab({
                         mapData={mapData}
                         tileSize={TILE_SIZE}
                         playerPosition={playerPosition}
-                        worldPosition={worldPosition}
                         agents={agents}
                         customTiles={{
                             layer0: { ...(publishedTiles.layer0 || {}), ...(customTiles.layer0 || {}) },
@@ -180,7 +191,7 @@ export default function MapTab({
                     </button>
                 )}
                 {isJoystickVisible && (
-                    <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 transform">
+                    <div className="absolute bottom-4 left-1/2 z-1001 -translate-x-1/2 transform">
                         <PlayerJoystick
                             onMove={handleMobileMove}
                             disabled={isAutonomous}
@@ -193,7 +204,7 @@ export default function MapTab({
             </div>
             <ChatBoxOverlay
                 chatBoxRef={chatBoxRef}
-                className="fixed bottom-[73px] left-0"
+                className="fixed bottom-[73px] left-0 z-1000"
                 setJoystickVisible={setIsJoystickVisible}
                 currentAgentsInRadius={getCurrentAgentsInRadius() || []}
             />

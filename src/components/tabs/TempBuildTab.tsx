@@ -493,7 +493,6 @@ export default function TempBuildTab({
                             mapData={mapData}
                             tileSize={tileSize}
                             playerPosition={playerPosition}
-                            worldPosition={worldPosition}
                             agents={[]}
                             customTiles={mergedCustomTiles}
                             buildMode={selectedTab === 'item' ? 'paint' : 'view'}

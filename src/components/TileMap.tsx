@@ -3,10 +3,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { SpriteAnimator } from 'react-sprite-animator';
 import { TILE_SIZE, MAP_TILES, DIRECTION } from '@/constants/game';
-import { useBuildStore, useChatStore } from '@/stores';
-import { useTileBasedMap, drawTiledMap } from '@/hooks/useTileBasedMap';
+import { useBuildStore, useChatStore, useGameStateStore } from '@/stores';
 import * as Sentry from '@sentry/nextjs';
 import { AgentState } from '@/lib/agent';
+import { useTiledMap } from '@/hooks/useTiledMap';
 
 // Data structure for multi-tile items
 interface ItemTileData {
@@ -28,7 +28,6 @@ interface TileMapProps {
     mapData: number[][];
     tileSize: number;
     playerPosition: { x: number; y: number };
-    worldPosition: { x: number; y: number };
     agents?: AgentState[];
     customTiles?: TileLayers | { [key: string]: string };
     layerVisibility?: { [key: number]: boolean };
@@ -49,7 +48,6 @@ interface TileMapProps {
 function TileMap({
     mapData,
     tileSize: baseTileSize,
-    worldPosition,
     agents = [],
     customTiles = {},
     layerVisibility = { 0: true, 1: true, 2: true },
@@ -66,7 +64,6 @@ function TileMap({
     hideCoordinates = false,
     onAgentClick
 }: TileMapProps) {
-    const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const [loadedImages, setLoadedImages] = useState<{ [key: string]: HTMLImageElement }>({});
 
@@ -74,20 +71,12 @@ function TileMap({
     const [lastPaintedTile, setLastPaintedTile] = useState<{ x: number; y: number } | null>(null);
     const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
 
-    // Tile-based map loading for layer 0 and layer 1
-    const { loadedTiles: layer0Tiles, tileConfig } = useTileBasedMap(
-        'land_layer_0',
-        worldPosition,
-        canvasSize,
-        baseTileSize
+    const { worldPosition } = useGameStateStore();
+    const { canvasRef, isLoaded, cameraTilePosition } = useTiledMap(
+        '/map/map.tmj',
+        canvasSize
     );
-
-    const { loadedTiles: layer1Tiles } = useTileBasedMap(
-        'land_layer_1',
-        worldPosition,
-        canvasSize,
-        baseTileSize
-    );
+  
     const [hoveredTile, setHoveredTile] = useState<{ x: number; y: number; layer: 0 | 1 | 2 } | null>(null);
     const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
     const [hoveredWorldCoords, setHoveredWorldCoords] = useState<{ worldX: number; worldY: number } | null>(null);
@@ -392,255 +381,6 @@ function TileMap({
         setLastPaintedTile(null);
     };
 
-    useEffect(() => {
-        const canvas = canvasRef.current;
-        if (!canvas) {
-            Sentry.addBreadcrumb({
-                category: 'tilemap',
-                message: 'Canvas ref is null',
-                level: 'warning'
-            });
-            return;
-        }
-
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-            Sentry.addBreadcrumb({
-                category: 'tilemap',
-                message: 'Failed to get 2D context',
-                level: 'error'
-            });
-            return;
-        }
-
-        // Start performance measurement
-        const renderStart = performance.now();
-
-        Sentry.addBreadcrumb({
-            category: 'tilemap',
-            message: 'Starting canvas render',
-            level: 'info',
-            data: {
-                canvasSize: canvasSize,
-                worldPosition: worldPosition,
-                layer0TilesCount: layer0Tiles.size,
-                layer1TilesCount: layer1Tiles.size
-            }
-        });
-
-        // Create offscreen canvas for double buffering to prevent flickering
-        const offscreenCanvas = document.createElement('canvas');
-        offscreenCanvas.width = canvas.width;
-        offscreenCanvas.height = canvas.height;
-        const offscreenCtx = offscreenCanvas.getContext('2d');
-
-        if (!offscreenCtx) return;
-
-        // Use offscreen context for all drawing operations
-        const renderCtx = offscreenCtx;
-
-        renderCtx.fillStyle = '#f0f8ff';
-        renderCtx.fillRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
-
-        const tilesX = Math.ceil(canvasSize.width / tileSize);
-        const tilesY = Math.ceil(canvasSize.height / tileSize);
-        const halfTilesX = Math.floor(tilesX / 2);
-        const halfTilesY = Math.floor(tilesY / 2);
-
-        let cameraTileX = worldPosition.x - halfTilesX;
-        let cameraTileY = worldPosition.y - halfTilesY;
-
-        cameraTileX = Math.max(0, Math.min(MAP_TILES - tilesX, cameraTileX));
-        cameraTileY = Math.max(0, Math.min(MAP_TILES - tilesY, cameraTileY));
-
-        // Draw layer 0 (background) using tile-based rendering
-        if (layerVisibility[0]) {
-            drawTiledMap(renderCtx, layer0Tiles, tileConfig, worldPosition, canvasSize, baseTileSize);
-        }
-
-        // Draw layer 1 using tile-based rendering
-        if (layerVisibility[1]) {
-            drawTiledMap(renderCtx, layer1Tiles, tileConfig, worldPosition, canvasSize, baseTileSize);
-        }
-
-        const screenTileWidth = canvas.width / tilesX;
-        const screenTileHeight = canvas.height / tilesY;
-
-        if (isLayeredTiles(customTiles)) {
-            [0, 1, 2].forEach((layerIndex) => {
-                if (!layerVisibility[layerIndex]) return;
-
-                const layerKey = `layer${layerIndex}` as keyof TileLayers;
-                const layer = customTiles[layerKey];
-
-                if (layer) {
-                    for (let y = 0; y < tilesY; y++) {
-                        for (let x = 0; x < tilesX; x++) {
-                            const worldTileX = Math.floor(cameraTileX + x);
-                            const worldTileY = Math.floor(cameraTileY + y);
-                            const tileKey = `${worldTileX},${worldTileY}`;
-                            const customTileData = layer[tileKey];
-
-                            if (customTileData) {
-                                if (typeof customTileData === 'string') {
-                                    if (loadedImages[customTileData]) {
-                                        const img = loadedImages[customTileData];
-                                        const pixelX = x * screenTileWidth;
-                                        const pixelY = y * screenTileHeight;
-                                        renderCtx.drawImage(img, pixelX, pixelY, screenTileWidth, screenTileHeight);
-                                    }
-                                } else if (customTileData && typeof customTileData === 'object') {
-                                    if (!customTileData.isSecondaryTile) {
-                                        const { image, width, height } = customTileData;
-                                        if (loadedImages[image]) {
-                                            const img = loadedImages[image];
-                                            const pixelX = x * screenTileWidth;
-                                            const pixelY = y * screenTileHeight;
-
-                                            const itemWidth = width * screenTileWidth;
-                                            const itemHeight = height * screenTileHeight;
-
-                                            renderCtx.drawImage(img, pixelX, pixelY, itemWidth, itemHeight);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-        } else {
-            for (let y = 0; y < tilesY; y++) {
-                for (let x = 0; x < tilesX; x++) {
-                    const worldTileX = Math.floor(cameraTileX + x);
-                    const worldTileY = Math.floor(cameraTileY + y);
-                    const tileKey = `${worldTileX},${worldTileY}`;
-                    const customTileImage = customTiles[tileKey];
-
-                    if (customTileImage && loadedImages[customTileImage]) {
-                        const img = loadedImages[customTileImage];
-
-                        const pixelX = x * screenTileWidth;
-                        const pixelY = y * screenTileHeight;
-
-                        renderCtx.drawImage(img, pixelX, pixelY, screenTileWidth, screenTileHeight);
-                    }
-                }
-            }
-        }
-
-        if (showCollisionMap) {
-            for (let y = 0; y < tilesY; y++) {
-                for (let x = 0; x < tilesX; x++) {
-                    const worldTileX = Math.floor(cameraTileX + x);
-                    const worldTileY = Math.floor(cameraTileY + y);
-
-                    const hasPlayer = worldTileX === worldPosition.x && worldTileY === worldPosition.y;
-
-                    const agentAtPosition = agents.find((agent) => agent.x === worldTileX && agent.y === worldTileY);
-
-                    if (hasPlayer) {
-                        renderCtx.fillStyle = 'rgba(0, 0, 0, 0.5)'; // Black with 50% opacity
-                        renderCtx.fillRect(x * screenTileWidth, y * screenTileHeight, screenTileWidth, screenTileHeight);
-                    } else if (agentAtPosition) {
-                        const agentColor = agentAtPosition.color;
-
-                        const r = parseInt(agentColor.slice(1, 3), 16);
-                        const g = parseInt(agentColor.slice(3, 5), 16);
-                        const b = parseInt(agentColor.slice(5, 7), 16);
-                        renderCtx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.5)`;
-                        renderCtx.fillRect(x * screenTileWidth, y * screenTileHeight, screenTileWidth, screenTileHeight);
-                    } else {
-                        const tileKey = `${worldTileX},${worldTileY}`;
-                        if (collisionMap[tileKey]) {
-                            renderCtx.fillStyle = 'rgba(255, 0, 0, 0.5)'; // Red with 50% opacity
-                            renderCtx.fillRect(x * screenTileWidth, y * screenTileHeight, screenTileWidth, screenTileHeight);
-                        }
-                    }
-                }
-            }
-
-            renderCtx.strokeStyle = 'rgba(0, 0, 0, 0.3)'; // Black with 30% opacity
-            renderCtx.lineWidth = 1;
-            for (let y = 0; y <= tilesY; y++) {
-                renderCtx.beginPath();
-                renderCtx.moveTo(0, y * screenTileHeight);
-                renderCtx.lineTo(canvas.width, y * screenTileHeight);
-                renderCtx.stroke();
-            }
-            for (let x = 0; x <= tilesX; x++) {
-                renderCtx.beginPath();
-                renderCtx.moveTo(x * screenTileWidth, 0);
-                renderCtx.lineTo(x * screenTileWidth, canvas.height);
-                renderCtx.stroke();
-            }
-        }
-
-        // End performance measurement
-        const renderEnd = performance.now();
-        const renderTime = renderEnd - renderStart;
-
-        // Log slow renders
-        if (renderTime > 16) { // More than one frame at 60fps
-            Sentry.addBreadcrumb({
-                category: 'tilemap.performance',
-                message: 'Slow canvas render detected',
-                level: 'warning',
-                data: {
-                    renderTime: `${renderTime.toFixed(2)}ms`,
-                    canvasSize: canvasSize,
-                    layer0TilesCount: layer0Tiles.size,
-                    layer1TilesCount: layer1Tiles.size,
-                    worldPosition: worldPosition
-                }
-            });
-        }
-
-        // Track very slow renders as errors
-        if (renderTime > 50) {
-            Sentry.captureMessage('Very slow TileMap render', {
-                level: 'warning',
-                extra: {
-                    renderTime: `${renderTime.toFixed(2)}ms`,
-                    canvasSize: canvasSize,
-                    layer0TilesCount: layer0Tiles.size,
-                    layer1TilesCount: layer1Tiles.size,
-                    worldPosition: worldPosition,
-                    showCollisionMap: showCollisionMap
-                }
-            });
-        }
-
-        // Copy offscreen canvas to main canvas (prevents flickering)
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(offscreenCanvas, 0, 0);
-    }, [
-        mapData,
-        tileSize,
-        worldPosition.x,
-        worldPosition.y,
-        customTiles,
-        loadedImages,
-        layerVisibility,
-        layer0Tiles,
-        layer1Tiles,
-        canvasSize,
-        collisionMap,
-        showCollisionMap,
-        baseTileSize,
-        tileConfig
-    ]);
-
-    const tilesX = Math.ceil(canvasSize.width / tileSize);
-    const tilesY = Math.ceil(canvasSize.height / tileSize);
-    const halfTilesX = Math.floor(tilesX / 2);
-    const halfTilesY = Math.floor(tilesY / 2);
-
-    let cameraTileX = worldPosition.x - halfTilesX;
-    let cameraTileY = worldPosition.y - halfTilesY;
-    cameraTileX = Math.max(0, Math.min(MAP_TILES - tilesX, cameraTileX));
-    cameraTileY = Math.max(0, Math.min(MAP_TILES - tilesY, cameraTileY));
-
     const getStartFrame = (direction: DIRECTION) => {
         const directionMap = {
             [DIRECTION.DOWN]: 0,
@@ -740,10 +480,10 @@ function TileMap({
 
             {/* Render Agents using SpriteAnimator */}
             {agents.map((agent) => {
-                const agentScreenX = agent.x - cameraTileX;
-                const agentScreenY = agent.y - cameraTileY;
+                const agentScreenX = agent.x - cameraTilePosition.x;
+                const agentScreenY = agent.y - cameraTilePosition.y;
 
-                if (agentScreenX < -1 || agentScreenX > tilesX || agentScreenY < -1 || agentScreenY > tilesY) {
+                if (agentScreenX < -1 || agentScreenX > MAP_TILES || agentScreenY < -1 || agentScreenY > MAP_TILES) {
                     return null;
                 }
 
@@ -754,6 +494,7 @@ function TileMap({
                 const agentSpriteHeight = agent.spriteHeight || TILE_SIZE;
 
                 const topOffset = agentSpriteHeight === TILE_SIZE ? agentSpriteHeight / 4 : agentSpriteHeight / 1.5;
+                const agentZIndex = 100 + (agent.y || 0);
 
                 return (
                     <div
@@ -765,7 +506,8 @@ function TileMap({
                             width: `${tileSize}px`,
                             height: `${tileSize}px`,
                             pointerEvents: 'auto',
-                            cursor: onAgentClick ? 'pointer' : 'default'
+                            cursor: onAgentClick ? 'pointer' : 'default',
+                            zIndex: agentZIndex
                         }}
                         onClick={(e) => {
                             e.stopPropagation();
@@ -814,9 +556,10 @@ function TileMap({
 
             {/* Render Player using SpriteAnimator */}
             {(() => {
-                const playerScreenTileX = worldPosition.x - cameraTileX;
-                const playerScreenTileY = worldPosition.y - cameraTileY;
+                const playerScreenTileX = worldPosition.x - cameraTilePosition.x;
+                const playerScreenTileY = worldPosition.y - cameraTilePosition.y;
                 const playerStartFrame = getStartFrame(playerDirection);
+                const playerZIndex = 100 + worldPosition.y;
 
                 return (
                     <div
@@ -827,7 +570,7 @@ function TileMap({
                             width: `${tileSize}px`,
                             height: `${tileSize}px`,
                             pointerEvents: 'none',
-                            zIndex: 10
+                            zIndex: playerZIndex
                         }}
                     >
                         <SpriteAnimator
@@ -869,7 +612,7 @@ function TileMap({
             })()}
 
             {/* Render delete buttons for placed items in build mode */}
-            {buildMode === 'paint' && onDeleteTile && isLayeredTiles(customTiles) && canvasRef.current && (
+            {/* {buildMode === 'paint' && onDeleteTile && isLayeredTiles(customTiles) && canvasRef.current && (
                 <>
                     {(() => {
                         const canvas = canvasRef.current;
@@ -900,8 +643,7 @@ function TileMap({
                                             zIndex: 15
                                         }}
                                     >
-                                        {/* Delete button - centered X, shown on hover */}
-                                        <button
+                                        {/* <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 onDeleteTile(layer1Tile.layer, layer1Tile.key);
@@ -923,10 +665,10 @@ function TileMap({
                         );
                     })()}
                 </>
-            )}
+            )}} */}
 
             {/* Visual preview outline for multi-tile item placement */}
-            {buildMode === 'paint' && selectedItemDimensions && hoveredWorldCoords && (
+            {/* {buildMode === 'paint' && selectedItemDimensions && hoveredWorldCoords && (
                 <>
                     {(() => {
                         const canvas = canvasRef.current;
@@ -995,10 +737,10 @@ function TileMap({
                         );
                     })()}
                 </>
-            )}
+            )} */}
 
             {/* Visual feedback for blocked tiles when hovering (single tile - legacy) */}
-            {buildMode === 'paint' && !selectedItemDimensions && mousePosition && (
+            {/* {buildMode === 'paint' && !selectedItemDimensions && mousePosition && (
                 <>
                     {(() => {
                         const canvas = canvasRef.current;
@@ -1041,7 +783,7 @@ function TileMap({
                         );
                     })()}
                 </>
-            )}
+            )} */}
         </div>
     );
 }
