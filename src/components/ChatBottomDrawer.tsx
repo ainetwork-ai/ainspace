@@ -58,7 +58,7 @@ export default function ChatBottomDrawer({
                 }
                 style={{ 
                   zIndex: Z_INDEX_OFFSETS.UI + 1,
-                  height: viewportHeight < 500 ? `${viewportHeight}px` : '100%',
+                  height: viewportHeight < 500 ? `${viewportHeight - 73}px` : 'calc(100% - 73px)',
                 }}
             >
                 <DrawerHeader hidden>
