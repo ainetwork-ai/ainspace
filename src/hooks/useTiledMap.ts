@@ -35,6 +35,7 @@ type TilesetResource = {
   tilecount: number;
   tilewidth: number;
   tileheight: number;
+  imageScale?: number;
 };
 
 type TiledMap = {
@@ -98,10 +99,14 @@ export function useTiledMap(
               image.src = imagePath;
             });
   
-            const columns = parseInt(tsx.columns);
-            const tilecount = parseInt(tsx.tilecount);
-            const tilewidth = parseInt(tsx.tilewidth);
-            const tileheight = parseInt(tsx.tileheight);
+            const columns = parseInt(tsx.columns) || 1;
+            const tilecount = parseInt(tsx.tilecount) || 1;
+            const tilewidth = parseInt(tsx.tilewidth) || 40;
+            const tileheight = parseInt(tsx.tileheight) || 40;
+
+            const xmlImageWidth = parseInt(tsx.image.width) || image.width;
+            
+            const imageScale = image.width / xmlImageWidth;
   
             return {
               firstgid: ts.firstgid,
@@ -110,9 +115,10 @@ export function useTiledMap(
               tilecount,
               tilewidth,
               tileheight,
+              imageScale,
             };
           } catch (err) {
-            console.error(err);
+            console.error(`Error loading tileset ${ts.source}:`, err);
             return null as unknown as TilesetResource;
           }
         }),
@@ -238,22 +244,33 @@ export function useTiledMap(
             if (!ts) continue;
 
             const localId = gid - ts.firstgid;
-            const sx = (localId % ts.columns) * ts.tilewidth;
-            const sy = Math.floor(localId / ts.columns) * ts.tileheight;
+            
+            const scale = ts.imageScale || 1;
+            
+            const sx = (localId % ts.columns) * ts.tilewidth * scale;
+            const sy = Math.floor(localId / ts.columns) * ts.tileheight * scale;
+            const sw = ts.tilewidth * scale;
+            const sh = ts.tileheight * scale;
 
-            // 화면 좌표 계산 (맵 중앙 기준 좌표계로 직접 계산)
+            if (ts.tilewidth <= 0 || ts.tileheight <= 0) {
+              console.warn(`Invalid tile size for tileset (firstgid: ${ts.firstgid}):`, {
+                tilewidth: ts.tilewidth,
+                tileheight: ts.tileheight
+              });
+              continue;
+            }
+
             const screenTileX = centerTileX - cameraTilePositionX;
             const screenTileY = centerTileY - cameraTilePositionY;
             const dx = screenTileX * TILE_SIZE - TILE_SIZE / 4;
             const dy = screenTileY * TILE_SIZE - TILE_SIZE / 4;
 
-            // 화면 밖 타일도 그리되, 클리핑은 브라우저가 처리
             ctx.drawImage(
               ts.image,
               sx,
               sy,
-              ts.tilewidth,
-              ts.tileheight,
+              sw,
+              sh,
               dx,
               dy,
               TILE_SIZE,
