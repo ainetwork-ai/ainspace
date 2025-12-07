@@ -6,8 +6,9 @@ import { useState, useEffect } from 'react';
  * 모바일에서 키보드가 열려있는지 감지하는 hook
  * visualViewport API를 사용하여 키보드 상태를 감지합니다.
  */
-export function useKeyboardOpen(): boolean {
+export function useKeyboardOpen(): { isKeyboardOpen: boolean; remountKey: number } {
     const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+    const [remountKey, setRemountKey] = useState(0);
 
     useEffect(() => {
         console.log('useKeyboardOpen', window, window?.visualViewport);
@@ -57,6 +58,14 @@ export function useKeyboardOpen(): boolean {
         }
     }, []);
 
-    return isKeyboardOpen;
+    // isKeyboardOpen이 변경될 때마다 감지
+    useEffect(() => {
+        if (!isKeyboardOpen) {
+            // 키보드가 닫힐 때마다 remountKey 갱신 (drawer 재마운트)
+            setRemountKey(Date.now());
+        }
+    }, [isKeyboardOpen]);
+
+    return { isKeyboardOpen, remountKey };
 }
 

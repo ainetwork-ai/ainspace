@@ -24,11 +24,12 @@ export default function ChatBottomDrawer({
     onThreadSelect,
     currentAgentsInRadius,
   }: ChatBottomDrawerProps) {
-    const isKeyboardOpen = useKeyboardOpen();
+    const { isKeyboardOpen, remountKey } = useKeyboardOpen();
     
     return (
         <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" >
-            <DrawerContent 
+            <DrawerContent
+                key={remountKey} 
                 className={
                     cn(
                         "h-full max-h-[calc(100dvh-73px)]",
