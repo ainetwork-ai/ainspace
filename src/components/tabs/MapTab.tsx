@@ -17,6 +17,7 @@ import { ChatBoxRef } from '../ChatBox';
 import { useAgentStore } from '@/stores';
 import { useMapStore } from '@/stores/useMapStore';
 import TileMap from '../TileMap';
+import { Z_INDEX_OFFSETS } from '@/constants/common';
 
 interface MapTabProps {
     isActive: boolean;
@@ -185,13 +186,14 @@ export default function MapTab({
                     <button
                         onClick={() => disconnect(config)}
                         className="absolute top-4 right-4 inline-flex cursor-pointer flex-row items-center justify-center gap-2 rounded-lg bg-white p-2"
+                        style={{ zIndex: Z_INDEX_OFFSETS.UI }}
                     >
                         <Image src="/agent/defaultAvatar.svg" alt="agent" width={20} height={20} />
                         <p className="text-sm font-bold text-black">{shortAddress(address)}</p>
                     </button>
                 )}
                 {isJoystickVisible && (
-                    <div className="absolute bottom-4 left-1/2 z-1001 -translate-x-1/2 transform">
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 transform" style={{ zIndex: Z_INDEX_OFFSETS.GAME + 1 }}>
                         <PlayerJoystick
                             onMove={handleMobileMove}
                             disabled={isAutonomous}

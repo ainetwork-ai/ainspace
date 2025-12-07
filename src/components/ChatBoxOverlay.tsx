@@ -12,6 +12,7 @@ import ThreadListLeftDrawer from './ThreadListLeftDrawer';
 import { useAccount } from 'wagmi';
 import { Thread } from '@/stores';
 import { generateAgentComboId } from '@/lib/hash';
+import { Z_INDEX_OFFSETS } from '@/constants/common';
 
 interface ChatBoxOverlayProps {
     chatBoxRef: React.RefObject<ChatBoxRef | null>;
@@ -113,7 +114,7 @@ export default function ChatBoxOverlay({
     }
 
     return (
-        <div className={cn("relative w-full z-50", className)}>
+        <div className={cn("relative w-full", className)} style={{ zIndex: Z_INDEX_OFFSETS.UI }}>
             {!isChatSheetOpen &&
                 <div
                     className={

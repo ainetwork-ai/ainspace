@@ -3,6 +3,7 @@ import ChatBox, { ChatBoxRef } from './ChatBox';
 import { AgentState } from '@/lib/agent';
 import { cn } from '@/lib/utils';
 import { useKeyboardOpen } from '@/hooks/useKeyboardOpen';
+import { Z_INDEX_OFFSETS } from '@/constants/common';
 
 interface ChatBottomDrawerProps {
     open: boolean;
@@ -30,11 +31,12 @@ export default function ChatBottomDrawer({
             <DrawerContent 
                 className={
                     cn(
-                        "h-dvh max-h-[calc(100dvh-73px)] z-49",
+                        "h-dvh max-h-[calc(100dvh-73px)]",
                         isKeyboardOpen ? "pb-0" : "pb-[73px]",
                         "bg-black/50",
                     )
                 }
+                style={{ zIndex: Z_INDEX_OFFSETS.UI + 1 }}
             >
                 <DrawerHeader hidden>
                     <DrawerTitle />
