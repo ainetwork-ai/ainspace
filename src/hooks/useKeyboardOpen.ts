@@ -33,6 +33,7 @@ export function useKeyboardOpen(): boolean {
             handleResize();
 
             return () => {
+                console.error('remove event listener');
                 window.visualViewport?.removeEventListener('resize', handleResize);
                 window.visualViewport?.removeEventListener('scroll', handleResize);
             };
@@ -54,6 +55,7 @@ export function useKeyboardOpen(): boolean {
             handleResize();
 
             return () => {
+                console.error('remove event listener');
                 window.removeEventListener('resize', handleResize);
             };
         }
