@@ -4,7 +4,7 @@ import { useMapStore } from "@/stores/useMapStore";
 import { useGameStateStore } from "@/stores";
 import { TILE_SIZE } from "@/constants/game";
 
-// Tiled flip flags (비트 플래그)
+// Tiled flip flags
 const FLIPPED_HORIZONTALLY_FLAG = 0x80000000;
 const FLIPPED_VERTICALLY_FLAG = 0x40000000;
 const FLIPPED_DIAGONALLY_FLAG = 0x20000000;
@@ -265,17 +265,49 @@ export function useTiledMap(
             const dx = screenTileX * TILE_SIZE - TILE_SIZE / 4;
             const dy = screenTileY * TILE_SIZE - TILE_SIZE / 4;
 
-            ctx.drawImage(
-              ts.image,
-              sx,
-              sy,
-              sw,
-              sh,
-              dx,
-              dy,
-              TILE_SIZE,
-              TILE_SIZE
-            );
+            // Flip tile
+            const flippedH = (rawGid & FLIPPED_HORIZONTALLY_FLAG) !== 0;
+            const flippedV = (rawGid & FLIPPED_VERTICALLY_FLAG) !== 0;
+            const flippedD = (rawGid & FLIPPED_DIAGONALLY_FLAG) !== 0;
+
+            if (flippedH || flippedV || flippedD) {
+              ctx.save();
+              ctx.translate(dx + TILE_SIZE / 2, dy + TILE_SIZE / 2);
+              
+              if (flippedD) {
+                ctx.rotate(Math.PI / 2);
+                ctx.scale(-1, 1);
+              }
+              
+              if (flippedH) ctx.scale(-1, 1);
+              if (flippedV) ctx.scale(1, -1);
+
+              ctx.drawImage(
+                ts.image,
+                sx,
+                sy,
+                sw,
+                sh,
+                -TILE_SIZE / 2,
+                -TILE_SIZE / 2,
+                TILE_SIZE,
+                TILE_SIZE
+              );
+
+              ctx.restore();
+            } else {
+              ctx.drawImage(
+                ts.image,
+                sx,
+                sy,
+                sw,
+                sh,
+                dx,
+                dy,
+                TILE_SIZE,
+                TILE_SIZE
+              );
+            }
           }
         }
       }
