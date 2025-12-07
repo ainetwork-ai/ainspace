@@ -164,7 +164,6 @@ export default function Home() {
                     let spawnX = state.x!;
                     let spawnY = state.y!;
 
-                    console.log(agentId, spawnX, spawnY, isPositionValid(spawnX, spawnY))
                     if (!isPositionValid(spawnX, spawnY)) {
                         const validPosition = findAvailableSpawnPosition({ x: spawnX, y: spawnY });
                         if (!validPosition) {
@@ -192,8 +191,6 @@ export default function Home() {
                         spriteUrl: spriteUrl,
                         spriteHeight: spriteHeight || 40
                     });
-
-                    console.log(`✓ Restored deployed agent: ${card.name} at (${state.x}, ${state.y})`);
                 });
 
             } catch (error) {
