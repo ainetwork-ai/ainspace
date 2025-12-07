@@ -708,7 +708,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     );
   
     return (
-        <div className={cn('flex h-full min-h-0 w-full flex-col bg-transparent', className)}>
+        <div className={cn('flex flex-1 h-full w-full flex-col bg-transparent', className)}>
             {/* NOTE: Chat Messages */}
             <div className="flex flex-col flex-1 overflow-y-auto p-4 pt-2 gap-4">
                 {displayedMessages.map((message) => (
