@@ -34,7 +34,7 @@ export default function ChatBottomDrawer({
         const updateHeight = () => setTimeout(() => {
             console.info('updateHeight', window.innerHeight);
             setViewportHeight(window.innerHeight);
-        }, 1000);
+        }, 300);
 
         // 초기 높이 설정
         updateHeight();
