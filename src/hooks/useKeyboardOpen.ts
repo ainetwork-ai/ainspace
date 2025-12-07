@@ -16,12 +16,12 @@ export function useKeyboardOpen(): boolean {
             console.log('visualViewport API is supported');
             const handleResize = () => {
                 const viewport = window.visualViewport;
-                console.error('viewport', viewport);
                 if (!viewport) return;
 
                 // visualViewport 높이가 window.innerHeight보다 작으면 키보드가 열린 것으로 간주
                 // 임계값은 보통 150px 정도 (키보드가 최소한 이 정도는 화면을 가림)
                 const threshold = 150;
+                console.error(viewport.height, window.innerHeight - threshold);
                 const isOpen = viewport.height < window.innerHeight - threshold;
                 setIsKeyboardOpen(isOpen);
             };
@@ -33,7 +33,6 @@ export function useKeyboardOpen(): boolean {
             handleResize();
 
             return () => {
-                console.error('remove event listener');
                 window.visualViewport?.removeEventListener('resize', handleResize);
                 window.visualViewport?.removeEventListener('scroll', handleResize);
             };
@@ -42,7 +41,6 @@ export function useKeyboardOpen(): boolean {
             // window.innerHeight 변화로 감지 (덜 정확함)
             console.log('visualViewport API is not supported');
             const initialHeight = window.innerHeight;
-            console.error('initialHeight', initialHeight);
 
             const handleResize = () => {
                 const currentHeight = window.innerHeight;
@@ -55,7 +53,6 @@ export function useKeyboardOpen(): boolean {
             handleResize();
 
             return () => {
-                console.error('remove event listener');
                 window.removeEventListener('resize', handleResize);
             };
         }
