@@ -1,22 +1,36 @@
 import { AgentSkill } from '@a2a-js/sdk';
 import { useChatStore } from '@/stores/useChatStore';
-import { AGENT_RESPONSE_DISTANCE } from '@/constants/game';
-// Removed direct gemini import to ensure server-side only calls
+import { AGENT_RESPONSE_DISTANCE, DIRECTION } from '@/constants/game';
 
-export interface AgentState {
+export interface AgentInfo {
     id: string;
     name: string;
-    color: string;
+    agentUrl: string;
+    skills: AgentSkill[];
+}
+
+export interface AgentWorldState {
     x: number;
     y: number;
     behavior: string;
-    direction?: 'up' | 'down' | 'left' | 'right';
+    color: string;
+
+    direction?: DIRECTION;
     lastMoved?: number;
     moveInterval?: number;
-    agentUrl?: string; // For A2A agents
-    skills?: AgentSkill[];
-    characterImage?: string; // FIXME(yoojin): type automatically
+    isMoving?: boolean;
+};
+
+export interface AgentVisualState {
+    spriteUrl?: string;
+    spriteHeight?: number;
+    spriteWidth?: number;
 }
+
+export interface AgentState extends AgentInfo, AgentWorldState, AgentVisualState {}
+
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export interface AgentStateForDB extends Omit<AgentWorldState, 'direction' | 'lastMoved' | 'isMoving'> {}
 
 export interface Message {
     id: string;
@@ -50,9 +64,6 @@ export abstract class BaseAgent {
     }
     get name(): string {
         return this.state.name;
-    }
-    get color(): string {
-        return this.state.color;
     }
     get x(): number {
         return this.state.x;

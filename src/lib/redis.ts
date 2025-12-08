@@ -1,4 +1,8 @@
 import { createClient } from 'redis';
+import { AgentStateForDB } from './agent';
+import { AgentCard } from '@a2a-js/sdk';
+import { Thread } from '@/types/thread';
+import { generateAgentComboId } from './hash';
 
 const client = createClient({
     url: process.env.AINSPACE_STORAGE_REDIS_URL || 'redis://localhost:6379'
@@ -221,15 +225,13 @@ export async function deleteCustomTiles(userId: string): Promise<void> {
 
 export interface StoredAgent {
     url: string;
-    card: {
-        name: string;
-        role?: string;
-        [key: string]: unknown;
-    };
+    card: AgentCard;
+    state: AgentStateForDB;
+    spriteUrl?: string;
+    spriteHeight?: number;
+    isPlaced: boolean;
+    creator: string;
     timestamp: number;
-    x?: number;
-    y?: number;
-    color?: string;
 }
 
 const AGENTS_KEY = 'agents:';
@@ -259,51 +261,40 @@ export async function getAgents(): Promise<StoredAgent[]> {
     }
 }
 
-// Thread mapping types
-export interface ThreadMapping {
-    threadName: string;
-    backendThreadId: string;
-    agentNames: string[];
-    createdAt: string;
-    lastMessageAt: string;
-}
 
 /**
- * Save thread mapping for a user
+ * Save thread for a user
  */
-export async function saveThreadMapping(
+export async function saveThread(
     userId: string,
-    threadName: string,
-    backendThreadId: string,
-    agentNames: string[]
+    thread: Thread
 ): Promise<void> {
     try {
         const redis = await getRedisClient();
-        const threadData: ThreadMapping = {
-            threadName,
-            backendThreadId,
-            agentNames,
-            createdAt: new Date().toISOString(),
-            lastMessageAt: new Date().toISOString(),
-        };
 
-        // Save to user-specific thread hash
+        // Save to user-specific thread hash (key: thread id)
         await redis.hSet(`user:${userId}:threads`, {
-            [threadName]: JSON.stringify(threadData),
+            [thread.id]: JSON.stringify(thread),
+        });
+
+        // Save agent combo mapping
+        await redis.hSet(`user:${userId}:agent_combos`, {
+            [thread.agentComboId]: thread.id
         });
 
         // Set expiration to 30 days
         await redis.expire(`user:${userId}:threads`, 86400 * 30);
+        await redis.expire(`user:${userId}:agent_combos`, 86400 * 30);
     } catch (error) {
-        console.error('Error saving thread mapping:', error);
+        console.error('Error saving thread:', error);
         throw error;
     }
 }
 
 /**
- * Get all thread mappings for a user
+ * Get all threads for a user
  */
-export async function getThreadMappings(userId: string): Promise<{ [threadName: string]: ThreadMapping }> {
+export async function getThreads(userId: string): Promise<{ [id: string]: Thread }> {
     try {
         const redis = await getRedisClient();
         const threadsData = await redis.hGetAll(`user:${userId}:threads`);
@@ -312,32 +303,82 @@ export async function getThreadMappings(userId: string): Promise<{ [threadName: 
             return {};
         }
 
-        const threads: { [threadName: string]: ThreadMapping } = {};
-        for (const [threadName, data] of Object.entries(threadsData)) {
-            threads[threadName] = JSON.parse(data);
+        const threads: { [id: string]: Thread } = {};
+        for (const [id, data] of Object.entries(threadsData)) {
+            threads[id] = JSON.parse(data);
         }
 
         return threads;
     } catch (error) {
-        console.error('Error getting thread mappings:', error);
+        console.error('Error getting threads:', error);
         return {};
+    }
+}
+
+/**
+ * Find thread by agent combination
+ */
+export async function findThreadByAgentCombo(
+    userId: string,
+    agentNames: string[]
+): Promise<Thread | null> {
+    try {
+        const redis = await getRedisClient();
+        const agentComboId = await generateAgentComboId(agentNames);
+
+        // Get thread id from agent combo mapping
+        const id = await redis.hGet(`user:${userId}:agent_combos`, agentComboId);
+        if (!id) return null;
+
+        // Get thread data
+        const threadStr = await redis.hGet(`user:${userId}:threads`, id);
+        return threadStr ? JSON.parse(threadStr) : null;
+    } catch (error) {
+        console.error('Error finding thread by agent combo:', error);
+        return null;
+    }
+}
+
+/**
+ * Delete thread for a user
+ */
+export async function deleteThread(
+    userId: string,
+    id: string
+): Promise<void> {
+    try {
+        const redis = await getRedisClient();
+
+        // Get thread data to retrieve agentComboId
+        const threadStr = await redis.hGet(`user:${userId}:threads`, id);
+        if (threadStr) {
+            const thread: Thread = JSON.parse(threadStr);
+            // Delete agent combo mapping
+            await redis.hDel(`user:${userId}:agent_combos`, thread.agentComboId);
+        }
+
+        // Delete thread data
+        await redis.hDel(`user:${userId}:threads`, id);
+    } catch (error) {
+        console.error('Error deleting thread:', error);
+        throw error;
     }
 }
 
 /**
  * Update last message timestamp for a thread
  */
-export async function updateThreadLastMessage(userId: string, threadName: string): Promise<void> {
+export async function updateThreadLastMessage(userId: string, id: string): Promise<void> {
     try {
         const redis = await getRedisClient();
-        const threadDataStr = await redis.hGet(`user:${userId}:threads`, threadName);
+        const threadDataStr = await redis.hGet(`user:${userId}:threads`, id);
 
         if (threadDataStr) {
-            const threadData: ThreadMapping = JSON.parse(threadDataStr);
+            const threadData: Thread = JSON.parse(threadDataStr);
             threadData.lastMessageAt = new Date().toISOString();
 
             await redis.hSet(`user:${userId}:threads`, {
-                [threadName]: JSON.stringify(threadData),
+                [id]: JSON.stringify(threadData),
             });
         }
     } catch (error) {

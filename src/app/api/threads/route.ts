@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getThreadMappings, saveThreadMapping, getRedisClient } from '@/lib/redis';
+import { getThreads, saveThread } from '@/lib/redis';
+import { generateAgentComboId } from '@/lib/hash';
+import { Thread } from '@/stores';
 
 /**
  * GET /api/threads?userId={address}
- * Get all thread mappings for a user
+ * Get all threads for a user
  */
 export async function GET(request: NextRequest) {
     try {
@@ -14,7 +16,7 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'userId is required' }, { status: 400 });
         }
 
-        const threads = await getThreadMappings(userId);
+        const threads = await getThreads(userId);
 
         return NextResponse.json({
             success: true,
@@ -31,26 +33,36 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/threads
- * Save a thread mapping
+ * Save a thread
  */
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { userId, threadName, backendThreadId, agentNames } = body;
+        const { userId, threadName, id, agentNames } = body;
 
-        if (!userId || !threadName || !backendThreadId || !agentNames) {
+        if (!userId || !threadName || !id || !agentNames) {
             return NextResponse.json(
-                { error: 'userId, threadName, backendThreadId, and agentNames are required' },
+                { error: 'userId, threadName, id, and agentNames are required' },
                 { status: 400 }
             );
         }
 
-        await saveThreadMapping(userId, threadName, backendThreadId, agentNames);
+        const agentComboId = await generateAgentComboId(agentNames);
+        const thread: Thread = {
+            id,
+            threadName,
+            agentNames,
+            agentComboId,
+            createdAt: new Date().toISOString(),
+            lastMessageAt: new Date().toISOString()
+        };
+
+        await saveThread(userId, thread);
 
         return NextResponse.json({
             success: true,
             threadName,
-            backendThreadId,
+            id,
         });
     } catch (error) {
         console.error('Error saving thread:', error);
@@ -61,35 +73,3 @@ export async function POST(request: NextRequest) {
     }
 }
 
-/**
- * DELETE /api/threads?userId={address}&threadName={threadName}
- * Delete a specific thread mapping
- */
-export async function DELETE(request: NextRequest) {
-    try {
-        const { searchParams } = new URL(request.url);
-        const userId = searchParams.get('userId');
-        const threadName = searchParams.get('threadName');
-
-        if (!userId || !threadName) {
-            return NextResponse.json(
-                { error: 'userId and threadName are required' },
-                { status: 400 }
-            );
-        }
-
-        const redis = await getRedisClient();
-        await redis.hDel(`user:${userId}:threads`, threadName);
-
-        return NextResponse.json({
-            success: true,
-            message: `Thread ${threadName} deleted successfully`,
-        });
-    } catch (error) {
-        console.error('Error deleting thread:', error);
-        return NextResponse.json(
-            { error: 'Failed to delete thread' },
-            { status: 500 }
-        );
-    }
-}

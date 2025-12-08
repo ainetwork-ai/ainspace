@@ -6,6 +6,7 @@ import TileMap from '@/components/TileMap';
 import BaseTabContent from './BaseTabContent';
 import { DIRECTION, TILE_SIZE } from '@/constants/game';
 import { cn } from '@/lib/utils';
+import { useAgentStore } from '@/stores';
 
 type TileLayers = {
     layer0: { [key: string]: string };
@@ -46,8 +47,6 @@ export default function BuildTab({
     isActive,
     mapData,
     playerPosition,
-    worldPosition,
-    visibleAgents,
     publishedTiles,
     customTiles,
     selectedImage,
@@ -90,6 +89,8 @@ export default function BuildTab({
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const imageRef = useRef<HTMLDivElement>(null);
     const imgElementRef = useRef<HTMLImageElement>(null);
+
+    const { agents } = useAgentStore();
 
     // Helper function to upload tile to Vercel Blob
     const uploadTileToBlob = async (dataUrl: string): Promise<string> => {
@@ -612,8 +613,7 @@ export default function BuildTab({
                             mapData={mapData}
                             tileSize={tileSize}
                             playerPosition={playerPosition}
-                            worldPosition={worldPosition}
-                            agents={visibleAgents}
+                            agents={agents}
                             customTiles={{
                                 layer0: { ...(publishedTiles.layer0 || {}), ...(customTiles.layer0 || {}) },
                                 layer1: { ...(publishedTiles.layer1 || {}), ...(customTiles.layer1 || {}) },

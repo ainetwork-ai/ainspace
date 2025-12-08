@@ -24,3 +24,5 @@ export const ADD_AGENT_ABI = [
     "type": "function"
   },
 ]
+
+export const A2A_BUILDER_URL = process.env.NEXT_PUBLIC_A2A_BUILDER_URL || 'https://a2a-builder-dev.ainetwork.ai';

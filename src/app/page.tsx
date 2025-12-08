@@ -2,49 +2,41 @@
 
 import { useGameState } from '@/hooks/useGameState';
 import { useMiniKit } from '@coinbase/onchainkit/minikit';
-import { useRef, useEffect, useCallback, useState } from 'react';
-import { ChatBoxRef } from '@/components/ChatBox';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import MapTab from '@/components/tabs/MapTab';
-import ThreadTab from '@/components/tabs/ThreadTab';
 import AgentTab from '@/components/tabs/AgentTab';
 import Footer from '@/components/Footer';
-import BottomSheet from '@/components/BottomSheet';
-import { DIRECTION, MAP_TILES } from '@/constants/game';
-import { AgentCard } from '@a2a-js/sdk';
+import { DIRECTION, MAP_TILES, ENABLE_AGENT_MOVEMENT, BROADCAST_RADIUS } from '@/constants/game';
 import { useUIStore, useThreadStore, useBuildStore, useAgentStore } from '@/stores';
 import TempBuildTab from '@/components/tabs/TempBuildTab';
-import { useSwitchChain, useWriteContract } from 'wagmi';
-import { ADD_AGENT_ABI, AGENT_CONTRACT_ADDRESS } from '@/constants/agentContract';
-import { baseSepolia } from 'viem/chains';
+import { useAccount } from 'wagmi';
 import sdk from '@farcaster/miniapp-sdk';
+import { StoredAgent } from '@/lib/redis';
+import { useMapStore } from '@/stores/useMapStore';
+import { cn } from '@/lib/utils';
 
-const SPAWN_POSITIONS = [
-    { x: 63, y: 63 },
-    { x: 76, y: 63 },
-    { x: 76, y: 65 },
-    { x: 63, y: 65 }
+// Spawn zones for deployed agents
+// Default agents center: (59, 70) with radius ~2-3 tiles
+// Broadcast range: 10 tiles, so deploy zones must be 25+ tiles away to prevent thread overlap
+// Each zone can hold ~15-20 agents comfortably within radius 10
+const DEPLOY_ZONE_CENTERS = [
+    { x: 34, y: 70 },   // West zone (25 tiles left)
+    { x: 84, y: 70 },   // East zone (25 tiles right)
+    { x: 59, y: 45 },   // North zone (25 tiles up)
+    { x: 59, y: 95 },   // South zone (25 tiles down)
+    { x: 81, y: 48 },   // Northeast zone (diagonal, ~31 tiles away)  
 ];
 
 export default function Home() {
     // Global stores
-    const { activeTab, isBottomSheetOpen, setActiveTab, openBottomSheet, closeBottomSheet } = useUIStore();
+    const { activeTab, setActiveTab } = useUIStore();
     const {
         threads,
-        currentThreadId,
-        broadcastMessage,
-        broadcastStatus,
-        addThread,
         setCurrentThreadId,
-        setBroadcastMessage,
-        setBroadcastStatus,
-        clearBroadcastMessage,
-        clearBroadcastStatusAfterDelay
     } = useThreadStore();
     const {
         customTiles,
         publishedTiles,
-        selectedImage,
-        buildMode,
         isPublishing,
         publishStatus,
         collisionMap: globalCollisionMap,
@@ -58,19 +50,25 @@ export default function Home() {
         setCollisionMap,
         clearPublishStatusAfterDelay
     } = useBuildStore();
-    const { worldPosition, userId, worldAgents, resetLocation, lastCommentary, visibleAgents } = useGameState();
-    const { agents, spawnAgent, removeAgent, updateAgent, setAgents } = useAgentStore();
+    const { worldPosition, userId, agents: worldAgents, visibleAgents } = useGameState();
+    const { agents, spawnAgent, removeAgent, setAgents } = useAgentStore();
+    const { mapStartPosition, mapEndPosition, isCollisionTile, isLoaded: isMapLoaded } = useMapStore();
     const { setFrameReady, isFrameReady } = useMiniKit();
-    const chatBoxRef = useRef<ChatBoxRef>(null);
     const [isSDKLoaded, setIsSDKLoaded] = useState(false);
+    const { address } = useAccount();
 
-    const { writeContractAsync, isPending } = useWriteContract();
-    const { switchChainAsync } = useSwitchChain();
+    const [HUDOff, setHUDOff] = useState<boolean>(false);
 
     // Initialize collision map on first load
     useEffect(() => {
         if (!isFrameReady) {
             setFrameReady();
+        }
+
+        if (process.env.NEXT_PUBLIC_NODE_ENV !== 'production') {
+            setTimeout(() => {
+                import('eruda').then((eruda) => eruda.default.init());
+            }, 100);
         }
 
         const initCollisionMap = async () => {
@@ -128,81 +126,84 @@ export default function Home() {
         loadCustomTiles();
     }, [userId, setPublishedTiles, setCollisionMap]);
 
-    const handleBroadcast = async () => {
-        if (broadcastMessage.trim()) {
-            const messageText = broadcastMessage.trim();
-
-            // Calculate agents within range (default broadcast range: 10 units)
-            const broadcastRange = 10;
-            const agentsInRange = combinedWorldAgents.filter((agent) => {
-                const distance = Math.sqrt(
-                    Math.pow(agent.x - worldPosition.x, 2) + Math.pow(agent.y - worldPosition.y, 2)
-                );
-                return distance <= broadcastRange;
-            });
-
-            console.log('Broadcast setup:', {
-                totalAgents: combinedWorldAgents.length,
-                agentsInRange: agentsInRange.length,
-                agentNames: agentsInRange.map((a) => a.name),
-                agentIds: agentsInRange.map((a) => a.id)
-            });
-
-            // Set broadcast status
-            setBroadcastStatus({
-                range: broadcastRange,
-                agentsReached: agentsInRange.length,
-                agentNames: agentsInRange.map((agent) => agent.name)
-            });
-
-            clearBroadcastMessage();
-
-            // Create thread and send message if there are agents in range
-            if (agentsInRange.length > 0 && chatBoxRef.current) {
-                // Create new thread with unique ID
-                const threadId = `thread-${Date.now()}`;
-                const newThread = {
-                    id: threadId,
-                    message: messageText,
-                    timestamp: new Date(),
-                    agentsReached: agentsInRange.length,
-                    agentNames: agentsInRange.map((agent) => agent.name)
-                };
-
-                // Add to threads list and set as current thread
-                addThread(newThread);
-                setCurrentThreadId(threadId);
-
-                try {
-                    // Send the broadcast message through the ChatBox system with thread ID and radius
-                    // This now handles both regular and A2A agents through the unified system
-                    await chatBoxRef.current.sendMessage(messageText, threadId, broadcastRange);
-                    console.log(
-                        `Broadcasting "${messageText}" to ${agentsInRange.length} agents in thread ${threadId}:`,
-                        agentsInRange.map((a) => a.name)
-                    );
-                } catch (error) {
-                    console.error('Failed to broadcast message:', error);
+    // Load deployed agents from Redis on mount
+    useEffect(() => {
+        const loadDeployedAgents = async () => {
+            try {
+                if (!address) {
+                    console.error('Address is not connected');
+                    return;
                 }
-            } else {
-                console.log(`No agents in range - broadcast message "${messageText}" not sent, no thread created`);
+                const response = await fetch(`/api/agents`);
+                if (!response.ok) {
+                    console.error('Failed to load deployed agents from Redis');
+                    return;
+                }
+
+                const data = await response.json();
+                if (!data.success || !data.agents) {
+                    console.error('Invalid agents data from API');
+                    return;
+                }
+
+                const deployedAgents = data.agents.filter((agentData: StoredAgent) => agentData.isPlaced);
+
+                console.log(`Found ${deployedAgents.length} user-deployed agents in Redis`);
+
+                // Restore agents to useAgentStore
+                deployedAgents.forEach((agentData: StoredAgent) => {
+                    const { url, card, state, spriteUrl, spriteHeight } = agentData;
+
+                    // Check if agent is already in store (avoid duplicates)
+                    const existingAgents = useAgentStore.getState().agents;
+                    if (existingAgents.find((agent) => agent.agentUrl === url)) {
+                        console.log(`Agent already in store: ${card.name}`);
+                        return;
+                    }
+
+                    const agentId = `a2a-deployed-${Date.now()}-${Math.random()}`;
+
+                    let spawnX = state.x!;
+                    let spawnY = state.y!;
+
+                    if (!isPositionValid(spawnX, spawnY)) {
+                        const validPosition = findAvailableSpawnPosition({ x: spawnX, y: spawnY });
+                        if (!validPosition) {
+                            console.error('Cannot spawn agent: no available positions found in deployment zones');
+                            alert('Cannot spawn agent: no available space found in deployment zones. Please remove some agents or clear space on the map.');
+                            return;
+                        }
+                        spawnX = validPosition.x;
+                        spawnY = validPosition.y;
+                    }
+
+                    // Restore agent to store with saved position and sprite
+                    // We know x and y are numbers because they were filtered above
+                    spawnAgent({
+                        id: agentId,
+                        name: card.name || 'Deployed Agent',
+                        color: state.color,
+                        behavior: 'random',
+                        x: spawnX,
+                        y: spawnY,
+                        agentUrl: url,
+                        lastMoved: Date.now(),
+                        moveInterval: state.moveInterval || 800,
+                        skills: card.skills,
+                        spriteUrl: spriteUrl,
+                        spriteHeight: spriteHeight || 40
+                    });
+                });
+
+            } catch (error) {
+                console.error('Error loading deployed agents:', error);
             }
+        };
 
-            // Clear broadcast status after 5 seconds
-            clearBroadcastStatusAfterDelay(5000);
+        if (isMapLoaded) {
+            loadDeployedAgents();
         }
-    };
-
-    const handleViewThread = (threadId?: string) => {
-        // Set current thread if specified, otherwise use most recent
-        if (threadId) {
-            setCurrentThreadId(threadId);
-        } else if (threads.length > 0) {
-            setCurrentThreadId(threads[0].id);
-        }
-        // Switch to thread tab to view the conversation
-        setActiveTab('thread');
-    };
+    }, [spawnAgent, isMapLoaded]);
 
     const handleAgentClick = (agentId: string, agentName: string) => {
         console.log(`Agent clicked: ${agentName} (${agentId})`);
@@ -216,7 +217,7 @@ export default function Home() {
         }
 
         // Open the BottomSheet to show the ThreadTab
-        openBottomSheet();
+        // openBottomSheet();
     };
 
     const handlePublishTiles = async () => {
@@ -305,104 +306,65 @@ export default function Home() {
     };
 
     // A2A Agent handlers - now integrated into worldAgents
-    const handleSpawnAgent = async (importedAgent: {
-        url: string;
-        card: AgentCard;
-        spriteUrl?: string;
-        spriteHeight?: number;
-    }) => {
+    const handleSpawnAgent = async (agent: StoredAgent) => {
         const agentId = `a2a-${Date.now()}`;
         const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8'];
         const randomColor = colors[Math.floor(Math.random() * colors.length)];
 
-        // Find a non-blocked spawn position from SPAWN_POSITIONS
-        const findAvailableSpawnPosition = (): { x: number; y: number } | null => {
-            // Shuffle spawn positions to add randomness
-            const shuffledPositions = [...SPAWN_POSITIONS].sort(() => Math.random() - 0.5);
-
-            for (const position of shuffledPositions) {
-                const { x, y } = position;
-
-                // Check boundaries
-                if (x < 0 || x >= MAP_TILES || y < 0 || y >= MAP_TILES) {
-                    continue;
-                }
-
-                // Check if position is blocked by collision map
-                if (globalIsBlocked(x, y)) {
-                    continue;
-                }
-
-                // Check if position is occupied by player
-                if (x === worldPosition.x && y === worldPosition.y) {
-                    continue;
-                }
-
-                // Check if position is occupied by another agent
-                const isOccupied = combinedWorldAgents.some((agent) => agent.x === x && agent.y === y);
-                if (isOccupied) {
-                    continue;
-                }
-
-                return { x, y };
-            }
-
-            return null; // No valid position found
-        };
-
-        // Try to find spawn position from SPAWN_POSITIONS
-        const spawnPosition = findAvailableSpawnPosition();
+        // Try to find spawn position
+        const spawnPosition = findAvailableSpawnPosition(worldPosition);
 
         if (!spawnPosition) {
             // Show error if no valid spawn position found
-            console.error('Cannot spawn agent: all spawn positions are occupied or blocked');
+            console.error('Cannot spawn agent: no available positions found in deployment zones');
             alert(
-                'Cannot spawn agent: all designated spawn positions are occupied or blocked. Please clear some space or remove an agent.'
+                'Cannot spawn agent: no available space found in deployment zones. Please remove some agents or clear space on the map.'
             );
             return;
         }
 
         const { x: spawnX, y: spawnY } = spawnPosition;
-        console.log(`Spawning agent at (${spawnX}, ${spawnY}) from SPAWN_POSITIONS - checked collision map`);
+        console.log(`✓ Spawning agent at (${spawnX}, ${spawnY}) - separated from default agents`);
 
-        await switchChainAsync({
-            chainId: baseSepolia.id
-        });
-
-        try {
-            await writeContractAsync({
-                address: AGENT_CONTRACT_ADDRESS,
-                abi: ADD_AGENT_ABI,
-                functionName: 'addAgent',
-                args: [importedAgent.url, spawnX, spawnY],
-                chain: baseSepolia
-            }).catch((error) => {
-                console.error('User denied transaction:', error);
-            });
-        } catch (error) {
-            console.error('User denied transaction:', error);
-        }
+        // NOTE(yoojin): Disable contract action.
+        // await switchChainAsync({
+        //     chainId: baseSepolia.id
+        // });
+        // try {
+        //     await writeContractAsync({
+        //         address: AGENT_CONTRACT_ADDRESS,
+        //         abi: ADD_AGENT_ABI,
+        //         functionName: 'addAgent',
+        //         args: [importedAgent.url, spawnX, spawnY],
+        //         chain: baseSepolia
+        //     }).catch((error) => {
+        //         console.error('User denied transaction:', error);
+        //     });
+        // } catch (error) {
+        //     console.error('User denied transaction:', error);
+        // }
 
         // Register agent with backend Redis
         try {
+            if (!address) {
+              throw new Error('Address is not connected');
+            }
             const registerResponse = await fetch('/api/agents', {
-                method: 'POST',
+                method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    agentUrl: importedAgent.url,
-                    agentCard: {
-                        ...importedAgent.card,
-                        x: spawnX,
-                        y: spawnY,
-                        color: randomColor,
-                        spriteUrl: importedAgent.spriteUrl || '/sprite/sprite_cat.png',
-                        spriteHeight: importedAgent.spriteHeight || 40,
-                        behavior: 'random',
-                        moveInterval: 600 + Math.random() * 400
-                    }
-                })
+                    url: agent.url,
+                    state: {
+                      x: spawnX,
+                      y: spawnY,
+                      behavior: 'random',
+                      color: randomColor,
+                      moveInterval: 600 + Math.random() * 400
+                    },
+                    isPlaced: true,
+                }),
             });
 
             if (!registerResponse.ok && registerResponse.status !== 409) {
@@ -415,42 +377,59 @@ export default function Home() {
         }
 
         // Add to spawned A2A agents for UI tracking
-        spawnAgent(importedAgent.url, {
+        spawnAgent({
             id: agentId,
-            name: importedAgent.card.name || 'A2A Agent',
+            name: agent.card.name,
             x: spawnX,
             y: spawnY,
-            color: randomColor,
-            agentUrl: importedAgent.url,
+            color: agent.state.color,
+            agentUrl: agent.url,
+            behavior: 'random',
             lastMoved: Date.now(),
-            moveInterval: 600 + Math.random() * 400, // Random 600-1000ms interval, matching original agents
-            skills: importedAgent.card.skills || [],
-            spriteUrl: importedAgent.spriteUrl || '/sprite/sprite_cat.png', // Use selected sprite or default
-            spriteHeight: importedAgent.spriteHeight || 40 // Use selected sprite height or default
+            moveInterval: agent.state.moveInterval || 600 + Math.random() * 400,
+            skills: agent.card.skills || [],
+            spriteUrl: agent.spriteUrl,
+            spriteHeight: agent.spriteHeight || 50
         });
 
         // Switch to map tab
         setActiveTab('map');
     };
 
-    const handleRemoveAgentFromMap = (agentUrl: string) => {
-        removeAgent(agentUrl);
+    const handleRemoveAgentFromMap = async (agentUrl: string) => {
+        const removeResponse = await fetch('/api/agents', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                url: agentUrl,
+                isPlaced: false,
+            }),
+        });
+
+        if (removeResponse.ok) {
+            console.log('✓ Agent removed from map');
+            removeAgent(agentUrl);
+        } else {
+            console.error('Failed to remove agent from map:', await removeResponse.text());
+        }
     };
 
-    // Combine existing world agents with spawned A2A agents
-    const combinedWorldAgents = [
-        ...worldAgents,
-        ...Object.values(agents).map((agent) => ({
-            id: agent.id,
-            x: agent.x,
-            y: agent.y,
-            color: agent.color,
-            name: agent.name,
-            behavior: 'A2A Agent',
-            agentUrl: agent.agentUrl, // Include agentUrl for A2A agents
-            skills: agent.skills
-        }))
-    ];
+    // // Combine existing world agents with spawned A2A agents
+    // const combinedWorldAgents = [
+    //     ...worldAgents,
+    //     ...Object.values(agents).map((agent) => ({
+    //         id: agent.id,
+    //         x: agent.x,
+    //         y: agent.y,
+    //         color: agent.color,
+    //         name: agent.name,
+    //         behavior: 'A2A Agent',
+    //         agentUrl: agent.agentUrl, // Include agentUrl for A2A agents
+    //         skills: agent.skills
+    //     }))
+    // ];
 
     // Convert A2A agents to visible agents format for the map
     const a2aVisibleAgents = Object.values(agents)
@@ -483,16 +462,86 @@ export default function Home() {
         isMoving?: boolean;
     }>;
 
-    const combinedVisibleAgents = [...visibleAgents, ...a2aVisibleAgents];
+    const combinedVisibleAgents = useMemo(() => {
+        return [...visibleAgents, ...a2aVisibleAgents];
+    }, [visibleAgents, a2aVisibleAgents]);
+
+    const isPositionValid = useCallback((x: number, y: number): boolean => {
+      // Check boundaries
+      if (x < mapStartPosition.x || x > mapEndPosition.x || y < mapStartPosition.y || y > mapEndPosition.y) {
+          return false;
+      }
+
+      // Check if position is blocked by collision map
+      if (isCollisionTile(x, y)) {
+          return false;
+      }
+
+      // Check if position is occupied by player
+      if (x === worldPosition.x && y === worldPosition.y) {
+          return false;
+      }
+
+      // Check if position is occupied by another agent
+      // Get latest agents from store to avoid stale closure
+      const currentA2AAgents = useAgentStore.getState().agents;
+      const allAgents = [...visibleAgents, ...currentA2AAgents];
+      const isOccupied = allAgents.some((agent) => 
+        {
+          return agent.x === x && agent.y === y;
+        }
+      );
+      return !isOccupied;
+  }, [isCollisionTile, mapStartPosition, mapEndPosition, worldPosition, visibleAgents]);
+
+  // Find a non-blocked spawn position in one of the deployment zones
+  const findAvailableSpawnPosition = useCallback((selectedCenter: { x: number; y: number }): { x: number; y: number } | null => {
+    // Search in expanding radius from selected zone center
+    for (let radius = 1; radius <= BROADCAST_RADIUS; radius++) {
+        // Collect all positions at current radius
+        const positionsAtRadius: { x: number; y: number }[] = [];
+
+        for (let dx = -radius; dx <= radius; dx++) {
+            for (let dy = -radius; dy <= radius; dy++) {
+                // Only check positions on the perimeter (not interior)
+                if (Math.abs(dx) === radius || Math.abs(dy) === radius) {
+                    positionsAtRadius.push({
+                        x: selectedCenter.x + dx,
+                        y: selectedCenter.y + dy
+                    });
+                }
+            }
+        }
+
+        // Shuffle to add randomness and avoid clustering
+        positionsAtRadius.sort(() => Math.random() - 0.5);
+
+        // Check each position at this radius
+        for (const pos of positionsAtRadius) {
+            if (isPositionValid(pos.x, pos.y)) {
+                console.log(`Found spawn position at (${pos.x}, ${pos.y}) - radius ${radius} from zone center`);
+                return pos;
+            }
+        }
+    }
+
+    return null; // No valid position found in this zone
+}, [isPositionValid, worldPosition]);
+
 
     // A2A Agent movement system
     useEffect(() => {
+        // Skip movement if disabled
+        if (!ENABLE_AGENT_MOVEMENT) {
+            return;
+        }
+
         const moveA2AAgents = () => {
             const now = Date.now();
-            const updated = { ...agents };
+            const updated = agents;
             let hasUpdates = false;
 
-            Object.values(updated).forEach((agent) => {
+            updated.forEach((agent) => {
                 // Use the stored moveInterval (or default if not set)
                 const moveInterval = agent.moveInterval || 5000;
                 const timeSinceLastMove = now - (agent.lastMoved || 0);
@@ -514,8 +563,6 @@ export default function Home() {
                 let moved = false;
 
                 for (const direction of shuffledDirections) {
-                    const oldX = agent.x;
-                    const oldY = agent.y;
                     const newX = agent.x + direction.dx;
                     const newY = agent.y + direction.dy;
 
@@ -530,7 +577,7 @@ export default function Home() {
                     }
 
                     // Check if another agent (A2A or world agent) is at this position
-                    const isOccupiedByA2A = Object.values(updated).some(
+                    const isOccupiedByA2A = updated.some(
                         (otherAgent) => otherAgent.id !== agent.id && otherAgent.x === newX && otherAgent.y === newY
                     );
                     const isOccupiedByWorldAgent = worldAgents.some(
@@ -566,7 +613,7 @@ export default function Home() {
                     if (agentUrl) {
                         setTimeout(() => {
                             const currentAgents = useAgentStore.getState().agents;
-                            const currentAgent = currentAgents[agentUrl];
+                            const currentAgent = currentAgents.find((agent) => agent.agentUrl === agentUrl);
                             if (currentAgent) {
                                 useAgentStore.getState().updateAgent(agentUrl, { isMoving: false });
                             }
@@ -604,36 +651,34 @@ export default function Home() {
         }
     }, [isSDKLoaded]);
 
+    const handleHUDOffChange = (hudOff: boolean) => {
+        setHUDOff(hudOff);
+    };
+
     return (
         <div className="flex h-screen w-full flex-col bg-gray-100">
-            <div className="flex-1 overflow-hidden">
-                <MapTab
-                    isActive={activeTab === 'map'}
-                    visibleAgents={combinedVisibleAgents}
-                    publishedTiles={publishedTiles}
-                    customTiles={customTiles}
-                    broadcastMessage={broadcastMessage}
-                    setBroadcastMessage={setBroadcastMessage}
-                    onBroadcast={handleBroadcast}
-                    broadcastStatus={broadcastStatus}
-                    threads={threads}
-                    onViewThread={handleViewThread}
-                    collisionMap={globalCollisionMap}
-                    onAgentClick={handleAgentClick}
-                />
-                <TempBuildTab
-                    isActive={activeTab === 'build'}
-                    worldPosition={worldPosition}
-                    visibleAgents={combinedVisibleAgents}
-                    publishedTiles={publishedTiles}
-                    customTiles={customTiles}
-                    setCustomTiles={setCustomTiles}
-                    setPublishedTiles={setPublishedTiles}
-                    isPublishing={isPublishing}
-                    publishStatus={publishStatus}
-                    userId={userId}
-                    onPublishTiles={handlePublishTiles}
-                />
+            <div className="relative flex-1 overflow-hidden">
+                <div className={cn("absolute inset-0 pb-[73px]")}>
+                    <MapTab
+                        isActive={activeTab === 'map'}
+                        publishedTiles={publishedTiles}
+                        customTiles={customTiles}
+                        collisionMap={globalCollisionMap}
+                        onAgentClick={handleAgentClick}
+                        HUDOff={HUDOff}
+                        onHUDOffChange={handleHUDOffChange}
+                    />
+                    <TempBuildTab
+                        isActive={activeTab === 'build'}
+                        publishedTiles={publishedTiles}
+                        customTiles={customTiles}
+                        setCustomTiles={setCustomTiles}
+                        setPublishedTiles={setPublishedTiles}
+                        isPublishing={isPublishing}
+                        publishStatus={publishStatus}
+                        userId={userId}
+                        onPublishTiles={handlePublishTiles}
+                    />
                 {/* <BuildTab
                     isActive={activeTab === 'build'}
                     mapData={mapData}
@@ -653,35 +698,20 @@ export default function Home() {
                     onPublishTiles={handlePublishTiles}
                     onMobileMove={handleMobileMove}
                 /> */}
-                <AgentTab
-                    isActive={activeTab === 'agent'}
-                    onSpawnAgent={handleSpawnAgent}
-                    onRemoveAgentFromMap={handleRemoveAgentFromMap}
-                    spawnedAgents={Object.keys(agents)}
-                />
+                    <AgentTab
+                        isActive={activeTab === 'agent'}
+                        onSpawnAgent={handleSpawnAgent}
+                        onRemoveAgentFromMap={handleRemoveAgentFromMap}
+                        spawnedAgents={agents.map((agent) => agent.agentUrl) || []}
+                    />
+                </div>
             </div>
-            {!isBottomSheetOpen && (
+            {!HUDOff && (
                 <Footer
                     activeTab={activeTab}
                     onTabChange={setActiveTab}
-                    onClickDialogueBox={openBottomSheet}
-                    worldAgents={combinedWorldAgents}
-                    playerPosition={worldPosition}
                 />
             )}
-            <BottomSheet isOpen={isBottomSheetOpen} onClose={closeBottomSheet}>
-                <ThreadTab
-                    isActive={true}
-                    chatBoxRef={chatBoxRef}
-                    lastCommentary={lastCommentary}
-                    worldAgents={combinedWorldAgents}
-                    currentThreadId={currentThreadId || undefined}
-                    threads={threads}
-                    onThreadSelect={setCurrentThreadId}
-                    onResetLocation={resetLocation}
-                    userId={userId}
-                />
-            </BottomSheet>
         </div>
     );
 }

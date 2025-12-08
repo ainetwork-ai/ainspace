@@ -1,12 +1,5 @@
 import { create } from 'zustand';
-
-export interface Thread {
-    id: string;
-    message: string;
-    timestamp: Date;
-    agentsReached: number;
-    agentNames: string[];
-}
+import { Thread } from '@/types/thread';
 
 interface BroadcastStatus {
     range: number;
@@ -21,7 +14,12 @@ interface ThreadState {
     broadcastStatus: BroadcastStatus | null;
 
     // Actions
+    setThreads: (threads: Thread[]) => void;
     addThread: (thread: Thread) => void;
+    findThreadByName: (threadName: string) => Thread | undefined;
+    findThreadById: (threadId: string) => Thread | undefined;
+    updateThread: (threadId: string, updates: Partial<Thread>) => void;
+    removeThread: (threadId: string) => void;
     setCurrentThreadId: (threadId: string | undefined) => void;
     setBroadcastMessage: (message: string) => void;
     setBroadcastStatus: (status: BroadcastStatus | null) => void;
@@ -35,7 +33,17 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
     broadcastMessage: '',
     broadcastStatus: null,
 
+    setThreads: (threads) => set({ threads }),
     addThread: (thread) => set((state) => ({ threads: [thread, ...state.threads] })),
+    findThreadByName: (threadName) => get().threads.find(thread => thread.threadName === threadName),
+    findThreadById: (threadId) => get().threads.find(thread => thread.id === threadId),
+    updateThread: (threadId, updates) => set((state) => {
+        return { threads: state.threads.map(t => t.id === threadId ? { ...t, ...updates } : t) }
+    }),
+    removeThread: (threadId: string) => set((state) => {
+        return { threads: state.threads.filter(thread => thread.id !== threadId) }
+    }),
+    
     setCurrentThreadId: (threadId) => set({ currentThreadId: threadId }),
     setBroadcastMessage: (message) => set({ broadcastMessage: message }),
     setBroadcastStatus: (status) => set({ broadcastStatus: status }),

@@ -36,14 +36,6 @@ const ITEM_DIMENSIONS: { [key: number]: { width: number; height: number } } = {
 
 interface BuildTabProps {
     isActive: boolean;
-    worldPosition: { x: number; y: number };
-    visibleAgents: Array<{
-        id: string;
-        screenX: number;
-        screenY: number;
-        color: string;
-        name: string;
-    }>;
     publishedTiles: TileLayers;
     customTiles: TileLayers;
     setCustomTiles: (tiles: TileLayers | ((prev: TileLayers) => TileLayers)) => void;
@@ -59,8 +51,6 @@ interface BuildTabProps {
 
 export default function TempBuildTab({
     isActive,
-    worldPosition,
-    visibleAgents,
     publishedTiles,
     customTiles,
     setCustomTiles,
@@ -76,9 +66,8 @@ export default function TempBuildTab({
     const tileSize = TILE_SIZE;
 
     const { setShowCollisionMap, collisionMap, isBlocked, setCollisionMap } = useBuildStore();
-    const { mapData, playerPosition, movePlayer, isAutonomous } = useGameState();
+    const { mapData, playerPosition, movePlayer, isAutonomous, worldPosition } = useGameState();
     const { playerDirection, isPlayerMoving, setIsPlayerMoving, lastMoveTime, setLastMoveTime } = useGameStateStore();
-    const { isBottomSheetOpen } = useUIStore();
 
     const handleMobileMove = useCallback(
         (direction: DIRECTION) => {
@@ -114,7 +103,7 @@ export default function TempBuildTab({
             // Move player
             movePlayer(direction);
         },
-        [isAutonomous, worldPosition, isBlocked, movePlayer]
+        [isAutonomous, worldPosition.x, worldPosition.y, isBlocked, movePlayer]
     );
 
 
@@ -494,7 +483,6 @@ export default function TempBuildTab({
                             mapData={mapData}
                             tileSize={tileSize}
                             playerPosition={playerPosition}
-                            worldPosition={worldPosition}
                             agents={[]}
                             customTiles={mergedCustomTiles}
                             buildMode={selectedTab === 'item' ? 'paint' : 'view'}
@@ -506,20 +494,18 @@ export default function TempBuildTab({
                             selectedItemDimensions={selectedItem !== null ? ITEM_DIMENSIONS[selectedItem] : null}
                             enableZoom={false}
                             zoomControls="both"
-                            fixedZoom={0.5}
+                            // fixedZoom={0.5}
                             hideCoordinates={true}
                         />
-                        {!isBottomSheetOpen && (
-                            <div className="absolute -bottom-20 left-1/2 z-20 -translate-x-1/2 transform">
-                                <PlayerJoystick
-                                    onMove={handleMobileMove}
-                                    disabled={isAutonomous}
-                                    baseColor="#00000050"
-                                    stickColor="#FFF"
-                                    size={100}
-                                />
-                            </div>
-                        )}
+                        <div className="absolute -bottom-20 left-1/2 z-20 -translate-x-1/2 transform">
+                            <PlayerJoystick
+                                onMove={handleMobileMove}
+                                disabled={isAutonomous}
+                                baseColor="#00000050"
+                                stickColor="#FFF"
+                                size={100}
+                            />
+                        </div>
                     </div>
 
                     <div className="flex w-full flex-row gap-0 self-stretch">
@@ -547,8 +533,9 @@ export default function TempBuildTab({
                     </div>
                     <div className="grid w-full grid-cols-3 gap-4">
                         {Array.from({ length: 6 }).map((_, index) => {
-                            const isPlaced = placedItems.has(index);
-                            const isDisabled = selectedTab !== 'item' || isPlaced;
+                            const isPlaced = true // placedItems.has(index);
+                            // FIXME(yoojin): Disable item selection for now
+                            const isDisabled = true; // selectedTab !== 'item' || isPlaced;
 
                             return (
                                 <div
@@ -575,18 +562,18 @@ export default function TempBuildTab({
                                             isPlaced && 'grayscale'
                                         )}
                                     />
-                                    {isPlaced && (
+                                    {/* {isPlaced && (
                                         <div className="absolute inset-0 flex items-center justify-center">
                                             <div className="rounded-full bg-black/70 px-3 py-1 text-xs font-semibold text-white">
                                                 Placed
                                             </div>
                                         </div>
-                                    )}
+                                    )} */}
                                 </div>
                             );
                         })}
                     </div>
-                    {selectedTab === 'item' ? (
+                    {/* {selectedTab === 'item' ? (
                         <button
                             onClick={onPublishTiles}
                             className={cn(
@@ -598,11 +585,11 @@ export default function TempBuildTab({
                                 {isPublishing ? 'Publishing...' : 'Publish Items'}
                             </p>
                         </button>
-                    ) : (
+                    ) : ( */}
                         <div className="shadow-2sm mb-20 inline-flex h-14 w-full cursor-not-allowed items-center justify-center gap-2.5 rounded bg-[#99a1ae] px-3 py-2">
                             <p className="justify-start text-xl text-white">Coming Soon</p>
                         </div>
-                    )}
+                    {/* )} */}
                 </div>
             </div>
         </BaseTabContent>

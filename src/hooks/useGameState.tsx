@@ -57,7 +57,7 @@ export function useGameState() {
     };
 
     // Initialize agents system
-    const { agents, worldAgents, visibleAgents, resetAgents } = useAgents({
+    const { agents, visibleAgents, resetAgents } = useAgents({
         playerWorldPosition: worldPosition,
         viewRadius: VIEW_RADIUS
     });
@@ -65,7 +65,6 @@ export function useGameState() {
     const savePositionToRedis = useCallback(
         async (position: Position) => {
             if (!userId) return;
-
             try {
                 await fetch('/api/position', {
                     method: 'POST',
@@ -74,7 +73,7 @@ export function useGameState() {
                     },
                     body: JSON.stringify({
                         userId,
-                        position
+                        position: {x: 0, y: 0}
                     })
                 });
             } catch (error) {
@@ -115,33 +114,18 @@ export function useGameState() {
                     break;
             }
 
-            if (
-                newWorldPosition.x < MIN_WORLD_X ||
-                newWorldPosition.x > MAX_WORLD_X ||
-                newWorldPosition.y < MIN_WORLD_Y ||
-                newWorldPosition.y > MAX_WORLD_Y
-            ) {
-                return;
-            }
-
             // Check if the new world position is walkable
             const tileType = generateTileAt(newWorldPosition.x, newWorldPosition.y);
             if (tileType === 3) {
-                // Stone/wall - can't move there
-                return;
-            }
-
-            // Check layer1 collision
-            if (isLayer1Blocked(newWorldPosition.x, newWorldPosition.y)) {
                 return;
             }
 
             // Check if a world agent is at this position
-            const isOccupiedByWorldAgent = worldAgents.some(
+            const isOccupiedByWorldAgent = agents.some(
                 (agent) => agent.x === newWorldPosition.x && agent.y === newWorldPosition.y
             );
             if (isOccupiedByWorldAgent) {
-                const blockingAgent = worldAgents.find(
+                const blockingAgent = agents.find(
                     (agent) => agent.x === newWorldPosition.x && agent.y === newWorldPosition.y
                 );
                 console.log(
@@ -176,7 +160,7 @@ export function useGameState() {
             // Track recent movements
             setRecentMovements([direction, ...recentMovements.slice(0, 4)]);
         },
-        [generateTileAt, savePositionToRedis, isLayer1Blocked, worldAgents, a2aAgents, lastMoveTime]
+        [generateTileAt, savePositionToRedis, isLayer1Blocked, agents, a2aAgents, lastMoveTime]
     );
 
     const toggleAutonomous = useCallback(() => {
@@ -281,7 +265,7 @@ export function useGameState() {
             nextPosition.y < MIN_WORLD_Y ||
             nextPosition.y > MAX_WORLD_Y;
         const tileType = generateTileAt(nextPosition.x, nextPosition.y);
-        const isOccupiedByWorldAgent = worldAgents.some(
+        const isOccupiedByWorldAgent = agents.some(
             (agent) => agent.x === nextPosition.x && agent.y === nextPosition.y
         );
         const isOccupiedByA2AAgent = Object.values(a2aAgents).some(
@@ -320,7 +304,7 @@ export function useGameState() {
                     testPosition.x > MAX_WORLD_X ||
                     testPosition.y < MIN_WORLD_Y ||
                     testPosition.y > MAX_WORLD_Y;
-                const occupiedByWorldAgent = worldAgents.some(
+                const occupiedByWorldAgent = agents.some(
                     (agent) => agent.x === testPosition.x && agent.y === testPosition.y
                 );
                 const occupiedByA2AAgent = Object.values(a2aAgents).some(
@@ -350,7 +334,7 @@ export function useGameState() {
         generateTileAt,
         movePlayer,
         isLayer1Blocked,
-        worldAgents,
+        agents,
         a2aAgents
     ]);
 
@@ -404,7 +388,6 @@ export function useGameState() {
         isLoading,
         userId,
         agents,
-        worldAgents,
         visibleAgents,
         isAutonomous,
         toggleAutonomous,
