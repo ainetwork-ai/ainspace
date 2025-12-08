@@ -63,7 +63,6 @@ export default function MapTab({
         if (!worldPosition) return [];
 
         const broadcastRadius = BROADCAST_RADIUS;
-        console.log('broadcastRadius', broadcastRadius);
         return agents.filter((agent) => {
             const distance = Math.sqrt(
                 Math.pow(agent.x - worldPosition.x, 2) + Math.pow(agent.y - worldPosition.y, 2)
