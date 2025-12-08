@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback, forwardRef } from 'react';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { ChatMessage, useBuildStore, useChatStore, useGameStateStore, useThreadStore } from '@/stores';
-import { INITIAL_PLAYER_POSITION } from '@/constants/game';
+import { BROADCAST_RADIUS, INITIAL_PLAYER_POSITION } from '@/constants/game';
 import { useAccount } from 'wagmi';
 import * as Sentry from '@sentry/nextjs';
 import { useThreadStream } from '@/hooks/useThreadStream';
@@ -421,7 +421,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     body: JSON.stringify({
                         message: userMessageText,
                         playerPosition: currentPlayerPosition,
-                        broadcastRadius: 10,
+                        broadcastRadius: BROADCAST_RADIUS,
                         threadId: threadIdToSend,
                         agentNames: agentNames, // Explicitly pass the agent list calculated on frontend
                         mentionedAgents: mentionedAgents.length > 0 ? mentionedAgents : undefined
@@ -642,9 +642,15 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 {displayedMessages.map((message) => (
                     <ChatMessageCard key={message.id} message={message} />
                 ))}
-                {isMessageLoading && <Spinner className='text-white size-4' />}
                 <div ref={messagesEndRef} />
             </div>
+
+            {/* NOTE: Loading Spinner - Fixed at bottom above input */}
+            {isMessageLoading && (
+                <div className="flex justify-center py-2 bg-transparent">
+                    <Spinner className='text-white size-4' />
+                </div>
+            )}
 
             {/* NOTE: Chat Input Area */}
             <div

@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import MapTab from '@/components/tabs/MapTab';
 import AgentTab from '@/components/tabs/AgentTab';
 import Footer from '@/components/Footer';
-import { DIRECTION, MAP_TILES, ENABLE_AGENT_MOVEMENT } from '@/constants/game';
+import { DIRECTION, MAP_TILES, ENABLE_AGENT_MOVEMENT, BROADCAST_RADIUS } from '@/constants/game';
 import { useUIStore, useThreadStore, useBuildStore, useAgentStore } from '@/stores';
 import TempBuildTab from '@/components/tabs/TempBuildTab';
 import { useAccount } from 'wagmi';
@@ -24,9 +24,8 @@ const DEPLOY_ZONE_CENTERS = [
     { x: 84, y: 70 },   // East zone (25 tiles right)
     { x: 59, y: 45 },   // North zone (25 tiles up)
     { x: 59, y: 95 },   // South zone (25 tiles down)
-    { x: 81, y: 48 },   // Northeast zone (diagonal, ~31 tiles away)
+    { x: 81, y: 48 },   // Northeast zone (diagonal, ~31 tiles away)  
 ];
-const MAX_SEARCH_RADIUS = 3;  // Tight clustering within each zone
 
 export default function Home() {
     // Global stores
@@ -498,7 +497,7 @@ export default function Home() {
   // Find a non-blocked spawn position in one of the deployment zones
   const findAvailableSpawnPosition = useCallback((selectedCenter: { x: number; y: number }): { x: number; y: number } | null => {
     // Search in expanding radius from selected zone center
-    for (let radius = 1; radius <= MAX_SEARCH_RADIUS; radius++) {
+    for (let radius = 1; radius <= BROADCAST_RADIUS; radius++) {
         // Collect all positions at current radius
         const positionsAtRadius: { x: number; y: number }[] = [];
 

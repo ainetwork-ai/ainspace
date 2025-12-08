@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AgentCard } from '@a2a-js/sdk';
 import { getRedisClient, StoredAgent } from '@/lib/redis';
-import { deleteFileFromBucket, getFirebaseStorage, uploadImageToBucket } from '@/lib/firebase';
 
 const AGENTS_KEY = 'agents:';
 
@@ -13,7 +11,7 @@ export async function GET(request: NextRequest) {
   const address = searchParams.get('address');
 
   try {
-    let agents: { url: string; card: AgentCard; timestamp: number }[] = [];
+    let agents: StoredAgent[] = [];
     
     try {
       // Try Redis first
@@ -44,6 +42,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ 
       success: true,
       agents: agents.sort((a, b) => b.timestamp - a.timestamp) // Sort by newest first
+    }, {
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8'
+      }
     });
   } catch (error) {
     console.error('Error fetching agents:', error);
@@ -95,7 +97,12 @@ export async function POST(request: NextRequest) {
               card: card
             }
           },
-          { status: 200 }
+          { 
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json; charset=utf-8'
+            }
+          }
         );
       }
 
@@ -119,7 +126,12 @@ export async function POST(request: NextRequest) {
               card: card
             }
           },
-          { status: 200 }
+          { 
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json; charset=utf-8'
+            }
+          }
         );
       }
 
@@ -134,6 +146,10 @@ export async function POST(request: NextRequest) {
       agent: {
         url: url,
         card: card
+      }
+    }, {
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8'
       }
     });
 
@@ -171,7 +187,12 @@ export async function PUT(request: NextRequest) {
       if (!existing) {
         return NextResponse.json(
           { error: 'Agent not found' },
-          { status: 404 }
+          { 
+            status: 404,
+            headers: {
+              'Content-Type': 'application/json; charset=utf-8'
+            }
+          }
         );
       }
       
@@ -227,6 +248,10 @@ export async function PUT(request: NextRequest) {
         card: agentData.card,
         spriteUrl: agentData.spriteUrl,
         spriteHeight: agentData.spriteHeight
+      }
+    }, {
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8'
       }
     });
 
