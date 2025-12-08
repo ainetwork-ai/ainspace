@@ -3,6 +3,7 @@ import { Thread } from '@/types/thread';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from './ui/context-menu';
 import { Trash2Icon } from 'lucide-react';
 import { useAccount } from 'wagmi';
+import { Z_INDEX_OFFSETS } from '@/constants/common';
 
 interface ThreadCardProps {
     thread: Thread;
@@ -42,12 +43,12 @@ export default function ThreadCard({ thread, onThreadSelect }: ThreadCardProps) 
     return (
         <ContextMenu>
             <ContextMenuTrigger>
-                <div className="flex w-full flex-col gap-1.5 px-5 py-4" onClick={handleClick}>
+                <div className="flex w-full flex-col gap-1.5 px-5 py-4" style={{ zIndex: Z_INDEX_OFFSETS.UI + 3 }} onClick={handleClick}>
                     <p className="text-[14px] leading-[20px] font-[510] text-white">{thread.agentNames.join(', ')}</p>
                     <p className="text-[13px] leading-[20px] font-normal text-white/60">{thread.lastMessageAt}</p>
                 </div>
             </ContextMenuTrigger>
-            <ContextMenuContent className="bg-[#403E47]">
+            <ContextMenuContent className="bg-[#403E47]" style={{ zIndex: Z_INDEX_OFFSETS.UI + 4 }}>
                 <ContextMenuItem
                     className="flex justify-between text-[#FF552D]"
                     variant="destructive"
