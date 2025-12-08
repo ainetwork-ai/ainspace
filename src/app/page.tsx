@@ -671,8 +671,6 @@ export default function Home() {
                     />
                     <TempBuildTab
                         isActive={activeTab === 'build'}
-                        worldPosition={worldPosition}
-                        visibleAgents={combinedVisibleAgents}
                         publishedTiles={publishedTiles}
                         customTiles={customTiles}
                         setCustomTiles={setCustomTiles}

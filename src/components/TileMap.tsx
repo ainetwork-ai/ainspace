@@ -73,21 +73,22 @@ function TileMap({
     const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
 
     const { worldPosition } = useGameStateStore();
-    const { canvasRef, isLoaded, cameraTilePosition } = useTiledMap(
-        '/map/map.tmj',
-        canvasSize
-    );
-  
-    const [hoveredTile, setHoveredTile] = useState<{ x: number; y: number; layer: 0 | 1 | 2 } | null>(null);
-    const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
-    const [hoveredWorldCoords, setHoveredWorldCoords] = useState<{ worldX: number; worldY: number } | null>(null);
-
+    
     const [zoomLevel, setZoomLevel] = useState(fixedZoom !== undefined ? fixedZoom : 1.0);
     const MIN_ZOOM = 0.5;
     const MAX_ZOOM = 2.0;
     const ZOOM_STEP = 0.25;
 
     const tileSize = baseTileSize * (fixedZoom !== undefined ? fixedZoom : zoomLevel);
+    
+    const { canvasRef, isLoaded, cameraTilePosition } = useTiledMap(
+        '/map/map.tmj',
+        canvasSize,
+        tileSize
+    );
+  
+    const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
+    const [hoveredWorldCoords, setHoveredWorldCoords] = useState<{ worldX: number; worldY: number } | null>(null);
 
     const { showCollisionMap, toggleCollisionMap } = useBuildStore();
     const { isAgentLoading } = useChatStore();

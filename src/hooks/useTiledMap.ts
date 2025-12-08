@@ -50,6 +50,7 @@ type TiledMap = {
 export function useTiledMap(
   mapUrl: string,
   canvasSize: { width: number; height: number },
+  effectiveTileSize?: number,
 ) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [cameraTilePosition, setCameraTilePosition] = useState({ x: 0, y: 0 });
@@ -181,8 +182,9 @@ export function useTiledMap(
       const mapCenterY = Math.floor(height / 2);
 
       // 5️⃣ 화면에 보이는 타일 개수 계산
-      const tilesX = Math.ceil(canvas.width / TILE_SIZE);
-      const tilesY = Math.ceil(canvas.height / TILE_SIZE);
+      const actualTileSize = effectiveTileSize || TILE_SIZE;
+      const tilesX = Math.ceil(canvas.width / actualTileSize);
+      const tilesY = Math.ceil(canvas.height / actualTileSize);
       const halfTilesX = Math.floor(tilesX / 2);
       const halfTilesY = Math.floor(tilesY / 2);
 
@@ -316,7 +318,7 @@ export function useTiledMap(
     }
 
     drawMap();
-  }, [mapData, tilesets, worldPosition, canvasSize, setIsLoaded]);
+  }, [mapData, tilesets, worldPosition, canvasSize, setIsLoaded, effectiveTileSize]);
 
   
   return { canvasRef, isLoaded, cameraTilePosition, mapStartPosition, mapEndPosition };
