@@ -4,7 +4,7 @@ import { useMapStore } from "@/stores/useMapStore";
 import { useGameStateStore } from "@/stores";
 import { TILE_SIZE } from "@/constants/game";
 
-// Tiled flip flags (비트 플래그)
+// Tiled flip flags
 const FLIPPED_HORIZONTALLY_FLAG = 0x80000000;
 const FLIPPED_VERTICALLY_FLAG = 0x40000000;
 const FLIPPED_DIAGONALLY_FLAG = 0x20000000;
@@ -50,6 +50,7 @@ type TiledMap = {
 export function useTiledMap(
   mapUrl: string,
   canvasSize: { width: number; height: number },
+  effectiveTileSize?: number,
 ) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [cameraTilePosition, setCameraTilePosition] = useState({ x: 0, y: 0 });
@@ -181,8 +182,9 @@ export function useTiledMap(
       const mapCenterY = Math.floor(height / 2);
 
       // 5️⃣ 화면에 보이는 타일 개수 계산
-      const tilesX = Math.ceil(canvas.width / TILE_SIZE);
-      const tilesY = Math.ceil(canvas.height / TILE_SIZE);
+      const actualTileSize = effectiveTileSize || TILE_SIZE;
+      const tilesX = Math.ceil(canvas.width / actualTileSize);
+      const tilesY = Math.ceil(canvas.height / actualTileSize);
       const halfTilesX = Math.floor(tilesX / 2);
       const halfTilesY = Math.floor(tilesY / 2);
 
@@ -265,17 +267,49 @@ export function useTiledMap(
             const dx = screenTileX * TILE_SIZE - TILE_SIZE / 4;
             const dy = screenTileY * TILE_SIZE - TILE_SIZE / 4;
 
-            ctx.drawImage(
-              ts.image,
-              sx,
-              sy,
-              sw,
-              sh,
-              dx,
-              dy,
-              TILE_SIZE,
-              TILE_SIZE
-            );
+            // Flip tile
+            const flippedH = (rawGid & FLIPPED_HORIZONTALLY_FLAG) !== 0;
+            const flippedV = (rawGid & FLIPPED_VERTICALLY_FLAG) !== 0;
+            const flippedD = (rawGid & FLIPPED_DIAGONALLY_FLAG) !== 0;
+
+            if (flippedH || flippedV || flippedD) {
+              ctx.save();
+              ctx.translate(dx + TILE_SIZE / 2, dy + TILE_SIZE / 2);
+              
+              if (flippedD) {
+                ctx.rotate(Math.PI / 2);
+                ctx.scale(-1, 1);
+              }
+              
+              if (flippedH) ctx.scale(-1, 1);
+              if (flippedV) ctx.scale(1, -1);
+
+              ctx.drawImage(
+                ts.image,
+                sx,
+                sy,
+                sw,
+                sh,
+                -TILE_SIZE / 2,
+                -TILE_SIZE / 2,
+                TILE_SIZE,
+                TILE_SIZE
+              );
+
+              ctx.restore();
+            } else {
+              ctx.drawImage(
+                ts.image,
+                sx,
+                sy,
+                sw,
+                sh,
+                dx,
+                dy,
+                TILE_SIZE,
+                TILE_SIZE
+              );
+            }
           }
         }
       }
@@ -284,7 +318,7 @@ export function useTiledMap(
     }
 
     drawMap();
-  }, [mapData, tilesets, worldPosition, canvasSize, setIsLoaded]);
+  }, [mapData, tilesets, worldPosition, canvasSize, setIsLoaded, effectiveTileSize]);
 
   
   return { canvasRef, isLoaded, cameraTilePosition, mapStartPosition, mapEndPosition };

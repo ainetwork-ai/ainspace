@@ -281,28 +281,6 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         } else if (inputValue.trim() === 'exit') {
             setShowCollisionMap(false);
             setInputValue('');
-        } else if (inputValue.trim() === 'reset location') {
-            setInputValue('');
-            if (onResetLocation) {
-                onResetLocation();
-                const systemMessage: ChatMessage = {
-                    id: `system-${Date.now()}`,
-                    text: 'Player and agents have been reset to their initial positions (63, 58).',
-                    timestamp: new Date(),
-                    sender: 'system',
-                    threadId: undefined
-                };
-                setMessages([systemMessage], currentThreadId);
-            } else {
-                const errorMessage: ChatMessage = {
-                    id: `system-${Date.now()}`,
-                    text: 'Reset location is not available.',
-                    timestamp: new Date(),
-                    sender: 'system',
-                    threadId: undefined
-                };
-                setMessages([errorMessage], currentThreadId);
-            }
         } else if (inputValue.trim() === 'clear items') {
             setInputValue('');
             const systemMessage: ChatMessage = {
@@ -353,56 +331,6 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 const errorMessage: ChatMessage = {
                     id: `system-${Date.now()}`,
                     text: `Failed to clear items: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                    timestamp: new Date(),
-                    sender: 'system',
-                    threadId: undefined
-                };
-                setMessages([errorMessage], currentThreadId);
-            }
-        } else if (inputValue.trim() === 'update layer1') {
-            setInputValue('');
-            const systemMessage: ChatMessage = {
-                id: `system-${Date.now()}`,
-                text: 'Updating collision map from land_layer_1.webp and published tiles...',
-                timestamp: new Date(),
-                sender: 'system',
-                threadId: undefined
-            };
-            setMessages([systemMessage], currentThreadId);
-
-            try {
-                // Step 1: Update collision map from land_layer_1.webp image
-                await updateCollisionMapFromImage('/map/land_layer_1.webp');
-
-                // Step 2: Get the updated collision map and merge with published layer1 items
-                const currentCollisionMap = useBuildStore.getState().collisionMap;
-                const layer1Items = publishedTiles.layer1 || {};
-
-                // Combine both sources
-                const mergedCollisionMap: { [key: string]: boolean } = { ...currentCollisionMap };
-                Object.keys(layer1Items).forEach((key) => {
-                    mergedCollisionMap[key] = true;
-                });
-
-                // Update the collision map with merged data
-                setCollisionMap(mergedCollisionMap);
-
-                const imageBlockedCount = Object.keys(currentCollisionMap).length;
-                const layer1ItemsCount = Object.keys(layer1Items).length;
-                const totalBlockedCount = Object.keys(mergedCollisionMap).length;
-
-                const successMessage: ChatMessage = {
-                    id: `system-${Date.now()}`,
-                    text: `Collision map updated successfully! ${imageBlockedCount} tiles from image + ${layer1ItemsCount} published items = ${totalBlockedCount} total blocked tiles. Use "show me grid" to view.`,
-                    timestamp: new Date(),
-                    sender: 'system',
-                    threadId: undefined
-                };
-                setMessages([successMessage], currentThreadId);
-            } catch (error) {
-                const errorMessage: ChatMessage = {
-                    id: `system-${Date.now()}`,
-                    text: `Failed to update collision map: ${error instanceof Error ? error.message : 'Unknown error'}`,
                     timestamp: new Date(),
                     sender: 'system',
                     threadId: undefined

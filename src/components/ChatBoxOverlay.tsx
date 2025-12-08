@@ -20,6 +20,7 @@ interface ChatBoxOverlayProps {
     className?: string;
     lastCommentary?: string;
     currentAgentsInRadius: AgentState[];
+    HUDOff: boolean;
 }
 
 export default function ChatBoxOverlay({
@@ -28,6 +29,7 @@ export default function ChatBoxOverlay({
   lastCommentary,
   setJoystickVisible,
   currentAgentsInRadius,
+  HUDOff
 }: ChatBoxOverlayProps) {
     const [isChatSheetOpen, setIsChatSheetOpen] = useState(false);
     const [isThreadListSheetOpen, setIsThreadListSheetOpen] = useState(false);
@@ -123,6 +125,7 @@ export default function ChatBoxOverlay({
                         cn(
                             "flex w-full items-center justify-center gap-1.5 self-stretch rounded-tl-lg rounded-tr-lg backdrop-blur-[6px] bg-black/50 p-3",
                         )}
+                        hidden={HUDOff}
                 >
                     <div 
                         className="p-2 rounded-full bg-black/30"

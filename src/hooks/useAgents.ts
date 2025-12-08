@@ -2,7 +2,6 @@
 
 import { useEffect, useCallback } from 'react';
 import { useMapData } from '@/providers/MapDataProvider';
-import { useTileBasedCollision } from '@/hooks/useTileBasedCollision';
 import { useAgentStore, useBuildStore, useChatStore } from '@/stores';
 import { AgentState } from '@/lib/agent';
 import { DIRECTION, MAP_TILES, ENABLE_AGENT_MOVEMENT } from '@/constants/game';
@@ -29,7 +28,7 @@ interface CachedAgentData {
 
 export function useAgents({ playerWorldPosition }: UseAgentsProps) {
     const { generateTileAt } = useMapData();
-    const { isBlocked: isLayer1Blocked } = useTileBasedCollision('land_layer_1');
+    // FIXME(yoojin): check collision for agent movement
     const { isBlocked: isBuildStoreBlocked } = useBuildStore();
     const { isAgentLoading } = useChatStore();
 
@@ -60,11 +59,10 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
 
             const tileType = generateTileAt(x, y);
             if (tileType === 3) return false;
-            if (isLayer1Blocked(x, y)) return false;
             if (isBuildStoreBlocked(x, y)) return false;
             return true;
         },
-        [generateTileAt, isLayer1Blocked, isBuildStoreBlocked, playerWorldPosition]
+        [generateTileAt, isBuildStoreBlocked, playerWorldPosition]
     );
 
     const getRandomDirection = (): DIRECTION => {

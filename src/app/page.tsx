@@ -13,6 +13,7 @@ import { useAccount } from 'wagmi';
 import sdk from '@farcaster/miniapp-sdk';
 import { StoredAgent } from '@/lib/redis';
 import { useMapStore } from '@/stores/useMapStore';
+import { cn } from '@/lib/utils';
 
 // Spawn zones for deployed agents
 // Default agents center: (59, 70) with radius ~2-3 tiles
@@ -56,6 +57,8 @@ export default function Home() {
     const { setFrameReady, isFrameReady } = useMiniKit();
     const [isSDKLoaded, setIsSDKLoaded] = useState(false);
     const { address } = useAccount();
+
+    const [HUDOff, setHUDOff] = useState<boolean>(false);
 
     // Initialize collision map on first load
     useEffect(() => {
@@ -649,29 +652,34 @@ export default function Home() {
         }
     }, [isSDKLoaded]);
 
+    const handleHUDOffChange = (hudOff: boolean) => {
+        setHUDOff(hudOff);
+    };
+
     return (
         <div className="flex h-screen w-full flex-col bg-gray-100">
-            <div className="flex-1 overflow-hidden pb-[73px]">
-                <MapTab
-                    isActive={activeTab === 'map'}
-                    publishedTiles={publishedTiles}
-                    customTiles={customTiles}
-                    collisionMap={globalCollisionMap}
-                    onAgentClick={handleAgentClick}
-                />
-                <TempBuildTab
-                    isActive={activeTab === 'build'}
-                    worldPosition={worldPosition}
-                    visibleAgents={combinedVisibleAgents}
-                    publishedTiles={publishedTiles}
-                    customTiles={customTiles}
-                    setCustomTiles={setCustomTiles}
-                    setPublishedTiles={setPublishedTiles}
-                    isPublishing={isPublishing}
-                    publishStatus={publishStatus}
-                    userId={userId}
-                    onPublishTiles={handlePublishTiles}
-                />
+            <div className="relative flex-1 overflow-hidden">
+                <div className={cn("absolute inset-0 pb-[73px]")}>
+                    <MapTab
+                        isActive={activeTab === 'map'}
+                        publishedTiles={publishedTiles}
+                        customTiles={customTiles}
+                        collisionMap={globalCollisionMap}
+                        onAgentClick={handleAgentClick}
+                        HUDOff={HUDOff}
+                        onHUDOffChange={handleHUDOffChange}
+                    />
+                    <TempBuildTab
+                        isActive={activeTab === 'build'}
+                        publishedTiles={publishedTiles}
+                        customTiles={customTiles}
+                        setCustomTiles={setCustomTiles}
+                        setPublishedTiles={setPublishedTiles}
+                        isPublishing={isPublishing}
+                        publishStatus={publishStatus}
+                        userId={userId}
+                        onPublishTiles={handlePublishTiles}
+                    />
                 {/* <BuildTab
                     isActive={activeTab === 'build'}
                     mapData={mapData}
@@ -691,17 +699,20 @@ export default function Home() {
                     onPublishTiles={handlePublishTiles}
                     onMobileMove={handleMobileMove}
                 /> */}
-                <AgentTab
-                    isActive={activeTab === 'agent'}
-                    onSpawnAgent={handleSpawnAgent}
-                    onRemoveAgentFromMap={handleRemoveAgentFromMap}
-                    spawnedAgents={agents.map((agent) => agent.agentUrl) || []}
-                />
+                    <AgentTab
+                        isActive={activeTab === 'agent'}
+                        onSpawnAgent={handleSpawnAgent}
+                        onRemoveAgentFromMap={handleRemoveAgentFromMap}
+                        spawnedAgents={agents.map((agent) => agent.agentUrl) || []}
+                    />
+                </div>
             </div>
-            <Footer
-                activeTab={activeTab}
-                onTabChange={setActiveTab}
-            />
+            {!HUDOff && (
+                <Footer
+                    activeTab={activeTab}
+                    onTabChange={setActiveTab}
+                />
+            )}
         </div>
     );
 }

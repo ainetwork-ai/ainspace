@@ -47,7 +47,6 @@ export default function BuildTab({
     isActive,
     mapData,
     playerPosition,
-    worldPosition,
     publishedTiles,
     customTiles,
     selectedImage,
