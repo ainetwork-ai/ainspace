@@ -7,7 +7,7 @@ import { disconnect } from '@wagmi/core';
 
 import BaseTabContent from './BaseTabContent';
 import PlayerJoystick from '@/components/controls/PlayerJoystick';
-import { DIRECTION, TILE_SIZE } from '@/constants/game';
+import { BROADCAST_RADIUS, DIRECTION, TILE_SIZE } from '@/constants/game';
 import { useGameState } from '@/hooks/useGameState';
 import { TileLayers } from '@/stores/useBuildStore';
 import { shortAddress } from '@/lib/utils';
@@ -62,7 +62,8 @@ export default function MapTab({
     const getCurrentAgentsInRadius = useCallback(() => {
         if (!worldPosition) return [];
 
-        const broadcastRadius = 10;
+        const broadcastRadius = BROADCAST_RADIUS;
+        console.log('broadcastRadius', broadcastRadius);
         return agents.filter((agent) => {
             const distance = Math.sqrt(
                 Math.pow(agent.x - worldPosition.x, 2) + Math.pow(agent.y - worldPosition.y, 2)
