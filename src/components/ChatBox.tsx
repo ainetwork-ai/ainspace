@@ -642,9 +642,15 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 {displayedMessages.map((message) => (
                     <ChatMessageCard key={message.id} message={message} />
                 ))}
-                {isMessageLoading && <Spinner className='text-white size-4' />}
                 <div ref={messagesEndRef} />
             </div>
+
+            {/* NOTE: Loading Spinner - Fixed at bottom above input */}
+            {isMessageLoading && (
+                <div className="flex justify-center py-2 bg-transparent">
+                    <Spinner className='text-white size-4' />
+                </div>
+            )}
 
             {/* NOTE: Chat Input Area */}
             <div
