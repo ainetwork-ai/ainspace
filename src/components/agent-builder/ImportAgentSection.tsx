@@ -10,7 +10,7 @@ interface ImportAgentSectionProps {
 
 export default function ImportAgentSection({
     handleImportAgent,
-    isLoading
+    isLoading,
 }: ImportAgentSectionProps) {
     const [agentUrl, setAgentUrl] = useState<string>('');
 

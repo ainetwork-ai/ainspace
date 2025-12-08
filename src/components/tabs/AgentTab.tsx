@@ -8,6 +8,7 @@ import { StoredAgent } from '@/lib/redis';
 import CreateAgentSection from '@/components/agent-builder/CreateAgentSection';
 import ImportedAgentList from '@/components/agent-builder/ImportedAgentList';
 import { useAgentStore } from '@/stores';
+import LoadingModal from '../LoadingModal';
 
 interface AgentTabProps {
     isActive: boolean;
@@ -108,6 +109,7 @@ export default function AgentTab({
     };
 
     const handleRemoveAgent = async (url: string) => {
+        setIsLoading(true);
         const response = await fetch('/api/agents?url=' + url, {
             method: 'DELETE',
             headers: {
@@ -118,27 +120,31 @@ export default function AgentTab({
             const result = await response.json();
             if (result.success) {
                 setAgents(agents.filter((agent) => agent.url !== url));
-                return;
             }
         } else {
             setError('Failed to remove agent');
         }
+        setIsLoading(false);
     };
 
     const handlePlaceAgent = async (agent: StoredAgent) => {
-      await onSpawnAgent(agent);
-      setAgents(agents.map((a) => (a.url === agent.url ? { ...a, isPlaced: true } : a)));
+        setIsLoading(true);
+        await onSpawnAgent(agent);
+        setAgents(agents.map((a) => (a.url === agent.url ? { ...a, isPlaced: true } : a)));
+        setIsLoading(false);
     }
 
     const handleUnplaceAgent = async (agent: StoredAgent) => {
-      await onRemoveAgentFromMap(agent.url);
-      setAgents(agents.map((a) => (a.url === agent.url ? { ...a, isPlaced: false } : a)));
+        setIsLoading(true);
+        await onRemoveAgentFromMap(agent.url);
+        setAgents(agents.map((a) => (a.url === agent.url ? { ...a, isPlaced: false } : a)));
+        setIsLoading(false);
     }
 
     const handleUploadImage = async (agent: StoredAgent, sprite: {url: string, height: number} | File) => {
         let response: Response | null = null;
         const isFile = sprite instanceof File;
-        console.log('isFile', isFile, sprite);
+        setIsLoading(true);
         if (!isFile) {
             response = await fetch('/api/agents', {
                 method: 'PUT',
@@ -161,7 +167,6 @@ export default function AgentTab({
                     }));
                     
                     updateAgent(agent.url, updatedAgent);
-                    return;
                 }
             }
         } else {
@@ -172,25 +177,25 @@ export default function AgentTab({
                 method: 'POST',
                 body: formData,
             });
+            if (response && response.ok) {
+                const result = await response.json();
+                const updatedAgent = { spriteUrl: result.spriteUrl, spriteHeight: result.spriteHeight };
+                
+                setAgents(agents.map((a) => {
+                  if (a.url === agent.url) {
+                    return { ...a, ...updatedAgent };
+                  }
+                  return a;
+                }));
+                
+                updateAgent(agent.url, updatedAgent);
+            }
         }
-        if (response && response.ok) {
-            const result = await response.json();
-            const updatedAgent = { spriteUrl: result.spriteUrl, spriteHeight: result.spriteHeight };
-            
-            setAgents(agents.map((a) => {
-              if (a.url === agent.url) {
-                console.log('Image Changed!: ', a.card.name, a.spriteUrl, result.spriteUrl);
-                return { ...a, ...updatedAgent };
-              }
-              return a;
-            }));
-            
-            updateAgent(agent.url, updatedAgent);
-        }
+        setIsLoading(false);
     }
 
     return (
-        <BaseTabContent isActive={isActive} className="bg-white overflow-hidden">
+        <BaseTabContent isActive={isActive} className="bg-white">
             <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-[30px] overflow-y-auto overflow-x-hidden font-manrope min-h-0">
                 <div className="flex flex-col gap-4 px-5">
                     <p className="text-xl font-bold text-black text-center">Place your Agent to AINSpace</p>
@@ -206,6 +211,7 @@ export default function AgentTab({
                     onUploadImage={handleUploadImage}
                 />
             </div>
+            <LoadingModal open={isLoading} />
         </BaseTabContent>
     );
 }
