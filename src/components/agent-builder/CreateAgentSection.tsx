@@ -6,8 +6,11 @@ import sdk from '@farcaster/miniapp-sdk';
 
 export default function CreateAgentSection() {
     const handleCreateAgent = async () => {
-        // window.open(A2A_BUILDER_URL, '_blank');
-        sdk.actions.openUrl({ url: A2A_BUILDER_URL });
+        if (await sdk.isInMiniApp()) {
+            sdk.actions.openUrl({ url: A2A_BUILDER_URL });
+        } else {
+          window.open(A2A_BUILDER_URL, '_blank');
+        }
     }
 
     return (
