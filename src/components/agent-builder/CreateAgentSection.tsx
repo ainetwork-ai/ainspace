@@ -2,10 +2,15 @@
 
 import Button from '@/components/ui/Button';
 import { A2A_BUILDER_URL } from '@/constants/agentContract';
+import sdk from '@farcaster/miniapp-sdk';
 
 export default function CreateAgentSection() {
     const handleCreateAgent = async () => {
-        window.open(A2A_BUILDER_URL, '_blank');
+        if (await sdk.isInMiniApp()) {
+            sdk.actions.openUrl({ url: A2A_BUILDER_URL });
+        } else {
+          window.open(A2A_BUILDER_URL, '_blank');
+        }
     }
 
     return (
