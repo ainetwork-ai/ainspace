@@ -24,82 +24,88 @@ interface ChatBoxOverlayProps {
 }
 
 export default function ChatBoxOverlay({
-  chatBoxRef,
-  className,
-  lastCommentary,
-  setJoystickVisible,
-  currentAgentsInRadius,
-  HUDOff
+    chatBoxRef,
+    className,
+    lastCommentary,
+    setJoystickVisible,
+    currentAgentsInRadius,
+    HUDOff
 }: ChatBoxOverlayProps) {
     const [isChatSheetOpen, setIsChatSheetOpen] = useState(false);
     const [isThreadListSheetOpen, setIsThreadListSheetOpen] = useState(false);
-    const {
-        setThreads,
-        setCurrentThreadId,
-    } = useThreadStore();
+    const [isThreadListLoading, setIsThreadListLoading] = useState(false);
+    const { setThreads, setCurrentThreadId } = useThreadStore();
 
     const { address } = useAccount();
 
     useEffect(() => {
-      if (!address) return;
+        if (!address) return;
 
-      const loadThreadMappings = async () => {
-          try {
-              const response = await fetch(`/api/threads?userId=${address}`);
-              if (!response.ok) {
-                  console.error('Failed to load threads');
-                  return;
-              }
+        const loadThreadMappings = async () => {
+            setIsThreadListLoading(true);
+            try {
+                const response = await fetch(`/api/threads?userId=${address}`);
+                if (!response.ok) {
+                    console.error('Failed to load threads');
+                    return;
+                }
 
-              const data = await response.json();
-              if (data.success && data.threads) {
-                  const _threads = data.threads as { [id: string]: Thread };
-                  const fetchedThreads: Thread[] = [];
-                  for (const [id, threadData] of Object.entries(_threads)) {
-                      const agentComboId = threadData.agentComboId || await generateAgentComboId(threadData.agentNames);
-                      fetchedThreads.push({
-                        id: threadData.id,
-                        threadName: threadData.threadName,
-                        agentNames: threadData.agentNames,
-                        agentComboId,
-                        createdAt: threadData.createdAt,
-                        lastMessageAt: threadData.lastMessageAt
-                      });
-                  }
-                  fetchedThreads.sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
-                  setThreads(fetchedThreads);
-                  console.log('fetchedThreads', fetchedThreads);
-              }
-          } catch (error) {
-              console.error('Error loading threads:', error);
-          }
-      };
+                const data = await response.json();
+                if (data.success && data.threads) {
+                    const _threads = data.threads as { [id: string]: Thread };
+                    const fetchedThreads: Thread[] = [];
+                    for (const [id, threadData] of Object.entries(_threads)) {
+                        const agentComboId =
+                            threadData.agentComboId || (await generateAgentComboId(threadData.agentNames));
+                        fetchedThreads.push({
+                            id: threadData.id,
+                            threadName: threadData.threadName,
+                            agentNames: threadData.agentNames,
+                            agentComboId,
+                            createdAt: threadData.createdAt,
+                            lastMessageAt: threadData.lastMessageAt,
+                            hasUnplacedAgents: threadData.hasUnplacedAgents,
+                            unplacedAgentNames: threadData.unplacedAgentNames
+                        });
+                    }
+                    fetchedThreads.sort(
+                        (a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()
+                    );
+                    setThreads(fetchedThreads);
+                    console.log('fetchedThreads', fetchedThreads);
+                }
+            } catch (error) {
+                console.error('Error loading threads:', error);
+            } finally {
+                setIsThreadListLoading(false);
+            }
+        };
 
-      loadThreadMappings();
-  }, [address, setThreads]);
+        loadThreadMappings();
+    }, [address, setThreads]);
 
     const handleChatSheetOpen = (open: boolean) => {
-      setIsChatSheetOpen(open);
+        setIsChatSheetOpen(open);
 
-      if (!open) {
-        setCurrentThreadId('0');
-      }
-    }
+        if (!open) {
+            setCurrentThreadId('0');
+        }
+    };
 
     const handleThreadListSheetOpen = (open: boolean) => {
-      setIsThreadListSheetOpen(open);
-    }
+        setIsThreadListSheetOpen(open);
+    };
 
     useEffect(() => {
-      setJoystickVisible(!isChatSheetOpen && !isThreadListSheetOpen);
-    }, [isChatSheetOpen, isThreadListSheetOpen, setJoystickVisible])
+        setJoystickVisible(!isChatSheetOpen && !isThreadListSheetOpen);
+    }, [isChatSheetOpen, isThreadListSheetOpen, setJoystickVisible]);
 
     // Generate placeholder text
     const chatPlaceholder = useMemo(() => {
         if (currentAgentsInRadius.length === 0) {
-            return "No agents nearby";
+            return 'No agents nearby';
         }
-        const agentNames = currentAgentsInRadius.map(a => a.name).join(', ');
+        const agentNames = currentAgentsInRadius.map((a) => a.name).join(', ');
         return `Talk to: ${agentNames}`;
     }, [currentAgentsInRadius]);
 
@@ -115,22 +121,18 @@ export default function ChatBoxOverlay({
         setCurrentThreadId(threadId);
         openChatSheet();
         handleThreadListSheetOpen(false);
-    }
+    };
 
     return (
-        <div className={cn("relative w-full", className)} style={{ zIndex: Z_INDEX_OFFSETS.UI }}>
-            {!isChatSheetOpen &&
+        <div className={cn('relative w-full', className)} style={{ zIndex: Z_INDEX_OFFSETS.UI }}>
+            {!isChatSheetOpen && (
                 <div
-                    className={
-                        cn(
-                            "flex w-full items-center justify-center gap-1.5 self-stretch rounded-tl-lg rounded-tr-lg backdrop-blur-[6px] bg-black/50 p-3",
-                        )}
-                        hidden={HUDOff}
+                    className={cn(
+                        'flex w-full items-center justify-center gap-1.5 self-stretch rounded-tl-lg rounded-tr-lg bg-black/50 p-3 backdrop-blur-[6px]'
+                    )}
+                    hidden={HUDOff}
                 >
-                    <div 
-                        className="p-2 rounded-full bg-black/30"
-                        onClick={openThreadListSheet}
-                    >
+                    <div className="rounded-full bg-black/30 p-2" onClick={openThreadListSheet}>
                         <Image
                             src="/footer/bottomTab/tab_icon_bubble.svg"
                             className="h-4 w-4"
@@ -139,15 +141,18 @@ export default function ChatBoxOverlay({
                             height={16}
                         />
                     </div>
-                    <button onClick={openChatSheet} className="flex flex-1 cursor-pointer rounded-[100px] px-2.5 py-2 bg-black/30">
+                    <button
+                        onClick={openChatSheet}
+                        className="flex flex-1 cursor-pointer rounded-[100px] bg-black/30 px-2.5 py-2"
+                    >
                         <span className="text-xs font-bold text-white">{chatPlaceholder}</span>
                     </button>
-                    <button className="bg-white rounded-lg w-[30px] h-[30px] flex items-center justify-center">
+                    <button className="flex h-[30px] w-[30px] items-center justify-center rounded-lg bg-white">
                         <Triangle className="text-xs font-bold text-black" fill="black" width={12} height={9} />
                     </button>
                 </div>
-            }
-            <ChatBottomDrawer 
+            )}
+            <ChatBottomDrawer
                 open={isChatSheetOpen}
                 onOpenChange={handleChatSheetOpen}
                 openThreadList={() => handleThreadListSheetOpen(true)}
@@ -159,6 +164,7 @@ export default function ChatBoxOverlay({
                 open={isThreadListSheetOpen}
                 onOpenChange={handleThreadListSheetOpen}
                 onThreadSelect={handleThreadSelect}
+                isLoading={isThreadListLoading}
             />
         </div>
     );
