@@ -734,11 +734,11 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                             onKeyDown={handleKeyPress}
                             placeholder={inputPlaceholder}
                             className={cn(
-                                'h-10 w-full cursor-pointer rounded-[100px] bg-black/30 pr-2.5 text-sm leading-5 text-white',
+                                'h-10 w-full cursor-pointer rounded-[100px] bg-black/30 pr-2.5 text-sm leading-5 text-white disabled:cursor-not-allowed disabled:opacity-60',
                                 showUnplacedNotice ? 'pl-9' : 'pl-2.5',
                                 placeholderStyle
                             )}
-                            disabled={isMessageLoading}
+                            disabled={isMessageLoading || showUnplacedNotice}
                         />
                     </div>
                     <button
