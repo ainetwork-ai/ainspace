@@ -639,7 +639,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         [inputValue, cursorPosition]
     );
 
-    const unplacedPlaceholder = 'Agents have left the village. Please delete this thread.';
+    const unplacedPlaceholder = 'Agents have left the village...';
 
     const showUnplacedNotice = hasUnplacedAgents && inputValue.trim().length === 0;
 
@@ -734,7 +734,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                             onKeyDown={handleKeyPress}
                             placeholder={inputPlaceholder}
                             className={cn(
-                                'h-10 w-full cursor-pointer rounded-[100px] bg-black/30 pr-2.5 text-sm leading-5 text-white disabled:cursor-not-allowed disabled:opacity-60',
+                                'h-10 w-full cursor-pointer rounded-[100px] bg-black/30 pr-2.5 text-base leading-5 text-white disabled:cursor-not-allowed disabled:opacity-60',
                                 showUnplacedNotice ? 'pl-9' : 'pl-2.5',
                                 placeholderStyle
                             )}
