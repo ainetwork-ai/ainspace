@@ -639,18 +639,16 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         [inputValue, cursorPosition]
     );
 
-    const unplacedPlaceholder =
-        unplacedAgentNames.length === 1
-            ? `Agent ${unplacedAgentNames[0]} has left the village`
-            : unplacedAgentNames.length > 1
-              ? `Agents ${unplacedAgentNames.join(', ')} have left the village`
-              : 'Agent has left the village';
+    const unplacedPlaceholder = 'Agents have left the village. Please delete this thread.';
+
     const showUnplacedNotice = hasUnplacedAgents && inputValue.trim().length === 0;
+
     const inputPlaceholder = showUnplacedNotice
         ? unplacedPlaceholder
         : isMessageLoading
           ? 'Agents are talking...'
           : 'Typing Message...';
+
     const placeholderStyle = showUnplacedNotice
         ? 'placeholder:text-[#FFB020]'
         : isMessageLoading
