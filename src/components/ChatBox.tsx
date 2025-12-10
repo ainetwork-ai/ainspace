@@ -9,7 +9,7 @@ import { useAccount } from 'wagmi';
 import * as Sentry from '@sentry/nextjs';
 import { useThreadStream } from '@/hooks/useThreadStream';
 import { StreamEvent } from '@/lib/a2aOrchestration';
-import { Triangle } from 'lucide-react';
+import { AlertTriangle, Triangle } from 'lucide-react';
 import ChatMessageCard from './ChatMessageCard';
 import { AgentState } from '@/lib/agent';
 import { generateAgentComboId } from '@/lib/hash';
@@ -40,13 +40,19 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     const [filteredAgents, setFilteredAgents] = useState<AgentState[]>([]);
     const [cursorPosition, setCursorPosition] = useState(0);
     const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
-    const [isMessageLoading, setIsMessageLoading] = useState(false)
+    const [isMessageLoading, setIsMessageLoading] = useState(false);
     const { showCollisionMap, setShowCollisionMap, updateCollisionMapFromImage, publishedTiles, setCollisionMap } =
         useBuildStore();
     const inputRef = useRef<HTMLInputElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const [displayedMessages, setDisplayedMessages] = useState<ChatMessage[]>([]);
+    const activeThread = currentThreadId && currentThreadId !== '0' ? findThreadById(currentThreadId) : undefined;
+    const unplacedAgentNames = activeThread?.unplacedAgentNames ?? [];
+    const hasUnplacedAgents = !!(
+        activeThread?.hasUnplacedAgents ||
+        (unplacedAgentNames && unplacedAgentNames.length > 0)
+    );
 
     // Track if a message has been sent (to enable SSE connection)
     const [hasStartedConversation, setHasStartedConversation] = useState(false);
@@ -64,33 +70,36 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         timestamp: Date;
     }
 
-    const mappingBackendMessagesToChatMessages = useCallback((backendMessages: BackendMessage[], threadId: string) => {
-        return backendMessages.map((backendMessage) => {
-            const isUserMessage = backendMessage.speaker === 'User';
-            return {
-              id: backendMessage.id,
-              text: backendMessage.content,
-              timestamp: backendMessage.timestamp,
-              sender: isUserMessage ? 'user' : 'ai',
-              senderId: isUserMessage ? address : backendMessage.speaker,
-              threadId: threadId,
-            } as ChatMessage;
-        });
-    }, [address]);
+    const mappingBackendMessagesToChatMessages = useCallback(
+        (backendMessages: BackendMessage[], threadId: string) => {
+            return backendMessages.map((backendMessage) => {
+                const isUserMessage = backendMessage.speaker === 'User';
+                return {
+                    id: backendMessage.id,
+                    text: backendMessage.content,
+                    timestamp: backendMessage.timestamp,
+                    sender: isUserMessage ? 'user' : 'ai',
+                    senderId: isUserMessage ? address : backendMessage.speaker,
+                    threadId: threadId
+                } as ChatMessage;
+            });
+        },
+        [address]
+    );
 
-    const fetchThreadMessages = useCallback(async (threadId: string) => {
-        const response = await fetch(`/api/threads/${threadId}`);
-        const data = await response.json();
+    const fetchThreadMessages = useCallback(
+        async (threadId: string) => {
+            const response = await fetch(`/api/threads/${threadId}`);
+            const data = await response.json();
 
-        if (data.success && data.messages) {
-            const mappedMessages = mappingBackendMessagesToChatMessages(
-                data.messages,
-                threadId
-            ) as ChatMessage[];
-            return mappedMessages;
-        }
-        return [];
-    }, [mappingBackendMessagesToChatMessages]);
+            if (data.success && data.messages) {
+                const mappedMessages = mappingBackendMessagesToChatMessages(data.messages, threadId) as ChatMessage[];
+                return mappedMessages;
+            }
+            return [];
+        },
+        [mappingBackendMessagesToChatMessages]
+    );
 
     useEffect(() => {
         if (currentThreadId && currentThreadId !== '0') {
@@ -108,7 +117,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
 
     useEffect(() => {
         if (currentThreadId && currentThreadId !== '0') {
-            const filteredMessages = getMessagesByThreadId(currentThreadId)
+            const filteredMessages = getMessagesByThreadId(currentThreadId);
             setDisplayedMessages(filteredMessages);
         }
     }, [messages, currentThreadId, getMessagesByThreadId]);
@@ -118,9 +127,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         if (agentNames.length === 0) return '';
         // Sort names for consistency
         const sortedNames = [...agentNames].sort();
-        const agentString = sortedNames
-            .join(', ')
-            .replace(/[^a-z0-9가-힣\s,]/gi, '');
+        const agentString = sortedNames.join(', ').replace(/[^a-z0-9가-힣\s,]/gi, '');
         return agentString;
     }, []);
 
@@ -209,13 +216,13 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 };
                 setMessages((prev) => {
                     if (!prev) return [agentMessage];
-                    return [...prev, agentMessage]
+                    return [...prev, agentMessage];
                 }, currentThreadId);
             } else if (event.type === 'block') {
                 // Block messages are not displayed in chat (used for internal processing only)
                 console.log('Block event (not displayed):', event.data);
                 if (event.data.next?.id === 'user') {
-                    setIsMessageLoading(false)
+                    setIsMessageLoading(false);
                 }
             } else if (event.type === 'error') {
                 // Error message
@@ -235,12 +242,11 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     useThreadStream({
         threadId: currentThreadId && currentThreadId !== '0' ? currentThreadId : null,
         onMessage: handleStreamEvent,
-        enabled:
-            hasStartedConversation && !!currentThreadId && currentThreadId !== '0'
+        enabled: hasStartedConversation && !!currentThreadId && currentThreadId !== '0'
     });
 
     const moveToBottom = () => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
 
     useEffect(() => {
@@ -264,11 +270,9 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 const lastMessage = prev[prev.length - 1];
                 if (lastMessage && lastMessage.sender === 'ai' && lastMessage.text === aiCommentary) {
                     return prev;
-                    }
-                    return [...prev, aiMessage]; // FIXME(yoojin): use currentThreadId
-                }, 
-                currentThreadId
-            );
+                }
+                return [...prev, aiMessage]; // FIXME(yoojin): use currentThreadId
+            }, currentThreadId);
         }
     }, [aiCommentary, currentThreadId]);
 
@@ -348,7 +352,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
 
             const isCurrentThreadSelected = currentThreadId && currentThreadId !== '0';
 
-            const currentThread = isCurrentThreadSelected ? findThreadById(currentThreadId) : undefined;
+            const selectedThread = isCurrentThreadSelected ? findThreadById(currentThreadId) : undefined;
             let threadIdToSend: string | undefined = undefined;
             let threadName = '';
 
@@ -366,17 +370,17 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 return [...prev, newMessage];
             });
 
-            if (currentThread) {
-                agentNames.push(...currentThread.agentNames);
-                threadName = currentThread.threadName;
-                threadIdToSend = currentThread.id;
+            if (selectedThread) {
+                agentNames.push(...selectedThread.agentNames);
+                threadName = selectedThread.threadName;
+                threadIdToSend = selectedThread.id;
             } else {
                 currentAgentsInRadius.forEach((a: AgentState) => {
                     agentNames.push(a.name);
                 });
                 threadName = generateThreadName(agentNames);
                 const existingThread = findThreadByName(threadName);
-                console.log(threadName, existingThread?.threadName)
+                console.log(threadName, existingThread?.threadName);
 
                 if (existingThread) {
                     console.log('Agent combination changed - switching to thread:', existingThread.threadName);
@@ -461,8 +465,8 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                         });
 
                         setMessages((prev) => {
-                          if (!prev) return [newMessage];
-                          return [...prev, newMessage];
+                            if (!prev) return [newMessage];
+                            return [...prev, newMessage];
                         }, result.threadId);
 
                         setMessages([], '0');
@@ -517,7 +521,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     text: errorText,
                     timestamp: new Date(),
                     sender: 'system',
-                    threadId: threadIdToSend,
+                    threadId: threadIdToSend
                 };
                 setMessages((prev) => [...prev, errorMessage], threadIdToSend);
 
@@ -598,9 +602,9 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             //     setShowSuggestions(filtered.length > 0);
             //     setSelectedSuggestionIndex(0);
             // } else {
-                setShowSuggestions(false);
-                setFilteredAgents([]);
-                setSelectedSuggestionIndex(0);
+            setShowSuggestions(false);
+            setFilteredAgents([]);
+            setSelectedSuggestionIndex(0);
             // }
         },
         // [getAgentSuggestions]
@@ -634,11 +638,29 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         },
         [inputValue, cursorPosition]
     );
-  
+
+    const unplacedPlaceholder =
+        unplacedAgentNames.length === 1
+            ? `Agent ${unplacedAgentNames[0]} has left the village`
+            : unplacedAgentNames.length > 1
+              ? `Agents ${unplacedAgentNames.join(', ')} have left the village`
+              : 'Agent has left the village';
+    const showUnplacedNotice = hasUnplacedAgents && inputValue.trim().length === 0;
+    const inputPlaceholder = showUnplacedNotice
+        ? unplacedPlaceholder
+        : isMessageLoading
+          ? 'Agents are talking...'
+          : 'Typing Message...';
+    const placeholderStyle = showUnplacedNotice
+        ? 'placeholder:text-[#FFB020]'
+        : isMessageLoading
+          ? 'placeholder:text-[#49C7FF] placeholder:font-light'
+          : 'placeholder:text-[#FFFFFF66]';
+
     return (
         <div className={cn('flex h-full min-h-0 w-full flex-col bg-transparent', className)}>
             {/* NOTE: Chat Messages */}
-            <div className="flex flex-col flex-1 overflow-y-auto p-4 pt-2 gap-4">
+            <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 pt-2">
                 {displayedMessages.map((message) => (
                     <ChatMessageCard key={message.id} message={message} />
                 ))}
@@ -646,18 +668,14 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             </div>
 
             {/* NOTE: Loading Spinner - Fixed at bottom above input */}
-            {isMessageLoading && (
-                <div className="flex justify-center py-2 bg-transparent">
-                    <Spinner className='text-white size-4' />
+            {isMessageLoading && !showUnplacedNotice && (
+                <div className="flex justify-center bg-transparent py-2">
+                    <Spinner className="size-4 text-white" />
                 </div>
             )}
 
             {/* NOTE: Chat Input Area */}
-            <div
-                className={cn(
-                    'w-full bg-transparent'
-                    )}
-            >
+            <div className={cn('w-full bg-transparent')}>
                 {showSuggestions && filteredAgents.length > 0 && (
                     <div className="absolute right-3 bottom-full left-3 z-10 mb-1 max-h-32 overflow-y-auto rounded-md border border-gray-600 bg-gray-800 shadow-lg">
                         {filteredAgents.map((agent, index) => {
@@ -696,11 +714,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     </div>
                 )}
 
-                <div
-                    className={cn(
-                        'flex w-full items-center justify-center gap-1.5 self-stretch p-3'
-                        )}
-                >
+                <div className={cn('flex w-full items-center justify-center gap-1.5 self-stretch p-3')}>
                     <div className="rounded-full bg-black/30 p-2" onClick={openThreadList}>
                         <Image
                             src="/footer/bottomTab/tab_icon_bubble.svg"
@@ -710,18 +724,27 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                             height={16}
                         />
                     </div>
-                    <input
-                        ref={inputRef}
-                        type="text"
-                        value={inputValue}
-                        onChange={handleInputChange}
-                        onKeyDown={handleKeyPress}
-                        placeholder={isMessageLoading ? 'Agents are talking...' : 'Typing Message...'}
-                        className={`flex flex-1 cursor-pointer rounded-[100px] px-2.5 py-2 bg-black/30 text-white  ${isMessageLoading ? 'placeholder:text-[#49C7FF] placeholder:font-light' : 'placeholder:text-[#FFFFFF66]'}`}
-                        disabled={isMessageLoading}
-                    />
+                    <div className="relative flex-1">
+                        {showUnplacedNotice && (
+                            <AlertTriangle className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-[#FFB020]" />
+                        )}
+                        <input
+                            ref={inputRef}
+                            type="text"
+                            value={inputValue}
+                            onChange={handleInputChange}
+                            onKeyDown={handleKeyPress}
+                            placeholder={inputPlaceholder}
+                            className={cn(
+                                'h-10 w-full cursor-pointer rounded-[100px] bg-black/30 pr-2.5 text-sm leading-5 text-white',
+                                showUnplacedNotice ? 'pl-9' : 'pl-2.5',
+                                placeholderStyle
+                            )}
+                            disabled={isMessageLoading}
+                        />
+                    </div>
                     <button
-                        className={`flex h-[30px] w-[30px] items-center justify-center rounded-lg  ${isMessageLoading ? 'bg-gray-300/60' : 'bg-white'}`}
+                        className={`flex h-[30px] w-[30px] items-center justify-center rounded-lg ${isMessageLoading ? 'bg-gray-300/60' : 'bg-white'}`}
                         onClick={() => handleSendMessage()}
                         disabled={isMessageLoading}
                     >
