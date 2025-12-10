@@ -36,10 +36,15 @@ export async function GET(request: NextRequest) {
 
         const allAgents = await getAgents();
 
+        const allAgentUrls = new Set<string>();
         const unplacedUrls = new Set<string>();
         const unplacedNameByUrl = new Map<string, string>();
 
         for (const agent of allAgents) {
+            if (agent.url) {
+                allAgentUrls.add(agent.url);
+            }
+
             if (agent.isPlaced === false && agent.url) {
                 unplacedUrls.add(agent.url);
                 unplacedNameByUrl.set(agent.url, agent.card.name);
@@ -60,7 +65,7 @@ export async function GET(request: NextRequest) {
 
                         for (const agent of agents) {
                             const url = agent.a2aUrl;
-                            if (url && unplacedUrls.has(url)) {
+                            if (url && (unplacedUrls.has(url) || !allAgentUrls.has(url))) {
                                 hasUnplacedAgents = true;
                                 const name = agent.name || unplacedNameByUrl.get(url) || url;
                                 unplacedAgentNameSet.add(name);
