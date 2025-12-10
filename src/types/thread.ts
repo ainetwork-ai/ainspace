@@ -5,4 +5,6 @@ export interface Thread {
     agentComboId: string; // sha-256 hash for agent combination lookup
     createdAt: string;
     lastMessageAt: string;
+    hasUnplacedAgents?: boolean;
+    unplacedAgentNames?: string[];
 }
