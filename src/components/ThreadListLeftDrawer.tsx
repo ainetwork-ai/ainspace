@@ -32,7 +32,7 @@ export default function ThreadListLeftDrawer({
     return (
         <Drawer open={open} onOpenChange={onOpenChange} direction="left">
             <DrawerContent
-                className={cn('min-h-screen w-full overflow-y-auto', 'bg-[#1A1D22]')}
+                className={cn('min-h-screen w-full overflow-y-auto touch-pan-y', 'bg-[#1A1D22]')}
                 style={{ zIndex: Z_INDEX_OFFSETS.UI + 2 }}
             >
                 <DrawerHeader>
