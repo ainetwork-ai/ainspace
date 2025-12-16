@@ -65,6 +65,7 @@ export default function HolderModal({
           </DialogTitle>
           <DialogDescription className="text-base text-[#2F333B] text-center">
             This feature is reserved for
+            <br />
             AIN ecosystem holders.
           </DialogDescription>
         </DialogHeader>
@@ -97,6 +98,7 @@ export default function HolderModal({
 
         <p className="text-sm text-[#969EAA] text-center mt-2">
           The required assets were not
+          <br />
           found in your wallet.
         </p>
       </DialogContent>
