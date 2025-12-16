@@ -44,7 +44,7 @@ export default function ThreadCard({ thread, onThreadSelect }: ThreadCardProps) 
         <ContextMenu>
             <ContextMenuTrigger>
                 <div
-                    className="flex w-full flex-col gap-1.5 px-5 py-4"
+                    className="flex w-full flex-col gap-1.5 px-5 py-4 select-none"
                     style={{ zIndex: Z_INDEX_OFFSETS.UI + 3 }}
                     onClick={handleClick}
                 >
