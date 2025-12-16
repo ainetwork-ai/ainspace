@@ -8,3 +8,7 @@ export interface Thread {
     hasUnplacedAgents?: boolean;
     unplacedAgentNames?: string[];
 }
+
+export interface ThreadInOrchestration extends Omit<Thread, 'hasUnplacedAgents' | 'unplacedAgentNames'> {
+  userId: string;
+}

@@ -14,7 +14,7 @@ import { Address } from 'viem';
 
 interface AgentTabProps {
     isActive: boolean;
-    onSpawnAgent: (agent: StoredAgent) => void;
+    onSpawnAgent: (agent: StoredAgent) => Promise<boolean>;
     onRemoveAgentFromMap: (agentUrl: string) => void;
     spawnedAgents: string[];
 }
@@ -83,7 +83,7 @@ export default function AgentTab({
             ]
         }
         try {
-            const data = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_ADDRESS}/api/token/balance`, {
+            const data = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/token/balance`, {
                 method: 'POST',
                 body: JSON.stringify(requestBody),
                 headers: {
@@ -192,8 +192,12 @@ export default function AgentTab({
 
     const handlePlaceAgent = async (agent: StoredAgent) => {
         setIsLoading(true);
-        await onSpawnAgent(agent);
-        setAgents(agents.map((a) => (a.url === agent.url ? { ...a, isPlaced: true } : a)));
+        const result = await onSpawnAgent(agent);
+        if (result) {
+            setAgents(agents.map((a) => (a.url === agent.url ? { ...a, isPlaced: true } : a)));
+        } else {
+            setError('Failed to place agent');
+        }
         setIsLoading(false);
     }
 
