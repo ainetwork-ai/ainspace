@@ -428,7 +428,8 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                         broadcastRadius: BROADCAST_RADIUS,
                         threadId: threadIdToSend,
                         agentNames: agentNames, // Explicitly pass the agent list calculated on frontend
-                        mentionedAgents: mentionedAgents.length > 0 ? mentionedAgents : undefined
+                        mentionedAgents: mentionedAgents.length > 0 ? mentionedAgents : undefined,
+                        userId: address
                     }),
                     signal: controller.signal
                 });

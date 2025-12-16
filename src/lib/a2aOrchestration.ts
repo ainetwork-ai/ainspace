@@ -57,16 +57,17 @@ export interface StreamEvent {
 
 /**
  * Create a new thread
+ * @param userId - User ID (required)
  * @param name - Thread name (required)
  * @returns Thread object with ID
  */
-export async function createThread(name: string = 'Chat Thread'): Promise<Thread> {
+export async function createThread(userId: string, name: string = 'Chat Thread'): Promise<Thread> {
   const response = await fetch(`${A2A_ORCHESTRATION_BASE_URL}/threads`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, userId }),
   });
 
   if (!response.ok) {

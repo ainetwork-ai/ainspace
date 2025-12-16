@@ -9,10 +9,12 @@ import CreateAgentSection from '@/components/agent-builder/CreateAgentSection';
 import ImportedAgentList from '@/components/agent-builder/ImportedAgentList';
 import { useAgentStore } from '@/stores';
 import LoadingModal from '../LoadingModal';
+import HolderModal from '../HolderModal';
+import { Address } from 'viem';
 
 interface AgentTabProps {
     isActive: boolean;
-    onSpawnAgent: (agent: StoredAgent) => void;
+    onSpawnAgent: (agent: StoredAgent) => Promise<boolean>;
     onRemoveAgentFromMap: (agentUrl: string) => void;
     spawnedAgents: string[];
 }
@@ -25,6 +27,7 @@ export default function AgentTab({
     const [agents, setAgents] = useState<StoredAgent[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [isHolderModalOpen, setIsHolderModalOpen] = useState<boolean>(false);
     const { address } = useAccount();
     const { updateAgent } = useAgentStore();
 
@@ -46,7 +49,67 @@ export default function AgentTab({
         }
     }, [address])
 
+    const checkHolderStatus = async (userAddress: Address) => {
+        const requestBody = {
+            walletAddress: userAddress,
+            //TODO (chanho): 컨트랙트 추가 필요 (erc1155, 그 외 홀더 체크 필요한 토큰들)
+            // 이외에 다른 곳에서도 사용된다면 공용 함수로 refactoring 고려
+            contracts: [
+                {       
+                    chain: "ethereum",      //eth AIN
+                    standard: "erc20",
+                    address: "0x3A810ff7211b40c4fA76205a14efe161615d0385",
+                    source: "onchain"
+                }, 
+                {   
+                    chain: "base",          //base AIN
+                    standard: "erc20",
+                    address: "0xD4423795fd904D9B87554940a95FB7016f172773",
+                    source: "onchain"
+                },
+                {
+                    chain: "base",      //base sAIN
+                    standard: "erc20",
+                    address: "0x70e68AF68933D976565B1882D80708244E0C4fe9",
+            		source: "onchain" 
+                },
+                {
+                    chain: "ethereum",      //mini egg nft
+                    standard: "erc1155",
+                    address: "0x495f947276749Ce646f68AC8c248420045cb7b5e",
+                    source: "opensea",
+                    collection: "mysterious-minieggs"
+                }
+            ]
+        }
+        try {
+            const data = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/token/balance`, {
+                method: 'POST',
+                body: JSON.stringify(requestBody),
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+            })
+            const result = await data.json()
+            const isHolder = result.results.some((value: { isHolder: boolean; }) => value.isHolder === true)
+            
+            return isHolder
+        } catch (error) {
+            console.error("isHolder API Error", error)
+        }
+        
+    }
+
     const handleImportAgent = async (agentUrl: string) => {
+        if (!address) {
+            setError("Wallet connection has been disconnected. Please reconnect wallet.")
+            return;
+        }
+        const isHolder = await checkHolderStatus(address)
+        if (!isHolder) {
+            setIsHolderModalOpen(true) 
+            return;
+        }
         if (!agentUrl.trim()) {
             setError('Please enter a valid agent URL');
             return;
@@ -129,8 +192,12 @@ export default function AgentTab({
 
     const handlePlaceAgent = async (agent: StoredAgent) => {
         setIsLoading(true);
-        await onSpawnAgent(agent);
-        setAgents(agents.map((a) => (a.url === agent.url ? { ...a, isPlaced: true } : a)));
+        const result = await onSpawnAgent(agent);
+        if (result) {
+            setAgents(agents.map((a) => (a.url === agent.url ? { ...a, isPlaced: true } : a)));
+        } else {
+            setError('Failed to place agent');
+        }
         setIsLoading(false);
     }
 
@@ -212,6 +279,7 @@ export default function AgentTab({
                 />
             </div>
             <LoadingModal open={isLoading} />
+            <HolderModal open={isHolderModalOpen} onOpenChange={setIsHolderModalOpen}/>
         </BaseTabContent>
     );
 }

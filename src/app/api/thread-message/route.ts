@@ -14,6 +14,7 @@ interface RequestBody {
     threadId?: string;
     agentNames?: string[]; // Explicit list of agent names to include in thread (from frontend calculation)
     mentionedAgents?: string[]; // Array of agent names that were mentioned
+    userId: string;
 }
 
 /**
@@ -71,7 +72,7 @@ function convertToA2AAgent(agent: StoredAgent): A2AAgent {
 export async function POST(request: NextRequest) {
     try {
         const body: RequestBody = await request.json();
-        const { message, playerPosition, broadcastRadius, threadId, agentNames, mentionedAgents } = body;
+        const { message, playerPosition, broadcastRadius, threadId, agentNames, mentionedAgents, userId } = body;
 
         if (!message || !playerPosition) {
             return NextResponse.json({ error: 'Message and playerPosition are required' }, { status: 400 });
@@ -107,7 +108,7 @@ export async function POST(request: NextRequest) {
         if (!currentThreadId) {
             try {
                 console.log('Creating new A2A thread...');
-                const newThread = await createThread();
+                const newThread = await createThread(userId);
                 currentThreadId = newThread.id;
                 isNewThread = true;
                 console.log('Created thread:', currentThreadId);
