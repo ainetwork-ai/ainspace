@@ -10,6 +10,7 @@ import ImportedAgentList from '@/components/agent-builder/ImportedAgentList';
 import { useAgentStore } from '@/stores';
 import LoadingModal from '../LoadingModal';
 import HolderModal from '../HolderModal';
+import { Address } from 'viem';
 
 interface AgentTabProps {
     isActive: boolean;
@@ -48,8 +49,51 @@ export default function AgentTab({
         }
     }, [address])
 
+    const checkHolderStatus = async (userAddress: Address) => {
+        const requestBody = {
+            walletAddress: userAddress,
+            //TODO (chanho): 컨트랙트 추가 필요 (erc1155, 그 외 홀더 체크 필요한 토큰들)
+            // 이외에 다른 곳에서도 사용된다면 공용 함수로 refactoring 고려
+            contracts: [
+                {
+                    chain: "ethereum",
+                    standard: "erc20",
+                    address: "0x3A810ff7211b40c4fA76205a14efe161615d0385"
+                }, 
+                {
+                    chain: "base",
+                    standard: "erc20",
+                    address: "0xD4423795fd904D9B87554940a95FB7016f172773"
+                },
+            ]
+        }
+        try {
+            const data = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_ADDRESS}/api/token/balance`, {
+                method: 'POST',
+                body: JSON.stringify(requestBody),
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+            })
+            const result = await data.json()
+            const isHolder = result.results.some((value: { isHolder: boolean; }) => value.isHolder === true)
+            return isHolder
+        } catch (error) {
+            console.error("isHolder API Error", error)
+        }
+        
+    }
+
     const handleImportAgent = async (agentUrl: string) => {
-        setIsHolderModalOpen(true)
+        if (!address) {
+            setError("Wallet connection has been disconnected. Please reconnect wallet.")
+            return;
+        }
+        const isHolder = await checkHolderStatus(address)
+        if (!isHolder) {
+            setIsHolderModalOpen(true) 
+            return;
+        }
         if (!agentUrl.trim()) {
             setError('Please enter a valid agent URL');
             return;
