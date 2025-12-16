@@ -3,6 +3,7 @@
 import { ChatMessage, useAgentStore, useGameStateStore } from '@/stores';
 import { useMemo } from 'react';
 import { AgentProfile } from './AgentProfile';
+import ReactMarkdown from 'react-markdown';
 
 const PROFILE_SIZE = 30;
 
@@ -32,7 +33,6 @@ export default function ChatMessageCard({ message }: { message: ChatMessage }) {
     return (
         <div className='flex flex-col items-start gap-1'>
             <div className='flex flex-row items-center gap-2'>
-                {/* {renderAgentProfile()} */}
                 <AgentProfile
                     width={PROFILE_SIZE}
                     height={PROFILE_SIZE}
@@ -42,9 +42,22 @@ export default function ChatMessageCard({ message }: { message: ChatMessage }) {
                     {renderSenderName}
                 </span>
             </div>
-            <p className='justify-start font-semibold leading-[25px] text-white'>
-                {message.text}
-            </p>
+            <div className='justify-start font-semibold leading-[25px] text-white prose prose-invert prose-sm max-w-none'>
+                <ReactMarkdown
+                    components={{
+                        a: ({ node, ...props }) => (
+                            <a
+                                {...props}
+                                className="text-blue-400 underline hover:text-blue-300 visited:text-purple-400"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                            />
+                        ),
+                    }}
+                >
+                    {message.text}
+                </ReactMarkdown>
+            </div>
         </div>
     );
 }
