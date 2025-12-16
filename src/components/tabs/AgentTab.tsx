@@ -14,7 +14,7 @@ import { Address } from 'viem';
 
 interface AgentTabProps {
     isActive: boolean;
-    onSpawnAgent: (agent: StoredAgent) => void;
+    onSpawnAgent: (agent: StoredAgent) => Promise<boolean>;
     onRemoveAgentFromMap: (agentUrl: string) => void;
     spawnedAgents: string[];
 }
@@ -177,8 +177,12 @@ export default function AgentTab({
 
     const handlePlaceAgent = async (agent: StoredAgent) => {
         setIsLoading(true);
-        await onSpawnAgent(agent);
-        setAgents(agents.map((a) => (a.url === agent.url ? { ...a, isPlaced: true } : a)));
+        const result = await onSpawnAgent(agent);
+        if (result) {
+            setAgents(agents.map((a) => (a.url === agent.url ? { ...a, isPlaced: true } : a)));
+        } else {
+            setError('Failed to place agent');
+        }
         setIsLoading(false);
     }
 

@@ -313,7 +313,7 @@ export default function Home() {
         if (!spawnPosition) {
           console.error('Cannot spawn agent: no available positions found in deployment zones');
           alert('Cannot spawn agent: no available space found in deployment zones. Please remove some agents or clear space on the map.');
-          return;
+          return false;
         }
         const { x: spawnX, y: spawnY } = spawnPosition;
         console.log(`✓ Spawning agent at (${spawnX}, ${spawnY}) - separated from default agents`);
@@ -385,6 +385,7 @@ export default function Home() {
 
         // Switch to map tab
         setActiveTab('map');
+        return true;
     };
 
     const handleRemoveAgentFromMap = async (agentUrl: string) => {
