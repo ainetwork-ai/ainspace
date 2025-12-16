@@ -22,22 +22,22 @@ const tokens: TokenInfo[] = [
   {
     name: 'AIN(ETH)',
     icon: '/tokens/ethereum.svg',
-    url: 'https://etherscan.io/token/0x3A810ff7211b40c4fA76205a14efe161615d0385',
+    url: 'https://www.coingecko.com/en/coins/ai-network',
   },
   {
     name: 'AIN(Base)',
     icon: '/tokens/base.svg',
-    url: 'https://basescan.org/token/0xD4423795fd904D9B87554940a95FB7016f172773',
+    url: 'https://www.coingecko.com/en/coins/ai-network',
   },
   {
     name: 'sAIN',
     icon: '/tokens/base.svg',
-    url: 'https://basescan.org/token/0x0000000000000000000000000000000000000000',
+    url: 'https://stake.ainetwork.ai/stake',
   },
   {
     name: 'MiniEgg NFT',
     icon: '/tokens/opensea.svg',
-    url: 'https://opensea.io/collection/miniegg',
+    url: 'https://opensea.io/collection/mysterious-minieggs',
   },
 ];
 
@@ -50,24 +50,21 @@ interface HolderModalProps {
 export default function HolderModal({
   open,
   onOpenChange,
-  className,
 }: HolderModalProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className={cn(
-          'w-[328px] bg-white rounded-2xl py-6 px-4 shadow-lg',
+          'w-auto bg-white rounded-2xl py-6 px-4 shadow-lg',
           'flex flex-col gap-4',
-          className
         )}
       >
-        <DialogHeader className="flex flex-col items-center gap-2">
+        <DialogHeader className="flex flex-col items-center gap-1 pt-6">
           <DialogTitle className="text-xl font-bold text-black text-center">
             Access for Holders Only
           </DialogTitle>
-          <DialogDescription className="text-base text-gray-500 text-center">
+          <DialogDescription className="text-base text-[#2F333B] text-center">
             This feature is reserved for
-            <br />
             AIN ecosystem holders.
           </DialogDescription>
         </DialogHeader>
@@ -79,17 +76,17 @@ export default function HolderModal({
               href={token.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-between p-3 bg-[#F5F3FF] rounded-xl hover:bg-[#EDE9FE] transition-colors"
+              className="flex items-center justify-between p-2 bg-[#f7f0ff] rounded-lg hover:bg-[#EDE9FE] transition-colors w-[264px]"
             >
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 <Image
                   src={token.icon}
                   alt={token.name}
-                  width={48}
-                  height={48}
-                  className="rounded-xl"
+                  width={32}
+                  height={32}
+                  className="rounded-xs"
                 />
-                <span className="text-lg font-semibold text-[#7C3AED]">
+                <span className="text-[16px] font-bold text-[#7C3AED] font-manrope">
                   {token.name}
                 </span>
               </div>
@@ -98,9 +95,8 @@ export default function HolderModal({
           ))}
         </div>
 
-        <p className="text-sm text-gray-400 text-center mt-2">
+        <p className="text-sm text-[#969EAA] text-center mt-2">
           The required assets were not
-          <br />
           found in your wallet.
         </p>
       </DialogContent>
