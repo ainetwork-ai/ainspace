@@ -77,6 +77,7 @@ export default function AgentTab({
             })
             const result = await data.json()
             const isHolder = result.results.some((value: { isHolder: boolean; }) => value.isHolder === true)
+            
             return isHolder
         } catch (error) {
             console.error("isHolder API Error", error)
