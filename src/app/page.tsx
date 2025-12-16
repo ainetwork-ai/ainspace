@@ -15,17 +15,14 @@ import { StoredAgent } from '@/lib/redis';
 import { useMapStore } from '@/stores/useMapStore';
 import { cn } from '@/lib/utils';
 
-// Spawn zones for deployed agents
-// Default agents center: (59, 70) with radius ~2-3 tiles
-// Broadcast range: 10 tiles, so deploy zones must be 25+ tiles away to prevent thread overlap
-// Each zone can hold ~15-20 agents comfortably within radius 10
-const DEPLOY_ZONE_CENTERS = [
-    { x: 34, y: 70 },   // West zone (25 tiles left)
-    { x: 84, y: 70 },   // East zone (25 tiles right)
-    { x: 59, y: 45 },   // North zone (25 tiles up)
-    { x: 59, y: 95 },   // South zone (25 tiles down)
-    { x: 81, y: 48 },   // Northeast zone (diagonal, ~31 tiles away)  
-];
+const ALLOWED_DEPLOY_ZONE = [
+  {
+    startX: -10,
+    startY: -19,
+    endX: 9,
+    endY: 1,
+  }
+]
 
 export default function Home() {
     // Global stores
@@ -167,7 +164,7 @@ export default function Home() {
                     let spawnY = state.y!;
 
                     if (!isPositionValid(spawnX, spawnY)) {
-                        const validPosition = findAvailableSpawnPosition({ x: spawnX, y: spawnY });
+                        const validPosition = findAvailableSpawnPositionByRadius({ x: spawnX, y: spawnY });
                         if (!validPosition) {
                             console.error('Cannot spawn agent: no available positions found in deployment zones');
                             alert('Cannot spawn agent: no available space found in deployment zones. Please remove some agents or clear space on the map.');
@@ -312,20 +309,14 @@ export default function Home() {
         const randomColor = colors[Math.floor(Math.random() * colors.length)];
 
         // Try to find spawn position
-        const spawnPosition = findAvailableSpawnPosition(worldPosition);
-
+        const spawnPosition = findAvailableSpawnPositionByZone(ALLOWED_DEPLOY_ZONE[0]);
         if (!spawnPosition) {
-            // Show error if no valid spawn position found
-            console.error('Cannot spawn agent: no available positions found in deployment zones');
-            alert(
-                'Cannot spawn agent: no available space found in deployment zones. Please remove some agents or clear space on the map.'
-            );
-            return;
+          console.error('Cannot spawn agent: no available positions found in deployment zones');
+          alert('Cannot spawn agent: no available space found in deployment zones. Please remove some agents or clear space on the map.');
+          return;
         }
-
         const { x: spawnX, y: spawnY } = spawnPosition;
         console.log(`✓ Spawning agent at (${spawnX}, ${spawnY}) - separated from default agents`);
-
         // NOTE(yoojin): Disable contract action.
         // await switchChainAsync({
         //     chainId: baseSepolia.id
@@ -495,7 +486,7 @@ export default function Home() {
   }, [isCollisionTile, mapStartPosition, mapEndPosition, worldPosition, visibleAgents]);
 
   // Find a non-blocked spawn position in one of the deployment zones
-  const findAvailableSpawnPosition = useCallback((selectedCenter: { x: number; y: number }): { x: number; y: number } | null => {
+  const findAvailableSpawnPositionByRadius = useCallback((selectedCenter: { x: number; y: number }): { x: number; y: number } | null => {
     // Search in expanding radius from selected zone center
     for (let radius = 1; radius <= BROADCAST_RADIUS; radius++) {
         // Collect all positions at current radius
@@ -528,6 +519,29 @@ export default function Home() {
     return null; // No valid position found in this zone
 }, [isPositionValid, worldPosition]);
 
+    const findAvailableSpawnPositionByZone = useCallback((zone: { startX: number; startY: number; endX: number; endY: number }): { x: number; y: number } | null => {
+      // Collect all positions in the zone
+      const positionsInZone: { x: number; y: number }[] = [];
+      
+      for (let x = zone.startX; x <= zone.endX; x++) {
+        for (let y = zone.startY; y <= zone.endY; y++) {
+          positionsInZone.push({ x, y });
+        }
+      }
+      
+      // Shuffle to add randomness and avoid clustering
+      positionsInZone.sort(() => Math.random() - 0.5);
+      
+      // Check each position to find a valid one
+      for (const pos of positionsInZone) {
+        if (isPositionValid(pos.x, pos.y)) {
+          console.log(`Found spawn position at (${pos.x}, ${pos.y}) in zone`);
+          return pos;
+        }
+      }
+      
+      return null; // No valid position found in this zone
+    }, [isPositionValid]);
 
     // A2A Agent movement system
     useEffect(() => {
