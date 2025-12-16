@@ -9,7 +9,6 @@ import CreateAgentSection from '@/components/agent-builder/CreateAgentSection';
 import ImportedAgentList from '@/components/agent-builder/ImportedAgentList';
 import { useAgentStore } from '@/stores';
 import LoadingModal from '../LoadingModal';
-import HolderModal from '../HolderModal';
 
 interface AgentTabProps {
     isActive: boolean;
@@ -26,7 +25,6 @@ export default function AgentTab({
     const [agents, setAgents] = useState<StoredAgent[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [isHolderModalOpen, setIsHolderModalOpen] = useState<boolean>(false);
     const { address } = useAccount();
     const { updateAgent } = useAgentStore();
 
@@ -49,7 +47,6 @@ export default function AgentTab({
     }, [address])
 
     const handleImportAgent = async (agentUrl: string) => {
-        setIsHolderModalOpen(true)
         if (!agentUrl.trim()) {
             setError('Please enter a valid agent URL');
             return;
@@ -215,7 +212,6 @@ export default function AgentTab({
                 />
             </div>
             <LoadingModal open={isLoading} />
-            <HolderModal open={isHolderModalOpen} onOpenChange={setIsHolderModalOpen}/>
         </BaseTabContent>
     );
 }
