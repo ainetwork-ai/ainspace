@@ -85,7 +85,7 @@ export default function AgentTab({
         }
         try {
             setIsLoading(true);
-            const data = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_ADDRESS}/api/token/balance`, {
+            const data = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/token/balance`, {
                 method: 'POST',
                 body: JSON.stringify(requestBody),
                 headers: {
