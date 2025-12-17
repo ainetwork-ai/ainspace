@@ -28,6 +28,7 @@ export default function AgentTab({
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isHolderModalOpen, setIsHolderModalOpen] = useState<boolean>(false);
+
     const { address } = useAccount();
     const { updateAgent } = useAgentStore();
 
@@ -83,6 +84,7 @@ export default function AgentTab({
             ]
         }
         try {
+            setIsLoading(true);
             const data = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/token/balance`, {
                 method: 'POST',
                 body: JSON.stringify(requestBody),
@@ -93,9 +95,11 @@ export default function AgentTab({
             const result = await data.json()
             const isHolder = result.results.some((value: { isHolder: boolean; }) => value.isHolder === true)
             
+            setIsLoading(false)
             return isHolder
         } catch (error) {
             console.error("isHolder API Error", error)
+            setIsLoading(false)
         }
         
     }
@@ -279,6 +283,7 @@ export default function AgentTab({
                 />
             </div>
             <LoadingModal open={isLoading} />
+            <LoadingModal open={isLoading} title='Holder Checking...' message='are you ai network ecosystem holder?'/>
             <HolderModal open={isHolderModalOpen} onOpenChange={setIsHolderModalOpen}/>
         </BaseTabContent>
     );
