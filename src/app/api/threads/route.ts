@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
                 const unplacedAgentNameSet = new Set<string>();
 
                 try {
-                    const res = await fetch(`${A2A_ORCHESTRATION_BASE_URL}/threads/${thread.id}`);
+                    const res = await fetch(`${A2A_ORCHESTRATION_BASE_URL}/threads/${thread.id}?userId=${userId}`);
 
                     if (res.ok) {
                         const data = (await res.json()) as ThreadResponse;
