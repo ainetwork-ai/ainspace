@@ -56,7 +56,6 @@ export default function Home() {
 
     const [HUDOff, setHUDOff] = useState<boolean>(false);
 
-    // Initialize collision map on first load
     useEffect(() => {
         if (!isFrameReady) {
             setFrameReady();
@@ -67,21 +66,8 @@ export default function Home() {
                 import('eruda').then((eruda) => eruda.default.init());
             }, 100);
         }
-
-        const initCollisionMap = async () => {
-            if (Object.keys(globalCollisionMap).length === 0) {
-                try {
-                    const { updateCollisionMapFromImage } = useBuildStore.getState();
-                    await updateCollisionMapFromImage('/map/land_layer_1.webp');
-                } catch (error) {
-                    console.error('Failed to initialize collision map:', error);
-                }
-            }
-        };
-        initCollisionMap();
     }, []); // Run only once on mount
 
-    // Load custom tiles when userId is available
     useEffect(() => {
         const loadCustomTiles = async () => {
             if (!userId) return;
@@ -120,7 +106,7 @@ export default function Home() {
             }
         };
 
-        loadCustomTiles();
+        // loadCustomTiles();
     }, [userId, setPublishedTiles, setCollisionMap]);
 
     // Load deployed agents from Redis on mount
