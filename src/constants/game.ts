@@ -69,20 +69,20 @@ export const MAP_ZONES: {
   },
   [MAP_NAMES.UNCOMMON_VILLAGE]: {
     startX: -29,
-    startY: 0,
+    startY: 3,
     endX: 8,
-    endY: 19,
+    endY: 16,
   },
   [MAP_NAMES.HARRIS_VILLAGE]: {
-    startX: 9,
-    startY: 0,
-    endX: 29,
-    endY: 19,
+    startX: 10,
+    startY: 3,
+    endX: 26,
+    endY: 16,
   },
   [MAP_NAMES.UNBLOCK_VILLAGE]: {
-    startX: 9,
+    startX: 12,
     startY: -19,
-    endX: 29,
+    endX: 26,
     endY: 1,
   },
 }

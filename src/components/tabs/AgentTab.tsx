@@ -284,7 +284,6 @@ export default function AgentTab({
                 />
             </div>
             <LoadingModal open={isLoading} />
-            <LoadingModal open={isLoading} title='Holder Checking...' message='are you ai network ecosystem holder?'/>
             <HolderModal open={isHolderModalOpen} onOpenChange={setIsHolderModalOpen}/>
         </BaseTabContent>
     );
