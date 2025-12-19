@@ -303,23 +303,6 @@ export default function Home() {
         }
         const { x: spawnX, y: spawnY } = spawnPosition;
         console.log(`✓ Spawning agent at (${spawnX}, ${spawnY}) - separated from default agents`);
-        // NOTE(yoojin): Disable contract action.
-        // await switchChainAsync({
-        //     chainId: baseSepolia.id
-        // });
-        // try {
-        //     await writeContractAsync({
-        //         address: AGENT_CONTRACT_ADDRESS,
-        //         abi: ADD_AGENT_ABI,
-        //         functionName: 'addAgent',
-        //         args: [importedAgent.url, spawnX, spawnY],
-        //         chain: baseSepolia
-        //     }).catch((error) => {
-        //         console.error('User denied transaction:', error);
-        //     });
-        // } catch (error) {
-        //     console.error('User denied transaction:', error);
-        // }
 
         // Register agent with backend Redis
         try {
@@ -394,21 +377,6 @@ export default function Home() {
         }
     };
 
-    // // Combine existing world agents with spawned A2A agents
-    // const combinedWorldAgents = [
-    //     ...worldAgents,
-    //     ...Object.values(agents).map((agent) => ({
-    //         id: agent.id,
-    //         x: agent.x,
-    //         y: agent.y,
-    //         color: agent.color,
-    //         name: agent.name,
-    //         behavior: 'A2A Agent',
-    //         agentUrl: agent.agentUrl, // Include agentUrl for A2A agents
-    //         skills: agent.skills
-    //     }))
-    // ];
-
     // Convert A2A agents to visible agents format for the map
     const a2aVisibleAgents = Object.values(agents)
         .map((agent) => {
@@ -439,10 +407,6 @@ export default function Home() {
         direction?: DIRECTION;
         isMoving?: boolean;
     }>;
-
-    const combinedVisibleAgents = useMemo(() => {
-        return [...visibleAgents, ...a2aVisibleAgents];
-    }, [visibleAgents, a2aVisibleAgents]);
 
     const isPositionValid = useCallback((x: number, y: number): boolean => {
       // Check boundaries
@@ -507,7 +471,6 @@ export default function Home() {
 }, [isPositionValid, worldPosition]);
 
     const findAvailableSpawnPositionByZone = useCallback((zone: { startX: number; startY: number; endX: number; endY: number }): { x: number; y: number } | null => {
-      // Collect all positions in the zone
       const positionsInZone: { x: number; y: number }[] = [];
       
       for (let x = zone.startX; x <= zone.endX; x++) {
@@ -516,10 +479,8 @@ export default function Home() {
         }
       }
       
-      // Shuffle to add randomness and avoid clustering
       positionsInZone.sort(() => Math.random() - 0.5);
       
-      // Check each position to find a valid one
       for (const pos of positionsInZone) {
         if (isPositionValid(pos.x, pos.y)) {
           console.log(`Found spawn position at (${pos.x}, ${pos.y}) in zone`);
@@ -527,7 +488,7 @@ export default function Home() {
         }
       }
       
-      return null; // No valid position found in this zone
+      return null;
     }, [isPositionValid]);
 
     // A2A Agent movement system
