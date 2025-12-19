@@ -5,6 +5,7 @@ import BaseTabContent from './BaseTabContent';
 import { useAccount } from 'wagmi';
 import ImportAgentSection from '@/components/agent-builder/ImportAgentSection';
 import { StoredAgent } from '@/lib/redis';
+import { MAP_NAMES } from '@/constants/game';
 import CreateAgentSection from '@/components/agent-builder/CreateAgentSection';
 import ImportedAgentList from '@/components/agent-builder/ImportedAgentList';
 import { useAgentStore } from '@/stores';
@@ -14,7 +15,7 @@ import { Address } from 'viem';
 
 interface AgentTabProps {
     isActive: boolean;
-    onSpawnAgent: (agent: StoredAgent) => Promise<boolean>;
+    onSpawnAgent: (agent: StoredAgent, selectedMap?: MAP_NAMES) => Promise<boolean>;
     onRemoveAgentFromMap: (agentUrl: string) => void;
     spawnedAgents: string[];
 }
@@ -194,9 +195,9 @@ export default function AgentTab({
         setIsLoading(false);
     };
 
-    const handlePlaceAgent = async (agent: StoredAgent) => {
+    const handlePlaceAgent = async (agent: StoredAgent, selectedMap?: MAP_NAMES) => {
         setIsLoading(true);
-        const result = await onSpawnAgent(agent);
+        const result = await onSpawnAgent(agent, selectedMap);
         if (result) {
             setAgents(agents.map((a) => (a.url === agent.url ? { ...a, isPlaced: true } : a)));
         } else {

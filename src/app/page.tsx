@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import MapTab from '@/components/tabs/MapTab';
 import AgentTab from '@/components/tabs/AgentTab';
 import Footer from '@/components/Footer';
-import { DIRECTION, MAP_TILES, ENABLE_AGENT_MOVEMENT, BROADCAST_RADIUS } from '@/constants/game';
+import { DIRECTION, MAP_TILES, ENABLE_AGENT_MOVEMENT, BROADCAST_RADIUS, MAP_NAMES, MAP_ZONES } from '@/constants/game';
 import { useUIStore, useThreadStore, useBuildStore, useAgentStore } from '@/stores';
 import TempBuildTab from '@/components/tabs/TempBuildTab';
 import { useAccount } from 'wagmi';
@@ -289,20 +289,21 @@ export default function Home() {
     };
 
     // A2A Agent handlers - now integrated into worldAgents
-    const handleSpawnAgent = async (agent: StoredAgent) => {
+    const handleSpawnAgent = async (agent: StoredAgent, selectedMap?: MAP_NAMES) => {
         const agentId = `a2a-${Date.now()}`;
         const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8'];
         const randomColor = colors[Math.floor(Math.random() * colors.length)];
 
-        // Try to find spawn position
-        const spawnPosition = findAvailableSpawnPositionByZone(ALLOWED_DEPLOY_ZONE[0]);
+        const spawnZone = selectedMap ? MAP_ZONES[selectedMap] : ALLOWED_DEPLOY_ZONE[0];
+        
+        const spawnPosition = findAvailableSpawnPositionByZone(spawnZone);
         if (!spawnPosition) {
-          console.error('Cannot spawn agent: no available positions found in deployment zones');
-          alert('Cannot spawn agent: no available space found in deployment zones. Please remove some agents or clear space on the map.');
+          console.error(`Cannot spawn agent: no available positions found in ${selectedMap || 'default'} zone`);
+          alert(`Cannot spawn agent: no available space found in ${selectedMap || 'deployment'} zone. Please remove some agents or clear space on the map.`);
           return false;
         }
         const { x: spawnX, y: spawnY } = spawnPosition;
-        console.log(`✓ Spawning agent at (${spawnX}, ${spawnY}) - separated from default agents`);
+        console.log(`✓ Spawning agent at (${spawnX}, ${spawnY}) in ${selectedMap || 'default'} zone`);
 
         // Register agent with backend Redis
         try {
