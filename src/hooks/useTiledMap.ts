@@ -3,6 +3,24 @@ import { XMLParser } from "fast-xml-parser";
 import { useMapStore } from "@/stores/useMapStore";
 import { useGameStateStore } from "@/stores";
 import { TILE_SIZE } from "@/constants/game";
+import { TiledMap, Tileset } from "@/stores/useMapStore";
+
+type TMJParsedTileset = {
+  firstgid: number;
+} & ({
+  source: string;
+} | {
+  image: string;
+  columns: number;
+  tilecount: number;
+  tilewidth: number;
+  tileheight: number;
+}
+)
+
+interface TMJParsedTilemap extends Omit<TiledMap, 'tilesets'> {
+  tilesets: TMJParsedTileset[];
+}
 
 // Tiled flip flags
 const FLIPPED_HORIZONTALLY_FLAG = 0x80000000;
@@ -13,39 +31,6 @@ const FLIP_MASK = ~(FLIPPED_HORIZONTALLY_FLAG | FLIPPED_VERTICALLY_FLAG | FLIPPE
 function getActualGid(gid: number): number {
   return (gid & FLIP_MASK) >>> 0;
 }
-
-type TiledLayer = {
-  data: number[];
-  name: string;
-  type: string;
-  visible: boolean;
-  width: number;
-  height: number;
-};
-
-type TiledTileset = {
-  firstgid: number;
-  source: string;
-};
-
-type TilesetResource = {
-  firstgid: number;
-  image: HTMLImageElement;
-  columns: number;
-  tilecount: number;
-  tilewidth: number;
-  tileheight: number;
-  imageScale?: number;
-};
-
-type TiledMap = {
-  tilewidth: number;
-  tileheight: number;
-  width: number;
-  height: number;
-  layers: TiledLayer[];
-  tilesets: TiledTileset[];
-};
 
 export function useTiledMap(
   mapUrl: string,
@@ -74,7 +59,7 @@ export function useTiledMap(
     async function loadMap() {
       // 1️⃣ 맵 JSON 로드
       const mapRes = await fetch(mapUrl);
-      const _mapData = await mapRes.json() as TiledMap;
+      const _mapData = await mapRes.json();
       setMapData(_mapData);
 
       // 2️⃣ tileset 들 로드 (병렬)
@@ -86,41 +71,68 @@ export function useTiledMap(
 
       console.log(_mapData.tilesets);
 
-      const _tilesets: TilesetResource[] = await Promise.all(
-        _mapData.tilesets.map(async (ts) => {
+      const _tilesets: Tileset[] = await Promise.all(
+        _mapData.tilesets.map(async (ts: TMJParsedTileset) => {
           try {
-            const tsxPath = "/map/image-sources/" + ts.source;
-            const tsxText = await (await fetch(tsxPath)).text();
-            const tsx = parser.parse(tsxText).tileset;
-  
-            const imagePath = "/map/image-sources/" + tsx.image.source.replace("./", "");
-            const image = new Image();
-            await new Promise<void>((resolve) => {
-              image.onload = () => resolve();
-              image.src = imagePath;
-            });
-  
-            const columns = parseInt(tsx.columns) || 1;
-            const tilecount = parseInt(tsx.tilecount) || 1;
-            const tilewidth = parseInt(tsx.tilewidth) || 40;
-            const tileheight = parseInt(tsx.tileheight) || 40;
+            if ('source' in ts) {
+              const tsxPath = "/map/image-sources/" + ts.source;
+              const tsxText = await (await fetch(tsxPath)).text();
+              const tileset = parser.parse(tsxText).tileset;
 
-            const xmlImageWidth = parseInt(tsx.image.width) || image.width;
-            
-            const imageScale = image.width / xmlImageWidth;
-  
-            return {
-              firstgid: ts.firstgid,
-              image,
-              columns,
-              tilecount,
-              tilewidth,
-              tileheight,
-              imageScale,
-            };
+              const imagePath = "/map/image-sources/" + tileset.image.source.replace("./", "");
+              const image = new Image();
+
+              await new Promise<void>((resolve) => {
+                image.onload = () => resolve();
+                image.src = imagePath;
+              });
+
+              const columns = parseInt(tileset.columns) || 1;
+              const tilecount = parseInt(tileset.tilecount) || 1;
+              const tilewidth = parseInt(tileset.tilewidth) || 40;
+              const tileheight = parseInt(tileset.tileheight) || 40;
+
+              const xmlImageWidth = parseInt(tileset.image.width) || image.width;
+              
+              const imageScale = image.width / xmlImageWidth;
+    
+              return {
+                firstgid: ts.firstgid,
+                image,
+                columns,
+                tilecount,
+                tilewidth,
+                tileheight,
+                imageScale,
+              };
+            }
+              const imagePath = "/map/image-sources/" + ts.image.replace("./", "");
+              const image = new Image();
+              await new Promise<void>((resolve) => {
+                image.onload = () => resolve();
+                image.src = imagePath;
+              });
+
+              const columns = ts.columns || 1;
+              const tilecount = ts.tilecount || 1;
+              const tilewidth = ts.tilewidth || 40;
+              const tileheight = ts.tileheight || 40;
+
+              const xmlImageWidth = image.width;
+              const imageScale = image.width / xmlImageWidth;
+
+              return {
+                firstgid: ts.firstgid,
+                image,
+                columns,
+                tilecount,
+                tilewidth,
+                tileheight,
+                imageScale,
+              };
           } catch (err) {
-            console.error(`Error loading tileset ${ts.source}:`, err);
-            return null as unknown as TilesetResource;
+            console.error(`Error loading tileset ${ts.firstgid}:`, err);
+            return null as unknown as Tileset;
           }
         }),
       );
