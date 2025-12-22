@@ -73,7 +73,7 @@ export default function AgentTab({
                     chain: "base",      //base sAIN
                     standard: "erc20",
                     address: "0x70e68AF68933D976565B1882D80708244E0C4fe9",
-            		source: "onchain" 
+            		    source: "onchain" 
                 },
                 {
                     chain: "ethereum",      //mini egg nft

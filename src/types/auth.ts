@@ -1,3 +1,5 @@
+import { HolderCheckerContract } from "@/lib/holder-checker/api";
+
 export interface FeaturePermissions {
   importAgent?: boolean;
   placeAgent?: boolean | number;
@@ -7,17 +9,10 @@ export interface FeaturePermissions {
   adminAccess?: boolean;
 }
 
-export interface TokenRequirement {
-  type: string;
-  chain: string;
-  address: string;
-  minAmount?: number;
-}
-
 export interface AuthDefinition {
   name: string;
   permissions: FeaturePermissions;
-  tokenRequirements: TokenRequirement[];
+  tokenRequirements: HolderCheckerContract[];
 }
 
 export interface AuthDefinitionRaw {

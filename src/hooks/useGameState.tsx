@@ -73,7 +73,7 @@ export function useGameState() {
                     },
                     body: JSON.stringify({
                         userId,
-                        position: {x: 0, y: 0}
+                        position: position
                     })
                 });
             } catch (error) {
