@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import MapTab from '@/components/tabs/MapTab';
 import AgentTab from '@/components/tabs/AgentTab';
 import Footer from '@/components/Footer';
-import { DIRECTION, MAP_TILES, ENABLE_AGENT_MOVEMENT, BROADCAST_RADIUS } from '@/constants/game';
+import { DIRECTION, MAP_TILES, ENABLE_AGENT_MOVEMENT, BROADCAST_RADIUS, MAP_NAMES, MAP_ZONES } from '@/constants/game';
 import { useUIStore, useThreadStore, useBuildStore, useAgentStore } from '@/stores';
 import TempBuildTab from '@/components/tabs/TempBuildTab';
 import { useAccount } from 'wagmi';
@@ -56,7 +56,6 @@ export default function Home() {
 
     const [HUDOff, setHUDOff] = useState<boolean>(false);
 
-    // Initialize collision map on first load
     useEffect(() => {
         if (!isFrameReady) {
             setFrameReady();
@@ -67,21 +66,8 @@ export default function Home() {
                 import('eruda').then((eruda) => eruda.default.init());
             }, 100);
         }
-
-        const initCollisionMap = async () => {
-            if (Object.keys(globalCollisionMap).length === 0) {
-                try {
-                    const { updateCollisionMapFromImage } = useBuildStore.getState();
-                    await updateCollisionMapFromImage('/map/land_layer_1.webp');
-                } catch (error) {
-                    console.error('Failed to initialize collision map:', error);
-                }
-            }
-        };
-        initCollisionMap();
     }, []); // Run only once on mount
 
-    // Load custom tiles when userId is available
     useEffect(() => {
         const loadCustomTiles = async () => {
             if (!userId) return;
@@ -120,7 +106,7 @@ export default function Home() {
             }
         };
 
-        loadCustomTiles();
+        // loadCustomTiles();
     }, [userId, setPublishedTiles, setCollisionMap]);
 
     // Load deployed agents from Redis on mount
@@ -303,37 +289,21 @@ export default function Home() {
     };
 
     // A2A Agent handlers - now integrated into worldAgents
-    const handleSpawnAgent = async (agent: StoredAgent) => {
+    const handleSpawnAgent = async (agent: StoredAgent, selectedMap?: MAP_NAMES) => {
         const agentId = `a2a-${Date.now()}`;
         const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8'];
         const randomColor = colors[Math.floor(Math.random() * colors.length)];
 
-        // Try to find spawn position
-        const spawnPosition = findAvailableSpawnPositionByZone(ALLOWED_DEPLOY_ZONE[0]);
+        const spawnZone = selectedMap ? MAP_ZONES[selectedMap] : ALLOWED_DEPLOY_ZONE[0];
+        
+        const spawnPosition = findAvailableSpawnPositionByZone(spawnZone);
         if (!spawnPosition) {
-          console.error('Cannot spawn agent: no available positions found in deployment zones');
-          alert('Cannot spawn agent: no available space found in deployment zones. Please remove some agents or clear space on the map.');
+          console.error(`Cannot spawn agent: no available positions found in ${selectedMap || 'default'} zone`);
+          alert(`Cannot spawn agent: no available space found in ${selectedMap || 'deployment'} zone. Please remove some agents or clear space on the map.`);
           return false;
         }
         const { x: spawnX, y: spawnY } = spawnPosition;
-        console.log(`✓ Spawning agent at (${spawnX}, ${spawnY}) - separated from default agents`);
-        // NOTE(yoojin): Disable contract action.
-        // await switchChainAsync({
-        //     chainId: baseSepolia.id
-        // });
-        // try {
-        //     await writeContractAsync({
-        //         address: AGENT_CONTRACT_ADDRESS,
-        //         abi: ADD_AGENT_ABI,
-        //         functionName: 'addAgent',
-        //         args: [importedAgent.url, spawnX, spawnY],
-        //         chain: baseSepolia
-        //     }).catch((error) => {
-        //         console.error('User denied transaction:', error);
-        //     });
-        // } catch (error) {
-        //     console.error('User denied transaction:', error);
-        // }
+        console.log(`✓ Spawning agent at (${spawnX}, ${spawnY}) in ${selectedMap || 'default'} zone`);
 
         // Register agent with backend Redis
         try {
@@ -408,21 +378,6 @@ export default function Home() {
         }
     };
 
-    // // Combine existing world agents with spawned A2A agents
-    // const combinedWorldAgents = [
-    //     ...worldAgents,
-    //     ...Object.values(agents).map((agent) => ({
-    //         id: agent.id,
-    //         x: agent.x,
-    //         y: agent.y,
-    //         color: agent.color,
-    //         name: agent.name,
-    //         behavior: 'A2A Agent',
-    //         agentUrl: agent.agentUrl, // Include agentUrl for A2A agents
-    //         skills: agent.skills
-    //     }))
-    // ];
-
     // Convert A2A agents to visible agents format for the map
     const a2aVisibleAgents = Object.values(agents)
         .map((agent) => {
@@ -453,10 +408,6 @@ export default function Home() {
         direction?: DIRECTION;
         isMoving?: boolean;
     }>;
-
-    const combinedVisibleAgents = useMemo(() => {
-        return [...visibleAgents, ...a2aVisibleAgents];
-    }, [visibleAgents, a2aVisibleAgents]);
 
     const isPositionValid = useCallback((x: number, y: number): boolean => {
       // Check boundaries
@@ -521,7 +472,6 @@ export default function Home() {
 }, [isPositionValid, worldPosition]);
 
     const findAvailableSpawnPositionByZone = useCallback((zone: { startX: number; startY: number; endX: number; endY: number }): { x: number; y: number } | null => {
-      // Collect all positions in the zone
       const positionsInZone: { x: number; y: number }[] = [];
       
       for (let x = zone.startX; x <= zone.endX; x++) {
@@ -530,10 +480,8 @@ export default function Home() {
         }
       }
       
-      // Shuffle to add randomness and avoid clustering
       positionsInZone.sort(() => Math.random() - 0.5);
       
-      // Check each position to find a valid one
       for (const pos of positionsInZone) {
         if (isPositionValid(pos.x, pos.y)) {
           console.log(`Found spawn position at (${pos.x}, ${pos.y}) in zone`);
@@ -541,7 +489,7 @@ export default function Home() {
         }
       }
       
-      return null; // No valid position found in this zone
+      return null;
     }, [isPositionValid]);
 
     // A2A Agent movement system
