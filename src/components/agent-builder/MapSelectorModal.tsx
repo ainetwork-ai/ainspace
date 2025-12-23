@@ -70,23 +70,23 @@ export default function MapSelectorModal({ onConfirm, children, defaultMap = MAP
     return (
         <Dialog open={isOpen} onOpenChange={handleOpenChange}>
             <DialogTrigger asChild>{children}</DialogTrigger>
-            <DialogContent className="max-w-md p-0 bg-white rounded-2xl" showCloseButton={false}>
-                <DialogHeader className="px-6 pt-6 pb-4">
+            <DialogContent className="max-w-xs px-4 py-6 gap-4 bg-white rounded-2xl" showCloseButton={false}>
+                <DialogHeader>
                     <DialogTitle className="text-xl font-bold text-black text-center">
                         Pick a home for your agent
                     </DialogTitle>
                 </DialogHeader>
                 
                 {/* Dropdown Selector */}
-                <div className="px-6 pb-6 relative">
+                <div className="relative">
                     <div className="relative" ref={dropdownRef}>
                         <button
                             type="button"
                             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                             className={cn(
-                                "w-full flex items-center justify-between px-4 py-3",
+                                "w-full flex items-center justify-between p-4",
                                 "rounded-lg border border-gray-300 bg-white",
-                                "text-black text-base font-normal",
+                                "text-black text-base font-semibold",
                                 "hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[#7F4FE8] focus:border-transparent",
                                 "transition-colors"
                             )}
@@ -132,17 +132,14 @@ export default function MapSelectorModal({ onConfirm, children, defaultMap = MAP
                     </div>
                 </div>
 
-                {/* Confirm Button */}
-                <div className="px-6 pb-6">
-                    <Button
-                        onClick={handleConfirm}
-                        type="large"
-                        variant="primary"
-                        className="w-full"
-                    >
-                        Confirm
-                    </Button>
-                </div>
+                <Button
+                    onClick={handleConfirm}
+                    type="large"
+                    variant="primary"
+                    className="w-fit p-4"
+                >
+                    Confirm
+                </Button>
             </DialogContent>
         </Dialog>
     );
