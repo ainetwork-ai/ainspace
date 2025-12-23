@@ -38,3 +38,51 @@ export enum DIRECTION {
     RIGHT = 'right',
     STOP = 'stop'
 }
+
+export enum MAP_NAMES {
+  HAPPY_VILLAGE = 'Happy Village',
+  HAHOE_VILLAGE = 'Hahoe Village',
+  UNCOMMON_VILLAGE = 'Uncommon Village',
+  HARRIS_VILLAGE = 'Harris Village',
+  UNBLOCK_VILLAGE = 'Unblock Village',
+}
+
+export const MAP_ZONES: {
+  [key in MAP_NAMES]: {
+    startX: number;
+    startY: number;
+    endX: number;
+    endY: number;
+  }
+} = {
+  [MAP_NAMES.HAPPY_VILLAGE]: {
+    startX: -10,
+    startY: -19,
+    endX: 8,
+    endY: 1,
+  },
+  [MAP_NAMES.HAHOE_VILLAGE]: {
+    startX: -29,
+    startY: -19,
+    endX: -10,
+    endY: 1,
+  },
+  [MAP_NAMES.UNCOMMON_VILLAGE]: {
+    startX: -29,
+    startY: 3,
+    endX: 8,
+    endY: 16,
+  },
+  [MAP_NAMES.HARRIS_VILLAGE]: {
+    startX: 10,
+    startY: 3,
+    endX: 26,
+    endY: 16,
+  },
+  [MAP_NAMES.UNBLOCK_VILLAGE]: {
+    startX: 12,
+    startY: -19,
+    endX: 26,
+    endY: 1,
+  },
+}

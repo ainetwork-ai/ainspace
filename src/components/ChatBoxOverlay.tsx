@@ -1,7 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { useThreadStore } from '@/stores';
+import { useGameStateStore, useThreadStore } from '@/stores';
 import { AgentState } from '@/lib/agent';
 import { Triangle } from 'lucide-react';
 import Image from 'next/image';
@@ -35,6 +35,7 @@ export default function ChatBoxOverlay({
     const [isThreadListSheetOpen, setIsThreadListSheetOpen] = useState(false);
     const [isThreadListLoading, setIsThreadListLoading] = useState(false);
     const { setThreads, setCurrentThreadId } = useThreadStore();
+    const { worldPosition } = useGameStateStore();
 
     const { address } = useAccount();
 
@@ -102,12 +103,14 @@ export default function ChatBoxOverlay({
 
     // Generate placeholder text
     const chatPlaceholder = useMemo(() => {
+        const positionString = `(${worldPosition.x}, ${worldPosition.y})`;
         if (currentAgentsInRadius.length === 0) {
-            return 'No agents nearby';
+            return `${positionString} Talk to: No agents nearby`;
         }
+        
         const agentNames = currentAgentsInRadius.map((a) => a.name).join(', ');
-        return `Talk to: ${agentNames}`;
-    }, [currentAgentsInRadius]);
+        return `${positionString} Talk to: ${agentNames}`;
+    }, [currentAgentsInRadius, worldPosition]);
 
     const openChatSheet = () => {
         handleChatSheetOpen(true);

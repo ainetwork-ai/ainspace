@@ -6,10 +6,12 @@ import Button from '@/components/ui/Button';
 import { MapPinIcon, MapPinOffIcon, Trash2Icon, CameraIcon } from 'lucide-react';
 import UploadImageModal from './UploadImageModal';
 import DeleteConfirmModal from './DeleteConfirmModal';
+import MapSelectorModal from './MapSelectorModal';
+import { MAP_NAMES } from '@/constants/game';
 
 interface ImportedAgentCardProps {
     agent: StoredAgent;
-    onPlaceAgent: (agent: StoredAgent) => void;
+    onPlaceAgent: (agent: StoredAgent, selectedMap?: MAP_NAMES) => void;
     onUnplaceAgent: (agent: StoredAgent) => void;
     onRemoveAgent: (url: string) => void;
     onUploadImage: (agent: StoredAgent, sprite: {url:string, height:number} | File) => void;
@@ -30,20 +32,32 @@ export default function ImportedAgentCard({
                 <AgentProfile width={40} height={40} imageUrl={spriteUrl} backgroundColor={"#F5F7FB"} />
                 <div className="flex flex-row gap-1">
                     {
-                      spriteUrl &&
-                        <Button
-                            onClick={isPlaced ? () => onUnplaceAgent(agent) : () => onPlaceAgent(agent)}
-                            type="small"
-                            variant={isPlaced ? 'secondary' : 'primary'}
-                            className="h-fit p-[9px] flex flex-row gap-1 items-center justify-center"
-                        >
-                            {
-                                isPlaced ?
-                                    <MapPinOffIcon className="w-4 h-4" type="icon" strokeWidth={1.3} /> :
+                      spriteUrl && (
+                        isPlaced ? (
+                            <Button
+                                onClick={() => onUnplaceAgent(agent)}
+                                type="small"
+                                variant="secondary"
+                                className="h-fit p-[9px] flex flex-row gap-1 items-center justify-center"
+                            >
+                                <MapPinOffIcon className="w-4 h-4" type="icon" strokeWidth={1.3} />
+                                <p className="text-sm font-medium leading-none">Unplace</p>
+                            </Button>
+                        ) : (
+                            <MapSelectorModal
+                                onConfirm={(selectedMap) => onPlaceAgent(agent, selectedMap)}
+                            >
+                                <Button
+                                    type="small"
+                                    variant="primary"
+                                    className="h-fit p-[9px] flex flex-row gap-1 items-center justify-center"
+                                >
                                     <MapPinIcon className="w-4 h-4" type="icon" strokeWidth={1.3} />
-                            }
-                            <p className="text-sm font-medium leading-none">{isPlaced ? 'Unplace' : 'Place'}</p>
-                        </Button>
+                                    <p className="text-sm font-medium leading-none">Place</p>
+                                </Button>
+                            </MapSelectorModal>
+                        )
+                      )
                     }
                     <UploadImageModal onConfirm={onUploadImage} agent={agent}>
                         <Button

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-type TiledLayer = {
+export type TiledLayer = {
   data: number[];
   name: string;
   type: string;
@@ -9,12 +9,8 @@ type TiledLayer = {
   height: number;
 };
 
-type TiledTileset = {
-  firstgid: number;
-  source: string;
-};
 
-type TilesetResource = {
+export type Tileset = {
   firstgid: number;
   image: HTMLImageElement;
   columns: number;
@@ -24,18 +20,18 @@ type TilesetResource = {
   imageScale?: number;
 };
 
-type TiledMap = {
+export type TiledMap = {
   tilewidth: number;
   tileheight: number;
   width: number;
   height: number;
   layers: TiledLayer[];
-  tilesets: TiledTileset[];
+  tilesets: Tileset[];
 };
 
 interface MapState {
   mapData: TiledMap | null;
-  tilesets: TilesetResource[];
+  tilesets: Tileset[];
   collisionTiles: Array<{ x: number; y: number }>;
   mapStartPosition: { x: number; y: number };
   mapEndPosition: { x: number; y: number };
@@ -43,7 +39,7 @@ interface MapState {
 
   setIsLoaded: (isLoaded: boolean) => void;
   setMapData: (mapData: TiledMap) => void;
-  setTilesets: (tilesets: TilesetResource[]) => void;
+  setTilesets: (tilesets: Tileset[]) => void;
   setCollisionTiles: (collisionTiles: Array<{ x: number; y: number }>) => void;
   setMapStartPosition: (mapStartPosition: { x: number; y: number }) => void;
   setMapEndPosition: (mapEndPosition: { x: number; y: number }) => void;
@@ -60,7 +56,7 @@ export const useMapStore = create<MapState>((set, get) => ({
 
   setIsLoaded: (isLoaded: boolean) => set({ isLoaded }),
   setMapData: (mapData: TiledMap) => set({ mapData }),
-  setTilesets: (tilesets: TilesetResource[]) => set({ tilesets }),
+  setTilesets: (tilesets: Tileset[]) => set({ tilesets }),
   setCollisionTiles: (collisionTiles: Array<{ x: number; y: number }>) => set({ collisionTiles }),
   setMapStartPosition: (mapStartPosition: { x: number; y: number }) => set({ mapStartPosition }),
   setMapEndPosition: (mapEndPosition: { x: number; y: number }) => set({ mapEndPosition }),
