@@ -13,12 +13,13 @@ interface MapSelectorModalProps {
     defaultMap?: MAP_NAMES;
 }
 
+// FIXME(yoojin): DAO_LAB 송년회 기간 임시 맵 세팅
 const MAP_OPTIONS: { value: MAP_NAMES; label: string; emoji: string }[] = [
-    { value: MAP_NAMES.UNCOMMON_VILLAGE, label: 'Uncommon Village', emoji: '🎨' },
-    { value: MAP_NAMES.UNBLOCK_VILLAGE, label: 'Unblock Media Village', emoji: '📄' },
-    { value: MAP_NAMES.HAHOE_VILLAGE, label: 'Andong Hahoe Village', emoji: '🇰🇷' },
-    { value: MAP_NAMES.HAPPY_VILLAGE, label: 'Happy Village', emoji: '😊' },
-    { value: MAP_NAMES.HARRIS_VILLAGE, label: 'Harris Village', emoji: '🏠' },
+    // { value: MAP_NAMES.UNCOMMON_VILLAGE, label: 'Uncommon Village', emoji: '🎨' },
+    { value: MAP_NAMES.UNBLOCK_VILLAGE, label: 'DAO Lab Village', emoji: '📄' },
+    // { value: MAP_NAMES.HAHOE_VILLAGE, label: 'Andong Hahoe Village', emoji: '🇰🇷' },
+    // { value: MAP_NAMES.HAPPY_VILLAGE, label: 'Happy Village', emoji: '😊' },
+    // { value: MAP_NAMES.HARRIS_VILLAGE, label: 'Harris Village', emoji: '🏠' },
 ];
 
 export default function MapSelectorModal({ onConfirm, children, defaultMap = MAP_NAMES.UNCOMMON_VILLAGE }: MapSelectorModalProps) {
