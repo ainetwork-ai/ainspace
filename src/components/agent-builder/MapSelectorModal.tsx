@@ -22,7 +22,7 @@ const MAP_OPTIONS: { value: MAP_NAMES; label: string; emoji: string }[] = [
     // { value: MAP_NAMES.HARRIS_VILLAGE, label: 'Harris Village', emoji: '🏠' },
 ];
 
-export default function MapSelectorModal({ onConfirm, children, defaultMap = MAP_NAMES.UNCOMMON_VILLAGE }: MapSelectorModalProps) {
+export default function MapSelectorModal({ onConfirm, children, defaultMap = MAP_OPTIONS[0].value }: MapSelectorModalProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [selectedMap, setSelectedMap] = useState<MAP_NAMES>(defaultMap);
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -63,6 +63,7 @@ export default function MapSelectorModal({ onConfirm, children, defaultMap = MAP
     };
 
     const handleSelectMap = (map: MAP_NAMES) => {
+        console.log('map', map);
         setSelectedMap(map);
         setIsDropdownOpen(false);
     };
