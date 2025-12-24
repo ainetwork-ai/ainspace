@@ -12,14 +12,7 @@ export async function POST(request: NextRequest) {
   try {
     // TODO(yoojin): admin 권한 체크 필요
     const body = await request.json();
-    const { address, userId, auths } = body;
-
-    if (!address) {
-      return NextResponse.json(
-        { error: 'Address is required' },
-        { status: 400 }
-      );
-    }
+    const { userId, auths } = body;
 
     if (!userId) {
       return NextResponse.json(
@@ -33,11 +26,11 @@ export async function POST(request: NextRequest) {
         { error: 'Auths must be an array' },
         { status: 400 }
       );
-    }
+    } 
 
-    await saveUserAuths(address, userId, auths);
+    await saveUserAuths(userId, auths);
 
-    const userPermissions = await getUserPermissions(address);
+    const userPermissions = await getUserPermissions(userId);
 
     return NextResponse.json({
       success: true,

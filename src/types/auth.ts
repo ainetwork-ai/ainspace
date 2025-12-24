@@ -23,7 +23,6 @@ export interface AuthDefinitionRaw {
 
 export interface UserPermissions {
   userId: string;
-  address: string;
   auths: string[];
   permissions: FeaturePermissions;
 }

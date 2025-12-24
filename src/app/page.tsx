@@ -2,7 +2,7 @@
 
 import { useGameState } from '@/hooks/useGameState';
 import { useMiniKit } from '@coinbase/onchainkit/minikit';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import MapTab from '@/components/tabs/MapTab';
 import AgentTab from '@/components/tabs/AgentTab';
 import Footer from '@/components/Footer';
@@ -67,6 +67,51 @@ export default function Home() {
             }, 100);
         }
     }, []); // Run only once on mount
+
+    useEffect(() => {
+        const getUserPermissions = async () => {
+            if (!address) return;
+            const response = await fetch(`/api/auth/permissions/${address}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+            });
+
+            if (!response.ok) {
+                console.error('Failed to get user permissions:', response.statusText);
+                return [];
+            }
+
+            const data = await response.json();
+            if (data.success && !data.data) {
+                return [];
+            }
+
+            return data.data;
+        }
+
+        const initUserAuth = async () => {
+            if (!address) return;
+            const response = await fetch(`/api/auth/permissions/${address}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+            });
+
+            if (!response.ok) {
+                console.error('Failed to get user permissions:', response.statusText);
+                return;
+            }
+
+            const data = await response.json();
+            if (data.success && !data.data) {
+                const
+            }
+        }
+        
+    }, [address])
 
     useEffect(() => {
         const loadCustomTiles = async () => {
@@ -377,37 +422,6 @@ export default function Home() {
             console.error('Failed to remove agent from map:', await removeResponse.text());
         }
     };
-
-    // Convert A2A agents to visible agents format for the map
-    const a2aVisibleAgents = Object.values(agents)
-        .map((agent) => {
-            return {
-                id: agent.id,
-                x: agent.x, // world position
-                y: agent.y, // world position
-                screenX: 0, // Will be calculated in TileMap based on camera position
-                screenY: 0, // Will be calculated in TileMap based on camera position
-                color: agent.color,
-                name: agent.name,
-                spriteUrl: agent.spriteUrl, // Pass sprite URL for animation
-                spriteHeight: agent.spriteHeight, // Pass sprite height for rendering
-                direction: agent.direction, // Pass direction for animation
-                isMoving: agent.isMoving // Pass movement state for animation
-            };
-        })
-        .filter(Boolean) as Array<{
-        id: string;
-        x: number;
-        y: number;
-        screenX: number;
-        screenY: number;
-        color: string;
-        name: string;
-        spriteUrl?: string;
-        spriteHeight?: number;
-        direction?: DIRECTION;
-        isMoving?: boolean;
-    }>;
 
     const isPositionValid = useCallback((x: number, y: number): boolean => {
       // Check boundaries
