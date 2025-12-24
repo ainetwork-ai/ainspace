@@ -69,6 +69,39 @@ export const getAuthDefinitions = async (
   );
 }
 
+export const getAllAuthDefinitions = async (): Promise<AuthDefinition[]> => {
+  const redis = await getRedisClient();
+
+  // auth:* 패턴으로 모든 auth key 조회
+  const keys = await redis.keys(`${AUTH_KEY_PREFIX}:*`);
+
+  if (!keys || keys.length === 0) {
+    return [];
+  }
+
+  const definitions = await Promise.all(
+    keys.map(async (key) => {
+      const data = await redis.hGetAll(key);
+
+      if (!data || Object.keys(data).length === 0) {
+        return null;
+      }
+
+      const raw = data as unknown as AuthDefinitionRaw;
+
+      return {
+        name: raw.name,
+        permissions: JSON.parse(raw.permissions),
+        tokenRequirements: JSON.parse(raw.tokenRequirements),
+      };
+    })
+  );
+
+  return definitions.filter(
+    (def): def is AuthDefinition => def !== null
+  );
+}
+
 export const deleteAuthDefinition = async (
   authName: string
 ): Promise<void> => {

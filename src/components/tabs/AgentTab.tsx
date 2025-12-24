@@ -12,6 +12,7 @@ import { useAgentStore } from '@/stores';
 import LoadingModal from '../LoadingModal';
 import HolderModal from '../HolderModal';
 import { Address } from 'viem';
+import { checkIsHolder, HolderCheckerContract } from '@/lib/holder-checker/api';
 
 interface AgentTabProps {
     isActive: boolean;
@@ -52,48 +53,36 @@ export default function AgentTab({
     }, [address])
 
     const checkHolderStatus = async (userAddress: Address) => {
-        const requestBody = {
-            walletAddress: userAddress,
-            //TODO (chanho): 컨트랙트 추가 필요 (erc1155, 그 외 홀더 체크 필요한 토큰들)
-            // 이외에 다른 곳에서도 사용된다면 공용 함수로 refactoring 고려
-            contracts: [
+        const contracts: HolderCheckerContract[] = [
                 {       
-                    chain: "ethereum",      //eth AIN
+                    chain: "Ethereum",      //eth AIN
                     standard: "erc20",
                     address: "0x3A810ff7211b40c4fA76205a14efe161615d0385",
                     source: "onchain"
                 }, 
                 {   
-                    chain: "base",          //base AIN
+                    chain: "Base",          //base AIN
                     standard: "erc20",
                     address: "0xD4423795fd904D9B87554940a95FB7016f172773",
                     source: "onchain"
                 },
                 {
-                    chain: "base",      //base sAIN
+                    chain: "Base",      //base sAIN
                     standard: "erc20",
                     address: "0x70e68AF68933D976565B1882D80708244E0C4fe9",
             		    source: "onchain" 
                 },
                 {
-                    chain: "ethereum",      //mini egg nft
+                    chain: "Ethereum",      //mini egg nft
                     standard: "erc1155",
                     address: "0x495f947276749Ce646f68AC8c248420045cb7b5e",
                     source: "opensea",
                     collection: "mysterious-minieggs"
                 }
             ]
-        }
         try {
             setIsLoading(true);
-            const data = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/token/balance`, {
-                method: 'POST',
-                body: JSON.stringify(requestBody),
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-            })
-            const result = await data.json()
+            const result = await checkIsHolder(userAddress, contracts);
             const isHolder = result.results.some((value: { isHolder: boolean; }) => value.isHolder === true)
             
             setIsLoading(false)
