@@ -2,13 +2,11 @@ import { AuthDefinition } from '@/types/auth';
 
 export const DEFAULT_AUTH_DEFINITIONS: AuthDefinition[] = [
   {
-    name: 'token_holder',
+    name: 'ain_token_holder',
     permissions: {
       importAgent: true,
-      placeAgent: 10,
+      placeAgent: 3,
       placeAllowedMaps: [
-        'Uncommon Village',
-        'Hahoe Village',
         'Happy Village',
       ],
       mapBuild: true,
@@ -42,7 +40,26 @@ export const DEFAULT_AUTH_DEFINITIONS: AuthDefinition[] = [
         chain: 'Ethereum',
         address: '0x495f947276749Ce646f68AC8c248420045cb7b5e',
         source: 'opensea',
+        collection: 'mysterious-minieggs',
       },
+    ],
+  },
+  {
+    name: 'uncommon_member',
+    permissions: {
+      importAgent: true,
+      placeAgent: 3,
+      placeAllowedMaps: ['Uncommon Village'],
+      mapBuild: true,
+      buildAllowedMaps: ['Uncommon Village'],
+    },
+    tokenRequirements: [
+      {
+        standard: 'erc1155',
+        chain: 'Base',
+        address: '0x1234567890123456789012345678901234567890',
+        source: 'onchain',
+      }
     ],
   },
   {
