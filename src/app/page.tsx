@@ -70,7 +70,6 @@ export default function Home() {
 
     useEffect(() => {
         const getUserPermissions = async () => {
-            if (!address) return;
             const response = await fetch(`/api/auth/permissions/${address}`, {
                 method: 'POST',
                 headers: {
@@ -91,23 +90,36 @@ export default function Home() {
             return data.data;
         }
 
-        const initUserAuth = async () => {
-            if (!address) return;
-            const response = await fetch(`/api/auth/permissions/${address}`, {
+        const initDefaultUserAuth = async () => {
+            const response = await fetch(`/api/auth/permissions`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
+                body: JSON.stringify({
+                    userId: address,
+                    auths: ['ain_token_holder'],
+                }),
             });
 
             if (!response.ok) {
-                console.error('Failed to get user permissions:', response.statusText);
+                console.error('Failed to init default user auth:', response.statusText);
                 return;
             }
 
             const data = await response.json();
             if (data.success && !data.data) {
-                const
+                console.error('Failed to init default user auth:', data.message);
+                return;
+            }
+
+            return data.data;
+        }
+
+        const initUserAuth = async () => {
+            const userPermissions = await getUserPermissions();
+            if (userPermissions.length === 0) {
+                initDefaultUserAuth();
             }
         }
         
