@@ -7,7 +7,7 @@ import MapTab from '@/components/tabs/MapTab';
 import AgentTab from '@/components/tabs/AgentTab';
 import Footer from '@/components/Footer';
 import { DIRECTION, MAP_TILES, ENABLE_AGENT_MOVEMENT, BROADCAST_RADIUS, MAP_NAMES, MAP_ZONES } from '@/constants/game';
-import { useUIStore, useThreadStore, useBuildStore, useAgentStore } from '@/stores';
+import { useUIStore, useThreadStore, useBuildStore, useAgentStore, useUserStore } from '@/stores';
 import TempBuildTab from '@/components/tabs/TempBuildTab';
 import { useAccount } from 'wagmi';
 import sdk from '@farcaster/miniapp-sdk';
@@ -53,6 +53,7 @@ export default function Home() {
     const { setFrameReady, isFrameReady } = useMiniKit();
     const [isSDKLoaded, setIsSDKLoaded] = useState(false);
     const { address } = useAccount();
+    const { setAddress, setPermissions } = useUserStore();
 
     const [HUDOff, setHUDOff] = useState<boolean>(false);
     const hasInitializedAuth = useRef(false);
@@ -71,11 +72,17 @@ export default function Home() {
 
     useEffect(() => {
         const initUserAuth = async () => {
-            if (!address) return;
+            if (!address) {
+                setAddress(null);
+                setPermissions(null);
+                return;
+            }
 
             // 이미 초기화했으면 스킵
             if (hasInitializedAuth.current) return;
             hasInitializedAuth.current = true;
+
+            setAddress(address);
 
             try {
                 const getResponse = await fetch(`/api/auth/permissions/${address}`, {
@@ -87,9 +94,7 @@ export default function Home() {
 
                     if (getData.success && getData.data) {
                         console.log('User already has permissions:', getData.data.permissions);
-
-                        // TODO(yoojin): Zustand store에 permissions 저장
-                        // useAuthStore.getState().setPermissions(getData.data.permissions);
+                        setPermissions(getData.data);
                         return;
                     }
                 }
@@ -113,9 +118,7 @@ export default function Home() {
                 if (verifyData.success) {
                     console.log('Granted auths:', verifyData.data.grantedAuths);
                     console.log('User permissions:', verifyData.data.permissions);
-
-                    // TODO(yoojin): Zustand store에 permissions 저장
-                    // useAuthStore.getState().setPermissions(verifyData.data.permissions);
+                    setPermissions(verifyData.data.permissions);
                 } else {
                     console.error('Failed to verify and grant auth:', verifyData.error);
                 }
@@ -125,7 +128,7 @@ export default function Home() {
         }
 
         initUserAuth();
-    }, [address])
+    }, [address, setAddress, setPermissions])
 
     useEffect(() => {
         const loadCustomTiles = async () => {
