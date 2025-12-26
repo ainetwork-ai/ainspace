@@ -10,7 +10,6 @@ import {
  */
 export async function POST(request: NextRequest) {
   try {
-    // TODO(yoojin): admin 권한 체크 필요
     const body = await request.json();
     const { userId, auths } = body;
 
@@ -26,7 +25,7 @@ export async function POST(request: NextRequest) {
         { error: 'Auths must be an array' },
         { status: 400 }
       );
-    } 
+    }
 
     await saveUserAuths(userId, auths);
 

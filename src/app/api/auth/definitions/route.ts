@@ -4,6 +4,7 @@ import {
   getAllAuthDefinitions,
 } from '@/lib/auth';
 import { AuthDefinition } from '@/types/auth';
+import { hasAdminAccess } from '@/lib/auth/permissions';
 
 /**
  * GET /api/auth/definitions
@@ -32,18 +33,33 @@ export async function GET() {
  */
 export async function POST(request: NextRequest) {
   try {
-    // TODO(yoojin): admin 권한 체크 필요
     const body = await request.json();
-    const authDefinition: AuthDefinition = body;
+    const { authDefinition, userId } = body;
 
-    if (!authDefinition.name) {
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'User ID is required' },
+        { status: 400 }
+      );
+    }
+
+    // Check admin permission
+    const adminCheck = await hasAdminAccess(userId);
+    if (!adminCheck.allowed) {
+      return NextResponse.json(
+        { error: 'Admin access required' },
+        { status: 403 }
+      );
+    }
+
+    if (!authDefinition || !authDefinition.name) {
       return NextResponse.json(
         { error: 'Auth name is required' },
         { status: 400 }
       );
     }
 
-    await saveAuthDefinition(authDefinition);
+    await saveAuthDefinition(authDefinition as AuthDefinition);
 
     return NextResponse.json({
       success: true,

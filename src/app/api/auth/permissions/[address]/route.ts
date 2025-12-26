@@ -54,7 +54,6 @@ export async function DELETE(
   { params }: { params: Promise<{ address: string }> }
 ) {
   try {
-    // TODO(yoojin): admin 권한 체크 필요
     const { address } = await params;
 
     if (!address) {
