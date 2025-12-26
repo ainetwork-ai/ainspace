@@ -57,8 +57,9 @@ export const DEFAULT_AUTH_DEFINITIONS: AuthDefinition[] = [
       {
         standard: 'erc1155',
         chain: 'Base',
-        address: '0x1234567890123456789012345678901234567890',
+        address: '0x04884Fdf78b9F0539ac19EAe41053b5cE2eAEA7f',
         source: 'onchain',
+        tokenId: '0',
       }
     ],
   },

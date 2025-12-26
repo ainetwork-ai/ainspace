@@ -2,7 +2,7 @@
 
 import { useGameState } from '@/hooks/useGameState';
 import { useMiniKit } from '@coinbase/onchainkit/minikit';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import MapTab from '@/components/tabs/MapTab';
 import AgentTab from '@/components/tabs/AgentTab';
 import Footer from '@/components/Footer';
@@ -55,6 +55,7 @@ export default function Home() {
     const { address } = useAccount();
 
     const [HUDOff, setHUDOff] = useState<boolean>(false);
+    const hasInitializedAuth = useRef(false);
 
     useEffect(() => {
         if (!isFrameReady) {
@@ -69,60 +70,61 @@ export default function Home() {
     }, []); // Run only once on mount
 
     useEffect(() => {
-        const getUserPermissions = async () => {
-            const response = await fetch(`/api/auth/permissions/${address}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-            });
-
-            if (!response.ok) {
-                console.error('Failed to get user permissions:', response.statusText);
-                return [];
-            }
-
-            const data = await response.json();
-            if (data.success && !data.data) {
-                return [];
-            }
-
-            return data.data;
-        }
-
-        const initDefaultUserAuth = async () => {
-            const response = await fetch(`/api/auth/permissions`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    userId: address,
-                    auths: ['ain_token_holder'],
-                }),
-            });
-
-            if (!response.ok) {
-                console.error('Failed to init default user auth:', response.statusText);
-                return;
-            }
-
-            const data = await response.json();
-            if (data.success && !data.data) {
-                console.error('Failed to init default user auth:', data.message);
-                return;
-            }
-
-            return data.data;
-        }
-
         const initUserAuth = async () => {
-            const userPermissions = await getUserPermissions();
-            if (userPermissions.length === 0) {
-                initDefaultUserAuth();
+            if (!address) return;
+
+            // 이미 초기화했으면 스킵
+            if (hasInitializedAuth.current) return;
+            hasInitializedAuth.current = true;
+
+            try {
+                const getResponse = await fetch(`/api/auth/permissions/${address}`, {
+                    method: 'GET',
+                });
+
+                if (getResponse.ok) {
+                    const getData = await getResponse.json();
+
+                    if (getData.success && getData.data) {
+                        console.log('User already has permissions:', getData.data.permissions);
+
+                        // TODO(yoojin): Zustand store에 permissions 저장
+                        // useAuthStore.getState().setPermissions(getData.data.permissions);
+                        return;
+                    }
+                }
+
+                const verifyResponse = await fetch('/api/auth/verify', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        userId: address,
+                    }),
+                });
+
+                if (!verifyResponse.ok) {
+                    console.error('Failed to verify and grant auth:', verifyResponse.statusText);
+                    return;
+                }
+
+                const verifyData = await verifyResponse.json();
+                if (verifyData.success) {
+                    console.log('Granted auths:', verifyData.data.grantedAuths);
+                    console.log('User permissions:', verifyData.data.permissions);
+
+                    // TODO(yoojin): Zustand store에 permissions 저장
+                    // useAuthStore.getState().setPermissions(verifyData.data.permissions);
+                } else {
+                    console.error('Failed to verify and grant auth:', verifyData.error);
+                }
+            } catch (error) {
+                console.error('Error during auth initialization:', error);
             }
         }
-        
+
+        initUserAuth();
     }, [address])
 
     useEffect(() => {
