@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRedisClient, StoredAgent } from '@/lib/redis';
+import { canImportAgent, canPlaceAgent, canPlaceAgentOnMap } from '@/lib/auth/permissions';
 
 const AGENTS_KEY = 'agents:';
 
@@ -64,6 +65,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Agent URL and card are required' },
         { status: 400 }
+      );
+    }
+
+    if (!creator) {
+      return NextResponse.json(
+        { error: 'Creator is required' },
+        { status: 400 }
+      );
+    }
+
+    // Check import permission
+    const importCheck = await canImportAgent(creator);
+    if (!importCheck.allowed) {
+      return NextResponse.json(
+        { error: importCheck.reason || 'No permission to import agents' },
+        { status: 403 }
       );
     }
 
@@ -164,7 +181,7 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const { url, card, state, creator, isPlaced, spriteUrl, spriteHeight } = await request.json();
+    const { url, card, state, creator, isPlaced, spriteUrl, spriteHeight, mapName } = await request.json();
 
     // url is required to identify the agent
     if (!url) {
@@ -177,17 +194,17 @@ export async function PUT(request: NextRequest) {
     const agentKey = `${AGENTS_KEY}${Buffer.from(url).toString('base64')}`;
 
     let agentData: StoredAgent;
-    
+
     try {
       // Try Redis first
       const redis = await getRedisClient();
-      
+
       // Check if agent exists
       const existing = await redis.get(agentKey);
       if (!existing) {
         return NextResponse.json(
           { error: 'Agent not found' },
-          { 
+          {
             status: 404,
             headers: {
               'Content-Type': 'application/json; charset=utf-8'
@@ -195,9 +212,40 @@ export async function PUT(request: NextRequest) {
           }
         );
       }
-      
+
       // Parse existing data and merge with updates (partial update)
       const existingData: StoredAgent = JSON.parse(existing);
+
+      // If placing an agent (isPlaced: true), check permissions
+      if (isPlaced === true && existingData.isPlaced !== true && creator) {
+        // Check if user can place agents
+        const keys = await redis.keys(`${AGENTS_KEY}*`);
+        const values = await redis.mGet(keys);
+        const userPlacedAgents = values
+          .filter(value => value !== null)
+          .map(value => JSON.parse(value!))
+          .filter(agent => agent.creator === creator && agent.isPlaced === true);
+
+        const placeCheck = await canPlaceAgent(creator, userPlacedAgents.length);
+        if (!placeCheck.allowed) {
+          return NextResponse.json(
+            { error: placeCheck.reason || 'No permission to place agents' },
+            { status: 403 }
+          );
+        }
+
+        // Check if user can place on the specified map
+        // FIXME(yoojin): get map name from db by position?
+        if (mapName) {
+          const mapCheck = await canPlaceAgentOnMap(creator, mapName);
+          if (!mapCheck.allowed) {
+            return NextResponse.json(
+              { error: mapCheck.reason || `No permission to place agents on ${mapName}` },
+              { status: 403 }
+            );
+          }
+        }
+      }
 
       agentData = {
         url: existingData.url, // Always preserve original url
