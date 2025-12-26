@@ -596,7 +596,6 @@ export default function Home() {
                 /> */}
                     <AgentTab
                         isActive={activeTab === 'agent'}
-                        spawnedAgents={agents.map((agent) => agent.agentUrl) || []}
                         isPositionValid={isPositionValid}
                         findAvailableSpawnPositionByZone={findAvailableSpawnPositionByZone}
                     />

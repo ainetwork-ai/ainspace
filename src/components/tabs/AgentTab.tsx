@@ -16,7 +16,6 @@ import { checkIsHolder, HolderCheckerContract } from '@/lib/holder-checker/api';
 
 interface AgentTabProps {
     isActive: boolean;
-    spawnedAgents: string[];
     isPositionValid: (x: number, y: number) => boolean;
     findAvailableSpawnPositionByZone: (zone: { startX: number; startY: number; endX: number; endY: number }) => { x: number; y: number } | null;
 }
