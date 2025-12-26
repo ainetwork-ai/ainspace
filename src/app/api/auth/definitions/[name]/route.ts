@@ -3,6 +3,7 @@ import {
   getAuthDefinition,
   deleteAuthDefinition,
 } from '@/lib/auth';
+import { hasAdminAccess } from '@/lib/auth/permissions';
 
 /**
  * GET /api/auth/definitions/[name]
@@ -53,13 +54,31 @@ export async function DELETE(
   { params }: { params: Promise<{ name: string }> }
 ) {
   try {
-    // TODO(yoojin): admin 권한 체크 필요
     const { name } = await params;
 
     if (!name) {
       return NextResponse.json(
         { error: 'Auth name is required' },
         { status: 400 }
+      );
+    }
+
+    // Check admin permission
+    const body = await request.json();
+    const { userId } = body;
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'User ID is required' },
+        { status: 400 }
+      );
+    }
+
+    const adminCheck = await hasAdminAccess(userId);
+    if (!adminCheck.allowed) {
+      return NextResponse.json(
+        { error: 'Admin access required' },
+        { status: 403 }
       );
     }
 
