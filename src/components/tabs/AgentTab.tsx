@@ -8,11 +8,9 @@ import { StoredAgent } from '@/lib/redis';
 import { MAP_NAMES, MAP_ZONES } from '@/constants/game';
 import CreateAgentSection from '@/components/agent-builder/CreateAgentSection';
 import ImportedAgentList from '@/components/agent-builder/ImportedAgentList';
-import { useAgentStore, useUIStore } from '@/stores';
+import { useAgentStore, useUIStore, useUserStore } from '@/stores';
 import LoadingModal from '../LoadingModal';
 import HolderModal from '../HolderModal';
-import { Address } from 'viem';
-import { checkIsHolder, HolderCheckerContract } from '@/lib/holder-checker/api';
 
 interface AgentTabProps {
     isActive: boolean;
@@ -33,6 +31,7 @@ export default function AgentTab({
     const { address } = useAccount();
     const { spawnAgent: spawnAgentToStore, updateAgent } = useAgentStore();
     const { setActiveTab } = useUIStore();
+    const { checkPermission, verifyPermissions } = useUserStore();
 
     useEffect(() => {
         const fetchAgent = async () => {
@@ -52,56 +51,9 @@ export default function AgentTab({
         }
     }, [address])
 
-    const checkHolderStatus = async (userAddress: Address) => {
-        const contracts: HolderCheckerContract[] = [
-                {       
-                    chain: "Ethereum",      //eth AIN
-                    standard: "erc20",
-                    address: "0x3A810ff7211b40c4fA76205a14efe161615d0385",
-                    source: "onchain"
-                }, 
-                {   
-                    chain: "Base",          //base AIN
-                    standard: "erc20",
-                    address: "0xD4423795fd904D9B87554940a95FB7016f172773",
-                    source: "onchain"
-                },
-                {
-                    chain: "Base",      //base sAIN
-                    standard: "erc20",
-                    address: "0x70e68AF68933D976565B1882D80708244E0C4fe9",
-            		    source: "onchain" 
-                },
-                {
-                    chain: "Ethereum",      //mini egg nft
-                    standard: "erc1155",
-                    address: "0x495f947276749Ce646f68AC8c248420045cb7b5e",
-                    source: "opensea",
-                    collection: "mysterious-minieggs"
-                }
-            ]
-        try {
-            setIsLoading(true);
-            const result = await checkIsHolder(userAddress, contracts);
-            const isHolder = result.results.some((value: { isHolder: boolean; }) => value.isHolder === true)
-            
-            setIsLoading(false)
-            return isHolder
-        } catch (error) {
-            console.error("isHolder API Error", error)
-            setIsLoading(false)
-        }
-        
-    }
-
     const handleImportAgent = async (agentUrl: string) => {
         if (!address) {
             setError("Wallet connection has been disconnected. Please reconnect wallet.")
-            return;
-        }
-        const isHolder = await checkHolderStatus(address)
-        if (!isHolder) {
-            setIsHolderModalOpen(true) 
             return;
         }
         if (!agentUrl.trim()) {
@@ -113,6 +65,24 @@ export default function AgentTab({
         setError(null);
 
         try {
+            // Step 1: Check permission from store
+            const hasPermission = checkPermission('importAgent');
+
+            if (!hasPermission) {
+                console.log('No import permission, attempting to verify...');
+                // Step 2: Re-verify permissions (with cooldown)
+                const verifyResult = await verifyPermissions(address);
+
+                if (!verifyResult.success || !verifyResult.permissions?.permissions.importAgent) {
+                    console.log('Verification failed or still no permission');
+                    setIsHolderModalOpen(true);
+                    setIsLoading(false);
+                    return;
+                }
+                console.log('Permission verified successfully');
+            }
+
+            // Step 3: Proceed with import
             const proxyResponse = await fetch('/api/agent-proxy', {
                 method: 'POST',
                 headers: {
@@ -149,15 +119,39 @@ export default function AgentTab({
                 }
             };
 
-            setAgents([newAgent, ...agents]);
-
-            await fetch('/api/agents', {
+            // Step 4: Call API (server-side validation)
+            const response = await fetch('/api/agents', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(newAgent)
             });
+
+            // If API returns 403, force re-verify (no cooldown)
+            if (response.status === 403) {
+                const errorData = await response.json();
+                console.error('API permission denied:', errorData);
+
+                // Force re-verify by calling API directly
+                const forceVerifyResult = await verifyPermissions(address);
+
+                if (!forceVerifyResult.success || !forceVerifyResult.permissions?.permissions.importAgent) {
+                    setIsHolderModalOpen(true);
+                } else {
+                    setError('Permission verification updated. Please try again.');
+                }
+                setIsLoading(false);
+                return;
+            }
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to import agent');
+            }
+
+            // Success - add to local state
+            setAgents([newAgent, ...agents]);
         } catch (err) {
             setError(`Failed to import agent: ${err instanceof Error ? err.message : 'Unknown error'}`);
         } finally {

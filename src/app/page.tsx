@@ -44,7 +44,7 @@ export default function Home() {
     const { setFrameReady, isFrameReady } = useMiniKit();
     const [isSDKLoaded, setIsSDKLoaded] = useState(false);
     const { address } = useAccount();
-    const { setAddress, setPermissions } = useUserStore();
+    const { setAddress, setPermissions, setLastVerifiedAt } = useUserStore();
 
     const [HUDOff, setHUDOff] = useState<boolean>(false);
     const hasInitializedAuth = useRef(false);
@@ -86,6 +86,7 @@ export default function Home() {
                     if (getData.success && getData.data) {
                         console.log('User already has permissions:', getData.data.permissions);
                         setPermissions(getData.data);
+                        setLastVerifiedAt(Date.now());
                         return;
                     }
                 }
@@ -110,6 +111,7 @@ export default function Home() {
                     console.log('Granted auths:', verifyData.data.grantedAuths);
                     console.log('User permissions:', verifyData.data.permissions);
                     setPermissions(verifyData.data.permissions);
+                    setLastVerifiedAt(Date.now());
                 } else {
                     console.error('Failed to verify and grant auth:', verifyData.error);
                 }
