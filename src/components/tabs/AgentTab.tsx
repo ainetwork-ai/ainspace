@@ -1,14 +1,14 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import BaseTabContent from './BaseTabContent';
 import { useAccount } from 'wagmi';
 import ImportAgentSection from '@/components/agent-builder/ImportAgentSection';
 import { StoredAgent } from '@/lib/redis';
-import { MAP_NAMES } from '@/constants/game';
+import { MAP_NAMES, MAP_ZONES } from '@/constants/game';
 import CreateAgentSection from '@/components/agent-builder/CreateAgentSection';
 import ImportedAgentList from '@/components/agent-builder/ImportedAgentList';
-import { useAgentStore } from '@/stores';
+import { useAgentStore, useUIStore } from '@/stores';
 import LoadingModal from '../LoadingModal';
 import HolderModal from '../HolderModal';
 import { Address } from 'viem';
@@ -16,15 +16,15 @@ import { checkIsHolder, HolderCheckerContract } from '@/lib/holder-checker/api';
 
 interface AgentTabProps {
     isActive: boolean;
-    onSpawnAgent: (agent: StoredAgent, selectedMap?: MAP_NAMES) => Promise<boolean>;
-    onRemoveAgentFromMap: (agentUrl: string) => void;
     spawnedAgents: string[];
+    isPositionValid: (x: number, y: number) => boolean;
+    findAvailableSpawnPositionByZone: (zone: { startX: number; startY: number; endX: number; endY: number }) => { x: number; y: number } | null;
 }
 
 export default function AgentTab({
     isActive,
-    onSpawnAgent,
-    onRemoveAgentFromMap,
+    isPositionValid,
+    findAvailableSpawnPositionByZone,
 }: AgentTabProps) {
     const [agents, setAgents] = useState<StoredAgent[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -32,7 +32,8 @@ export default function AgentTab({
     const [isHolderModalOpen, setIsHolderModalOpen] = useState<boolean>(false);
 
     const { address } = useAccount();
-    const { updateAgent } = useAgentStore();
+    const { spawnAgent: spawnAgentToStore, updateAgent } = useAgentStore();
+    const { setActiveTab } = useUIStore();
 
     useEffect(() => {
         const fetchAgent = async () => {
@@ -184,21 +185,125 @@ export default function AgentTab({
         setIsLoading(false);
     };
 
+    const handleSpawnAgent = useCallback(async (agent: StoredAgent, selectedMap?: MAP_NAMES) => {
+        const agentId = `a2a-${Date.now()}`;
+        const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8'];
+        const randomColor = colors[Math.floor(Math.random() * colors.length)];
+
+        const spawnZone = selectedMap ? MAP_ZONES[selectedMap] : { startX: 50, startY: 60, endX: 70, endY: 80 };
+
+        const spawnPosition = findAvailableSpawnPositionByZone(spawnZone);
+        if (!spawnPosition) {
+            console.error(`Cannot spawn agent: no available positions found in ${selectedMap || 'default'} zone`);
+            setError(`Cannot spawn agent: no available space found in ${selectedMap || 'deployment'} zone. Please remove some agents or clear space on the map.`);
+            return false;
+        }
+        const { x: spawnX, y: spawnY } = spawnPosition;
+        console.log(`✓ Spawning agent at (${spawnX}, ${spawnY}) in ${selectedMap || 'default'} zone`);
+
+        // Register agent with backend Redis
+        try {
+            if (!address) {
+                throw new Error('Address is not connected');
+            }
+            const registerResponse = await fetch('/api/agents', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    url: agent.url,
+                    creator: address,
+                    state: {
+                        x: spawnX,
+                        y: spawnY,
+                        behavior: 'random',
+                        color: randomColor,
+                        moveInterval: 600 + Math.random() * 400
+                    },
+                    isPlaced: true,
+                    mapName: selectedMap,
+                }),
+            });
+
+            if (!registerResponse.ok && registerResponse.status !== 409) {
+                const errorData = await registerResponse.json();
+                console.error('Failed to register agent with backend:', errorData);
+                setError(errorData.error || 'Failed to place agent');
+                return false;
+            } else {
+                console.log('✓ Agent registered with backend Redis');
+            }
+        } catch (err) {
+            console.error('Error registering agent with backend:', err);
+            setError('Failed to place agent. Please try again.');
+            return false;
+        }
+
+        // Add to spawned A2A agents for UI tracking
+        spawnAgentToStore({
+            id: agentId,
+            name: agent.card.name,
+            x: spawnX,
+            y: spawnY,
+            color: agent.state.color,
+            agentUrl: agent.url,
+            behavior: 'random',
+            lastMoved: Date.now(),
+            moveInterval: agent.state.moveInterval || 600 + Math.random() * 400,
+            skills: agent.card.skills || [],
+            spriteUrl: agent.spriteUrl,
+            spriteHeight: agent.spriteHeight || 50
+        });
+
+        // Switch to map tab
+        setActiveTab('map');
+        return true;
+    }, [address, findAvailableSpawnPositionByZone, spawnAgentToStore, setActiveTab]);
+
     const handlePlaceAgent = async (agent: StoredAgent, selectedMap?: MAP_NAMES) => {
         setIsLoading(true);
-        const result = await onSpawnAgent(agent, selectedMap);
+        setError(null);
+        const result = await handleSpawnAgent(agent, selectedMap);
         if (result) {
             setAgents(agents.map((a) => (a.url === agent.url ? { ...a, isPlaced: true } : a)));
-        } else {
-            setError('Failed to place agent');
         }
         setIsLoading(false);
     }
 
     const handleUnplaceAgent = async (agent: StoredAgent) => {
         setIsLoading(true);
-        await onRemoveAgentFromMap(agent.url);
-        setAgents(agents.map((a) => (a.url === agent.url ? { ...a, isPlaced: false } : a)));
+        setError(null);
+
+        try {
+            const removeResponse = await fetch('/api/agents', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    url: agent.url,
+                    isPlaced: false,
+                }),
+            });
+
+            if (removeResponse.ok) {
+                console.log('✓ Agent removed from map');
+                // Remove from agent store
+                const { removeAgent } = useAgentStore.getState();
+                removeAgent(agent.url);
+                // Update local state
+                setAgents(agents.map((a) => (a.url === agent.url ? { ...a, isPlaced: false } : a)));
+            } else {
+                const errorData = await removeResponse.json();
+                console.error('Failed to remove agent from map:', errorData);
+                setError(errorData.error || 'Failed to remove agent from map');
+            }
+        } catch (err) {
+            console.error('Error removing agent from map:', err);
+            setError('Failed to remove agent from map. Please try again.');
+        }
+
         setIsLoading(false);
     }
 

@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import MapTab from '@/components/tabs/MapTab';
 import AgentTab from '@/components/tabs/AgentTab';
 import Footer from '@/components/Footer';
-import { DIRECTION, MAP_TILES, ENABLE_AGENT_MOVEMENT, BROADCAST_RADIUS, MAP_NAMES, MAP_ZONES } from '@/constants/game';
+import { DIRECTION, MAP_TILES, ENABLE_AGENT_MOVEMENT, BROADCAST_RADIUS } from '@/constants/game';
 import { useUIStore, useThreadStore, useBuildStore, useAgentStore, useUserStore } from '@/stores';
 import TempBuildTab from '@/components/tabs/TempBuildTab';
 import { useAccount } from 'wagmi';
@@ -14,15 +14,6 @@ import sdk from '@farcaster/miniapp-sdk';
 import { StoredAgent } from '@/lib/redis';
 import { useMapStore } from '@/stores/useMapStore';
 import { cn } from '@/lib/utils';
-
-const ALLOWED_DEPLOY_ZONE = [
-  {
-    startX: -10,
-    startY: -19,
-    endX: 9,
-    endY: 1,
-  }
-]
 
 export default function Home() {
     // Global stores
@@ -48,7 +39,7 @@ export default function Home() {
         clearPublishStatusAfterDelay
     } = useBuildStore();
     const { worldPosition, userId, agents: worldAgents, visibleAgents } = useGameState();
-    const { agents, spawnAgent, removeAgent, setAgents } = useAgentStore();
+    const { agents, spawnAgent, setAgents } = useAgentStore();
     const { mapStartPosition, mapEndPosition, isCollisionTile, isLoaded: isMapLoaded } = useMapStore();
     const { setFrameReady, isFrameReady } = useMiniKit();
     const [isSDKLoaded, setIsSDKLoaded] = useState(false);
@@ -350,96 +341,7 @@ export default function Home() {
         }
     };
 
-    // A2A Agent handlers - now integrated into worldAgents
-    const handleSpawnAgent = async (agent: StoredAgent, selectedMap?: MAP_NAMES) => {
-        const agentId = `a2a-${Date.now()}`;
-        const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8'];
-        const randomColor = colors[Math.floor(Math.random() * colors.length)];
-
-        const spawnZone = selectedMap ? MAP_ZONES[selectedMap] : ALLOWED_DEPLOY_ZONE[0];
-        
-        const spawnPosition = findAvailableSpawnPositionByZone(spawnZone);
-        if (!spawnPosition) {
-          console.error(`Cannot spawn agent: no available positions found in ${selectedMap || 'default'} zone`);
-          alert(`Cannot spawn agent: no available space found in ${selectedMap || 'deployment'} zone. Please remove some agents or clear space on the map.`);
-          return false;
-        }
-        const { x: spawnX, y: spawnY } = spawnPosition;
-        console.log(`✓ Spawning agent at (${spawnX}, ${spawnY}) in ${selectedMap || 'default'} zone`);
-
-        // Register agent with backend Redis
-        try {
-            if (!address) {
-              throw new Error('Address is not connected');
-            }
-            const registerResponse = await fetch('/api/agents', {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    url: agent.url,
-                    state: {
-                      x: spawnX,
-                      y: spawnY,
-                      behavior: 'random',
-                      color: randomColor,
-                      moveInterval: 600 + Math.random() * 400
-                    },
-                    isPlaced: true,
-                }),
-            });
-
-            if (!registerResponse.ok && registerResponse.status !== 409) {
-                console.error('Failed to register agent with backend:', await registerResponse.text());
-            } else {
-                console.log('✓ Agent registered with backend Redis');
-            }
-        } catch (error) {
-            console.error('Error registering agent with backend:', error);
-        }
-
-        // Add to spawned A2A agents for UI tracking
-        spawnAgent({
-            id: agentId,
-            name: agent.card.name,
-            x: spawnX,
-            y: spawnY,
-            color: agent.state.color,
-            agentUrl: agent.url,
-            behavior: 'random',
-            lastMoved: Date.now(),
-            moveInterval: agent.state.moveInterval || 600 + Math.random() * 400,
-            skills: agent.card.skills || [],
-            spriteUrl: agent.spriteUrl,
-            spriteHeight: agent.spriteHeight || 50
-        });
-
-        // Switch to map tab
-        setActiveTab('map');
-        return true;
-    };
-
-    const handleRemoveAgentFromMap = async (agentUrl: string) => {
-        const removeResponse = await fetch('/api/agents', {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                url: agentUrl,
-                isPlaced: false,
-            }),
-        });
-
-        if (removeResponse.ok) {
-            console.log('✓ Agent removed from map');
-            removeAgent(agentUrl);
-        } else {
-            console.error('Failed to remove agent from map:', await removeResponse.text());
-        }
-    };
-
+    // Position validation for agent placement
     const isPositionValid = useCallback((x: number, y: number): boolean => {
       // Check boundaries
       if (x < mapStartPosition.x || x > mapEndPosition.x || y < mapStartPosition.y || y > mapEndPosition.y) {
@@ -694,9 +596,9 @@ export default function Home() {
                 /> */}
                     <AgentTab
                         isActive={activeTab === 'agent'}
-                        onSpawnAgent={handleSpawnAgent}
-                        onRemoveAgentFromMap={handleRemoveAgentFromMap}
                         spawnedAgents={agents.map((agent) => agent.agentUrl) || []}
+                        isPositionValid={isPositionValid}
+                        findAvailableSpawnPositionByZone={findAvailableSpawnPositionByZone}
                     />
                 </div>
             </div>
