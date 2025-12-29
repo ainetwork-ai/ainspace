@@ -7,17 +7,19 @@ import { disconnect } from '@wagmi/core';
 
 import BaseTabContent from './BaseTabContent';
 import PlayerJoystick from '@/components/controls/PlayerJoystick';
-import { BROADCAST_RADIUS, DIRECTION, TILE_SIZE } from '@/constants/game';
+import { BROADCAST_RADIUS, DIRECTION, TILE_SIZE, MAP_NAMES, MAP_ZONES } from '@/constants/game';
 import { useGameState } from '@/hooks/useGameState';
 import { TileLayers } from '@/stores/useBuildStore';
 import { shortAddress } from '@/lib/utils';
 import { config } from '@/lib/wagmi-config';
 import ChatBoxOverlay from '../ChatBoxOverlay';
 import { ChatBoxRef } from '../ChatBox';
-import { useAgentStore } from '@/stores';
+import { useAgentStore, useUIStore } from '@/stores';
 import { useMapStore } from '@/stores/useMapStore';
 import TileMap from '../TileMap';
 import { Z_INDEX_OFFSETS } from '@/constants/common';
+import { StoredAgent } from '@/lib/redis';
+import { getMapNameFromCoordinates } from '@/lib/map-utils';
 
 interface MapTabProps {
     isActive: boolean;
@@ -27,6 +29,8 @@ interface MapTabProps {
     onAgentClick?: (agentId: string, agentName: string) => void;
     HUDOff: boolean;
     onHUDOffChange: (hudOff: boolean) => void;
+    isPositionValid: (x: number, y: number) => boolean;
+    onPlaceAgentAtPosition?: (agent: StoredAgent, x: number, y: number, mapName: MAP_NAMES) => Promise<void>;
 }
 
 export default function MapTab({
@@ -37,9 +41,13 @@ export default function MapTab({
     onAgentClick,
     HUDOff,
     onHUDOffChange,
+    isPositionValid,
+    onPlaceAgentAtPosition,
 }: MapTabProps) {
     const { address } = useAccount();
     const { agents } = useAgentStore();
+    const { selectedAgentForPlacement, setSelectedAgentForPlacement } = useUIStore();
+    const [placementError, setPlacementError] = useState<string | null>(null);
     const { movePlayer } = useGameState();
     const chatBoxRef = useRef<ChatBoxRef>(null);
 
@@ -74,6 +82,41 @@ export default function MapTab({
     const isOutOfBounds = useCallback((x: number, y: number) => {
       return x < mapStartPosition.x || x > mapEndPosition.x || y < mapStartPosition.y || y > mapEndPosition.y;
     }, [mapStartPosition.x, mapStartPosition.y, mapEndPosition.x, mapEndPosition.y]);
+
+    // Handle agent placement click
+    const handleAgentPlacementClick = useCallback(async (worldX: number, worldY: number) => {
+        if (!selectedAgentForPlacement || !onPlaceAgentAtPosition) return;
+
+        const { agent, allowedMap } = selectedAgentForPlacement;
+
+        // Clear previous error
+        setPlacementError(null);
+
+        console.log('Clicked coordinates:', worldX, worldY);
+
+        // Check if clicked coordinates are within the allowed map
+        const clickedMap = getMapNameFromCoordinates(worldX, worldY);
+        if (clickedMap !== allowedMap) {
+            setPlacementError(`Please place agent within ${allowedMap} area`);
+            return;
+        }
+
+        // Check if position is valid (not occupied or blocked)
+        if (!isPositionValid(worldX, worldY)) {
+            setPlacementError('This position is occupied or blocked');
+            return;
+        }
+
+        // Place the agent
+        try {
+            await onPlaceAgentAtPosition(agent, worldX, worldY, allowedMap);
+            // Success - exit placement mode
+            setSelectedAgentForPlacement(null);
+            setPlacementError(null);
+        } catch (error) {
+            setPlacementError(`Failed to place agent: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }, [selectedAgentForPlacement, onPlaceAgentAtPosition, isPositionValid, setSelectedAgentForPlacement]);
 
     const handleMobileMove = useCallback(
         (direction: DIRECTION) => {
@@ -172,6 +215,30 @@ export default function MapTab({
         <BaseTabContent isActive={isActive} withPadding={false}>
             {/* Game Area */}
             <div className="relative flex h-full w-full flex-col" style={{ touchAction: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}>
+                {/* Agent Placement Mode UI */}
+                {selectedAgentForPlacement && (
+                    <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50 inline-flex flex-col items-center gap-2 rounded-lg bg-[#faf4fe] px-4 py-3 shadow-lg border border-[#d7c1e5]">
+                        <p className="text-base font-bold text-[#87659e]">
+                            Click on the map to place {selectedAgentForPlacement.agent.card.name}
+                        </p>
+                        <p className="text-sm text-[#b68ed2]">
+                            Allowed area: {selectedAgentForPlacement.allowedMap}
+                        </p>
+                        {placementError && (
+                            <p className="text-sm text-red-600">⚠️ {placementError}</p>
+                        )}
+                        <button
+                            onClick={() => {
+                                setSelectedAgentForPlacement(null);
+                                setPlacementError(null);
+                            }}
+                            className="text-sm text-[#b68ed2] underline hover:text-[#87659e]"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                )}
+
                 <div className="flex h-full w-full items-center justify-center select-none" style={{ WebkitUserSelect: 'none', userSelect: 'none' }}>
                     <TileMap
                         mapData={mapData}
@@ -188,6 +255,9 @@ export default function MapTab({
                         playerIsMoving={isPlayerMoving}
                         collisionMap={collisionMap}
                         onAgentClick={onAgentClick}
+                        buildMode={selectedAgentForPlacement ? 'paint' : 'view'}
+                        onTileClick={selectedAgentForPlacement ? handleAgentPlacementClick : undefined}
+                        selectedItemDimensions={selectedAgentForPlacement ? { width: 1, height: 1 } : null}
                     />
                 </div>
 

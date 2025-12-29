@@ -258,6 +258,68 @@ export default function Home() {
         // openBottomSheet();
     };
 
+    // Handler for placing agent at specific position from MapTab
+    const handlePlaceAgentAtPosition = useCallback(async (
+        agent: StoredAgent,
+        x: number,
+        y: number,
+        mapName: string
+    ) => {
+        if (!address) {
+            throw new Error('Address is not connected');
+        }
+
+        console.log('Placing agent at position:', x, y, mapName);
+
+        const agentId = `a2a-${Date.now()}`;
+        const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8'];
+        const randomColor = colors[Math.floor(Math.random() * colors.length)];
+
+        // Register agent with backend Redis
+        const registerResponse = await fetch('/api/agents', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                url: agent.url,
+                creator: address,
+                state: {
+                    x: x,
+                    y: y,
+                    behavior: 'random',
+                    color: randomColor,
+                    moveInterval: 600 + Math.random() * 400
+                },
+                isPlaced: true,
+                mapName: mapName,
+            }),
+        });
+
+        if (!registerResponse.ok && registerResponse.status !== 409) {
+            const errorData = await registerResponse.json();
+            throw new Error(errorData.error || 'Failed to place agent');
+        }
+
+        console.log(`✓ Agent registered with backend Redis at (${x}, ${y})`);
+
+        // Add to spawned A2A agents for UI tracking
+        spawnAgent({
+            id: agentId,
+            name: agent.card.name,
+            x: x,
+            y: y,
+            color: agent.state.color || randomColor,
+            agentUrl: agent.url,
+            behavior: 'random',
+            lastMoved: Date.now(),
+            moveInterval: agent.state.moveInterval || 600 + Math.random() * 400,
+            skills: agent.card.skills || [],
+            spriteUrl: agent.spriteUrl,
+            spriteHeight: agent.spriteHeight || 50
+        });
+    }, [address, spawnAgent]);
+
     const handlePublishTiles = async () => {
         const totalCustomTiles =
             Object.keys(customTiles.layer0 || {}).length +
@@ -406,26 +468,6 @@ export default function Home() {
     return null; // No valid position found in this zone
 }, [isPositionValid, worldPosition]);
 
-    const findAvailableSpawnPositionByZone = useCallback((zone: { startX: number; startY: number; endX: number; endY: number }): { x: number; y: number } | null => {
-      const positionsInZone: { x: number; y: number }[] = [];
-      
-      for (let x = zone.startX; x <= zone.endX; x++) {
-        for (let y = zone.startY; y <= zone.endY; y++) {
-          positionsInZone.push({ x, y });
-        }
-      }
-      
-      positionsInZone.sort(() => Math.random() - 0.5);
-      
-      for (const pos of positionsInZone) {
-        if (isPositionValid(pos.x, pos.y)) {
-          console.log(`Found spawn position at (${pos.x}, ${pos.y}) in zone`);
-          return pos;
-        }
-      }
-      
-      return null;
-    }, [isPositionValid]);
 
     // A2A Agent movement system
     useEffect(() => {
@@ -565,6 +607,8 @@ export default function Home() {
                         onAgentClick={handleAgentClick}
                         HUDOff={HUDOff}
                         onHUDOffChange={handleHUDOffChange}
+                        isPositionValid={isPositionValid}
+                        onPlaceAgentAtPosition={handlePlaceAgentAtPosition}
                     />
                     <TempBuildTab
                         isActive={activeTab === 'build'}
@@ -598,8 +642,6 @@ export default function Home() {
                 /> */}
                     <AgentTab
                         isActive={activeTab === 'agent'}
-                        isPositionValid={isPositionValid}
-                        findAvailableSpawnPositionByZone={findAvailableSpawnPositionByZone}
                     />
                 </div>
             </div>
