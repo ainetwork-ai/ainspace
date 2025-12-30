@@ -87,17 +87,20 @@ export default function MapTab({
     const handleAgentPlacementClick = useCallback(async (worldX: number, worldY: number) => {
         if (!selectedAgentForPlacement || !onPlaceAgentAtPosition) return;
 
-        const { agent, allowedMap } = selectedAgentForPlacement;
+        const { agent, allowedMaps } = selectedAgentForPlacement;
 
         // Clear previous error
         setPlacementError(null);
 
         console.log('Clicked coordinates:', worldX, worldY);
 
-        // Check if clicked coordinates are within the allowed map
+        // Check if clicked coordinates are within one of the allowed maps
         const clickedMap = getMapNameFromCoordinates(worldX, worldY);
-        if (clickedMap !== allowedMap) {
-            setPlacementError(`Please place agent within ${allowedMap} area`);
+        const isAllowedMap = allowedMaps.includes('*') || (clickedMap && allowedMaps.includes(clickedMap));
+
+        if (!isAllowedMap) {
+            const mapNames = allowedMaps.includes('*') ? 'any map' : allowedMaps.join(', ');
+            setPlacementError(`Please place agent within allowed area: ${mapNames}`);
             return;
         }
 
@@ -109,7 +112,7 @@ export default function MapTab({
 
         // Place the agent
         try {
-            await onPlaceAgentAtPosition(agent, worldX, worldY, allowedMap);
+            await onPlaceAgentAtPosition(agent, worldX, worldY, clickedMap as MAP_NAMES);
             // Success - exit placement mode
             setSelectedAgentForPlacement(null);
             setPlacementError(null);
@@ -216,10 +219,10 @@ export default function MapTab({
                             Click on the map to place {selectedAgentForPlacement.agent.card.name}
                         </p>
                         <p className="text-sm text-[#b68ed2]">
-                            Allowed area: {selectedAgentForPlacement.allowedMap}
+                            Allowed area: {selectedAgentForPlacement.allowedMaps.includes('*') ? 'All maps' : selectedAgentForPlacement.allowedMaps.join(', ')}
                         </p>
                         {placementError && (
-                            <p className="text-sm text-red-600">⚠️ {placementError}</p>
+                            <p className="text-sm text-red-600">{placementError}</p>
                         )}
                         <button
                             onClick={() => {

@@ -5,7 +5,6 @@ import BaseTabContent from './BaseTabContent';
 import { useAccount } from 'wagmi';
 import ImportAgentSection from '@/components/agent-builder/ImportAgentSection';
 import { StoredAgent } from '@/lib/redis';
-import { MAP_NAMES } from '@/constants/game';
 import CreateAgentSection from '@/components/agent-builder/CreateAgentSection';
 import ImportedAgentList from '@/components/agent-builder/ImportedAgentList';
 import { useAgentStore, useUIStore, useUserStore, useUserAgentStore } from '@/stores';
@@ -179,12 +178,7 @@ export default function AgentTab({
         setIsLoading(false);
     };
 
-    const handlePlaceAgent = async (agent: StoredAgent, selectedMap?: MAP_NAMES) => {
-        if (!selectedMap) {
-            setError('Please select a map');
-            return;
-        }
-
+    const handlePlaceAgent = async (agent: StoredAgent) => {
         if (!address) {
             setError('Wallet connection has been disconnected. Please reconnect wallet.');
             return;
@@ -211,18 +205,18 @@ export default function AgentTab({
                 console.log('Permission verified successfully');
             }
 
-            // Step 3: Check map permission
+            // Step 3: Get allowed maps from permissions
             const allowedMaps = permissions?.permissions.placeAllowedMaps || [];
-            if (!allowedMaps.includes('*') && !allowedMaps.includes(selectedMap)) {
-                setError(`You don't have permission to place agents on ${selectedMap}`);
+            if (allowedMaps.length === 0) {
+                setError("You don't have permission to place agents on any map");
                 setIsLoading(false);
                 return;
             }
 
-            // Step 4: Activate placement mode - switch to map
+            // Step 4: Activate placement mode - switch to map with all allowed maps
             setSelectedAgentForPlacement({
                 agent: agent,
-                allowedMap: selectedMap
+                allowedMaps: allowedMaps
             });
             setActiveTab('map');
         } catch (err) {

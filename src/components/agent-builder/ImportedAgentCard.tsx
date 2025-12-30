@@ -6,12 +6,10 @@ import Button from '@/components/ui/Button';
 import { MapPinIcon, MapPinOffIcon, Trash2Icon, CameraIcon } from 'lucide-react';
 import UploadImageModal from './UploadImageModal';
 import DeleteConfirmModal from './DeleteConfirmModal';
-import MapSelectorModal from './MapSelectorModal';
-import { MAP_NAMES } from '@/constants/game';
 
 interface ImportedAgentCardProps {
     agent: StoredAgent;
-    onPlaceAgent: (agent: StoredAgent, selectedMap?: MAP_NAMES) => void;
+    onPlaceAgent: (agent: StoredAgent) => void;
     onUnplaceAgent: (agent: StoredAgent) => void;
     onRemoveAgent: (url: string) => void;
     onUploadImage: (agent: StoredAgent, sprite: {url:string, height:number} | File) => void;
@@ -44,18 +42,15 @@ export default function ImportedAgentCard({
                                 <p className="text-sm font-medium leading-none">Unplace</p>
                             </Button>
                         ) : (
-                            <MapSelectorModal
-                                onConfirm={(selectedMap) => onPlaceAgent(agent, selectedMap)}
+                            <Button
+                                onClick={() => onPlaceAgent(agent)}
+                                type="small"
+                                variant="primary"
+                                className="h-fit p-[9px] flex flex-row gap-1 items-center justify-center"
                             >
-                                <Button
-                                    type="small"
-                                    variant="primary"
-                                    className="h-fit p-[9px] flex flex-row gap-1 items-center justify-center"
-                                >
-                                    <MapPinIcon className="w-4 h-4" type="icon" strokeWidth={1.3} />
-                                    <p className="text-sm font-medium leading-none">Place</p>
-                                </Button>
-                            </MapSelectorModal>
+                                <MapPinIcon className="w-4 h-4" type="icon" strokeWidth={1.3} />
+                                <p className="text-sm font-medium leading-none">Place</p>
+                            </Button>
                         )
                       )
                     }
