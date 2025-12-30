@@ -95,6 +95,7 @@ function TileMap({
   
     const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
     const [hoveredWorldCoords, setHoveredWorldCoords] = useState<{ worldX: number; worldY: number } | null>(null);
+    const [isTouchDevice, setIsTouchDevice] = useState(false);
 
     const { showCollisionMap, toggleCollisionMap } = useBuildStore();
     const { isAgentLoading } = useChatStore();
@@ -336,6 +337,12 @@ function TileMap({
     const handleTouchStart = (event: React.TouchEvent<HTMLCanvasElement>) => {
         if (event.touches.length === 0) return;
 
+        // Prevent browser from simulating mouse events after touch
+        event.preventDefault();
+
+        // Mark as touch device to hide hover preview
+        setIsTouchDevice(true);
+
         const touch = event.touches[0];
 
         if (buildMode === 'paint') {
@@ -357,7 +364,9 @@ function TileMap({
         }
     };
 
-    const handleTouchEnd = () => {
+    const handleTouchEnd = (event: React.TouchEvent<HTMLCanvasElement>) => {
+        // Prevent browser from simulating mouse events after touch
+        event.preventDefault();
         setIsPainting(false);
         setLastPaintedTile(null);
     };
@@ -649,8 +658,8 @@ function TileMap({
                 </>
             )}} */}
 
-            {/* Visual preview outline for item/agent placement (hide when position is selected for two-tap) */}
-            {buildMode === 'paint' && selectedItemDimensions && hoveredWorldCoords && !selectedPosition && (
+            {/* Visual preview outline for item/agent placement (hide on touch devices when position is selected) */}
+            {buildMode === 'paint' && selectedItemDimensions && hoveredWorldCoords && !(isTouchDevice && selectedPosition) && (
                 <>
                     {(() => {
                         const canvas = canvasRef.current;
