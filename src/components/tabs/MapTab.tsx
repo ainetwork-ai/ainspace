@@ -20,6 +20,7 @@ import TileMap from '../TileMap';
 import { Z_INDEX_OFFSETS } from '@/constants/common';
 import { StoredAgent } from '@/lib/redis';
 import { getMapNameFromCoordinates } from '@/lib/map-utils';
+import LoadingModal from '../LoadingModal';
 
 interface MapTabProps {
     isActive: boolean;
@@ -49,6 +50,7 @@ export default function MapTab({
     const { selectedAgentForPlacement, setSelectedAgentForPlacement } = useUIStore();
     const [placementError, setPlacementError] = useState<string | null>(null);
     const [selectedPosition, setSelectedPosition] = useState<{ x: number; y: number } | null>(null);
+    const [isPlacing, setIsPlacing] = useState(false);
     const { movePlayer } = useGameState();
     const chatBoxRef = useRef<ChatBoxRef>(null);
 
@@ -116,6 +118,7 @@ export default function MapTab({
         // Two-tap logic: first tap selects position, second tap confirms
         if (selectedPosition && selectedPosition.x === worldX && selectedPosition.y === worldY) {
             // Second tap on same position - confirm placement
+            setIsPlacing(true);
             try {
                 await onPlaceAgentAtPosition(agent, worldX, worldY, clickedMap as MAP_NAMES);
                 // Success - exit placement mode
@@ -124,6 +127,8 @@ export default function MapTab({
                 setPlacementError(null);
             } catch (error) {
                 setPlacementError(`Failed to place agent: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            } finally {
+                setIsPlacing(false);
             }
         } else {
             // First tap or different position - select this position
@@ -224,7 +229,10 @@ export default function MapTab({
             <div className="relative flex h-full w-full flex-col" style={{ touchAction: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}>
                 {/* Agent Placement Mode UI */}
                 {selectedAgentForPlacement && (
-                    <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50 inline-flex flex-col items-center gap-2 rounded-lg bg-[#faf4fe] px-4 py-3 shadow-lg border border-[#d7c1e5]">
+                    <div
+                        className="absolute top-4 left-1/2 transform -translate-x-1/2 inline-flex flex-col items-center gap-2 rounded-lg bg-[#faf4fe] px-4 py-3 shadow-lg border border-[#d7c1e5]"
+                        style={{ zIndex: Z_INDEX_OFFSETS.UI }}
+                    >
                         <p className="text-base font-bold text-[#87659e]">
                             {selectedPosition
                                 ? `Tap again to place ${selectedAgentForPlacement.agent.card.name}`
@@ -313,6 +321,7 @@ export default function MapTab({
                 currentAgentsInRadius={getCurrentAgentsInRadius() || []}
                 HUDOff={HUDOff}
             />
+            <LoadingModal open={isPlacing} />
         </BaseTabContent>
     );
 }
