@@ -47,6 +47,7 @@ interface TileMapProps {
     hideCoordinates?: boolean;
     onAgentClick?: (agentId: string, agentName: string) => void;
     isPositionValid?: (x: number, y: number) => boolean;
+    selectedPosition?: { x: number; y: number } | null;
 }
 
 function TileMap({
@@ -67,7 +68,8 @@ function TileMap({
     fixedZoom,
     hideCoordinates = false,
     onAgentClick,
-    isPositionValid
+    isPositionValid,
+    selectedPosition = null
 }: TileMapProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [loadedImages, setLoadedImages] = useState<{ [key: string]: HTMLImageElement }>({});
@@ -782,6 +784,41 @@ function TileMap({
                         );
                     })()}
                 </>
+            )}
+
+            {/* Selected position indicator for two-tap placement */}
+            {buildMode === 'paint' && selectedPosition && (
+                (() => {
+                    const screenTileX = selectedPosition.x - cameraTilePosition.x;
+                    const screenTileY = selectedPosition.y - cameraTilePosition.y;
+                    const tileOffset = TILE_SIZE / 4;
+
+                    // Only render if visible on screen
+                    const tilesX = Math.ceil(canvasSize.width / tileSize);
+                    const tilesY = Math.ceil(canvasSize.height / tileSize);
+                    if (screenTileX < 0 || screenTileX >= tilesX || screenTileY < 0 || screenTileY >= tilesY) {
+                        return null;
+                    }
+
+                    return (
+                        <div
+                            style={{
+                                position: 'absolute',
+                                left: `${screenTileX * tileSize - tileOffset}px`,
+                                top: `${screenTileY * tileSize - tileOffset}px`,
+                                width: `${tileSize}px`,
+                                height: `${tileSize}px`,
+                                backgroundColor: 'rgba(59, 130, 246, 0.3)',
+                                border: '3px solid rgba(59, 130, 246, 0.9)',
+                                borderRadius: '4px',
+                                pointerEvents: 'none',
+                                zIndex: 26,
+                                boxSizing: 'border-box',
+                                animation: 'pulse 1.5s ease-in-out infinite'
+                            }}
+                        />
+                    );
+                })()
             )}
 
             {/* Visual feedback for blocked tiles when hovering (single tile - legacy) */}

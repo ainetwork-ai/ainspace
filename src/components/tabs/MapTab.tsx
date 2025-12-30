@@ -48,6 +48,7 @@ export default function MapTab({
     const { agents } = useAgentStore();
     const { selectedAgentForPlacement, setSelectedAgentForPlacement } = useUIStore();
     const [placementError, setPlacementError] = useState<string | null>(null);
+    const [selectedPosition, setSelectedPosition] = useState<{ x: number; y: number } | null>(null);
     const { movePlayer } = useGameState();
     const chatBoxRef = useRef<ChatBoxRef>(null);
 
@@ -83,7 +84,7 @@ export default function MapTab({
       return x < mapStartPosition.x || x > mapEndPosition.x || y < mapStartPosition.y || y > mapEndPosition.y;
     }, [mapStartPosition.x, mapStartPosition.y, mapEndPosition.x, mapEndPosition.y]);
 
-    // Handle agent placement click
+    // Handle agent placement click (two-tap: first tap selects, second tap confirms)
     const handleAgentPlacementClick = useCallback(async (worldX: number, worldY: number) => {
         if (!selectedAgentForPlacement || !onPlaceAgentAtPosition) return;
 
@@ -101,25 +102,34 @@ export default function MapTab({
         if (!isAllowedMap) {
             const mapNames = allowedMaps.includes('*') ? 'any map' : allowedMaps.join(', ');
             setPlacementError(`Please place agent within allowed area: ${mapNames}`);
+            setSelectedPosition(null);
             return;
         }
 
         // Check if position is valid (not occupied or blocked)
         if (!isPositionValid(worldX, worldY)) {
             setPlacementError('This position is occupied or blocked');
+            setSelectedPosition(null);
             return;
         }
 
-        // Place the agent
-        try {
-            await onPlaceAgentAtPosition(agent, worldX, worldY, clickedMap as MAP_NAMES);
-            // Success - exit placement mode
-            setSelectedAgentForPlacement(null);
-            setPlacementError(null);
-        } catch (error) {
-            setPlacementError(`Failed to place agent: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        // Two-tap logic: first tap selects position, second tap confirms
+        if (selectedPosition && selectedPosition.x === worldX && selectedPosition.y === worldY) {
+            // Second tap on same position - confirm placement
+            try {
+                await onPlaceAgentAtPosition(agent, worldX, worldY, clickedMap as MAP_NAMES);
+                // Success - exit placement mode
+                setSelectedAgentForPlacement(null);
+                setSelectedPosition(null);
+                setPlacementError(null);
+            } catch (error) {
+                setPlacementError(`Failed to place agent: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            }
+        } else {
+            // First tap or different position - select this position
+            setSelectedPosition({ x: worldX, y: worldY });
         }
-    }, [selectedAgentForPlacement, onPlaceAgentAtPosition, isPositionValid, setSelectedAgentForPlacement]);
+    }, [selectedAgentForPlacement, onPlaceAgentAtPosition, isPositionValid, setSelectedAgentForPlacement, selectedPosition]);
 
     const handleMobileMove = useCallback(
         (direction: DIRECTION) => {
@@ -216,17 +226,27 @@ export default function MapTab({
                 {selectedAgentForPlacement && (
                     <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50 inline-flex flex-col items-center gap-2 rounded-lg bg-[#faf4fe] px-4 py-3 shadow-lg border border-[#d7c1e5]">
                         <p className="text-base font-bold text-[#87659e]">
-                            Click on the map to place {selectedAgentForPlacement.agent.card.name}
+                            {selectedPosition
+                                ? `Tap again to place ${selectedAgentForPlacement.agent.card.name}`
+                                : `Tap on the map to place ${selectedAgentForPlacement.agent.card.name}`
+                            }
                         </p>
-                        <p className="text-sm text-[#b68ed2]">
-                            Allowed area: {selectedAgentForPlacement.allowedMaps.includes('*') ? 'All maps' : selectedAgentForPlacement.allowedMaps.join(', ')}
-                        </p>
+                        {selectedPosition ? (
+                            <p className="text-sm text-blue-600 font-medium">
+                                Selected: ({selectedPosition.x}, {selectedPosition.y})
+                            </p>
+                        ) : (
+                            <p className="text-sm text-[#b68ed2]">
+                                Allowed area: {selectedAgentForPlacement.allowedMaps.includes('*') ? 'All maps' : selectedAgentForPlacement.allowedMaps.join(', ')}
+                            </p>
+                        )}
                         {placementError && (
                             <p className="text-sm text-red-600">{placementError}</p>
                         )}
                         <button
                             onClick={() => {
                                 setSelectedAgentForPlacement(null);
+                                setSelectedPosition(null);
                                 setPlacementError(null);
                             }}
                             className="text-sm text-[#b68ed2] underline hover:text-[#87659e]"
@@ -256,6 +276,7 @@ export default function MapTab({
                         onTileClick={selectedAgentForPlacement ? handleAgentPlacementClick : undefined}
                         selectedItemDimensions={selectedAgentForPlacement ? { width: 1, height: 1 } : null}
                         isPositionValid={selectedAgentForPlacement ? isPositionValid : undefined}
+                        selectedPosition={selectedPosition}
                     />
                 </div>
 
