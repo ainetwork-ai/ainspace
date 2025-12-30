@@ -252,6 +252,7 @@ export default function MapTab({
                         buildMode={selectedAgentForPlacement ? 'paint' : 'view'}
                         onTileClick={selectedAgentForPlacement ? handleAgentPlacementClick : undefined}
                         selectedItemDimensions={selectedAgentForPlacement ? { width: 1, height: 1 } : null}
+                        isPositionValid={selectedAgentForPlacement ? isPositionValid : undefined}
                     />
                 </div>
 

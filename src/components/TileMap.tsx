@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { SpriteAnimator } from 'react-sprite-animator';
 import { TILE_SIZE, MAP_TILES, DIRECTION } from '@/constants/game';
-import { useBuildStore, useChatStore, useGameStateStore } from '@/stores';
+import { getMapNameFromCoordinates } from '@/lib/map-utils';
+import { useBuildStore, useChatStore, useGameStateStore, useUserStore } from '@/stores';
 import * as Sentry from '@sentry/nextjs';
 import { AgentState } from '@/lib/agent';
 import { useTiledMap } from '@/hooks/useTiledMap';
@@ -45,6 +46,7 @@ interface TileMapProps {
     fixedZoom?: number;
     hideCoordinates?: boolean;
     onAgentClick?: (agentId: string, agentName: string) => void;
+    isPositionValid?: (x: number, y: number) => boolean;
 }
 
 function TileMap({
@@ -64,7 +66,8 @@ function TileMap({
     zoomControls = 'both',
     fixedZoom,
     hideCoordinates = false,
-    onAgentClick
+    onAgentClick,
+    isPositionValid
 }: TileMapProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [loadedImages, setLoadedImages] = useState<{ [key: string]: HTMLImageElement }>({});
@@ -688,8 +691,8 @@ function TileMap({
                 </>
             )}} */}
 
-            {/* Visual preview outline for multi-tile item placement */}
-            {/* {buildMode === 'paint' && selectedItemDimensions && hoveredWorldCoords && (
+            {/* Visual preview outline for item/agent placement */}
+            {buildMode === 'paint' && selectedItemDimensions && hoveredWorldCoords && (
                 <>
                     {(() => {
                         const canvas = canvasRef.current;
@@ -697,6 +700,10 @@ function TileMap({
 
                         const { worldX, worldY } = hoveredWorldCoords;
                         const { width: itemWidth, height: itemHeight } = selectedItemDimensions;
+
+                        // Calculate visible tiles
+                        const tilesX = Math.ceil(canvasSize.width / tileSize);
+                        const tilesY = Math.ceil(canvasSize.height / tileSize);
 
                         let hasCollision = false;
                         const tilesStatus: Array<{ screenX: number; screenY: number; blocked: boolean }> = [];
@@ -706,14 +713,30 @@ function TileMap({
                                 const checkX = worldX + dx;
                                 const checkY = worldY + dy;
 
-                                const screenTileX = checkX - cameraTileX;
-                                const screenTileY = checkY - cameraTileY;
+                                const screenTileX = checkX - cameraTilePosition.x;
+                                const screenTileY = checkY - cameraTilePosition.y;
 
-                                const isBlockedTile = collisionMap[`${checkX},${checkY}`] === true;
+                                // Check if position is blocked
+                                let blocked = false;
 
-                                const outOfBounds = checkX < 0 || checkX >= 105 || checkY < 0 || checkY >= 105;
+                                // First check: map permission from user store
+                                const allowedMaps = useUserStore.getState().permissions?.permissions.placeAllowedMaps || [];
+                                if (allowedMaps.length > 0 && !allowedMaps.includes('*')) {
+                                    const tileMapName = getMapNameFromCoordinates(checkX, checkY);
+                                    if (!tileMapName || !allowedMaps.includes(tileMapName)) {
+                                        blocked = true;
+                                    }
+                                }
 
-                                const blocked = isBlockedTile || outOfBounds;
+                                // Second check: position validity (collision, occupied, etc.)
+                                if (!blocked) {
+                                    if (isPositionValid) {
+                                        blocked = !isPositionValid(checkX, checkY);
+                                    } else {
+                                        blocked = collisionMap[`${checkX},${checkY}`] === true;
+                                    }
+                                }
+
                                 if (blocked) {
                                     hasCollision = true;
                                 }
@@ -729,11 +752,11 @@ function TileMap({
                             }
                         }
 
-                        const screenTileWidth = canvas.width / tilesX;
-                        const screenTileHeight = canvas.height / tilesY;
-
                         const outlineColor = hasCollision ? 'rgba(255, 0, 0, 0.7)' : 'rgba(0, 255, 0, 0.7)';
                         const fillColor = hasCollision ? 'rgba(255, 0, 0, 0.15)' : 'rgba(0, 255, 0, 0.15)';
+
+                        // Apply the same offset as useTiledMap.ts for tile rendering
+                        const tileOffset = TILE_SIZE / 4;
 
                         return (
                             <>
@@ -742,10 +765,10 @@ function TileMap({
                                         key={`preview-${tile.screenX}-${tile.screenY}-${index}`}
                                         style={{
                                             position: 'absolute',
-                                            left: `${tile.screenX * screenTileWidth}px`,
-                                            top: `${tile.screenY * screenTileHeight}px`,
-                                            width: `${screenTileWidth}px`,
-                                            height: `${screenTileHeight}px`,
+                                            left: `${tile.screenX * tileSize - tileOffset}px`,
+                                            top: `${tile.screenY * tileSize - tileOffset}px`,
+                                            width: `${tileSize}px`,
+                                            height: `${tileSize}px`,
                                             backgroundColor: tile.blocked ? 'rgba(255, 0, 0, 0.3)' : fillColor,
                                             border: `2px solid ${tile.blocked ? 'rgba(255, 0, 0, 0.9)' : outlineColor}`,
                                             pointerEvents: 'none',
@@ -758,7 +781,7 @@ function TileMap({
                         );
                     })()}
                 </>
-            )} */}
+            )}
 
             {/* Visual feedback for blocked tiles when hovering (single tile - legacy) */}
             {/* {buildMode === 'paint' && !selectedItemDimensions && mousePosition && (
