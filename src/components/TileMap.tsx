@@ -529,11 +529,12 @@ function TileMap({
                             top: `${agentScreenY * tileSize - topOffset}px`,
                             width: `${tileSize}px`,
                             height: `${tileSize}px`,
-                            pointerEvents: 'auto',
-                            cursor: onAgentClick ? 'pointer' : 'default',
+                            pointerEvents: buildMode === 'paint' ? 'none' : 'auto',
+                            cursor: buildMode === 'paint' ? 'default' : (onAgentClick ? 'pointer' : 'default'),
                             zIndex: agentZIndex
                         }}
                         onClick={(e) => {
+                            if (buildMode === 'paint') return;
                             e.stopPropagation();
                             if (onAgentClick) {
                                 onAgentClick(agent.id, agent.name);
