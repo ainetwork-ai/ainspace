@@ -7,7 +7,7 @@ import MapTab from '@/components/tabs/MapTab';
 import AgentTab from '@/components/tabs/AgentTab';
 import Footer from '@/components/Footer';
 import { DIRECTION, MAP_TILES, ENABLE_AGENT_MOVEMENT, BROADCAST_RADIUS } from '@/constants/game';
-import { useUIStore, useThreadStore, useBuildStore, useAgentStore, useUserStore } from '@/stores';
+import { useUIStore, useThreadStore, useBuildStore, useAgentStore, useUserStore, useUserAgentStore } from '@/stores';
 import TempBuildTab from '@/components/tabs/TempBuildTab';
 import { useAccount } from 'wagmi';
 import sdk from '@farcaster/miniapp-sdk';
@@ -45,6 +45,7 @@ export default function Home() {
     const [isSDKLoaded, setIsSDKLoaded] = useState(false);
     const { address } = useAccount();
     const { setAddress, setPermissions, setLastVerifiedAt } = useUserStore();
+    const { updateAgent: updateUserAgent } = useUserAgentStore();
 
     const [HUDOff, setHUDOff] = useState<boolean>(false);
     const hasInitializedAuth = useRef(false);
@@ -303,6 +304,9 @@ export default function Home() {
 
         console.log(`✓ Agent registered with backend Redis at (${x}, ${y})`);
 
+        updateUserAgent(agent.url, {
+            isPlaced: true,
+        });
         // Add to spawned A2A agents for UI tracking
         spawnAgent({
             id: agentId,

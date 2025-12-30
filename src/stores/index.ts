@@ -5,6 +5,7 @@ export { useAgentStore } from './useAgentStore';
 export { useGameStateStore } from './useGameStateStore';
 export { useChatStore } from './useChatStore';
 export { useUserStore } from './useUserStore';
+export { useUserAgentStore } from './useUserAgentStore';
 
 export type { Thread } from '@/types/thread';
 export type { TileLayers } from './useBuildStore';

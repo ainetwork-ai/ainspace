@@ -7,7 +7,7 @@ import { disconnect } from '@wagmi/core';
 
 import BaseTabContent from './BaseTabContent';
 import PlayerJoystick from '@/components/controls/PlayerJoystick';
-import { BROADCAST_RADIUS, DIRECTION, TILE_SIZE, MAP_NAMES, MAP_ZONES } from '@/constants/game';
+import { BROADCAST_RADIUS, DIRECTION, TILE_SIZE, MAP_NAMES } from '@/constants/game';
 import { useGameState } from '@/hooks/useGameState';
 import { TileLayers } from '@/stores/useBuildStore';
 import { shortAddress } from '@/lib/utils';
@@ -142,12 +142,6 @@ export default function MapTab({
                 default:
                     break;
             }
-
-            // FIXME(yoojin): temp comment out
-            // // Check if tile is blocked by collision map
-            // if (globalIsBlocked(newX, newY)) {
-            //     return;
-            // }
 
             if (isCollisionTile(newX, newY)) {
                 return;

@@ -8,7 +8,7 @@ import { StoredAgent } from '@/lib/redis';
 import { MAP_NAMES } from '@/constants/game';
 import CreateAgentSection from '@/components/agent-builder/CreateAgentSection';
 import ImportedAgentList from '@/components/agent-builder/ImportedAgentList';
-import { useAgentStore, useUIStore, useUserStore } from '@/stores';
+import { useAgentStore, useUIStore, useUserStore, useUserAgentStore } from '@/stores';
 import LoadingModal from '../LoadingModal';
 import HolderModal from '../HolderModal';
 
@@ -19,8 +19,7 @@ interface AgentTabProps {
 export default function AgentTab({
     isActive,
 }: AgentTabProps) {
-    const [agents, setAgents] = useState<StoredAgent[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
+    const [isLoading, setIsLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
     const [isHolderModalOpen, setIsHolderModalOpen] = useState<boolean>(false);
 
@@ -28,24 +27,31 @@ export default function AgentTab({
     const { updateAgent } = useAgentStore();
     const { setActiveTab, setSelectedAgentForPlacement } = useUIStore();
     const { checkPermission, verifyPermissions, permissions } = useUserStore();
+    const {
+        agents,
+        setAgents,
+        addAgent,
+        updateAgent: updateStoredAgent,
+        removeAgent: removeStoredAgent,
+    } = useUserAgentStore();
 
     useEffect(() => {
         const fetchAgent = async () => {
-            const result = await fetch(`/api/agents?address=${address}`, {
-                method: 'GET',
-                headers: { 'Content-Type': 'application/json' }
-            })
-            if (result.ok) {
-                const agentsData = await result.json();
-                setAgents(agentsData.agents)
+            try {
+                const result = await fetch(`/api/agents?address=${address}`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                })
+                if (result.ok) {
+                    const agentsData = await result.json();
+                    setAgents(agentsData.agents);
+                }
+            } catch (error) {
+                console.log(error);
             }
         }
-        try {
-            fetchAgent()
-        } catch (error) {
-            console.log(error)
-        }
-    }, [address])
+        fetchAgent();
+    }, [address, setAgents])
 
     const handleImportAgent = async (agentUrl: string) => {
         if (!address) {
@@ -146,8 +152,7 @@ export default function AgentTab({
                 throw new Error(errorData.error || 'Failed to import agent');
             }
 
-            // Success - add to local state
-            setAgents([newAgent, ...agents]);
+            addAgent(newAgent);
         } catch (err) {
             setError(`Failed to import agent: ${err instanceof Error ? err.message : 'Unknown error'}`);
         } finally {
@@ -166,7 +171,7 @@ export default function AgentTab({
         if (response.ok) {
             const result = await response.json();
             if (result.success) {
-                setAgents(agents.filter((agent) => agent.url !== url));
+                removeStoredAgent(url);
             }
         } else {
             setError('Failed to remove agent');
@@ -245,11 +250,9 @@ export default function AgentTab({
 
             if (removeResponse.ok) {
                 console.log('✓ Agent removed from map');
-                // Remove from agent store
                 const { removeAgent } = useAgentStore.getState();
                 removeAgent(agent.url);
-                // Update local state
-                setAgents(agents.map((a) => (a.url === agent.url ? { ...a, isPlaced: false } : a)));
+                updateStoredAgent(agent.url, { isPlaced: false });
             } else {
                 const errorData = await removeResponse.json();
                 console.error('Failed to remove agent from map:', errorData);
@@ -279,16 +282,10 @@ export default function AgentTab({
             if (response && response.ok) {
                 const result = await response.json();
                 if (result.success) {
-                    const updatedAgent = { spriteUrl: result.agent.spriteUrl, spriteHeight: result.agent.spriteHeight };
-                    setAgents(agents.map((a) => {
-                        if (a.url === agent.url) {
-                            console.log('Image Changed!: ', a.card.name, a.spriteUrl, result.agent.spriteUrl, result.agent.spriteHeight);
-                            return { ...a, ...updatedAgent };
-                        }
-                        return a;
-                    }));
-                    
-                    updateAgent(agent.url, updatedAgent);
+                    const updatedAgentData = { spriteUrl: result.agent.spriteUrl, spriteHeight: result.agent.spriteHeight };
+                    console.log('Image Changed!: ', agent.card.name, agent.spriteUrl, result.agent.spriteUrl, result.agent.spriteHeight);
+                    updateStoredAgent(agent.url, updatedAgentData);
+                    updateAgent(agent.url, updatedAgentData);
                 }
             }
         } else {
@@ -301,16 +298,9 @@ export default function AgentTab({
             });
             if (response && response.ok) {
                 const result = await response.json();
-                const updatedAgent = { spriteUrl: result.spriteUrl, spriteHeight: result.spriteHeight };
-                
-                setAgents(agents.map((a) => {
-                  if (a.url === agent.url) {
-                    return { ...a, ...updatedAgent };
-                  }
-                  return a;
-                }));
-                
-                updateAgent(agent.url, updatedAgent);
+                const updatedAgentData = { spriteUrl: result.spriteUrl, spriteHeight: result.spriteHeight };
+                updateStoredAgent(agent.url, updatedAgentData);
+                updateAgent(agent.url, updatedAgentData);
             }
         }
         setIsLoading(false);
