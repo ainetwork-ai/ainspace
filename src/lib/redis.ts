@@ -385,3 +385,71 @@ export async function updateThreadLastMessage(userId: string, id: string): Promi
         console.error('Error updating thread last message:', error);
     }
 }
+
+/**
+ * Add an agent to user's placed agents list
+ */
+export async function addPlacedAgent(userId: string, agentUrl: string): Promise<void> {
+    try {
+        const redis = await getRedisClient();
+        const agentKey = Buffer.from(agentUrl).toString('base64');
+
+        await redis.hSet(`user:${userId}:placed_agents`, {
+            [agentKey]: JSON.stringify({
+                url: agentUrl,
+                placedAt: new Date().toISOString()
+            })
+        });
+    } catch (error) {
+        console.error('Error adding placed agent:', error);
+        throw error;
+    }
+}
+
+/**
+ * Remove an agent from user's placed agents list
+ */
+export async function removePlacedAgent(userId: string, agentUrl: string): Promise<void> {
+    try {
+        const redis = await getRedisClient();
+        const agentKey = Buffer.from(agentUrl).toString('base64');
+
+        await redis.hDel(`user:${userId}:placed_agents`, agentKey);
+    } catch (error) {
+        console.error('Error removing placed agent:', error);
+        throw error;
+    }
+}
+
+/**
+ * Get all placed agents for a user
+ */
+export async function getPlacedAgents(userId: string): Promise<{ url: string; placedAt: string }[]> {
+    try {
+        const redis = await getRedisClient();
+        const placedAgentsData = await redis.hGetAll(`user:${userId}:placed_agents`);
+
+        if (!placedAgentsData || Object.keys(placedAgentsData).length === 0) {
+            return [];
+        }
+
+        return Object.values(placedAgentsData).map(data => JSON.parse(data));
+    } catch (error) {
+        console.error('Error getting placed agents:', error);
+        return [];
+    }
+}
+
+/**
+ * Get count of placed agents for a user
+ */
+export async function getPlacedAgentCount(userId: string): Promise<number> {
+    try {
+        const redis = await getRedisClient();
+        const count = await redis.hLen(`user:${userId}:placed_agents`);
+        return count;
+    } catch (error) {
+        console.error('Error getting placed agent count:', error);
+        return 0;
+    }
+}
