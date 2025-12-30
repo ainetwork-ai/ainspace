@@ -214,7 +214,8 @@ function TileMap({
         });
     }, [customTiles]);
 
-    const getWorldCoordinatesFromEvent = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    // Shared coordinate calculation for both mouse and touch events
+    const getWorldCoordinatesFromClientPos = (clientX: number, clientY: number) => {
         const canvas = canvasRef.current;
         if (!canvas) return null;
 
@@ -225,8 +226,8 @@ function TileMap({
         const scaleX = canvas.width / rect.width;
         const scaleY = canvas.height / rect.height;
 
-        const canvasX = (event.clientX - rect.left) * scaleX;
-        const canvasY = (event.clientY - rect.top) * scaleY;
+        const canvasX = (clientX - rect.left) * scaleX;
+        const canvasY = (clientY - rect.top) * scaleY;
 
         const screenTileX = Math.floor(canvasX / tileSize);
         const screenTileY = Math.floor(canvasY / tileSize);
@@ -264,6 +265,10 @@ function TileMap({
         }
 
         return null;
+    };
+
+    const getWorldCoordinatesFromEvent = (event: React.MouseEvent<HTMLCanvasElement>) => {
+        return getWorldCoordinatesFromClientPos(event.clientX, event.clientY);
     };
 
     const paintTileAt = (worldX: number, worldY: number) => {
@@ -334,35 +339,10 @@ function TileMap({
         const touch = event.touches[0];
 
         if (buildMode === 'paint') {
-            const canvas = canvasRef.current;
-            if (!canvas) return;
-
-            const rect = canvas.getBoundingClientRect();
-            const scaleX = canvas.width / rect.width;
-            const scaleY = canvas.height / rect.height;
-
-            const canvasX = (touch.clientX - rect.left) * scaleX;
-            const canvasY = (touch.clientY - rect.top) * scaleY;
-
-            const screenTileX = Math.floor(canvasX / tileSize);
-            const screenTileY = Math.floor(canvasY / tileSize);
-
-            const tilesX = Math.ceil(canvasSize.width / tileSize);
-            const tilesY = Math.ceil(canvasSize.height / tileSize);
-            const halfTilesX = Math.floor(tilesX / 2);
-            const halfTilesY = Math.floor(tilesY / 2);
-
-            let cameraTileX = worldPosition.x - halfTilesX;
-            let cameraTileY = worldPosition.y - halfTilesY;
-            cameraTileX = Math.max(0, Math.min(MAP_TILES - tilesX, cameraTileX));
-            cameraTileY = Math.max(0, Math.min(MAP_TILES - tilesY, cameraTileY));
-
-            if (screenTileX >= 0 && screenTileX < tilesX && screenTileY >= 0 && screenTileY < tilesY) {
-                const worldX = Math.floor(cameraTileX + screenTileX);
-                const worldY = Math.floor(cameraTileY + screenTileY);
-
+            const coords = getWorldCoordinatesFromClientPos(touch.clientX, touch.clientY);
+            if (coords) {
                 setIsPainting(true);
-                paintTileAt(worldX, worldY);
+                paintTileAt(coords.worldX, coords.worldY);
             }
         }
     };
@@ -371,34 +351,9 @@ function TileMap({
         if (buildMode !== 'paint' || !isPainting || event.touches.length === 0) return;
 
         const touch = event.touches[0];
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-
-        const rect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
-
-        const canvasX = (touch.clientX - rect.left) * scaleX;
-        const canvasY = (touch.clientY - rect.top) * scaleY;
-
-        const screenTileX = Math.floor(canvasX / tileSize);
-        const screenTileY = Math.floor(canvasY / tileSize);
-
-        const tilesX = Math.ceil(canvasSize.width / tileSize);
-        const tilesY = Math.ceil(canvasSize.height / tileSize);
-        const halfTilesX = Math.floor(tilesX / 2);
-        const halfTilesY = Math.floor(tilesY / 2);
-
-        let cameraTileX = worldPosition.x - halfTilesX;
-        let cameraTileY = worldPosition.y - halfTilesY;
-        cameraTileX = Math.max(0, Math.min(MAP_TILES - tilesX, cameraTileX));
-        cameraTileY = Math.max(0, Math.min(MAP_TILES - tilesY, cameraTileY));
-
-        if (screenTileX >= 0 && screenTileX < tilesX && screenTileY >= 0 && screenTileY < tilesY) {
-            const worldX = Math.floor(cameraTileX + screenTileX);
-            const worldY = Math.floor(cameraTileY + screenTileY);
-
-            paintTileAt(worldX, worldY);
+        const coords = getWorldCoordinatesFromClientPos(touch.clientX, touch.clientY);
+        if (coords) {
+            paintTileAt(coords.worldX, coords.worldY);
         }
     };
 
@@ -694,8 +649,8 @@ function TileMap({
                 </>
             )}} */}
 
-            {/* Visual preview outline for item/agent placement */}
-            {buildMode === 'paint' && selectedItemDimensions && hoveredWorldCoords && (
+            {/* Visual preview outline for item/agent placement (hide when position is selected for two-tap) */}
+            {buildMode === 'paint' && selectedItemDimensions && hoveredWorldCoords && !selectedPosition && (
                 <>
                     {(() => {
                         const canvas = canvasRef.current;
