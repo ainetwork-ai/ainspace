@@ -231,7 +231,7 @@ export default function MapTab({
                 {selectedAgentForPlacement && (
                     <div
                         className="absolute top-4 left-1/2 transform -translate-x-1/2 inline-flex flex-col items-center gap-2 rounded-lg bg-[#faf4fe] px-4 py-3 shadow-lg border border-[#d7c1e5]"
-                        style={{ zIndex: Z_INDEX_OFFSETS.UI }}
+                        style={{ zIndex: Z_INDEX_OFFSETS.UI + 100 }}
                     >
                         <p className="text-base font-bold text-[#87659e]">
                             {selectedPosition
