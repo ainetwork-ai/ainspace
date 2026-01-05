@@ -44,11 +44,16 @@ export default function Home() {
     const { setFrameReady, isFrameReady } = useMiniKit();
     const [isSDKLoaded, setIsSDKLoaded] = useState(false);
     const { address } = useAccount();
-    const { setAddress, setPermissions, setLastVerifiedAt } = useUserStore();
+    const { setAddress, setPermissions, setLastVerifiedAt, initSessionId } = useUserStore();
     const { updateAgent: updateUserAgent } = useUserAgentStore();
 
     const [HUDOff, setHUDOff] = useState<boolean>(false);
     const hasInitializedAuth = useRef(false);
+
+    // Initialize sessionId for guest users on mount
+    useEffect(() => {
+        initSessionId();
+    }, [initSessionId]);
 
     useEffect(() => {
         if (!isFrameReady) {
@@ -67,6 +72,7 @@ export default function Home() {
             if (!address) {
                 setAddress(null);
                 setPermissions(null);
+                hasInitializedAuth.current = false;
                 return;
             }
 
@@ -122,7 +128,7 @@ export default function Home() {
         }
 
         initUserAuth();
-    }, [address, setAddress, setPermissions])
+    }, [address, setAddress, setPermissions, setLastVerifiedAt])
 
     useEffect(() => {
         const loadCustomTiles = async () => {
@@ -165,14 +171,10 @@ export default function Home() {
         // loadCustomTiles();
     }, [userId, setPublishedTiles, setCollisionMap]);
 
-    // Load deployed agents from Redis on mount
+    // Load deployed agents from Redis on mount (모든 유저에게 허용)
     useEffect(() => {
         const loadDeployedAgents = async () => {
             try {
-                if (!address) {
-                    console.error('Address is not connected');
-                    return;
-                }
                 const response = await fetch(`/api/agents`);
                 if (!response.ok) {
                     console.error('Failed to load deployed agents from Redis');
