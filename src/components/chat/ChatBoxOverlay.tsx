@@ -34,7 +34,6 @@ export default function ChatBoxOverlay({
     const [isThreadListSheetOpen, setIsThreadListSheetOpen] = useState(false);
     const [isThreadListLoading, setIsThreadListLoading] = useState(false);
     const { setThreads, setCurrentThreadId } = useThreadStore();
-    const { worldPosition } = useGameStateStore();
     const { address, sessionId } = useUserStore();
     const userId = address || sessionId;
 
@@ -102,14 +101,13 @@ export default function ChatBoxOverlay({
 
     // Generate placeholder text
     const chatPlaceholder = useMemo(() => {
-        const positionString = `(${worldPosition.x}, ${worldPosition.y})`;
         if (currentAgentsInRadius.length === 0) {
-            return `${positionString} Talk to: No agents nearby`;
+            return `Talk to: No agents nearby`;
         }
         
         const agentNames = currentAgentsInRadius.map((a) => a.name).join(', ');
-        return `${positionString} Talk to: ${agentNames}`;
-    }, [currentAgentsInRadius, worldPosition]);
+        return `Talk to: ${agentNames}`;
+    }, [currentAgentsInRadius]);
 
     const openChatSheet = () => {
         handleChatSheetOpen(true);
