@@ -44,7 +44,7 @@ export default function Home() {
     const { setFrameReady, isFrameReady } = useMiniKit();
     const [isSDKLoaded, setIsSDKLoaded] = useState(false);
     const { address } = useAccount();
-    const { setAddress, setPermissions, setLastVerifiedAt, initSessionId } = useUserStore();
+    const { setAddress, setPermissions, setLastVerifiedAt, initSessionId, getSessionId, hasMigratedThreads, setMigratedThreads } = useUserStore();
     const { updateAgent: updateUserAgent } = useUserAgentStore();
 
     const [HUDOff, setHUDOff] = useState<boolean>(false);
@@ -81,6 +81,33 @@ export default function Home() {
             hasInitializedAuth.current = true;
 
             setAddress(address);
+
+            // Migrate threads from sessionId to wallet address on first login
+            const sessionId = getSessionId();
+            if (sessionId && !hasMigratedThreads(address)) {
+                try {
+                    const migrateResponse = await fetch('/api/threads/migrate', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            sessionId,
+                            walletAddress: address,
+                        }),
+                    });
+
+                    if (migrateResponse.ok) {
+                        const migrateData = await migrateResponse.json();
+                        console.log(`Thread migration: ${migrateData.migratedCount} migrated, ${migrateData.skippedCount} skipped`);
+                        setMigratedThreads(address);
+                    } else {
+                        console.error('Failed to migrate threads:', migrateResponse.statusText);
+                    }
+                } catch (error) {
+                    console.error('Error migrating threads:', error);
+                }
+            }
 
             try {
                 const getResponse = await fetch(`/api/auth/permissions/${address}`, {
@@ -128,7 +155,7 @@ export default function Home() {
         }
 
         initUserAuth();
-    }, [address, setAddress, setPermissions, setLastVerifiedAt])
+    }, [address, setAddress, setPermissions, setLastVerifiedAt, getSessionId, hasMigratedThreads, setMigratedThreads])
 
     useEffect(() => {
         const loadCustomTiles = async () => {
