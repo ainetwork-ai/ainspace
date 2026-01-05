@@ -453,3 +453,60 @@ export async function getPlacedAgentCount(userId: string): Promise<number> {
         return 0;
     }
 }
+
+/**
+ * Migrate threads from sessionId to walletAddress
+ * Combines threads (walletAddress threads take precedence for conflicts by agentComboId)
+ */
+export async function migrateThreadsToWallet(
+    sessionId: string,
+    walletAddress: string
+): Promise<{ migratedCount: number; skippedCount: number }> {
+    try {
+        const redis = await getRedisClient();
+
+        const sessionThreads = await redis.hGetAll(`user:${sessionId}:threads`);
+        const walletCombos = await redis.hGetAll(`user:${walletAddress}:agent_combos`);
+
+        let migratedCount = 0;
+        let skippedCount = 0;
+
+        // Process each session thread
+        for (const [threadId, threadDataStr] of Object.entries(sessionThreads)) {
+            const thread: Thread = JSON.parse(threadDataStr);
+
+            // Check if wallet already has a thread with the same agentComboId, skip if it does
+            if (walletCombos[thread.agentComboId]) {
+                skippedCount++;
+                continue;
+            }
+
+            await redis.hSet(`user:${walletAddress}:threads`, {
+                [threadId]: threadDataStr,
+            });
+
+            await redis.hSet(`user:${walletAddress}:agent_combos`, {
+                [thread.agentComboId]: threadId
+            });
+
+            migratedCount++;
+        }
+
+        // Set expiration for wallet user data
+        if (migratedCount > 0) {
+            await redis.expire(`user:${walletAddress}:threads`, 86400 * 30);
+            await redis.expire(`user:${walletAddress}:agent_combos`, 86400 * 30);
+        }
+
+        // Clean up session data after migration
+        await redis.del(`user:${sessionId}:threads`);
+        await redis.del(`user:${sessionId}:agent_combos`);
+
+        console.log(`Thread migration completed: ${migratedCount} migrated, ${skippedCount} skipped`);
+
+        return { migratedCount, skippedCount };
+    } catch (error) {
+        console.error('Error migrating threads:', error);
+        throw error;
+    }
+}

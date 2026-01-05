@@ -3,17 +3,16 @@
 import { useState, useRef, useEffect, useCallback, forwardRef } from 'react';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
-import { ChatMessage, useBuildStore, useChatStore, useGameStateStore, useThreadStore } from '@/stores';
+import { ChatMessage, useBuildStore, useChatStore, useGameStateStore, useThreadStore, useUserStore } from '@/stores';
 import { BROADCAST_RADIUS, INITIAL_PLAYER_POSITION } from '@/constants/game';
-import { useAccount } from 'wagmi';
 import * as Sentry from '@sentry/nextjs';
 import { useThreadStream } from '@/hooks/useThreadStream';
 import { StreamEvent } from '@/lib/a2aOrchestration';
 import { AlertTriangle, Triangle } from 'lucide-react';
-import ChatMessageCard from './ChatMessageCard';
+import ChatMessageCard from '@/components/chat/ChatMessageCard';
 import { AgentState } from '@/lib/agent';
 import { generateAgentComboId } from '@/lib/hash';
-import { Spinner } from './ui/spinner';
+import { Spinner } from '@/components/ui/spinner';
 
 interface ChatBoxProps {
     className?: string;
@@ -57,7 +56,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     // Track if a message has been sent (to enable SSE connection)
     const [hasStartedConversation, setHasStartedConversation] = useState(false);
 
-    const { address } = useAccount();
+    const userId = useUserStore((state) => state.getUserId());
     const { worldPosition: playerPosition } = useGameStateStore();
     const { updateThread } = useThreadStore();
 
@@ -79,12 +78,12 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     text: backendMessage.content,
                     timestamp: backendMessage.timestamp,
                     sender: isUserMessage ? 'user' : 'ai',
-                    senderId: isUserMessage ? address : backendMessage.speaker,
+                    senderId: isUserMessage ? userId : backendMessage.speaker,
                     threadId: threadId
                 } as ChatMessage;
             });
         },
-        [address]
+        [userId]
     );
 
     const fetchThreadMessages = useCallback(
@@ -113,7 +112,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 });
             }
         }
-    }, [currentThreadId, setMessages, getMessagesByThreadId, address, fetchThreadMessages]);
+    }, [currentThreadId, setMessages, getMessagesByThreadId, fetchThreadMessages]);
 
     useEffect(() => {
         if (currentThreadId && currentThreadId !== '0') {
@@ -130,37 +129,6 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         const agentString = sortedNames.join(', ').replace(/[^a-z0-9가-힣\s,]/gi, '');
         return agentString;
     }, []);
-
-    // Initialize world system
-    // const { sendMessage: worldSendMessage, getAgentSuggestions } = useWorld({
-    //     agents: agents || [],
-    //     playerPosition: playerPosition || INITIAL_PLAYER_POSITION,
-    //     onAgentResponse: (response: AgentResponse & { threadId?: string }) => {
-    //         const { agentId, message, threadId, nextAgentRequest } = response;
-    //         // Add agent response to chat with thread ID
-    //         const agentMessage: ChatMessage = {
-    //             id: `agent-${agentId}-${Date.now()}`,
-    //             text: message,
-    //             timestamp: new Date(),
-    //             sender: 'ai',
-    //             senderId: agentId,
-    //             threadId: threadId || currentThreadId || undefined
-    //         };
-
-    //         console.log('Agent response received:', {
-    //             agentId: agentId,
-    //             message: message,
-    //             threadId: agentMessage.threadId,
-    //             currentThreadId
-    //         });
-
-    //         setMessages(threadId, (prev) => [...prev, agentMessage]);
-
-    //         nextAgentRequest.forEach(async (req) => {
-    //             worldSendMessage(req, agentMessage.threadId);
-    //         });
-    //     }
-    // });
 
     // Handle SSE stream messages from A2A Orchestration
     const handleStreamEvent = useCallback(
@@ -277,7 +245,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     }, [aiCommentary, currentThreadId]);
 
     const handleSendMessage = async () => {
-        if (!address) return;
+        if (!userId) return;
 
         if (inputValue.trim() === 'show me grid') {
             setShowCollisionMap(true);
@@ -361,7 +329,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 text: userMessageText,
                 timestamp: new Date(),
                 sender: 'user',
-                senderId: address,
+                senderId: userId,
                 threadId: threadIdToSend
             };
 
@@ -429,7 +397,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                         threadId: threadIdToSend,
                         agentNames: agentNames, // Explicitly pass the agent list calculated on frontend
                         mentionedAgents: mentionedAgents.length > 0 ? mentionedAgents : undefined,
-                        userId: address
+                        userId: userId
                     }),
                     signal: controller.signal
                 });
@@ -474,7 +442,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
 
                         // Save to backend (async, don't wait)
                         console.log('Saving thread mapping:', {
-                            userId: address,
+                            userId: userId,
                             threadName,
                             id: result.threadId,
                             agentNames: agentNames
@@ -482,12 +450,12 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
 
                         setCurrentThreadId(result.threadId);
 
-                        if (address) {
+                        if (userId) {
                             fetch('/api/threads', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
-                                    userId: address,
+                                    userId: userId,
                                     threadName,
                                     id: result.threadId,
                                     agentNames: agentNames

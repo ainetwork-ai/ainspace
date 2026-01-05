@@ -1,15 +1,14 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { useGameStateStore, useThreadStore } from '@/stores';
+import { useGameStateStore, useThreadStore, useUserStore } from '@/stores';
 import { AgentState } from '@/lib/agent';
 import { Triangle } from 'lucide-react';
 import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
 import ChatBottomDrawer from './ChatBottomDrawer';
 import { ChatBoxRef } from './ChatBox';
-import ThreadListLeftDrawer from './ThreadListLeftDrawer';
-import { useAccount } from 'wagmi';
+import ThreadListLeftDrawer from '@/components/chat/ThreadListLeftDrawer';
 import { Thread } from '@/stores';
 import { generateAgentComboId } from '@/lib/hash';
 import { Z_INDEX_OFFSETS } from '@/constants/common';
@@ -35,17 +34,16 @@ export default function ChatBoxOverlay({
     const [isThreadListSheetOpen, setIsThreadListSheetOpen] = useState(false);
     const [isThreadListLoading, setIsThreadListLoading] = useState(false);
     const { setThreads, setCurrentThreadId } = useThreadStore();
-    const { worldPosition } = useGameStateStore();
-
-    const { address } = useAccount();
+    const { address, sessionId } = useUserStore();
+    const userId = address || sessionId;
 
     useEffect(() => {
-        if (!address) return;
+        if (!userId) return;
 
         const loadThreadMappings = async () => {
             setIsThreadListLoading(true);
             try {
-                const response = await fetch(`/api/threads?userId=${address}`);
+                const response = await fetch(`/api/threads?userId=${userId}`);
                 if (!response.ok) {
                     console.error('Failed to load threads');
                     return;
@@ -83,7 +81,7 @@ export default function ChatBoxOverlay({
         };
 
         loadThreadMappings();
-    }, [address, setThreads]);
+    }, [userId, setThreads]);
 
     const handleChatSheetOpen = (open: boolean) => {
         setIsChatSheetOpen(open);
@@ -103,14 +101,13 @@ export default function ChatBoxOverlay({
 
     // Generate placeholder text
     const chatPlaceholder = useMemo(() => {
-        const positionString = `(${worldPosition.x}, ${worldPosition.y})`;
         if (currentAgentsInRadius.length === 0) {
-            return `${positionString} Talk to: No agents nearby`;
+            return `Talk to: No agents nearby`;
         }
         
         const agentNames = currentAgentsInRadius.map((a) => a.name).join(', ');
-        return `${positionString} Talk to: ${agentNames}`;
-    }, [currentAgentsInRadius, worldPosition]);
+        return `Talk to: ${agentNames}`;
+    }, [currentAgentsInRadius]);
 
     const openChatSheet = () => {
         handleChatSheetOpen(true);

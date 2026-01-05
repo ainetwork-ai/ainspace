@@ -1,6 +1,6 @@
 import { useThreadStore } from '@/stores/useThreadStore';
 import { Thread } from '@/types/thread';
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from './ui/context-menu';
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '../ui/context-menu';
 import { AlertTriangle, Trash2Icon } from 'lucide-react';
 import { useAccount } from 'wagmi';
 import { Z_INDEX_OFFSETS } from '@/constants/common';

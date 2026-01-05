@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useAccount } from 'wagmi';
+import { useAccount, useConnect } from 'wagmi';
 import Image from 'next/image';
 import { disconnect } from '@wagmi/core';
+import { MapPin } from 'lucide-react';
 
 import BaseTabContent from './BaseTabContent';
 import PlayerJoystick from '@/components/controls/PlayerJoystick';
@@ -12,15 +13,16 @@ import { useGameState } from '@/hooks/useGameState';
 import { TileLayers } from '@/stores/useBuildStore';
 import { shortAddress } from '@/lib/utils';
 import { config } from '@/lib/wagmi-config';
-import ChatBoxOverlay from '../ChatBoxOverlay';
-import { ChatBoxRef } from '../ChatBox';
-import { useAgentStore, useUIStore } from '@/stores';
+import ChatBoxOverlay from '@/components/chat/ChatBoxOverlay';
+import { ChatBoxRef } from '@/components/chat/ChatBox';
+import { useAgentStore, useThreadStore, useUIStore } from '@/stores';
 import { useMapStore } from '@/stores/useMapStore';
-import TileMap from '../TileMap';
+import TileMap from '@/components/TileMap';
 import { Z_INDEX_OFFSETS } from '@/constants/common';
 import { StoredAgent } from '@/lib/redis';
 import { getMapNameFromCoordinates } from '@/lib/map-utils';
-import LoadingModal from '../LoadingModal';
+import LoadingModal from '@/components/LoadingModal';
+import PlaceAgentModal from '@/components/PlaceAgentModal';
 
 interface MapTabProps {
     isActive: boolean;
@@ -46,7 +48,9 @@ export default function MapTab({
     onPlaceAgentAtPosition,
 }: MapTabProps) {
     const { address } = useAccount();
+    const { connect, connectors } = useConnect();
     const { agents } = useAgentStore();
+    const { clearThreads } = useThreadStore();
     const { selectedAgentForPlacement, setSelectedAgentForPlacement } = useUIStore();
     const [placementError, setPlacementError] = useState<string | null>(null);
     const [selectedPosition, setSelectedPosition] = useState<{ x: number; y: number } | null>(null);
@@ -102,8 +106,7 @@ export default function MapTab({
         const isAllowedMap = allowedMaps.includes('*') || (clickedMap && allowedMaps.includes(clickedMap));
 
         if (!isAllowedMap) {
-            const mapNames = allowedMaps.includes('*') ? 'any map' : allowedMaps.join(', ');
-            setPlacementError(`Please place agent within allowed area: ${mapNames}`);
+            setPlacementError(`Please place agent within allowed area.`);
             setSelectedPosition(null);
             return;
         }
@@ -181,6 +184,11 @@ export default function MapTab({
         [isAutonomous, worldPosition, agents, movePlayer, isOutOfBounds, isCollisionTile]
     );
 
+    const handleWalletDisconnect = useCallback(() => {
+        disconnect(config);
+        clearThreads();
+    }, [clearThreads]);
+
     // Keyboard handling for player movement (works alongside joystick)
     useEffect(() => {
         const handleKeyPress = (event: KeyboardEvent) => {
@@ -230,37 +238,19 @@ export default function MapTab({
                 {/* Agent Placement Mode UI */}
                 {selectedAgentForPlacement && (
                     <div
-                        className="absolute top-4 left-1/2 transform -translate-x-1/2 inline-flex flex-col items-center gap-2 rounded-lg bg-[#faf4fe] px-4 py-3 shadow-lg border border-[#d7c1e5]"
+                        className="absolute top-4 left-0 right-0 flex justify-center"
                         style={{ zIndex: Z_INDEX_OFFSETS.UI + 100 }}
                     >
-                        <p className="text-base font-bold text-[#87659e]">
-                            {selectedPosition
-                                ? `Tap again to place ${selectedAgentForPlacement.agent.card.name}`
-                                : `Tap on the map to place ${selectedAgentForPlacement.agent.card.name}`
-                            }
-                        </p>
-                        {selectedPosition ? (
-                            <p className="text-sm text-blue-600 font-medium">
-                                Selected: ({selectedPosition.x}, {selectedPosition.y})
-                            </p>
-                        ) : (
-                            <p className="text-sm text-[#b68ed2]">
-                                Allowed area: {selectedAgentForPlacement.allowedMaps.includes('*') ? 'All maps' : selectedAgentForPlacement.allowedMaps.join(', ')}
-                            </p>
-                        )}
-                        {placementError && (
-                            <p className="text-sm text-red-600">{placementError}</p>
-                        )}
-                        <button
-                            onClick={() => {
+                        <PlaceAgentModal
+                            agentName={selectedAgentForPlacement.agent.card.name}
+                            allowedMaps={selectedAgentForPlacement.allowedMaps}
+                            errorMessage={placementError}
+                            onCancel={() => {
                                 setSelectedAgentForPlacement(null);
                                 setSelectedPosition(null);
                                 setPlacementError(null);
                             }}
-                            className="text-sm text-[#b68ed2] underline hover:text-[#87659e]"
-                        >
-                            Cancel
-                        </button>
+                        />
                     </div>
                 )}
 
@@ -288,16 +278,37 @@ export default function MapTab({
                     />
                 </div>
 
-                {address && (
+                {address ? (
                     <button
-                        onClick={() => disconnect(config)}
+                        onClick={handleWalletDisconnect}
                         className="absolute top-4 right-4 inline-flex cursor-pointer flex-row items-center justify-center gap-2 rounded-lg bg-white p-2"
                         style={{ zIndex: Z_INDEX_OFFSETS.UI }}
                     >
                         <Image src="/agent/defaultAvatar.svg" alt="agent" width={20} height={20} />
                         <p className="text-sm font-bold text-black">{shortAddress(address)}</p>
                     </button>
+                ) : (
+                  <button
+                    onClick={() => connect({ connector: connectors[0] })}
+                    className="absolute top-4 right-4 inline-flex cursor-pointer flex-row items-center justify-center gap-2 rounded-lg bg-[#7F4FE8] p-2 px-4"
+                    style={{ zIndex: Z_INDEX_OFFSETS.UI }}
+                  >
+                    <p className="text-sm font-bold text-white">Wallet Login</p>
+                  </button>
                 )}
+
+                {/* Current Area Display */}
+                <div
+                    className="absolute top-16 right-4 inline-flex flex-row items-center justify-center gap-2 rounded-lg bg-black/50 backdrop-blur-[6px] px-3 py-1.5"
+                    style={{ zIndex: Z_INDEX_OFFSETS.UI }}
+                >
+                    <MapPin size={16} className="text-[#C0A9F1]" />
+                    <p className="text-sm font-bold">
+                        <span className="text-[#C0A9F1]">Area: </span>
+                        <span className="text-white">{worldPosition ? (getMapNameFromCoordinates(worldPosition.x, worldPosition.y) || 'Unknown') : 'Unknown'}</span>
+                        {worldPosition && <span className="text-[#CAD0D7]"> [{worldPosition.x}, {worldPosition.y}]</span>}
+                    </p>
+                </div>
                 {isJoystickVisible && (
                     <div 
                         className="absolute bottom-4 left-1/2 -translate-x-1/2 transform"

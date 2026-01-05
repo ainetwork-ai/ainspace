@@ -1,27 +1,92 @@
 import { create } from 'zustand';
+import { v4 as uuidv4 } from 'uuid';
 import { UserPermissions } from '@/types/auth';
+
+const SESSION_STORAGE_KEY = 'ainspace-session-id';
+const MIGRATION_DONE_KEY = 'ainspace-migration-done';
 
 interface UserStore {
   address: string | null;
+  sessionId: string | null;
   permissions: UserPermissions | null;
   lastVerifiedAt: number | null;
+
+  getUserId: () => string | null;
+  isWalletConnected: () => boolean;
+  getSessionId: () => string | null;
+  hasMigratedThreads: (walletAddress: string) => boolean;
+  setMigratedThreads: (walletAddress: string) => void;
+
   setAddress: (address: string | null) => void;
   setPermissions: (permissions: UserPermissions | null) => void;
   setLastVerifiedAt: (timestamp: number) => void;
+  initSessionId: () => void;
   clearUser: () => void;
   verifyPermissions: (address: string) => Promise<{ success: boolean; permissions?: UserPermissions }>;
   checkPermission: (permissionKey: keyof UserPermissions['permissions']) => boolean;
 }
 
-const VERIFY_COOLDOWN = 1000; // 10 minutes
+const VERIFY_COOLDOWN = 1000;
 
 export const useUserStore = create<UserStore>((set, get) => ({
   address: null,
+  sessionId: null,
   permissions: null,
   lastVerifiedAt: null,
+
+  getUserId: () => {
+    const state = get();
+    return state.address || state.sessionId;
+  },
+
+  isWalletConnected: () => !!get().address,
+
+  getSessionId: () => get().sessionId,
+
+  hasMigratedThreads: (walletAddress: string) => {
+    if (typeof window === 'undefined') return true;
+    const migratedWallets = localStorage.getItem(MIGRATION_DONE_KEY);
+    if (!migratedWallets) return false;
+    try {
+      const wallets: string[] = JSON.parse(migratedWallets);
+      return wallets.includes(walletAddress.toLowerCase());
+    } catch {
+      return false;
+    }
+  },
+
+  setMigratedThreads: (walletAddress: string) => {
+    if (typeof window === 'undefined') return;
+    const migratedWallets = localStorage.getItem(MIGRATION_DONE_KEY);
+    let wallets: string[] = [];
+    if (migratedWallets) {
+      try {
+        wallets = JSON.parse(migratedWallets);
+      } catch {
+        wallets = [];
+      }
+    }
+    const lowerAddress = walletAddress.toLowerCase();
+    if (!wallets.includes(lowerAddress)) {
+      wallets.push(lowerAddress);
+      localStorage.setItem(MIGRATION_DONE_KEY, JSON.stringify(wallets));
+    }
+  },
+
   setAddress: (address) => set({ address }),
   setPermissions: (permissions) => set({ permissions }),
   setLastVerifiedAt: (timestamp) => set({ lastVerifiedAt: timestamp }),
+
+  initSessionId: () => {
+    if (typeof window === 'undefined') return;
+    let sessionId = localStorage.getItem(SESSION_STORAGE_KEY);
+    if (!sessionId) {
+      sessionId = uuidv4();
+      localStorage.setItem(SESSION_STORAGE_KEY, sessionId);
+    }
+    set({ sessionId });
+  },
+
   clearUser: () => set({ address: null, permissions: null, lastVerifiedAt: null }),
 
   // Verify permissions with cooldown
