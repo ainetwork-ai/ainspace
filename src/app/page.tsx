@@ -7,7 +7,7 @@ import MapTab from '@/components/tabs/MapTab';
 import AgentTab from '@/components/tabs/AgentTab';
 import Footer from '@/components/Footer';
 import { DIRECTION, MAP_TILES, ENABLE_AGENT_MOVEMENT, BROADCAST_RADIUS } from '@/constants/game';
-import { useUIStore, useThreadStore, useBuildStore, useAgentStore, useUserStore } from '@/stores';
+import { useUIStore, useThreadStore, useBuildStore, useAgentStore, useUserStore, useUserAgentStore } from '@/stores';
 import TempBuildTab from '@/components/tabs/TempBuildTab';
 import { useAccount } from 'wagmi';
 import sdk from '@farcaster/miniapp-sdk';
@@ -44,10 +44,16 @@ export default function Home() {
     const { setFrameReady, isFrameReady } = useMiniKit();
     const [isSDKLoaded, setIsSDKLoaded] = useState(false);
     const { address } = useAccount();
-    const { setAddress, setPermissions, setLastVerifiedAt } = useUserStore();
+    const { setAddress, setPermissions, setLastVerifiedAt, initSessionId, getSessionId, hasMigratedThreads, setMigratedThreads } = useUserStore();
+    const { updateAgent: updateUserAgent } = useUserAgentStore();
 
     const [HUDOff, setHUDOff] = useState<boolean>(false);
     const hasInitializedAuth = useRef(false);
+
+    // Initialize sessionId for guest users on mount
+    useEffect(() => {
+        initSessionId();
+    }, [initSessionId]);
 
     useEffect(() => {
         if (!isFrameReady) {
@@ -66,6 +72,7 @@ export default function Home() {
             if (!address) {
                 setAddress(null);
                 setPermissions(null);
+                hasInitializedAuth.current = false;
                 return;
             }
 
@@ -74,6 +81,33 @@ export default function Home() {
             hasInitializedAuth.current = true;
 
             setAddress(address);
+
+            // Migrate threads from sessionId to wallet address on first login
+            const sessionId = getSessionId();
+            if (sessionId && !hasMigratedThreads(address)) {
+                try {
+                    const migrateResponse = await fetch('/api/threads/migrate', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            sessionId,
+                            walletAddress: address,
+                        }),
+                    });
+
+                    if (migrateResponse.ok) {
+                        const migrateData = await migrateResponse.json();
+                        console.log(`Thread migration: ${migrateData.migratedCount} migrated, ${migrateData.skippedCount} skipped`);
+                        setMigratedThreads(address);
+                    } else {
+                        console.error('Failed to migrate threads:', migrateResponse.statusText);
+                    }
+                } catch (error) {
+                    console.error('Error migrating threads:', error);
+                }
+            }
 
             try {
                 const getResponse = await fetch(`/api/auth/permissions/${address}`, {
@@ -121,7 +155,7 @@ export default function Home() {
         }
 
         initUserAuth();
-    }, [address, setAddress, setPermissions])
+    }, [address, setAddress, setPermissions, setLastVerifiedAt, getSessionId, hasMigratedThreads, setMigratedThreads])
 
     useEffect(() => {
         const loadCustomTiles = async () => {
@@ -164,14 +198,10 @@ export default function Home() {
         // loadCustomTiles();
     }, [userId, setPublishedTiles, setCollisionMap]);
 
-    // Load deployed agents from Redis on mount
+    // Load deployed agents from Redis on mount (모든 유저에게 허용)
     useEffect(() => {
         const loadDeployedAgents = async () => {
             try {
-                if (!address) {
-                    console.error('Address is not connected');
-                    return;
-                }
                 const response = await fetch(`/api/agents`);
                 if (!response.ok) {
                     console.error('Failed to load deployed agents from Redis');
@@ -257,6 +287,71 @@ export default function Home() {
         // Open the BottomSheet to show the ThreadTab
         // openBottomSheet();
     };
+
+    // Handler for placing agent at specific position from MapTab
+    const handlePlaceAgentAtPosition = useCallback(async (
+        agent: StoredAgent,
+        x: number,
+        y: number,
+        mapName: string
+    ) => {
+        if (!address) {
+            throw new Error('Address is not connected');
+        }
+
+        console.log('Placing agent at position:', x, y, mapName);
+
+        const agentId = `a2a-${Date.now()}`;
+        const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8'];
+        const randomColor = colors[Math.floor(Math.random() * colors.length)];
+
+        // Register agent with backend Redis
+        const registerResponse = await fetch('/api/agents', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                url: agent.url,
+                creator: address,
+                state: {
+                    x: x,
+                    y: y,
+                    behavior: 'random',
+                    color: randomColor,
+                    moveInterval: 600 + Math.random() * 400
+                },
+                isPlaced: true,
+                mapName: mapName,
+            }),
+        });
+
+        if (!registerResponse.ok && registerResponse.status !== 409) {
+            const errorData = await registerResponse.json();
+            throw new Error(errorData.error || 'Failed to place agent');
+        }
+
+        console.log(`✓ Agent registered with backend Redis at (${x}, ${y})`);
+
+        updateUserAgent(agent.url, {
+            isPlaced: true,
+        });
+        // Add to spawned A2A agents for UI tracking
+        spawnAgent({
+            id: agentId,
+            name: agent.card.name,
+            x: x,
+            y: y,
+            color: agent.state.color || randomColor,
+            agentUrl: agent.url,
+            behavior: 'random',
+            lastMoved: Date.now(),
+            moveInterval: agent.state.moveInterval || 600 + Math.random() * 400,
+            skills: agent.card.skills || [],
+            spriteUrl: agent.spriteUrl,
+            spriteHeight: agent.spriteHeight || 50
+        });
+    }, [address, spawnAgent]);
 
     const handlePublishTiles = async () => {
         const totalCustomTiles =
@@ -406,26 +501,6 @@ export default function Home() {
     return null; // No valid position found in this zone
 }, [isPositionValid, worldPosition]);
 
-    const findAvailableSpawnPositionByZone = useCallback((zone: { startX: number; startY: number; endX: number; endY: number }): { x: number; y: number } | null => {
-      const positionsInZone: { x: number; y: number }[] = [];
-      
-      for (let x = zone.startX; x <= zone.endX; x++) {
-        for (let y = zone.startY; y <= zone.endY; y++) {
-          positionsInZone.push({ x, y });
-        }
-      }
-      
-      positionsInZone.sort(() => Math.random() - 0.5);
-      
-      for (const pos of positionsInZone) {
-        if (isPositionValid(pos.x, pos.y)) {
-          console.log(`Found spawn position at (${pos.x}, ${pos.y}) in zone`);
-          return pos;
-        }
-      }
-      
-      return null;
-    }, [isPositionValid]);
 
     // A2A Agent movement system
     useEffect(() => {
@@ -565,6 +640,8 @@ export default function Home() {
                         onAgentClick={handleAgentClick}
                         HUDOff={HUDOff}
                         onHUDOffChange={handleHUDOffChange}
+                        isPositionValid={isPositionValid}
+                        onPlaceAgentAtPosition={handlePlaceAgentAtPosition}
                     />
                     <TempBuildTab
                         isActive={activeTab === 'build'}
@@ -598,8 +675,6 @@ export default function Home() {
                 /> */}
                     <AgentTab
                         isActive={activeTab === 'agent'}
-                        isPositionValid={isPositionValid}
-                        findAvailableSpawnPositionByZone={findAvailableSpawnPositionByZone}
                     />
                 </div>
             </div>

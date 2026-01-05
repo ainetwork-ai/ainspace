@@ -1,23 +1,28 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useAccount } from 'wagmi';
+import { useAccount, useConnect } from 'wagmi';
 import Image from 'next/image';
 import { disconnect } from '@wagmi/core';
+import { MapPin } from 'lucide-react';
 
 import BaseTabContent from './BaseTabContent';
 import PlayerJoystick from '@/components/controls/PlayerJoystick';
-import { BROADCAST_RADIUS, DIRECTION, TILE_SIZE } from '@/constants/game';
+import { BROADCAST_RADIUS, DIRECTION, TILE_SIZE, MAP_NAMES } from '@/constants/game';
 import { useGameState } from '@/hooks/useGameState';
 import { TileLayers } from '@/stores/useBuildStore';
 import { shortAddress } from '@/lib/utils';
 import { config } from '@/lib/wagmi-config';
-import ChatBoxOverlay from '../ChatBoxOverlay';
-import { ChatBoxRef } from '../ChatBox';
-import { useAgentStore } from '@/stores';
+import ChatBoxOverlay from '@/components/chat/ChatBoxOverlay';
+import { ChatBoxRef } from '@/components/chat/ChatBox';
+import { useAgentStore, useThreadStore, useUIStore } from '@/stores';
 import { useMapStore } from '@/stores/useMapStore';
-import TileMap from '../TileMap';
+import TileMap from '@/components/TileMap';
 import { Z_INDEX_OFFSETS } from '@/constants/common';
+import { StoredAgent } from '@/lib/redis';
+import { getMapNameFromCoordinates } from '@/lib/map-utils';
+import LoadingModal from '@/components/LoadingModal';
+import PlaceAgentModal from '@/components/PlaceAgentModal';
 
 interface MapTabProps {
     isActive: boolean;
@@ -27,6 +32,8 @@ interface MapTabProps {
     onAgentClick?: (agentId: string, agentName: string) => void;
     HUDOff: boolean;
     onHUDOffChange: (hudOff: boolean) => void;
+    isPositionValid: (x: number, y: number) => boolean;
+    onPlaceAgentAtPosition?: (agent: StoredAgent, x: number, y: number, mapName: MAP_NAMES) => Promise<void>;
 }
 
 export default function MapTab({
@@ -37,9 +44,17 @@ export default function MapTab({
     onAgentClick,
     HUDOff,
     onHUDOffChange,
+    isPositionValid,
+    onPlaceAgentAtPosition,
 }: MapTabProps) {
     const { address } = useAccount();
+    const { connect, connectors } = useConnect();
     const { agents } = useAgentStore();
+    const { clearThreads } = useThreadStore();
+    const { selectedAgentForPlacement, setSelectedAgentForPlacement } = useUIStore();
+    const [placementError, setPlacementError] = useState<string | null>(null);
+    const [selectedPosition, setSelectedPosition] = useState<{ x: number; y: number } | null>(null);
+    const [isPlacing, setIsPlacing] = useState(false);
     const { movePlayer } = useGameState();
     const chatBoxRef = useRef<ChatBoxRef>(null);
 
@@ -75,6 +90,55 @@ export default function MapTab({
       return x < mapStartPosition.x || x > mapEndPosition.x || y < mapStartPosition.y || y > mapEndPosition.y;
     }, [mapStartPosition.x, mapStartPosition.y, mapEndPosition.x, mapEndPosition.y]);
 
+    // Handle agent placement click (two-tap: first tap selects, second tap confirms)
+    const handleAgentPlacementClick = useCallback(async (worldX: number, worldY: number) => {
+        if (!selectedAgentForPlacement || !onPlaceAgentAtPosition) return;
+
+        const { agent, allowedMaps } = selectedAgentForPlacement;
+
+        // Clear previous error
+        setPlacementError(null);
+
+        console.log('Clicked coordinates:', worldX, worldY);
+
+        // Check if clicked coordinates are within one of the allowed maps
+        const clickedMap = getMapNameFromCoordinates(worldX, worldY);
+        const isAllowedMap = allowedMaps.includes('*') || (clickedMap && allowedMaps.includes(clickedMap));
+
+        if (!isAllowedMap) {
+            setPlacementError(`Please place agent within allowed area.`);
+            setSelectedPosition(null);
+            return;
+        }
+
+        // Check if position is valid (not occupied or blocked)
+        if (!isPositionValid(worldX, worldY)) {
+            setPlacementError('This position is occupied or blocked');
+            setSelectedPosition(null);
+            return;
+        }
+
+        // Two-tap logic: first tap selects position, second tap confirms
+        if (selectedPosition && selectedPosition.x === worldX && selectedPosition.y === worldY) {
+            // Second tap on same position - confirm placement
+            setIsPlacing(true);
+            try {
+                await onPlaceAgentAtPosition(agent, worldX, worldY, clickedMap as MAP_NAMES);
+                // Success - exit placement mode
+                setSelectedAgentForPlacement(null);
+                setSelectedPosition(null);
+                setPlacementError(null);
+            } catch (error) {
+                setPlacementError(`Failed to place agent: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            } finally {
+                setIsPlacing(false);
+            }
+        } else {
+            // First tap or different position - select this position
+            setSelectedPosition({ x: worldX, y: worldY });
+        }
+    }, [selectedAgentForPlacement, onPlaceAgentAtPosition, isPositionValid, setSelectedAgentForPlacement, selectedPosition]);
+
     const handleMobileMove = useCallback(
         (direction: DIRECTION) => {
             if (isAutonomous) return;
@@ -100,12 +164,6 @@ export default function MapTab({
                     break;
             }
 
-            // FIXME(yoojin): temp comment out
-            // // Check if tile is blocked by collision map
-            // if (globalIsBlocked(newX, newY)) {
-            //     return;
-            // }
-
             if (isCollisionTile(newX, newY)) {
                 return;
             }
@@ -125,6 +183,11 @@ export default function MapTab({
         },
         [isAutonomous, worldPosition, agents, movePlayer, isOutOfBounds, isCollisionTile]
     );
+
+    const handleWalletDisconnect = useCallback(() => {
+        disconnect(config);
+        clearThreads();
+    }, [clearThreads]);
 
     // Keyboard handling for player movement (works alongside joystick)
     useEffect(() => {
@@ -172,6 +235,25 @@ export default function MapTab({
         <BaseTabContent isActive={isActive} withPadding={false}>
             {/* Game Area */}
             <div className="relative flex h-full w-full flex-col" style={{ touchAction: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}>
+                {/* Agent Placement Mode UI */}
+                {selectedAgentForPlacement && (
+                    <div
+                        className="absolute top-4 left-0 right-0 flex justify-center"
+                        style={{ zIndex: Z_INDEX_OFFSETS.UI + 100 }}
+                    >
+                        <PlaceAgentModal
+                            agentName={selectedAgentForPlacement.agent.card.name}
+                            allowedMaps={selectedAgentForPlacement.allowedMaps}
+                            errorMessage={placementError}
+                            onCancel={() => {
+                                setSelectedAgentForPlacement(null);
+                                setSelectedPosition(null);
+                                setPlacementError(null);
+                            }}
+                        />
+                    </div>
+                )}
+
                 <div className="flex h-full w-full items-center justify-center select-none" style={{ WebkitUserSelect: 'none', userSelect: 'none' }}>
                     <TileMap
                         mapData={mapData}
@@ -188,19 +270,45 @@ export default function MapTab({
                         playerIsMoving={isPlayerMoving}
                         collisionMap={collisionMap}
                         onAgentClick={onAgentClick}
+                        buildMode={selectedAgentForPlacement ? 'paint' : 'view'}
+                        onTileClick={selectedAgentForPlacement ? handleAgentPlacementClick : undefined}
+                        selectedItemDimensions={selectedAgentForPlacement ? { width: 1, height: 1 } : null}
+                        isPositionValid={selectedAgentForPlacement ? isPositionValid : undefined}
+                        selectedPosition={selectedPosition}
                     />
                 </div>
 
-                {address && (
+                {address ? (
                     <button
-                        onClick={() => disconnect(config)}
+                        onClick={handleWalletDisconnect}
                         className="absolute top-4 right-4 inline-flex cursor-pointer flex-row items-center justify-center gap-2 rounded-lg bg-white p-2"
                         style={{ zIndex: Z_INDEX_OFFSETS.UI }}
                     >
                         <Image src="/agent/defaultAvatar.svg" alt="agent" width={20} height={20} />
                         <p className="text-sm font-bold text-black">{shortAddress(address)}</p>
                     </button>
+                ) : (
+                  <button
+                    onClick={() => connect({ connector: connectors[0] })}
+                    className="absolute top-4 right-4 inline-flex cursor-pointer flex-row items-center justify-center gap-2 rounded-lg bg-[#7F4FE8] p-2 px-4"
+                    style={{ zIndex: Z_INDEX_OFFSETS.UI }}
+                  >
+                    <p className="text-sm font-bold text-white">Wallet Login</p>
+                  </button>
                 )}
+
+                {/* Current Area Display */}
+                <div
+                    className="absolute top-16 right-4 inline-flex flex-row items-center justify-center gap-2 rounded-lg bg-black/50 backdrop-blur-[6px] px-3 py-1.5"
+                    style={{ zIndex: Z_INDEX_OFFSETS.UI }}
+                >
+                    <MapPin size={16} className="text-[#C0A9F1]" />
+                    <p className="text-sm font-bold">
+                        <span className="text-[#C0A9F1]">Area: </span>
+                        <span className="text-white">{worldPosition ? (getMapNameFromCoordinates(worldPosition.x, worldPosition.y) || 'Unknown') : 'Unknown'}</span>
+                        {worldPosition && <span className="text-[#CAD0D7]"> [{worldPosition.x}, {worldPosition.y}]</span>}
+                    </p>
+                </div>
                 {isJoystickVisible && (
                     <div 
                         className="absolute bottom-4 left-1/2 -translate-x-1/2 transform"
@@ -224,6 +332,7 @@ export default function MapTab({
                 currentAgentsInRadius={getCurrentAgentsInRadius() || []}
                 HUDOff={HUDOff}
             />
+            <LoadingModal open={isPlacing} />
         </BaseTabContent>
     );
 }
