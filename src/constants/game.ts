@@ -43,7 +43,7 @@ export enum MAP_NAMES {
   HAPPY_VILLAGE = 'Happy Village',
   HAHOE_VILLAGE = 'Hahoe Village',
   UNCOMMON_VILLAGE = 'Uncommon Village',
-  HARRIS_VILLAGE = 'Harris Village',
+  WALKERHILL_VILLAGE = 'Walkerhill Village',
   UNBLOCK_VILLAGE = 'Unblock Village',
 }
 
@@ -79,7 +79,7 @@ export const MAP_ZONES: {
     endX: 9,
     endY: 19,
   },
-  [MAP_NAMES.HARRIS_VILLAGE]: {
+  [MAP_NAMES.WALKERHILL_VILLAGE]: {
     startX: 10,
     startY: 1,
     endX: 29,
