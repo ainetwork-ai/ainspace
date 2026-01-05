@@ -12,15 +12,15 @@ import { useGameState } from '@/hooks/useGameState';
 import { TileLayers } from '@/stores/useBuildStore';
 import { shortAddress } from '@/lib/utils';
 import { config } from '@/lib/wagmi-config';
-import ChatBoxOverlay from '../ChatBoxOverlay';
-import { ChatBoxRef } from '../ChatBox';
-import { useAgentStore, useUIStore } from '@/stores';
+import ChatBoxOverlay from '@/components/chat/ChatBoxOverlay';
+import { ChatBoxRef } from '@/components/chat/ChatBox';
+import { useAgentStore, useThreadStore, useUIStore } from '@/stores';
 import { useMapStore } from '@/stores/useMapStore';
-import TileMap from '../TileMap';
+import TileMap from '@/components/TileMap';
 import { Z_INDEX_OFFSETS } from '@/constants/common';
 import { StoredAgent } from '@/lib/redis';
 import { getMapNameFromCoordinates } from '@/lib/map-utils';
-import LoadingModal from '../LoadingModal';
+import LoadingModal from '@/components/LoadingModal';
 
 interface MapTabProps {
     isActive: boolean;
@@ -48,6 +48,7 @@ export default function MapTab({
     const { address } = useAccount();
     const { connect, connectors } = useConnect();
     const { agents } = useAgentStore();
+    const { clearThreads } = useThreadStore();
     const { selectedAgentForPlacement, setSelectedAgentForPlacement } = useUIStore();
     const [placementError, setPlacementError] = useState<string | null>(null);
     const [selectedPosition, setSelectedPosition] = useState<{ x: number; y: number } | null>(null);
@@ -182,6 +183,11 @@ export default function MapTab({
         [isAutonomous, worldPosition, agents, movePlayer, isOutOfBounds, isCollisionTile]
     );
 
+    const handleWalletDisconnect = useCallback(() => {
+        disconnect(config);
+        clearThreads();
+    }, [clearThreads]);
+
     // Keyboard handling for player movement (works alongside joystick)
     useEffect(() => {
         const handleKeyPress = (event: KeyboardEvent) => {
@@ -291,7 +297,7 @@ export default function MapTab({
 
                 {address ? (
                     <button
-                        onClick={() => disconnect(config)}
+                        onClick={handleWalletDisconnect}
                         className="absolute top-4 right-4 inline-flex cursor-pointer flex-row items-center justify-center gap-2 rounded-lg bg-white p-2"
                         style={{ zIndex: Z_INDEX_OFFSETS.UI }}
                     >

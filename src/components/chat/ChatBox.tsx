@@ -9,10 +9,10 @@ import * as Sentry from '@sentry/nextjs';
 import { useThreadStream } from '@/hooks/useThreadStream';
 import { StreamEvent } from '@/lib/a2aOrchestration';
 import { AlertTriangle, Triangle } from 'lucide-react';
-import ChatMessageCard from './ChatMessageCard';
+import ChatMessageCard from '@/components/chat/ChatMessageCard';
 import { AgentState } from '@/lib/agent';
 import { generateAgentComboId } from '@/lib/hash';
-import { Spinner } from './ui/spinner';
+import { Spinner } from '@/components/ui/spinner';
 
 interface ChatBoxProps {
     className?: string;

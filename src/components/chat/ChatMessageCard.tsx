@@ -2,7 +2,7 @@
 
 import { ChatMessage, useAgentStore, useGameStateStore } from '@/stores';
 import { useMemo } from 'react';
-import { AgentProfile } from './AgentProfile';
+import { AgentProfile } from '@/components/AgentProfile';
 import ReactMarkdown from 'react-markdown';
 
 const PROFILE_SIZE = 30;
