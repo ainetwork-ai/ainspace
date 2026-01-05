@@ -2,9 +2,8 @@
 
 import { useEffect, useCallback } from 'react';
 import { useMapData } from '@/providers/MapDataProvider';
-import { useSession } from '@/hooks/useSession';
 import { useAgents } from '@/hooks/useAgents';
-import { useBuildStore, useGameStateStore, useAgentStore } from '@/stores';
+import { useBuildStore, useGameStateStore, useAgentStore, useUserStore } from '@/stores';
 import {
     MAP_WIDTH,
     MAP_HEIGHT,
@@ -25,7 +24,7 @@ interface Position {
 
 export function useGameState() {
     const { getMapData, generateTileAt } = useMapData();
-    const { userId } = useSession();
+    const userId = useUserStore((state) => state.getUserId());
     const { isBlocked: isLayer1Blocked, collisionMap } = useBuildStore();
     const { agents: a2aAgents } = useAgentStore();
     const {

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useAccount } from 'wagmi';
+import { useAccount, useConnect } from 'wagmi';
 import Image from 'next/image';
 import { disconnect } from '@wagmi/core';
 
@@ -46,6 +46,7 @@ export default function MapTab({
     onPlaceAgentAtPosition,
 }: MapTabProps) {
     const { address } = useAccount();
+    const { connect, connectors } = useConnect();
     const { agents } = useAgentStore();
     const { selectedAgentForPlacement, setSelectedAgentForPlacement } = useUIStore();
     const [placementError, setPlacementError] = useState<string | null>(null);
@@ -288,7 +289,7 @@ export default function MapTab({
                     />
                 </div>
 
-                {address && (
+                {address ? (
                     <button
                         onClick={() => disconnect(config)}
                         className="absolute top-4 right-4 inline-flex cursor-pointer flex-row items-center justify-center gap-2 rounded-lg bg-white p-2"
@@ -297,6 +298,14 @@ export default function MapTab({
                         <Image src="/agent/defaultAvatar.svg" alt="agent" width={20} height={20} />
                         <p className="text-sm font-bold text-black">{shortAddress(address)}</p>
                     </button>
+                ) : (
+                  <button
+                    onClick={() => connect({ connector: connectors[0] })}
+                    className="absolute top-4 right-4 inline-flex cursor-pointer flex-row items-center justify-center gap-2 rounded-lg bg-[#7F4FE8] p-2 px-4"
+                    style={{ zIndex: Z_INDEX_OFFSETS.UI }}
+                  >
+                    <p className="text-sm font-bold text-white">Wallet Login</p>
+                  </button>
                 )}
                 {isJoystickVisible && (
                     <div 
