@@ -55,34 +55,34 @@ export const MAP_ZONES: {
     endY: number;
   }
 } = {
+  [MAP_NAMES.HAHOE_VILLAGE]: {
+    startX: -30,
+    startY: -20,
+    endX: -11,
+    endY: 0,
+  },
   [MAP_NAMES.HAPPY_VILLAGE]: {
     startX: -10,
-    startY: -19,
-    endX: 8,
-    endY: 1,
+    startY: -20,
+    endX: 9,
+    endY: 0,
   },
-  [MAP_NAMES.HAHOE_VILLAGE]: {
-    startX: -29,
-    startY: -19,
-    endX: -10,
-    endY: 1,
+  [MAP_NAMES.UNBLOCK_VILLAGE]: {
+    startX: 10,
+    startY: -20,
+    endX: 29,
+    endY: 0,
   },
   [MAP_NAMES.UNCOMMON_VILLAGE]: {
-    startX: -29,
-    startY: 3,
-    endX: 8,
-    endY: 16,
+    startX: -30,
+    startY: 1,
+    endX: 9,
+    endY: 19,
   },
   [MAP_NAMES.HARRIS_VILLAGE]: {
     startX: 10,
-    startY: 3,
-    endX: 26,
-    endY: 16,
-  },
-  [MAP_NAMES.UNBLOCK_VILLAGE]: {
-    startX: 12,
-    startY: -19,
-    endX: 26,
-    endY: 1,
+    startY: 1,
+    endX: 29,
+    endY: 19,
   },
 }

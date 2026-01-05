@@ -1,11 +1,9 @@
 import { StoredAgent } from '@/lib/redis';
 import ImportedAgentCard from './ImportedAgentCard';
 
-import { MAP_NAMES } from '@/constants/game';
-
 interface ImportedAgentListProps {
   agents: StoredAgent[];
-  onPlaceAgent: (agent: StoredAgent, selectedMap?: MAP_NAMES) => void;
+  onPlaceAgent: (agent: StoredAgent) => void;
   onUnplaceAgent: (agent: StoredAgent) => void;
   onRemoveAgent: (url: string) => void;
   onUploadImage: (agent: StoredAgent, sprite: {url:string, height:number} | File) => void;

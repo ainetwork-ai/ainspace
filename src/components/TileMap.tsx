@@ -3,11 +3,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { SpriteAnimator } from 'react-sprite-animator';
 import { TILE_SIZE, MAP_TILES, DIRECTION } from '@/constants/game';
-import { useBuildStore, useChatStore, useGameStateStore } from '@/stores';
+import { getMapNameFromCoordinates } from '@/lib/map-utils';
+import { useBuildStore, useChatStore, useGameStateStore, useUserStore } from '@/stores';
 import * as Sentry from '@sentry/nextjs';
 import { AgentState } from '@/lib/agent';
 import { useTiledMap } from '@/hooks/useTiledMap';
 import { Z_INDEX_OFFSETS } from '@/constants/common';
+import { useMapStore } from '@/stores/useMapStore';
 
 // Data structure for multi-tile items
 interface ItemTileData {
@@ -44,6 +46,8 @@ interface TileMapProps {
     fixedZoom?: number;
     hideCoordinates?: boolean;
     onAgentClick?: (agentId: string, agentName: string) => void;
+    isPositionValid?: (x: number, y: number) => boolean;
+    selectedPosition?: { x: number; y: number } | null;
 }
 
 function TileMap({
@@ -63,7 +67,9 @@ function TileMap({
     zoomControls = 'both',
     fixedZoom,
     hideCoordinates = false,
-    onAgentClick
+    onAgentClick,
+    isPositionValid,
+    selectedPosition = null
 }: TileMapProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [loadedImages, setLoadedImages] = useState<{ [key: string]: HTMLImageElement }>({});
@@ -89,6 +95,7 @@ function TileMap({
   
     const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
     const [hoveredWorldCoords, setHoveredWorldCoords] = useState<{ worldX: number; worldY: number } | null>(null);
+    const [isTouchDevice, setIsTouchDevice] = useState(false);
 
     const { showCollisionMap, toggleCollisionMap } = useBuildStore();
     const { isAgentLoading } = useChatStore();
@@ -208,38 +215,61 @@ function TileMap({
         });
     }, [customTiles]);
 
-    const getWorldCoordinatesFromEvent = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    // Shared coordinate calculation for both mouse and touch events
+    const getWorldCoordinatesFromClientPos = (clientX: number, clientY: number) => {
         const canvas = canvasRef.current;
         if (!canvas) return null;
+
+        const { mapData } = useMapStore.getState();
+        if (!mapData) return null;
 
         const rect = canvas.getBoundingClientRect();
         const scaleX = canvas.width / rect.width;
         const scaleY = canvas.height / rect.height;
 
-        const canvasX = (event.clientX - rect.left) * scaleX;
-        const canvasY = (event.clientY - rect.top) * scaleY;
+        const canvasX = (clientX - rect.left) * scaleX;
+        const canvasY = (clientY - rect.top) * scaleY;
 
         const screenTileX = Math.floor(canvasX / tileSize);
         const screenTileY = Math.floor(canvasY / tileSize);
 
+        // Calculate map center (same as useTiledMap.ts)
+        const { width, height } = mapData;
+        const mapCenterX = Math.floor(width / 2);
+        const mapCenterY = Math.floor(height / 2);
+
+        // Calculate visible tiles
         const tilesX = Math.ceil(canvasSize.width / tileSize);
         const tilesY = Math.ceil(canvasSize.height / tileSize);
         const halfTilesX = Math.floor(tilesX / 2);
         const halfTilesY = Math.floor(tilesY / 2);
 
+        // Calculate camera position in center-based coordinates
         let cameraTileX = worldPosition.x - halfTilesX;
         let cameraTileY = worldPosition.y - halfTilesY;
-        cameraTileX = Math.max(0, Math.min(MAP_TILES - tilesX, cameraTileX));
-        cameraTileY = Math.max(0, Math.min(MAP_TILES - tilesY, cameraTileY));
+
+        // Map boundaries in center-based coordinates
+        const minCameraX = -mapCenterX;
+        const maxCameraX = mapCenterX - tilesX + 1;
+        const minCameraY = -mapCenterY;
+        const maxCameraY = mapCenterY - tilesY + 1;
+
+        cameraTileX = Math.max(minCameraX, Math.min(maxCameraX, cameraTileX));
+        cameraTileY = Math.max(minCameraY, Math.min(maxCameraY, cameraTileY));
 
         if (screenTileX >= 0 && screenTileX < tilesX && screenTileY >= 0 && screenTileY < tilesY) {
-            const worldX = Math.floor(cameraTileX + screenTileX);
-            const worldY = Math.floor(cameraTileY + screenTileY);
+            // Calculate world coordinates in center-based system
+            const worldX = cameraTileX + screenTileX;
+            const worldY = cameraTileY + screenTileY;
 
             return { worldX, worldY };
         }
 
         return null;
+    };
+
+    const getWorldCoordinatesFromEvent = (event: React.MouseEvent<HTMLCanvasElement>) => {
+        return getWorldCoordinatesFromClientPos(event.clientX, event.clientY);
     };
 
     const paintTileAt = (worldX: number, worldY: number) => {
@@ -307,38 +337,19 @@ function TileMap({
     const handleTouchStart = (event: React.TouchEvent<HTMLCanvasElement>) => {
         if (event.touches.length === 0) return;
 
+        // Prevent browser from simulating mouse events after touch
+        event.preventDefault();
+
+        // Mark as touch device to hide hover preview
+        setIsTouchDevice(true);
+
         const touch = event.touches[0];
 
         if (buildMode === 'paint') {
-            const canvas = canvasRef.current;
-            if (!canvas) return;
-
-            const rect = canvas.getBoundingClientRect();
-            const scaleX = canvas.width / rect.width;
-            const scaleY = canvas.height / rect.height;
-
-            const canvasX = (touch.clientX - rect.left) * scaleX;
-            const canvasY = (touch.clientY - rect.top) * scaleY;
-
-            const screenTileX = Math.floor(canvasX / tileSize);
-            const screenTileY = Math.floor(canvasY / tileSize);
-
-            const tilesX = Math.ceil(canvasSize.width / tileSize);
-            const tilesY = Math.ceil(canvasSize.height / tileSize);
-            const halfTilesX = Math.floor(tilesX / 2);
-            const halfTilesY = Math.floor(tilesY / 2);
-
-            let cameraTileX = worldPosition.x - halfTilesX;
-            let cameraTileY = worldPosition.y - halfTilesY;
-            cameraTileX = Math.max(0, Math.min(MAP_TILES - tilesX, cameraTileX));
-            cameraTileY = Math.max(0, Math.min(MAP_TILES - tilesY, cameraTileY));
-
-            if (screenTileX >= 0 && screenTileX < tilesX && screenTileY >= 0 && screenTileY < tilesY) {
-                const worldX = Math.floor(cameraTileX + screenTileX);
-                const worldY = Math.floor(cameraTileY + screenTileY);
-
+            const coords = getWorldCoordinatesFromClientPos(touch.clientX, touch.clientY);
+            if (coords) {
                 setIsPainting(true);
-                paintTileAt(worldX, worldY);
+                paintTileAt(coords.worldX, coords.worldY);
             }
         }
     };
@@ -347,38 +358,15 @@ function TileMap({
         if (buildMode !== 'paint' || !isPainting || event.touches.length === 0) return;
 
         const touch = event.touches[0];
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-
-        const rect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
-
-        const canvasX = (touch.clientX - rect.left) * scaleX;
-        const canvasY = (touch.clientY - rect.top) * scaleY;
-
-        const screenTileX = Math.floor(canvasX / tileSize);
-        const screenTileY = Math.floor(canvasY / tileSize);
-
-        const tilesX = Math.ceil(canvasSize.width / tileSize);
-        const tilesY = Math.ceil(canvasSize.height / tileSize);
-        const halfTilesX = Math.floor(tilesX / 2);
-        const halfTilesY = Math.floor(tilesY / 2);
-
-        let cameraTileX = worldPosition.x - halfTilesX;
-        let cameraTileY = worldPosition.y - halfTilesY;
-        cameraTileX = Math.max(0, Math.min(MAP_TILES - tilesX, cameraTileX));
-        cameraTileY = Math.max(0, Math.min(MAP_TILES - tilesY, cameraTileY));
-
-        if (screenTileX >= 0 && screenTileX < tilesX && screenTileY >= 0 && screenTileY < tilesY) {
-            const worldX = Math.floor(cameraTileX + screenTileX);
-            const worldY = Math.floor(cameraTileY + screenTileY);
-
-            paintTileAt(worldX, worldY);
+        const coords = getWorldCoordinatesFromClientPos(touch.clientX, touch.clientY);
+        if (coords) {
+            paintTileAt(coords.worldX, coords.worldY);
         }
     };
 
-    const handleTouchEnd = () => {
+    const handleTouchEnd = (event: React.TouchEvent<HTMLCanvasElement>) => {
+        // Prevent browser from simulating mouse events after touch
+        event.preventDefault();
         setIsPainting(false);
         setLastPaintedTile(null);
     };
@@ -507,11 +495,12 @@ function TileMap({
                             top: `${agentScreenY * tileSize - topOffset}px`,
                             width: `${tileSize}px`,
                             height: `${tileSize}px`,
-                            pointerEvents: 'auto',
-                            cursor: onAgentClick ? 'pointer' : 'default',
+                            pointerEvents: buildMode === 'paint' ? 'none' : 'auto',
+                            cursor: buildMode === 'paint' ? 'default' : (onAgentClick ? 'pointer' : 'default'),
                             zIndex: agentZIndex
                         }}
                         onClick={(e) => {
+                            if (buildMode === 'paint') return;
                             e.stopPropagation();
                             if (onAgentClick) {
                                 onAgentClick(agent.id, agent.name);
@@ -669,8 +658,8 @@ function TileMap({
                 </>
             )}} */}
 
-            {/* Visual preview outline for multi-tile item placement */}
-            {/* {buildMode === 'paint' && selectedItemDimensions && hoveredWorldCoords && (
+            {/* Visual preview outline for item/agent placement (hide on touch devices when position is selected) */}
+            {buildMode === 'paint' && selectedItemDimensions && hoveredWorldCoords && !(isTouchDevice && selectedPosition) && (
                 <>
                     {(() => {
                         const canvas = canvasRef.current;
@@ -678,6 +667,10 @@ function TileMap({
 
                         const { worldX, worldY } = hoveredWorldCoords;
                         const { width: itemWidth, height: itemHeight } = selectedItemDimensions;
+
+                        // Calculate visible tiles
+                        const tilesX = Math.ceil(canvasSize.width / tileSize);
+                        const tilesY = Math.ceil(canvasSize.height / tileSize);
 
                         let hasCollision = false;
                         const tilesStatus: Array<{ screenX: number; screenY: number; blocked: boolean }> = [];
@@ -687,14 +680,30 @@ function TileMap({
                                 const checkX = worldX + dx;
                                 const checkY = worldY + dy;
 
-                                const screenTileX = checkX - cameraTileX;
-                                const screenTileY = checkY - cameraTileY;
+                                const screenTileX = checkX - cameraTilePosition.x;
+                                const screenTileY = checkY - cameraTilePosition.y;
 
-                                const isBlockedTile = collisionMap[`${checkX},${checkY}`] === true;
+                                // Check if position is blocked
+                                let blocked = false;
 
-                                const outOfBounds = checkX < 0 || checkX >= 105 || checkY < 0 || checkY >= 105;
+                                // First check: map permission from user store
+                                const allowedMaps = useUserStore.getState().permissions?.permissions.placeAllowedMaps || [];
+                                if (allowedMaps.length > 0 && !allowedMaps.includes('*')) {
+                                    const tileMapName = getMapNameFromCoordinates(checkX, checkY);
+                                    if (!tileMapName || !allowedMaps.includes(tileMapName)) {
+                                        blocked = true;
+                                    }
+                                }
 
-                                const blocked = isBlockedTile || outOfBounds;
+                                // Second check: position validity (collision, occupied, etc.)
+                                if (!blocked) {
+                                    if (isPositionValid) {
+                                        blocked = !isPositionValid(checkX, checkY);
+                                    } else {
+                                        blocked = collisionMap[`${checkX},${checkY}`] === true;
+                                    }
+                                }
+
                                 if (blocked) {
                                     hasCollision = true;
                                 }
@@ -710,11 +719,11 @@ function TileMap({
                             }
                         }
 
-                        const screenTileWidth = canvas.width / tilesX;
-                        const screenTileHeight = canvas.height / tilesY;
-
                         const outlineColor = hasCollision ? 'rgba(255, 0, 0, 0.7)' : 'rgba(0, 255, 0, 0.7)';
                         const fillColor = hasCollision ? 'rgba(255, 0, 0, 0.15)' : 'rgba(0, 255, 0, 0.15)';
+
+                        // Apply the same offset as useTiledMap.ts for tile rendering
+                        const tileOffset = TILE_SIZE / 4;
 
                         return (
                             <>
@@ -723,10 +732,10 @@ function TileMap({
                                         key={`preview-${tile.screenX}-${tile.screenY}-${index}`}
                                         style={{
                                             position: 'absolute',
-                                            left: `${tile.screenX * screenTileWidth}px`,
-                                            top: `${tile.screenY * screenTileHeight}px`,
-                                            width: `${screenTileWidth}px`,
-                                            height: `${screenTileHeight}px`,
+                                            left: `${tile.screenX * tileSize - tileOffset}px`,
+                                            top: `${tile.screenY * tileSize - tileOffset}px`,
+                                            width: `${tileSize}px`,
+                                            height: `${tileSize}px`,
                                             backgroundColor: tile.blocked ? 'rgba(255, 0, 0, 0.3)' : fillColor,
                                             border: `2px solid ${tile.blocked ? 'rgba(255, 0, 0, 0.9)' : outlineColor}`,
                                             pointerEvents: 'none',
@@ -739,7 +748,42 @@ function TileMap({
                         );
                     })()}
                 </>
-            )} */}
+            )}
+
+            {/* Selected position indicator for two-tap placement */}
+            {buildMode === 'paint' && selectedPosition && (
+                (() => {
+                    const screenTileX = selectedPosition.x - cameraTilePosition.x;
+                    const screenTileY = selectedPosition.y - cameraTilePosition.y;
+                    const tileOffset = TILE_SIZE / 4;
+
+                    // Only render if visible on screen
+                    const tilesX = Math.ceil(canvasSize.width / tileSize);
+                    const tilesY = Math.ceil(canvasSize.height / tileSize);
+                    if (screenTileX < 0 || screenTileX >= tilesX || screenTileY < 0 || screenTileY >= tilesY) {
+                        return null;
+                    }
+
+                    return (
+                        <div
+                            style={{
+                                position: 'absolute',
+                                left: `${screenTileX * tileSize - tileOffset}px`,
+                                top: `${screenTileY * tileSize - tileOffset}px`,
+                                width: `${tileSize}px`,
+                                height: `${tileSize}px`,
+                                backgroundColor: 'rgba(59, 130, 246, 0.3)',
+                                border: '3px solid rgba(59, 130, 246, 0.9)',
+                                borderRadius: '4px',
+                                pointerEvents: 'none',
+                                zIndex: 26,
+                                boxSizing: 'border-box',
+                                animation: 'pulse 1.5s ease-in-out infinite'
+                            }}
+                        />
+                    );
+                })()
+            )}
 
             {/* Visual feedback for blocked tiles when hovering (single tile - legacy) */}
             {/* {buildMode === 'paint' && !selectedItemDimensions && mousePosition && (

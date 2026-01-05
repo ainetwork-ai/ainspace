@@ -385,3 +385,128 @@ export async function updateThreadLastMessage(userId: string, id: string): Promi
         console.error('Error updating thread last message:', error);
     }
 }
+
+/**
+ * Add an agent to user's placed agents list
+ */
+export async function addPlacedAgent(userId: string, agentUrl: string): Promise<void> {
+    try {
+        const redis = await getRedisClient();
+        const agentKey = Buffer.from(agentUrl).toString('base64');
+
+        await redis.hSet(`user:${userId}:placed_agents`, {
+            [agentKey]: JSON.stringify({
+                url: agentUrl,
+                placedAt: new Date().toISOString()
+            })
+        });
+    } catch (error) {
+        console.error('Error adding placed agent:', error);
+        throw error;
+    }
+}
+
+/**
+ * Remove an agent from user's placed agents list
+ */
+export async function removePlacedAgent(userId: string, agentUrl: string): Promise<void> {
+    try {
+        const redis = await getRedisClient();
+        const agentKey = Buffer.from(agentUrl).toString('base64');
+
+        await redis.hDel(`user:${userId}:placed_agents`, agentKey);
+    } catch (error) {
+        console.error('Error removing placed agent:', error);
+        throw error;
+    }
+}
+
+/**
+ * Get all placed agents for a user
+ */
+export async function getPlacedAgents(userId: string): Promise<{ url: string; placedAt: string }[]> {
+    try {
+        const redis = await getRedisClient();
+        const placedAgentsData = await redis.hGetAll(`user:${userId}:placed_agents`);
+
+        if (!placedAgentsData || Object.keys(placedAgentsData).length === 0) {
+            return [];
+        }
+
+        return Object.values(placedAgentsData).map(data => JSON.parse(data));
+    } catch (error) {
+        console.error('Error getting placed agents:', error);
+        return [];
+    }
+}
+
+/**
+ * Get count of placed agents for a user
+ */
+export async function getPlacedAgentCount(userId: string): Promise<number> {
+    try {
+        const redis = await getRedisClient();
+        const count = await redis.hLen(`user:${userId}:placed_agents`);
+        return count;
+    } catch (error) {
+        console.error('Error getting placed agent count:', error);
+        return 0;
+    }
+}
+
+/**
+ * Migrate threads from sessionId to walletAddress
+ * Combines threads (walletAddress threads take precedence for conflicts by agentComboId)
+ */
+export async function migrateThreadsToWallet(
+    sessionId: string,
+    walletAddress: string
+): Promise<{ migratedCount: number; skippedCount: number }> {
+    try {
+        const redis = await getRedisClient();
+
+        const sessionThreads = await redis.hGetAll(`user:${sessionId}:threads`);
+        const walletCombos = await redis.hGetAll(`user:${walletAddress}:agent_combos`);
+
+        let migratedCount = 0;
+        let skippedCount = 0;
+
+        // Process each session thread
+        for (const [threadId, threadDataStr] of Object.entries(sessionThreads)) {
+            const thread: Thread = JSON.parse(threadDataStr);
+
+            // Check if wallet already has a thread with the same agentComboId, skip if it does
+            if (walletCombos[thread.agentComboId]) {
+                skippedCount++;
+                continue;
+            }
+
+            await redis.hSet(`user:${walletAddress}:threads`, {
+                [threadId]: threadDataStr,
+            });
+
+            await redis.hSet(`user:${walletAddress}:agent_combos`, {
+                [thread.agentComboId]: threadId
+            });
+
+            migratedCount++;
+        }
+
+        // Set expiration for wallet user data
+        if (migratedCount > 0) {
+            await redis.expire(`user:${walletAddress}:threads`, 86400 * 30);
+            await redis.expire(`user:${walletAddress}:agent_combos`, 86400 * 30);
+        }
+
+        // Clean up session data after migration
+        await redis.del(`user:${sessionId}:threads`);
+        await redis.del(`user:${sessionId}:agent_combos`);
+
+        console.log(`Thread migration completed: ${migratedCount} migrated, ${skippedCount} skipped`);
+
+        return { migratedCount, skippedCount };
+    } catch (error) {
+        console.error('Error migrating threads:', error);
+        throw error;
+    }
+}

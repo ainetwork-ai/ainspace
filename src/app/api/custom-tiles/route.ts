@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { saveCustomTiles, getCustomTiles, TileLayers } from '@/lib/redis';
+import { canBuildOnMap } from '@/lib/auth/permissions';
 
 export async function GET(request: NextRequest) {
   try {
@@ -45,7 +46,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { userId, customTiles } = body;
+    const { userId, customTiles, mapName } = body;
 
     if (!userId || !customTiles || typeof customTiles !== 'object') {
       return NextResponse.json(
@@ -61,6 +62,17 @@ export async function POST(request: NextRequest) {
         { error: 'Invalid tiles structure. Expected layer0, layer1, layer2 properties' },
         { status: 400 }
       );
+    }
+
+    // Check build permission
+    if (mapName) {
+      const buildCheck = await canBuildOnMap(userId, mapName);
+      if (!buildCheck.allowed) {
+        return NextResponse.json(
+          { error: buildCheck.reason || `No permission to build on ${mapName}` },
+          { status: 403 }
+        );
+      }
     }
 
     await saveCustomTiles(userId, tileLayers);

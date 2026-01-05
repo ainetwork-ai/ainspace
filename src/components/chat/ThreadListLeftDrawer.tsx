@@ -1,8 +1,8 @@
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { cn } from '@/lib/utils';
-import { Thread } from '@/types/thread';
-import ThreadCard from './ThreadCard';
-import { Spinner } from './ui/spinner';
+import { Thread } from '@/stores';
+import ThreadCard from '@/components/chat/ThreadCard';
+import { Spinner } from '@/components/ui/spinner';
 import { useThreadStore } from '@/stores';
 import { useEffect, useState } from 'react';
 import { Z_INDEX_OFFSETS } from '@/constants/common';

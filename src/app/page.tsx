@@ -2,27 +2,18 @@
 
 import { useGameState } from '@/hooks/useGameState';
 import { useMiniKit } from '@coinbase/onchainkit/minikit';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import MapTab from '@/components/tabs/MapTab';
 import AgentTab from '@/components/tabs/AgentTab';
 import Footer from '@/components/Footer';
-import { DIRECTION, MAP_TILES, ENABLE_AGENT_MOVEMENT, BROADCAST_RADIUS, MAP_NAMES, MAP_ZONES } from '@/constants/game';
-import { useUIStore, useThreadStore, useBuildStore, useAgentStore } from '@/stores';
+import { DIRECTION, MAP_TILES, ENABLE_AGENT_MOVEMENT, BROADCAST_RADIUS } from '@/constants/game';
+import { useUIStore, useThreadStore, useBuildStore, useAgentStore, useUserStore, useUserAgentStore } from '@/stores';
 import TempBuildTab from '@/components/tabs/TempBuildTab';
 import { useAccount } from 'wagmi';
 import sdk from '@farcaster/miniapp-sdk';
 import { StoredAgent } from '@/lib/redis';
 import { useMapStore } from '@/stores/useMapStore';
 import { cn } from '@/lib/utils';
-
-const ALLOWED_DEPLOY_ZONE = [
-  {
-    startX: -10,
-    startY: -19,
-    endX: 9,
-    endY: 1,
-  }
-]
 
 export default function Home() {
     // Global stores
@@ -48,13 +39,21 @@ export default function Home() {
         clearPublishStatusAfterDelay
     } = useBuildStore();
     const { worldPosition, userId, agents: worldAgents, visibleAgents } = useGameState();
-    const { agents, spawnAgent, removeAgent, setAgents } = useAgentStore();
+    const { agents, spawnAgent, setAgents } = useAgentStore();
     const { mapStartPosition, mapEndPosition, isCollisionTile, isLoaded: isMapLoaded } = useMapStore();
     const { setFrameReady, isFrameReady } = useMiniKit();
     const [isSDKLoaded, setIsSDKLoaded] = useState(false);
     const { address } = useAccount();
+    const { setAddress, setPermissions, setLastVerifiedAt, initSessionId, getSessionId, hasMigratedThreads, setMigratedThreads } = useUserStore();
+    const { updateAgent: updateUserAgent } = useUserAgentStore();
 
     const [HUDOff, setHUDOff] = useState<boolean>(false);
+    const hasInitializedAuth = useRef(false);
+
+    // Initialize sessionId for guest users on mount
+    useEffect(() => {
+        initSessionId();
+    }, [initSessionId]);
 
     useEffect(() => {
         if (!isFrameReady) {
@@ -67,6 +66,96 @@ export default function Home() {
             }, 100);
         }
     }, []); // Run only once on mount
+
+    useEffect(() => {
+        const initUserAuth = async () => {
+            if (!address) {
+                setAddress(null);
+                setPermissions(null);
+                hasInitializedAuth.current = false;
+                return;
+            }
+
+            // 이미 초기화했으면 스킵
+            if (hasInitializedAuth.current) return;
+            hasInitializedAuth.current = true;
+
+            setAddress(address);
+
+            // Migrate threads from sessionId to wallet address on first login
+            const sessionId = getSessionId();
+            if (sessionId && !hasMigratedThreads(address)) {
+                try {
+                    const migrateResponse = await fetch('/api/threads/migrate', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            sessionId,
+                            walletAddress: address,
+                        }),
+                    });
+
+                    if (migrateResponse.ok) {
+                        const migrateData = await migrateResponse.json();
+                        console.log(`Thread migration: ${migrateData.migratedCount} migrated, ${migrateData.skippedCount} skipped`);
+                        setMigratedThreads(address);
+                    } else {
+                        console.error('Failed to migrate threads:', migrateResponse.statusText);
+                    }
+                } catch (error) {
+                    console.error('Error migrating threads:', error);
+                }
+            }
+
+            try {
+                const getResponse = await fetch(`/api/auth/permissions/${address}`, {
+                    method: 'GET',
+                });
+
+                if (getResponse.ok) {
+                    const getData = await getResponse.json();
+
+                    if (getData.success && getData.data) {
+                        console.log('User already has permissions:', getData.data.permissions);
+                        setPermissions(getData.data);
+                        setLastVerifiedAt(Date.now());
+                        return;
+                    }
+                }
+
+                const verifyResponse = await fetch('/api/auth/verify', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        userId: address,
+                    }),
+                });
+
+                if (!verifyResponse.ok) {
+                    console.error('Failed to verify and grant auth:', verifyResponse.statusText);
+                    return;
+                }
+
+                const verifyData = await verifyResponse.json();
+                if (verifyData.success) {
+                    console.log('Granted auths:', verifyData.data.grantedAuths);
+                    console.log('User permissions:', verifyData.data.permissions);
+                    setPermissions(verifyData.data.permissions);
+                    setLastVerifiedAt(Date.now());
+                } else {
+                    console.error('Failed to verify and grant auth:', verifyData.error);
+                }
+            } catch (error) {
+                console.error('Error during auth initialization:', error);
+            }
+        }
+
+        initUserAuth();
+    }, [address, setAddress, setPermissions, setLastVerifiedAt, getSessionId, hasMigratedThreads, setMigratedThreads])
 
     useEffect(() => {
         const loadCustomTiles = async () => {
@@ -109,14 +198,10 @@ export default function Home() {
         // loadCustomTiles();
     }, [userId, setPublishedTiles, setCollisionMap]);
 
-    // Load deployed agents from Redis on mount
+    // Load deployed agents from Redis on mount (모든 유저에게 허용)
     useEffect(() => {
         const loadDeployedAgents = async () => {
             try {
-                if (!address) {
-                    console.error('Address is not connected');
-                    return;
-                }
                 const response = await fetch(`/api/agents`);
                 if (!response.ok) {
                     console.error('Failed to load deployed agents from Redis');
@@ -203,6 +288,71 @@ export default function Home() {
         // openBottomSheet();
     };
 
+    // Handler for placing agent at specific position from MapTab
+    const handlePlaceAgentAtPosition = useCallback(async (
+        agent: StoredAgent,
+        x: number,
+        y: number,
+        mapName: string
+    ) => {
+        if (!address) {
+            throw new Error('Address is not connected');
+        }
+
+        console.log('Placing agent at position:', x, y, mapName);
+
+        const agentId = `a2a-${Date.now()}`;
+        const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8'];
+        const randomColor = colors[Math.floor(Math.random() * colors.length)];
+
+        // Register agent with backend Redis
+        const registerResponse = await fetch('/api/agents', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                url: agent.url,
+                creator: address,
+                state: {
+                    x: x,
+                    y: y,
+                    behavior: 'random',
+                    color: randomColor,
+                    moveInterval: 600 + Math.random() * 400
+                },
+                isPlaced: true,
+                mapName: mapName,
+            }),
+        });
+
+        if (!registerResponse.ok && registerResponse.status !== 409) {
+            const errorData = await registerResponse.json();
+            throw new Error(errorData.error || 'Failed to place agent');
+        }
+
+        console.log(`✓ Agent registered with backend Redis at (${x}, ${y})`);
+
+        updateUserAgent(agent.url, {
+            isPlaced: true,
+        });
+        // Add to spawned A2A agents for UI tracking
+        spawnAgent({
+            id: agentId,
+            name: agent.card.name,
+            x: x,
+            y: y,
+            color: agent.state.color || randomColor,
+            agentUrl: agent.url,
+            behavior: 'random',
+            lastMoved: Date.now(),
+            moveInterval: agent.state.moveInterval || 600 + Math.random() * 400,
+            skills: agent.card.skills || [],
+            spriteUrl: agent.spriteUrl,
+            spriteHeight: agent.spriteHeight || 50
+        });
+    }, [address, spawnAgent]);
+
     const handlePublishTiles = async () => {
         const totalCustomTiles =
             Object.keys(customTiles.layer0 || {}).length +
@@ -288,127 +438,7 @@ export default function Home() {
         }
     };
 
-    // A2A Agent handlers - now integrated into worldAgents
-    const handleSpawnAgent = async (agent: StoredAgent, selectedMap?: MAP_NAMES) => {
-        const agentId = `a2a-${Date.now()}`;
-        const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8'];
-        const randomColor = colors[Math.floor(Math.random() * colors.length)];
-
-        const spawnZone = selectedMap ? MAP_ZONES[selectedMap] : ALLOWED_DEPLOY_ZONE[0];
-        
-        const spawnPosition = findAvailableSpawnPositionByZone(spawnZone);
-        if (!spawnPosition) {
-          console.error(`Cannot spawn agent: no available positions found in ${selectedMap || 'default'} zone`);
-          alert(`Cannot spawn agent: no available space found in ${selectedMap || 'deployment'} zone. Please remove some agents or clear space on the map.`);
-          return false;
-        }
-        const { x: spawnX, y: spawnY } = spawnPosition;
-        console.log(`✓ Spawning agent at (${spawnX}, ${spawnY}) in ${selectedMap || 'default'} zone`);
-
-        // Register agent with backend Redis
-        try {
-            if (!address) {
-              throw new Error('Address is not connected');
-            }
-            const registerResponse = await fetch('/api/agents', {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    url: agent.url,
-                    state: {
-                      x: spawnX,
-                      y: spawnY,
-                      behavior: 'random',
-                      color: randomColor,
-                      moveInterval: 600 + Math.random() * 400
-                    },
-                    isPlaced: true,
-                }),
-            });
-
-            if (!registerResponse.ok && registerResponse.status !== 409) {
-                console.error('Failed to register agent with backend:', await registerResponse.text());
-            } else {
-                console.log('✓ Agent registered with backend Redis');
-            }
-        } catch (error) {
-            console.error('Error registering agent with backend:', error);
-        }
-
-        // Add to spawned A2A agents for UI tracking
-        spawnAgent({
-            id: agentId,
-            name: agent.card.name,
-            x: spawnX,
-            y: spawnY,
-            color: agent.state.color,
-            agentUrl: agent.url,
-            behavior: 'random',
-            lastMoved: Date.now(),
-            moveInterval: agent.state.moveInterval || 600 + Math.random() * 400,
-            skills: agent.card.skills || [],
-            spriteUrl: agent.spriteUrl,
-            spriteHeight: agent.spriteHeight || 50
-        });
-
-        // Switch to map tab
-        setActiveTab('map');
-        return true;
-    };
-
-    const handleRemoveAgentFromMap = async (agentUrl: string) => {
-        const removeResponse = await fetch('/api/agents', {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                url: agentUrl,
-                isPlaced: false,
-            }),
-        });
-
-        if (removeResponse.ok) {
-            console.log('✓ Agent removed from map');
-            removeAgent(agentUrl);
-        } else {
-            console.error('Failed to remove agent from map:', await removeResponse.text());
-        }
-    };
-
-    // Convert A2A agents to visible agents format for the map
-    const a2aVisibleAgents = Object.values(agents)
-        .map((agent) => {
-            return {
-                id: agent.id,
-                x: agent.x, // world position
-                y: agent.y, // world position
-                screenX: 0, // Will be calculated in TileMap based on camera position
-                screenY: 0, // Will be calculated in TileMap based on camera position
-                color: agent.color,
-                name: agent.name,
-                spriteUrl: agent.spriteUrl, // Pass sprite URL for animation
-                spriteHeight: agent.spriteHeight, // Pass sprite height for rendering
-                direction: agent.direction, // Pass direction for animation
-                isMoving: agent.isMoving // Pass movement state for animation
-            };
-        })
-        .filter(Boolean) as Array<{
-        id: string;
-        x: number;
-        y: number;
-        screenX: number;
-        screenY: number;
-        color: string;
-        name: string;
-        spriteUrl?: string;
-        spriteHeight?: number;
-        direction?: DIRECTION;
-        isMoving?: boolean;
-    }>;
-
+    // Position validation for agent placement
     const isPositionValid = useCallback((x: number, y: number): boolean => {
       // Check boundaries
       if (x < mapStartPosition.x || x > mapEndPosition.x || y < mapStartPosition.y || y > mapEndPosition.y) {
@@ -471,26 +501,6 @@ export default function Home() {
     return null; // No valid position found in this zone
 }, [isPositionValid, worldPosition]);
 
-    const findAvailableSpawnPositionByZone = useCallback((zone: { startX: number; startY: number; endX: number; endY: number }): { x: number; y: number } | null => {
-      const positionsInZone: { x: number; y: number }[] = [];
-      
-      for (let x = zone.startX; x <= zone.endX; x++) {
-        for (let y = zone.startY; y <= zone.endY; y++) {
-          positionsInZone.push({ x, y });
-        }
-      }
-      
-      positionsInZone.sort(() => Math.random() - 0.5);
-      
-      for (const pos of positionsInZone) {
-        if (isPositionValid(pos.x, pos.y)) {
-          console.log(`Found spawn position at (${pos.x}, ${pos.y}) in zone`);
-          return pos;
-        }
-      }
-      
-      return null;
-    }, [isPositionValid]);
 
     // A2A Agent movement system
     useEffect(() => {
@@ -630,6 +640,8 @@ export default function Home() {
                         onAgentClick={handleAgentClick}
                         HUDOff={HUDOff}
                         onHUDOffChange={handleHUDOffChange}
+                        isPositionValid={isPositionValid}
+                        onPlaceAgentAtPosition={handlePlaceAgentAtPosition}
                     />
                     <TempBuildTab
                         isActive={activeTab === 'build'}
@@ -663,9 +675,6 @@ export default function Home() {
                 /> */}
                     <AgentTab
                         isActive={activeTab === 'agent'}
-                        onSpawnAgent={handleSpawnAgent}
-                        onRemoveAgentFromMap={handleRemoveAgentFromMap}
-                        spawnedAgents={agents.map((agent) => agent.agentUrl) || []}
                     />
                 </div>
             </div>

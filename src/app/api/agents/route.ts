@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getRedisClient, StoredAgent } from '@/lib/redis';
+import { getRedisClient, StoredAgent, addPlacedAgent, removePlacedAgent, getPlacedAgentCount } from '@/lib/redis';
+import { canImportAgent, canPlaceAgent, canPlaceAgentOnMap } from '@/lib/auth/permissions';
 
 const AGENTS_KEY = 'agents:';
 
@@ -64,6 +65,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Agent URL and card are required' },
         { status: 400 }
+      );
+    }
+
+    if (!creator) {
+      return NextResponse.json(
+        { error: 'Creator is required' },
+        { status: 400 }
+      );
+    }
+
+    // Check import permission
+    const importCheck = await canImportAgent(creator);
+    if (!importCheck.allowed) {
+      return NextResponse.json(
+        { error: importCheck.reason || 'No permission to import agents' },
+        { status: 403 }
       );
     }
 
@@ -164,7 +181,7 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const { url, card, state, creator, isPlaced, spriteUrl, spriteHeight } = await request.json();
+    const { url, card, state, creator, isPlaced, spriteUrl, spriteHeight, mapName } = await request.json();
 
     // url is required to identify the agent
     if (!url) {
@@ -177,17 +194,17 @@ export async function PUT(request: NextRequest) {
     const agentKey = `${AGENTS_KEY}${Buffer.from(url).toString('base64')}`;
 
     let agentData: StoredAgent;
-    
+
     try {
       // Try Redis first
       const redis = await getRedisClient();
-      
+
       // Check if agent exists
       const existing = await redis.get(agentKey);
       if (!existing) {
         return NextResponse.json(
           { error: 'Agent not found' },
-          { 
+          {
             status: 404,
             headers: {
               'Content-Type': 'application/json; charset=utf-8'
@@ -195,9 +212,35 @@ export async function PUT(request: NextRequest) {
           }
         );
       }
-      
+
       // Parse existing data and merge with updates (partial update)
       const existingData: StoredAgent = JSON.parse(existing);
+
+      // If placing an agent (isPlaced: true), check permissions
+      if (isPlaced === true && existingData.isPlaced !== true && creator) {
+        // Check if user can place agents
+        const currentPlacedCount = await getPlacedAgentCount(creator);
+
+        const placeCheck = await canPlaceAgent(creator, currentPlacedCount);
+        if (!placeCheck.allowed) {
+          return NextResponse.json(
+            { error: placeCheck.reason || 'No permission to place agents' },
+            { status: 403 }
+          );
+        }
+
+        // Check if user can place on the specified map
+        // FIXME(yoojin): get map name from db by position?
+        if (mapName) {
+          const mapCheck = await canPlaceAgentOnMap(creator, mapName);
+          if (!mapCheck.allowed) {
+            return NextResponse.json(
+              { error: mapCheck.reason || `No permission to place agents on ${mapName}` },
+              { status: 403 }
+            );
+          }
+        }
+      }
 
       agentData = {
         url: existingData.url, // Always preserve original url
@@ -213,6 +256,19 @@ export async function PUT(request: NextRequest) {
       // Update agent in Redis (partial update - only provided fields are updated)
       await redis.set(agentKey, JSON.stringify(agentData));
       console.log(`Updated agent in Redis: ${agentData.card?.name || url} (${url})`);
+
+      // Update user's placed agents list
+      if (agentData.creator) {
+        if (isPlaced === true && existingData.isPlaced !== true) {
+          // Agent is being placed - add to user's placed agents list
+          await addPlacedAgent(agentData.creator, url);
+          console.log(`Added agent to placed agents list for user ${agentData.creator}: ${url}`);
+        } else if (isPlaced === false && existingData.isPlaced === true) {
+          // Agent is being unplaced - remove from user's placed agents list
+          await removePlacedAgent(agentData.creator, url);
+          console.log(`Removed agent from placed agents list for user ${agentData.creator}: ${url}`);
+        }
+      }
     } catch (redisError) {
       console.warn('Redis unavailable, using fallback storage:', redisError);
       
