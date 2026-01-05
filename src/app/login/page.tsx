@@ -58,9 +58,9 @@ export default function LoginPage() {
             >
                 <Signature message={message} onSuccess={handleSignature}>
                     <SignatureButton
-                        label="Wallet Login"
+                        label="Connect Wallet"
                         errorLabel="Try Again"
-                        successLabel={address ? shortAddress(address) : 'Wallet Login'}
+                        successLabel={address ? shortAddress(address) : 'Connect Wallet'}
                         pendingLabel="Signing..."
                         className={
                             'z-10 inline-flex w-[180px] cursor-pointer items-center justify-center self-center rounded bg-[#7f4fe8]'
