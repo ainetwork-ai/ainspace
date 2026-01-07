@@ -312,7 +312,7 @@ export default function MapTab({
                 {isJoystickVisible && (
                     <div 
                         className="absolute bottom-4 left-1/2 -translate-x-1/2 transform"
-                        style={{ zIndex: Z_INDEX_OFFSETS.GAME + 1 }}
+                        style={{ zIndex: Z_INDEX_OFFSETS.UI - 1 }}
                         hidden={HUDOff}
                     >
                         <PlayerJoystick
