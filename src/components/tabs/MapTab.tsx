@@ -302,7 +302,7 @@ export default function MapTab({
                     style={{ zIndex: Z_INDEX_OFFSETS.UI }}
                 >
                     <MapPin size={16} className="text-[#C0A9F1]" />
-                    <p className="text-sm font-bold">
+                    <p className="text-xs font-bold">
                         <span className="text-[#C0A9F1]">Area: </span>
                         <span className="text-white">{worldPosition ? (getMapNameFromCoordinates(worldPosition.x, worldPosition.y) || 'Unknown') : 'Unknown'}</span>
                         {worldPosition && <span className="text-[#CAD0D7]"> [{worldPosition.x}, {worldPosition.y}]</span>}
