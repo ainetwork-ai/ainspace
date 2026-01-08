@@ -238,11 +238,10 @@ export default function MapTab({
                 {/* Agent Placement Mode UI */}
                 {selectedAgentForPlacement && (
                     <div
-                        className="absolute top-4 left-0 right-0 flex justify-center"
+                        className="fixed bottom-0 left-0 right-0 flex justify-center md:absolute md:bottom-auto md:top-4"
                         style={{ zIndex: Z_INDEX_OFFSETS.UI + 100 }}
                     >
                         <PlaceAgentModal
-                            agentName={selectedAgentForPlacement.agent.card.name}
                             allowedMaps={selectedAgentForPlacement.allowedMaps}
                             errorMessage={placementError}
                             onCancel={() => {
@@ -312,7 +311,7 @@ export default function MapTab({
                 {isJoystickVisible && (
                     <div 
                         className="absolute bottom-4 left-1/2 -translate-x-1/2 transform"
-                        style={{ zIndex: Z_INDEX_OFFSETS.GAME + 1 }}
+                        style={{ zIndex: Z_INDEX_OFFSETS.UI - 1 }}
                         hidden={HUDOff}
                     >
                         <PlayerJoystick
