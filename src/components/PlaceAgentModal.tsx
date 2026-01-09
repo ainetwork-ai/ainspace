@@ -1,18 +1,15 @@
 'use client';
 
 import React from 'react';
-import Button from './ui/Button';
-import { cn } from '@/lib/utils';
+import { X } from 'lucide-react';
 
 interface PlaceAgentModalProps {
-    agentName: string;
     allowedMaps: string[];
     errorMessage?: string | null;
     onCancel: () => void;
 }
 
 export default function PlaceAgentModal({
-    agentName,
     allowedMaps,
     errorMessage,
     onCancel,
@@ -20,49 +17,46 @@ export default function PlaceAgentModal({
     const isAllMaps = allowedMaps.includes('*');
 
     return (
-        <div className="flex flex-col items-center gap-4 rounded-2xl bg-white px-[50px] py-6 shadow-lg overflow-hidden">
+        <div className="relative flex flex-col items-center gap-4 bg-white px-10 py-6 shadow-lg w-full rounded-t-2xl md:w-auto md:rounded-2xl">
+            <button
+                onClick={onCancel}
+                className="absolute right-4 top-4 text-gray-400 hover:text-gray-600 transition-colors"
+            >
+                <X size={24} />
+            </button>
+
             <p className="text-center text-xl font-bold text-gray-800">
-                Tap on the map to place<br />
-                &apos;{agentName}&apos;
+                Tap the map to place your agent
             </p>
 
-            <div className="flex flex-col items-center gap-2">
+            <div className="flex flex-col items-center gap-1">
                 <p className="text-sm text-gray-400">
                     Allowed area:
                 </p>
 
-                {isAllMaps ? (
-                    <span className="rounded-sm bg-[#D7FFBD] px-2 py-1 text-sm font-medium text-[#189D35]">
-                        All maps
-                    </span>
-                ) : (
-                    allowedMaps.map((mapName) => (
-                        <span
-                            key={mapName}
-                            className="rounded-sm bg-[#D7FFBD] px-2 py-1 text-sm font-medium text-[#189D35]"
-                        >
-                            {mapName}
+                <div className="flex flex-wrap justify-center gap-2">
+                    {isAllMaps ? (
+                        <span className="rounded-md bg-[#D7FFBD] px-3 py-1 text-sm font-medium text-[#189D35]">
+                            All maps
                         </span>
-                    ))
-                )}
+                    ) : (
+                        allowedMaps.map((mapName) => (
+                            <span
+                                key={mapName}
+                                className="rounded-md bg-[#D7FFBD] px-3 py-1 text-sm font-medium text-[#189D35]"
+                            >
+                                {mapName}
+                            </span>
+                        ))
+                    )}
+                </div>
+
                 {errorMessage && (
-                    <p className="text-sm text-red-500 text-center break-words max-w-[180px]">
+                    <p className="text-sm text-red-500 text-center mt-1">
                         {errorMessage}
                     </p>
                 )}
             </div>
-
-            <Button
-                onClick={onCancel}
-                type="large"
-                variant="secondary"
-                className={cn(
-                    "flex-1 mt-2 bg-white border border-[#7F4FE8] text-[#7F4FE8] hover:bg-[#F9F7FF]",
-                    "hover:border-[#7F4FE8]"
-                )}
-            >
-                Cancel
-            </Button>
         </div>
     );
 }

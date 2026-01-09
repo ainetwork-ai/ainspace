@@ -1,7 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { useGameStateStore, useThreadStore, useUserStore } from '@/stores';
+import { useGameStateStore, useThreadStore, useUIStore, useUserStore } from '@/stores';
 import { AgentState } from '@/lib/agent';
 import { Triangle } from 'lucide-react';
 import Image from 'next/image';
@@ -35,6 +35,7 @@ export default function ChatBoxOverlay({
     const [isThreadListLoading, setIsThreadListLoading] = useState(false);
     const { setThreads, setCurrentThreadId } = useThreadStore();
     const { address, sessionId } = useUserStore();
+    const selectedAgentForPlacement = useUIStore((state) => state.selectedAgentForPlacement);
     const userId = address || sessionId;
 
     useEffect(() => {
@@ -110,10 +111,12 @@ export default function ChatBoxOverlay({
     }, [currentAgentsInRadius]);
 
     const openChatSheet = () => {
+        if (selectedAgentForPlacement) return;
         handleChatSheetOpen(true);
     };
 
     const openThreadListSheet = () => {
+        if (selectedAgentForPlacement) return;
         handleThreadListSheetOpen(true);
     };
 
