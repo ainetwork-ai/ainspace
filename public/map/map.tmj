@@ -563,7 +563,7 @@
         {
          "columns":5,
          "firstgid":3367,
-         "image":"/miniegg.png",
+         "image":"miniegg.png",
          "imageheight":40,
          "imagewidth":200,
          "margin":0,
@@ -589,7 +589,7 @@
         {
          "columns":24,
          "firstgid":3672,
-         "image":"/arts_2.png",
+         "image":"arts_2.png",
          "imageheight":80,
          "imagewidth":960,
          "margin":0,
