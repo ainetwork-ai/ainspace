@@ -509,6 +509,8 @@ export default function Home() {
             return;
         }
 
+        const timeouts: NodeJS.Timeout[] = [];
+
         const moveA2AAgents = () => {
             const now = Date.now();
             const updated = agents;
@@ -584,13 +586,14 @@ export default function Home() {
                     // Clear isMoving flag after a short delay (animation duration)
                     const agentUrl = agent.agentUrl;
                     if (agentUrl) {
-                        setTimeout(() => {
+                        const timeout = setTimeout(() => {
                             const currentAgents = useAgentStore.getState().agents;
                             const currentAgent = currentAgents.find((agent) => agent.agentUrl === agentUrl);
                             if (currentAgent) {
                                 useAgentStore.getState().updateAgent(agentUrl, { isMoving: false });
                             }
                         }, 500); // Match animation duration
+                        timeouts.push(timeout);
                     }
 
                     break; // Successfully moved, exit the direction loop
@@ -611,7 +614,10 @@ export default function Home() {
         };
 
         const interval = setInterval(moveA2AAgents, 100); // Check every 100ms, matching original agents
-        return () => clearInterval(interval);
+        return () => {
+            clearInterval(interval);
+            timeouts.forEach(timeout => clearTimeout(timeout));
+        };
     }, [globalIsBlocked, agents, worldAgents, worldPosition, setAgents]);
 
     useEffect(() => {
@@ -654,25 +660,6 @@ export default function Home() {
                         userId={userId}
                         onPublishTiles={handlePublishTiles}
                     />
-                {/* <BuildTab
-                    isActive={activeTab === 'build'}
-                    mapData={mapData}
-                    playerPosition={playerPosition}
-                    worldPosition={worldPosition}
-                    visibleAgents={combinedVisibleAgents}
-                    publishedTiles={publishedTiles}
-                    customTiles={customTiles}
-                    selectedImage={selectedImage}
-                    setSelectedImage={setSelectedImage}
-                    buildMode={buildMode}
-                    setBuildMode={setBuildMode}
-                    setCustomTiles={setCustomTiles}
-                    isPublishing={isPublishing}
-                    publishStatus={publishStatus}
-                    userId={userId}
-                    onPublishTiles={handlePublishTiles}
-                    onMobileMove={handleMobileMove}
-                /> */}
                     <AgentTab
                         isActive={activeTab === 'agent'}
                     />
