@@ -2,9 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { createJob, updateJobStatus } from '@/lib/jobManager';
 
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Lazy initialization to avoid build-time errors
+let client: OpenAI | null = null;
+function getOpenAIClient(): OpenAI {
+  if (!client) {
+    client = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+  }
+  return client;
+}
 
 // Generate unique job ID
 function generateJobId(): string {
@@ -22,7 +29,7 @@ async function processImageConversion(jobId: string, imageFile: File) {
 -Background: transparent; spacing/margins = 0.
 -Output: one PNG.`;
 
-    const result = await client.images.edit({
+    const result = await getOpenAIClient().images.edit({
       model: "dall-e-2",
       image: imageFile,
       prompt: prompt,

@@ -86,9 +86,10 @@ export default function MapTab({
         });
     }, [agents, worldPosition]);
     
-    const isOutOfBounds = useCallback((x: number, y: number) => {
-      return x < mapStartPosition.x || x > mapEndPosition.x || y < mapStartPosition.y || y > mapEndPosition.y;
-    }, [mapStartPosition.x, mapStartPosition.y, mapEndPosition.x, mapEndPosition.y]);
+    // Infinite map - no bounds checking
+    const isOutOfBounds = useCallback((_x: number, _y: number) => {
+      return false;
+    }, []);
 
     // Handle agent placement click (two-tap: first tap selects, second tap confirms)
     const handleAgentPlacementClick = useCallback(async (worldX: number, worldY: number) => {

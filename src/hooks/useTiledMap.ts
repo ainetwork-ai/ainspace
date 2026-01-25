@@ -189,7 +189,7 @@ export function useTiledMap(
       for (let tileY = renderStartY; tileY < renderEndY; tileY++) {
         for (let tileX = renderStartX; tileX < renderEndX; tileX++) {
           const key = `${tileX},${tileY}`;
-          let rawGid = tiles[layerKey][key];
+          const rawGid = tiles[layerKey][key];
 
           // 타일이 없으면 스킵 (흰색 배경 유지 - 경계 바깥)
           if (rawGid === undefined) {

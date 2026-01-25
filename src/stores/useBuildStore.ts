@@ -180,14 +180,7 @@ export const useBuildStore = create<BuildState>((set, get) => ({
 
     isBlocked: (worldX: number, worldY: number) => {
         const state = get();
-
-        // Check map boundaries first (MAP_TILES = 105)
-        // Valid coordinates are 0 to 104 inclusive
-        const MAP_TILES = 105;
-        if (worldX < 0 || worldX >= MAP_TILES || worldY < 0 || worldY >= MAP_TILES) {
-            return true; // Out of bounds tiles are blocked
-        }
-
+        // Infinite map - no boundary check
         const key = `${worldX},${worldY}`;
         return state.collisionMap[key] === true;
     },

@@ -42,9 +42,7 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
 
     const isWalkable = useCallback(
         (x: number, y: number, currentAgents: AgentState[], checkingAgentId?: string): boolean => {
-            if (x < 0 || x >= MAP_TILES || y < 0 || y >= MAP_TILES) {
-                return false;
-            }
+            // Infinite map - no boundary check
 
             if (x === playerWorldPosition.x && y === playerWorldPosition.y) {
                 return false;

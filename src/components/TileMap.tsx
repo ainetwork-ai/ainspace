@@ -88,7 +88,6 @@ function TileMap({
     const tileSize = baseTileSize * (fixedZoom !== undefined ? fixedZoom : zoomLevel);
     
     const { canvasRef, isLoaded, cameraTilePosition } = useTiledMap(
-        '/map/map.tmj',
         canvasSize,
         tileSize
     );
@@ -216,12 +215,10 @@ function TileMap({
     }, [customTiles]);
 
     // Shared coordinate calculation for both mouse and touch events
+    // Updated for infinite map system (no mapData dependency)
     const getWorldCoordinatesFromClientPos = (clientX: number, clientY: number) => {
         const canvas = canvasRef.current;
         if (!canvas) return null;
-
-        const { mapData } = useMapStore.getState();
-        if (!mapData) return null;
 
         const rect = canvas.getBoundingClientRect();
         const scaleX = canvas.width / rect.width;
@@ -233,34 +230,15 @@ function TileMap({
         const screenTileX = Math.floor(canvasX / tileSize);
         const screenTileY = Math.floor(canvasY / tileSize);
 
-        // Calculate map center (same as useTiledMap.ts)
-        const { width, height } = mapData;
-        const mapCenterX = Math.floor(width / 2);
-        const mapCenterY = Math.floor(height / 2);
-
         // Calculate visible tiles
         const tilesX = Math.ceil(canvasSize.width / tileSize);
         const tilesY = Math.ceil(canvasSize.height / tileSize);
-        const halfTilesX = Math.floor(tilesX / 2);
-        const halfTilesY = Math.floor(tilesY / 2);
 
-        // Calculate camera position in center-based coordinates
-        let cameraTileX = worldPosition.x - halfTilesX;
-        let cameraTileY = worldPosition.y - halfTilesY;
-
-        // Map boundaries in center-based coordinates
-        const minCameraX = -mapCenterX;
-        const maxCameraX = mapCenterX - tilesX + 1;
-        const minCameraY = -mapCenterY;
-        const maxCameraY = mapCenterY - tilesY + 1;
-
-        cameraTileX = Math.max(minCameraX, Math.min(maxCameraX, cameraTileX));
-        cameraTileY = Math.max(minCameraY, Math.min(maxCameraY, cameraTileY));
-
+        // Infinite map - use cameraTilePosition directly (no boundary clamping)
         if (screenTileX >= 0 && screenTileX < tilesX && screenTileY >= 0 && screenTileY < tilesY) {
-            // Calculate world coordinates in center-based system
-            const worldX = cameraTileX + screenTileX;
-            const worldY = cameraTileY + screenTileY;
+            // Calculate world coordinates based on camera position
+            const worldX = cameraTilePosition.x + screenTileX;
+            const worldY = cameraTilePosition.y + screenTileY;
 
             return { worldX, worldY };
         }
@@ -284,8 +262,10 @@ function TileMap({
     };
 
     const handleMouseDown = (event: React.MouseEvent<HTMLCanvasElement>) => {
+        console.log('Mouse down, buildMode:', buildMode);
         if (buildMode === 'paint') {
             const coords = getWorldCoordinatesFromEvent(event);
+            console.log('Mouse coords:', coords, 'cameraTilePosition:', cameraTilePosition, 'tileSize:', tileSize, 'canvasSize:', canvasSize);
             if (coords) {
                 setIsPainting(true);
                 paintTileAt(coords.worldX, coords.worldY);
@@ -337,9 +317,6 @@ function TileMap({
     const handleTouchStart = (event: React.TouchEvent<HTMLCanvasElement>) => {
         if (event.touches.length === 0) return;
 
-        // Prevent browser from simulating mouse events after touch
-        event.preventDefault();
-
         // Mark as touch device to hide hover preview
         setIsTouchDevice(true);
 
@@ -347,6 +324,7 @@ function TileMap({
 
         if (buildMode === 'paint') {
             const coords = getWorldCoordinatesFromClientPos(touch.clientX, touch.clientY);
+            console.log('Touch coords:', coords, 'cameraTilePosition:', cameraTilePosition);
             if (coords) {
                 setIsPainting(true);
                 paintTileAt(coords.worldX, coords.worldY);
@@ -364,9 +342,7 @@ function TileMap({
         }
     };
 
-    const handleTouchEnd = (event: React.TouchEvent<HTMLCanvasElement>) => {
-        // Prevent browser from simulating mouse events after touch
-        event.preventDefault();
+    const handleTouchEnd = () => {
         setIsPainting(false);
         setLastPaintedTile(null);
     };

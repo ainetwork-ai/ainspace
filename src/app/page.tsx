@@ -438,13 +438,8 @@ export default function Home() {
         }
     };
 
-    // Position validation for agent placement
+    // Position validation for agent placement (infinite map - no boundary check)
     const isPositionValid = useCallback((x: number, y: number): boolean => {
-      // Check boundaries
-      if (x < mapStartPosition.x || x > mapEndPosition.x || y < mapStartPosition.y || y > mapEndPosition.y) {
-          return false;
-      }
-
       // Check if position is blocked by collision map
       if (isCollisionTile(x, y)) {
           return false;
@@ -456,16 +451,11 @@ export default function Home() {
       }
 
       // Check if position is occupied by another agent
-      // Get latest agents from store to avoid stale closure
       const currentA2AAgents = useAgentStore.getState().agents;
       const allAgents = [...visibleAgents, ...currentA2AAgents];
-      const isOccupied = allAgents.some((agent) => 
-        {
-          return agent.x === x && agent.y === y;
-        }
-      );
+      const isOccupied = allAgents.some((agent) => agent.x === x && agent.y === y);
       return !isOccupied;
-  }, [isCollisionTile, mapStartPosition, mapEndPosition, worldPosition, visibleAgents]);
+  }, [isCollisionTile, worldPosition, visibleAgents]);
 
   // Find a non-blocked spawn position in one of the deployment zones
   const findAvailableSpawnPositionByRadius = useCallback((selectedCenter: { x: number; y: number }): { x: number; y: number } | null => {
@@ -539,10 +529,7 @@ export default function Home() {
                     const newX = agent.x + direction.dx;
                     const newY = agent.y + direction.dy;
 
-                    // Check map boundaries
-                    if (newX < 0 || newX >= MAP_TILES || newY < 0 || newY >= MAP_TILES) {
-                        continue; // Try next direction
-                    }
+                    // Infinite map - no boundary check
 
                     // Check if player is at this position
                     if (newX === worldPosition.x && newY === worldPosition.y) {
@@ -645,14 +632,7 @@ export default function Home() {
                     />
                     <TempBuildTab
                         isActive={activeTab === 'build'}
-                        publishedTiles={publishedTiles}
-                        customTiles={customTiles}
-                        setCustomTiles={setCustomTiles}
-                        setPublishedTiles={setPublishedTiles}
-                        isPublishing={isPublishing}
-                        publishStatus={publishStatus}
                         userId={userId}
-                        onPublishTiles={handlePublishTiles}
                     />
                 {/* <BuildTab
                     isActive={activeTab === 'build'}
