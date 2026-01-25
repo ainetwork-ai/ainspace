@@ -1,469 +1,364 @@
 'use client';
 
-import Image from 'next/image';
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import BaseTabContent from './BaseTabContent';
 import TileMap from '@/components/TileMap';
-import PlayerJoystick from '@/components/controls/PlayerJoystick';
 import { cn } from '@/lib/utils';
-import { DIRECTION, TILE_SIZE } from '@/constants/game';
-import { useBuildStore, useGameStateStore, useUIStore } from '@/stores';
+import { TILE_SIZE } from '@/constants/game';
+import { useBuildStore, useAgentStore } from '@/stores';
 import { useGameState } from '@/hooks/useGameState';
-
-type TileLayers = {
-    layer0: { [key: string]: string };
-    layer1: { [key: string]: string | ItemTileData };
-    layer2: { [key: string]: string };
-};
-
-interface ItemTileData {
-    image: string;
-    width: number;
-    height: number;
-    topLeftX: number;
-    topLeftY: number;
-    isSecondaryTile?: boolean;
-}
-
-const ITEM_DIMENSIONS: { [key: number]: { width: number; height: number } } = {
-    0: { width: 5, height: 3 },
-    1: { width: 5, height: 3 },
-    2: { width: 5, height: 3 },
-    3: { width: 3, height: 4 },
-    4: { width: 3, height: 5 },
-    5: { width: 3, height: 4 }
-};
+import { useMapStore } from '@/stores/useMapStore';
 
 interface BuildTabProps {
     isActive: boolean;
-    publishedTiles: TileLayers;
-    customTiles: TileLayers;
-    setCustomTiles: (tiles: TileLayers | ((prev: TileLayers) => TileLayers)) => void;
-    setPublishedTiles: (tiles: TileLayers | ((prev: TileLayers) => TileLayers)) => void;
-    isPublishing: boolean;
-    publishStatus: {
-        type: 'success' | 'error';
-        message: string;
-    } | null;
     userId: string | null;
-    onPublishTiles: () => void;
+}
+
+interface PendingTile {
+    x: number;
+    y: number;
+    imageData: string;
 }
 
 export default function TempBuildTab({
     isActive,
-    publishedTiles,
-    customTiles,
-    setCustomTiles,
-    setPublishedTiles,
-    isPublishing,
-    publishStatus,
-    userId,
-    onPublishTiles
+    userId
 }: BuildTabProps) {
-    const [selectedTab, setSelectedTab] = useState<'map' | 'item'>('item');
-    const [selectedItem, setSelectedItem] = useState<number | null>(null);
-    const [placedItems, setPlacedItems] = useState<Set<number>>(new Set());
-    const tileSize = TILE_SIZE;
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [isPublishing, setIsPublishing] = useState(false);
+    const [expandStatus, setExpandStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+    const [capturedImage, setCapturedImage] = useState<string | null>(null);
+    const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+    const [pendingTiles, setPendingTiles] = useState<PendingTile[]>([]);
+    const [userPreference, setUserPreference] = useState('');
 
-    const { setShowCollisionMap, collisionMap, isBlocked, setCollisionMap } = useBuildStore();
-    const { mapData, playerPosition, movePlayer, isAutonomous, worldPosition } = useGameState();
-    const { playerDirection, isPlayerMoving, setIsPlayerMoving, lastMoveTime, setLastMoveTime } = useGameStateStore();
+    const { collisionMap, publishedTiles, customTiles } = useBuildStore();
+    const { agents } = useAgentStore();
+    const { mapData, playerPosition, worldPosition, playerDirection, isPlayerMoving } = useGameState();
+    const { tilesets, tiles, customTileImages } = useMapStore();
 
-    const handleMobileMove = useCallback(
-        (direction: DIRECTION) => {
-            if (isAutonomous) return;
+    const GRID_SIZE = 20;
 
-            // Calculate new position
-            let newX = worldPosition.x;
-            let newY = worldPosition.y;
-            switch (direction) {
-                case DIRECTION.UP:
-                    newY -= 1;
-                    break;
-                case DIRECTION.DOWN:
-                    newY += 1;
-                    break;
-                case DIRECTION.LEFT:
-                    newX -= 1;
-                    break;
-                case DIRECTION.RIGHT:
-                    newX += 1;
-                    break;
-                case DIRECTION.STOP:
-                default:
-                    break;
-            }
+    // Find empty tile positions around current position
+    const emptyTilePositions = React.useMemo((): { x: number; y: number }[] => {
+        const emptyPositions: { x: number; y: number }[] = [];
 
-            // Check if tile is blocked by collision map
-            if (isBlocked(newX, newY)) {
-                console.log(`Movement blocked: tile (${newX}, ${newY}) is blocked by collision`);
-                return;
-            }
+        for (let dy = 0; dy < GRID_SIZE; dy++) {
+            for (let dx = 0; dx < GRID_SIZE; dx++) {
+                const tileWorldX = worldPosition.x + dx - Math.floor(GRID_SIZE / 2);
+                const tileWorldY = worldPosition.y + dy - Math.floor(GRID_SIZE / 2);
+                const key = `${tileWorldX},${tileWorldY}`;
+                const tileId = tiles.layer0[key];
 
-            // Move player
-            movePlayer(direction);
-        },
-        [isAutonomous, worldPosition.x, worldPosition.y, isBlocked, movePlayer]
-    );
-
-
-    useEffect(() => {
-        if (isActive) {
-            setShowCollisionMap(true);
-        } else {
-            setShowCollisionMap(false);
-
-            setCustomTiles((prev) => ({
-                layer0: prev.layer0 || {},
-                layer1: {},
-                layer2: prev.layer2 || {}
-            }));
-            setSelectedItem(null);
-
-            setPlacedItems(new Set());
-        }
-    }, [isActive, setShowCollisionMap, setCustomTiles]);
-
-    useEffect(() => {
-        if (isActive) {
-            window.dispatchEvent(new Event('resize'));
-        }
-    }, [isActive]);
-
-    useEffect(() => {
-        if (!isActive) return;
-
-        const placedItemIndices = new Set<number>();
-
-        const extractItemIndex = (tileData: string | ItemTileData): number | null => {
-            let imagePath: string;
-            if (typeof tileData === 'string') {
-                imagePath = tileData;
-            } else if (tileData && typeof tileData === 'object') {
-                imagePath = tileData.image;
-            } else {
-                return null;
-            }
-
-            const match = imagePath.match(/\/tempBuild\/item\/(\d+)\.png/);
-            if (match) {
-                return parseInt(match[1]) - 1;
-            }
-            return null;
-        };
-
-        if (publishedTiles.layer1) {
-            Object.values(publishedTiles.layer1).forEach((tileData) => {
-                const itemIndex = extractItemIndex(tileData);
-                if (itemIndex !== null) {
-                    placedItemIndices.add(itemIndex);
+                // Only include positions without existing tiles
+                if (!tileId || tileId === 0) {
+                    emptyPositions.push({ x: tileWorldX, y: tileWorldY });
                 }
-            });
+            }
         }
 
-        if (customTiles.layer1) {
-            Object.values(customTiles.layer1).forEach((tileData) => {
-                const itemIndex = extractItemIndex(tileData);
-                if (itemIndex !== null) {
-                    placedItemIndices.add(itemIndex);
+        return emptyPositions;
+    }, [worldPosition.x, worldPosition.y, tiles.layer0]);
+
+    const hasEmptyTiles = emptyTilePositions.length > 0;
+    const hasPendingTiles = pendingTiles.length > 0;
+
+    // Capture surrounding tiles as image and mask for AI context
+    const captureSurroundingTilesAsImage = useCallback(async (): Promise<{ contextImage: string; maskImage: string } | null> => {
+        const tileset = tilesets[0];
+        if (!tileset) return null;
+
+        // Context image canvas
+        const canvas = document.createElement('canvas');
+        canvas.width = 1024;
+        canvas.height = 1024;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return null;
+
+        // Mask canvas (white = fill, black = keep)
+        const maskCanvas = document.createElement('canvas');
+        maskCanvas.width = 1024;
+        maskCanvas.height = 1024;
+        const maskCtx = maskCanvas.getContext('2d');
+        if (!maskCtx) return null;
+
+        // Fill backgrounds
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, 1024, 1024);
+        maskCtx.fillStyle = '#FFFFFF'; // White = areas to fill
+        maskCtx.fillRect(0, 0, 1024, 1024);
+
+        const tileRenderSize = Math.floor(1024 / GRID_SIZE);
+        const CUSTOM_TILE_ID_START = 100000;
+
+        // Draw surrounding tiles
+        for (let dy = 0; dy < GRID_SIZE; dy++) {
+            for (let dx = 0; dx < GRID_SIZE; dx++) {
+                const tileWorldX = worldPosition.x + dx - Math.floor(GRID_SIZE / 2);
+                const tileWorldY = worldPosition.y + dy - Math.floor(GRID_SIZE / 2);
+                const key = `${tileWorldX},${tileWorldY}`;
+                const tileId = tiles.layer0[key];
+
+                const canvasX = dx * tileRenderSize;
+                const canvasY = dy * tileRenderSize;
+
+                if (!tileId || tileId === 0) {
+                    continue; // Leave white in both canvases
                 }
-            });
-        }
 
-        setPlacedItems(placedItemIndices);
-    }, [isActive, publishedTiles.layer1, customTiles.layer1]);
-
-    useEffect(() => {
-        if (!isPlayerMoving) return;
-
-        const timer = setTimeout(() => {
-            setIsPlayerMoving(false);
-        }, 800);
-
-        return () => clearTimeout(timer);
-    }, [lastMoveTime]);
-
-    const handleItemClick = (index: number) => {
-        if (selectedTab === 'item') {
-            if (placedItems.has(index)) {
-                return;
-            }
-            setSelectedItem(index === selectedItem ? null : index);
-        }
-    };
-
-    const handleTileClick = (worldX: number, worldY: number) => {
-        if (selectedTab === 'item' && selectedItem !== null) {
-            if (placedItems.has(selectedItem)) {
-                console.warn(`Item ${selectedItem + 1} has already been placed`);
-                return;
-            }
-
-            const itemDimensions = ITEM_DIMENSIONS[selectedItem];
-            if (!itemDimensions) {
-                console.error(`No dimensions defined for item ${selectedItem}`);
-                return;
-            }
-
-            const { width, height } = itemDimensions;
-
-            let hasCollision = false;
-            const blockedTiles: Array<{ x: number; y: number }> = [];
-
-            for (let dy = 0; dy < height; dy++) {
-                for (let dx = 0; dx < width; dx++) {
-                    const checkX = worldX + dx;
-                    const checkY = worldY + dy;
-
-                    if (isBlocked(checkX, checkY)) {
-                        hasCollision = true;
-                        blockedTiles.push({ x: checkX, y: checkY });
+                try {
+                    // Custom tile (tileId >= 100000)
+                    if (typeof tileId === 'number' && tileId >= CUSTOM_TILE_ID_START) {
+                        const customImageData = customTileImages[tileId];
+                        if (customImageData) {
+                            // Load custom tile image
+                            const img = new Image();
+                            img.src = customImageData;
+                            await new Promise<void>((resolve) => {
+                                img.onload = () => resolve();
+                                img.onerror = () => resolve(); // Skip on error
+                            });
+                            if (img.complete && img.naturalWidth > 0) {
+                                ctx.drawImage(img, canvasX, canvasY, tileRenderSize, tileRenderSize);
+                                maskCtx.fillStyle = '#000000';
+                                maskCtx.fillRect(canvasX, canvasY, tileRenderSize, tileRenderSize);
+                            }
+                        }
+                        continue;
                     }
+
+                    // Regular tileset tile
+                    const localId = tileId - tileset.firstgid;
+                    if (localId < 0) continue;
+
+                    const scale = tileset.imageScale || 1;
+                    const sx = (localId % tileset.columns) * tileset.tilewidth * scale;
+                    const sy = Math.floor(localId / tileset.columns) * tileset.tileheight * scale;
+                    const sw = tileset.tilewidth * scale;
+                    const sh = tileset.tileheight * scale;
+
+                    ctx.drawImage(
+                        tileset.image,
+                        sx, sy, sw, sh,
+                        canvasX, canvasY, tileRenderSize, tileRenderSize
+                    );
+                    // Mark as black in mask (keep this area)
+                    maskCtx.fillStyle = '#000000';
+                    maskCtx.fillRect(canvasX, canvasY, tileRenderSize, tileRenderSize);
+                } catch (e) {
+                    console.error('Error drawing tile:', e);
                 }
             }
-
-            if (hasCollision) {
-                console.warn(
-                    `Cannot place item ${selectedItem + 1} (${width}x${height}) at (${worldX}, ${worldY}). ` +
-                        `Blocked tiles: ${blockedTiles.map((t) => `(${t.x},${t.y})`).join(', ')}`
-                );
-                return;
-            }
-
-            const itemImage = `/tempBuild/item/${selectedItem + 1}.png`;
-
-            setIsPlayerMoving(true);
-            setLastMoveTime(Date.now());
-
-            setPlacedItems((prev) => new Set(prev).add(selectedItem));
-
-            const newLayer1Tiles: { [key: string]: ItemTileData } = {};
-
-            const mainKey = `${worldX},${worldY}`;
-            newLayer1Tiles[mainKey] = {
-                image: itemImage,
-                width,
-                height,
-                topLeftX: worldX,
-                topLeftY: worldY,
-                isSecondaryTile: false
-            };
-
-            for (let dy = 0; dy < height; dy++) {
-                for (let dx = 0; dx < width; dx++) {
-                    if (dx === 0 && dy === 0) continue;
-
-                    const tileX = worldX + dx;
-                    const tileY = worldY + dy;
-                    const key = `${tileX},${tileY}`;
-
-                    newLayer1Tiles[key] = {
-                        image: itemImage,
-                        width,
-                        height,
-                        topLeftX: worldX,
-                        topLeftY: worldY,
-                        isSecondaryTile: true
-                    };
-                }
-            }
-
-            setCustomTiles((prev) => ({
-                ...prev,
-                layer1: {
-                    ...(prev.layer1 || {}),
-                    ...newLayer1Tiles
-                }
-            }));
-
-            const newCollisionMap = { ...collisionMap };
-            for (let dy = 0; dy < height; dy++) {
-                for (let dx = 0; dx < width; dx++) {
-                    const tileX = worldX + dx;
-                    const tileY = worldY + dy;
-                    const key = `${tileX},${tileY}`;
-                    newCollisionMap[key] = true;
-                }
-            }
-            setCollisionMap(newCollisionMap);
-
-            console.log(`Placed item ${selectedItem + 1} (${width}x${height}) at (${worldX}, ${worldY})`);
-
-            setSelectedItem(null);
         }
-    };
 
-    const handleDeleteTile = async (layer: 0 | 1 | 2, key: string) => {
-        if (isPublishing) {
-            console.warn('Cannot delete tiles while publishing');
+        return {
+            contextImage: canvas.toDataURL('image/png'),
+            maskImage: maskCanvas.toDataURL('image/png')
+        };
+    }, [tilesets, tiles.layer0, customTileImages, worldPosition.x, worldPosition.y]);
+
+    // Generate tiles with AI (preview only, not saved)
+    const handleGenerate = useCallback(async () => {
+        if (!userId) {
+            setExpandStatus({ type: 'error', message: 'Please login to expand the world' });
             return;
         }
 
-        const layerKey = `layer${layer}` as keyof TileLayers;
-
-        const isInCustomTiles = customTiles[layerKey] && customTiles[layerKey][key];
-
-        const isInPublishedTiles = publishedTiles[layerKey] && publishedTiles[layerKey][key];
-
-        const getItemDataFromTile = (
-            tileData: string | ItemTileData
-        ): {
-            itemIndex: number | null;
-            itemInfo: ItemTileData | null;
-        } => {
-            let itemIndex: number | null = null;
-            let itemInfo: ItemTileData | null = null;
-
-            if (typeof tileData === 'string') {
-                const match = tileData.match(/\/tempBuild\/item\/(\d+)\.png/);
-                if (match) {
-                    itemIndex = parseInt(match[1]) - 1;
-                }
-            } else if (tileData && typeof tileData === 'object') {
-                const match = tileData.image.match(/\/tempBuild\/item\/(\d+)\.png/);
-                if (match) {
-                    itemIndex = parseInt(match[1]) - 1;
-                }
-                itemInfo = tileData;
-            }
-
-            return { itemIndex, itemInfo };
-        };
-
-        let itemIndexToRelease: number | null = null;
-        let itemInfo: ItemTileData | null = null;
-
-        if (isInCustomTiles) {
-            const result = getItemDataFromTile(customTiles[layerKey][key]);
-            itemIndexToRelease = result.itemIndex;
-            itemInfo = result.itemInfo;
-        } else if (isInPublishedTiles) {
-            const result = getItemDataFromTile(publishedTiles[layerKey][key]);
-            itemIndexToRelease = result.itemIndex;
-            itemInfo = result.itemInfo;
+        if (emptyTilePositions.length === 0) {
+            return;
         }
 
-        const keysToDelete: string[] = [key];
+        setIsGenerating(true);
+        setExpandStatus(null);
+        setPendingTiles([]);
 
-        if (itemInfo) {
-            const { topLeftX, topLeftY, width, height } = itemInfo;
+        try {
+            console.log(`Generating tiles for ${emptyTilePositions.length} empty positions`);
 
-            keysToDelete.length = 0;
-            for (let dy = 0; dy < height; dy++) {
-                for (let dx = 0; dx < width; dx++) {
-                    const tileX = topLeftX + dx;
-                    const tileY = topLeftY + dy;
-                    keysToDelete.push(`${tileX},${tileY}`);
-                }
+            // Capture surrounding tiles as image and mask for AI context
+            const captured = await captureSurroundingTilesAsImage();
+            if (!captured) {
+                throw new Error('Failed to capture tile context');
             }
 
-            console.log(
-                `Deleting multi-tile item (${width}x${height}) from (${topLeftX}, ${topLeftY}), removing ${keysToDelete.length} tiles`
-            );
-        }
+            // Save captured image for display
+            setCapturedImage(captured.contextImage);
 
-        if (isInCustomTiles) {
-            setCustomTiles((prev) => {
-                const newLayer = { ...prev[layerKey] };
-                keysToDelete.forEach((k) => {
-                    delete newLayer[k];
-                });
-                return {
-                    ...prev,
-                    [layerKey]: newLayer
-                };
+            // Call AI API to generate image
+            const response = await fetch('/api/map/generate-tile', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contextImage: captured.contextImage,
+                    maskImage: captured.maskImage,
+                    emptyPositions: emptyTilePositions,
+                    gridSize: GRID_SIZE,
+                    worldPosition: { x: worldPosition.x, y: worldPosition.y },
+                    prompt: `Fill in the white/empty areas with 2D top-down RPG game tiles that seamlessly match the existing terrain. Pixel art style. Use grass, dirt, stone tiles that blend naturally with surrounding tiles.${userPreference ? ` User preference: ${userPreference}` : ''}`
+                })
             });
 
-            if (itemIndexToRelease !== null) {
-                setPlacedItems((prev) => {
-                    const newSet = new Set(prev);
-                    newSet.delete(itemIndexToRelease!);
-                    return newSet;
-                });
-                console.log(`Item ${itemIndexToRelease + 1} is now available again`);
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to generate tiles');
             }
 
-            if (layer === 1) {
-                const newCollisionMap = { ...collisionMap };
-                keysToDelete.forEach((k) => {
-                    delete newCollisionMap[k];
-                });
-                setCollisionMap(newCollisionMap);
-                console.log(`Removed collision for ${keysToDelete.length} tiles`);
-            }
-        }
+            const data = await response.json();
+            console.log('AI generation response:', data);
 
-        if (isInPublishedTiles) {
-            setPublishedTiles((prev) => {
-                const newLayer = { ...prev[layerKey] };
-                keysToDelete.forEach((k) => {
-                    delete newLayer[k];
-                });
-                return {
-                    ...prev,
-                    [layerKey]: newLayer
-                };
+            if (!data.success || !data.generatedImage) {
+                throw new Error(data.error || 'AI failed to generate image');
+            }
+
+            // Save generated image for display
+            setGeneratedImage(data.generatedImage);
+
+            console.log('Generated image received, slicing into tiles...');
+
+            // Slice the generated image into tiles
+            const img = new Image();
+            img.src = data.generatedImage;
+
+            await new Promise<void>((resolve, reject) => {
+                img.onload = () => resolve();
+                img.onerror = () => reject(new Error('Failed to load generated image'));
             });
 
-            if (itemIndexToRelease !== null) {
-                setPlacedItems((prev) => {
-                    const newSet = new Set(prev);
-                    newSet.delete(itemIndexToRelease!);
-                    return newSet;
-                });
-                console.log(`Item ${itemIndexToRelease + 1} is now available again`);
+            const tileRenderSize = Math.floor(1024 / GRID_SIZE);
+            const slicedTiles: PendingTile[] = [];
+
+            // Create a canvas to slice the image
+            const sliceCanvas = document.createElement('canvas');
+            sliceCanvas.width = tileRenderSize;
+            sliceCanvas.height = tileRenderSize;
+            const sliceCtx = sliceCanvas.getContext('2d');
+
+            if (!sliceCtx) {
+                throw new Error('Failed to create canvas context');
             }
 
-            if (layer === 1) {
-                const newCollisionMap = { ...collisionMap };
-                keysToDelete.forEach((k) => {
-                    delete newCollisionMap[k];
-                });
-                setCollisionMap(newCollisionMap);
-                console.log(`Removed collision for ${keysToDelete.length} deleted published tiles`);
-            }
+            // Slice each empty position from the generated image
+            for (const pos of emptyTilePositions) {
+                const key = `${pos.x},${pos.y}`;
+                const existingTile = tiles.layer0[key];
 
-            if (userId) {
-                try {
-                    const updatedPublishedTiles = {
-                        layer0: { ...publishedTiles.layer0 },
-                        layer1: { ...publishedTiles.layer1 },
-                        layer2: { ...publishedTiles.layer2 }
-                    };
-                    keysToDelete.forEach((k) => {
-                        delete updatedPublishedTiles[layerKey][k];
-                    });
-
-                    const response = await fetch('/api/custom-tiles', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            userId: userId,
-                            customTiles: updatedPublishedTiles
-                        })
-                    });
-
-                    if (!response.ok) {
-                        console.error('Failed to persist tile deletion to database');
-                    } else {
-                        console.log(`Successfully deleted ${keysToDelete.length} tiles from database`);
-                    }
-                } catch (error) {
-                    console.error('Error deleting published tile from database:', error);
+                // Skip if tile already exists
+                if (existingTile && existingTile !== 0) {
+                    continue;
                 }
-            }
-        }
-    };
 
-    const mergedCustomTiles = useMemo(() => {
-        return {
-            layer0: { ...(publishedTiles.layer0 || {}), ...(customTiles.layer0 || {}) },
-            layer1: { ...(publishedTiles.layer1 || {}), ...(customTiles.layer1 || {}) },
-            layer2: { ...(publishedTiles.layer2 || {}), ...(customTiles.layer2 || {}) }
-        };
-    }, [publishedTiles, customTiles]);
+                // Calculate position in the generated image
+                const dx = pos.x - (worldPosition.x - Math.floor(GRID_SIZE / 2));
+                const dy = pos.y - (worldPosition.y - Math.floor(GRID_SIZE / 2));
+
+                // Skip if outside the generated image bounds
+                if (dx < 0 || dx >= GRID_SIZE || dy < 0 || dy >= GRID_SIZE) {
+                    continue;
+                }
+
+                // Extract the tile slice
+                sliceCtx.clearRect(0, 0, tileRenderSize, tileRenderSize);
+                sliceCtx.drawImage(
+                    img,
+                    dx * tileRenderSize, dy * tileRenderSize, tileRenderSize, tileRenderSize,
+                    0, 0, tileRenderSize, tileRenderSize
+                );
+
+                const tileImageData = sliceCanvas.toDataURL('image/png');
+                slicedTiles.push({ x: pos.x, y: pos.y, imageData: tileImageData });
+            }
+
+            setPendingTiles(slicedTiles);
+            setExpandStatus({
+                type: 'success',
+                message: `Generated ${slicedTiles.length} tiles. Click Confirm to publish.`
+            });
+        } catch (error) {
+            console.error('Error generating tiles:', error);
+            setExpandStatus({
+                type: 'error',
+                message: error instanceof Error ? error.message : 'Failed to generate tiles'
+            });
+        } finally {
+            setIsGenerating(false);
+        }
+    }, [userId, emptyTilePositions, worldPosition, captureSurroundingTilesAsImage, tiles.layer0, userPreference]);
+
+    // Publish (confirm) the generated tiles to Redis
+    const handleConfirm = useCallback(async () => {
+        if (pendingTiles.length === 0) return;
+
+        setIsPublishing(true);
+        setExpandStatus(null);
+
+        try {
+            console.log(`Publishing ${pendingTiles.length} tiles to Redis...`);
+            const saveResponse = await fetch('/api/map/tiles', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    layer: 0,
+                    tiles: pendingTiles
+                })
+            });
+
+            if (!saveResponse.ok) {
+                const errorData = await saveResponse.json();
+                throw new Error(errorData.error || 'Failed to save tiles');
+            }
+
+            const saveResult = await saveResponse.json();
+            console.log('Tiles published:', saveResult);
+
+            // Update local store with new tileIds
+            const { addCustomTileImages, setTile } = useMapStore.getState();
+            const newCustomImages: { [tileId: number]: string } = {};
+
+            pendingTiles.forEach((tile, index) => {
+                const tileId = saveResult.tileIds[index];
+                newCustomImages[tileId] = tile.imageData;
+                setTile(0, tile.x, tile.y, tileId);
+            });
+
+            addCustomTileImages(newCustomImages);
+
+            // Clear pending state
+            setPendingTiles([]);
+            setCapturedImage(null);
+            setGeneratedImage(null);
+            setUserPreference('');
+
+            setExpandStatus({
+                type: 'success',
+                message: `Successfully published ${pendingTiles.length} tiles!`
+            });
+        } catch (error) {
+            console.error('Error publishing tiles:', error);
+            setExpandStatus({
+                type: 'error',
+                message: error instanceof Error ? error.message : 'Failed to publish tiles'
+            });
+        } finally {
+            setIsPublishing(false);
+        }
+    }, [pendingTiles]);
+
+    // Retry - clear and regenerate
+    const handleRetry = useCallback(() => {
+        setPendingTiles([]);
+        setGeneratedImage(null);
+        setCapturedImage(null);
+        setExpandStatus(null);
+        handleGenerate();
+    }, [handleGenerate]);
+
+    // Cancel - clear pending state
+    const handleCancel = useCallback(() => {
+        setPendingTiles([]);
+        setGeneratedImage(null);
+        setCapturedImage(null);
+        setExpandStatus(null);
+    }, []);
 
     return (
         <BaseTabContent isActive={isActive} withPadding={false} className="bg-white">
@@ -472,124 +367,152 @@ export default function TempBuildTab({
                     <div className="inline-flex flex-col items-start justify-start gap-1 self-stretch rounded bg-[#faf4fe] px-2.5 py-2 outline-1 outline-offset-[-1px] outline-[#d7c1e5]">
                         <p className="justify-start text-base font-bold text-[#87659e]">Build Mode</p>
                         <p className="justify-start text-sm font-normal text-[#b68ed2]">
-                            {selectedTab === 'item'
-                                ? 'Select an item and click on the map to place it.'
-                                : 'Map editing coming soon!'}
+                            {hasPendingTiles
+                                ? `${pendingTiles.length} tiles ready to publish.`
+                                : hasEmptyTiles
+                                    ? `${emptyTilePositions.length} tiles to be generated.`
+                                    : 'No empty tiles around your position.'}
                         </p>
                     </div>
 
-                    <div className="relative mb-4 aspect-square w-full overflow-hidden rounded-lg" style={{ touchAction: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}>
+                    {/* User preference input */}
+                    <div className="w-full">
+                        <label className="text-sm font-medium text-gray-700 mb-1 block">
+                            Style Preference (optional)
+                        </label>
+                        <input
+                            type="text"
+                            value={userPreference}
+                            onChange={(e) => setUserPreference(e.target.value)}
+                            placeholder="e.g., forest, desert, snow, ocean, lava..."
+                            disabled={isGenerating || isPublishing}
+                            className={cn(
+                                'w-full px-3 py-2 border border-gray-300 rounded-md text-sm',
+                                'focus:outline-none focus:ring-2 focus:ring-[#854CFF] focus:border-transparent',
+                                (isGenerating || isPublishing) && 'bg-gray-100 cursor-not-allowed'
+                            )}
+                        />
+                    </div>
+
+                    <div className="flex h-[50vh] w-full items-center justify-center select-none" style={{ WebkitUserSelect: 'none', userSelect: 'none' }}>
                         <TileMap
                             mapData={mapData}
-                            tileSize={tileSize}
+                            tileSize={TILE_SIZE}
                             playerPosition={playerPosition}
-                            agents={[]}
-                            customTiles={mergedCustomTiles}
-                            buildMode={selectedTab === 'item' ? 'paint' : 'view'}
-                            onTileClick={selectedTab === 'item' ? handleTileClick : undefined}
-                            onDeleteTile={selectedTab === 'item' ? handleDeleteTile : undefined}
+                            agents={agents}
+                            customTiles={{
+                                layer0: { ...(publishedTiles.layer0 || {}), ...(customTiles.layer0 || {}) },
+                                layer1: { ...(publishedTiles.layer1 || {}), ...(customTiles.layer1 || {}) },
+                                layer2: { ...(publishedTiles.layer2 || {}), ...(customTiles.layer2 || {}) }
+                            }}
+                            layerVisibility={{ 0: true, 1: true, 2: true }}
                             playerDirection={playerDirection}
                             playerIsMoving={isPlayerMoving}
                             collisionMap={collisionMap}
-                            selectedItemDimensions={selectedItem !== null ? ITEM_DIMENSIONS[selectedItem] : null}
-                            enableZoom={false}
-                            zoomControls="both"
-                            // fixedZoom={0.5}
-                            hideCoordinates={true}
                         />
-                        <div className="absolute -bottom-20 left-1/2 z-20 -translate-x-1/2 transform">
-                            <PlayerJoystick
-                                onMove={handleMobileMove}
-                                disabled={isAutonomous}
-                                baseColor="#00000050"
-                                stickColor="#FFF"
-                                size={100}
-                            />
-                        </div>
                     </div>
 
-                    <div className="flex w-full flex-row gap-0 self-stretch">
-                        <div
-                            onClick={() => {
-                                setSelectedTab('map');
-                                setSelectedItem(null);
-                            }}
-                            className={cn(
-                                'flex flex-1 cursor-pointer items-center justify-center border-b-2 pb-2 font-semibold text-[#838d9d]',
-                                selectedTab === 'map' ? 'border-b-[#854CFF] text-[#2f333b]' : 'border-b-[#EAEAEA]'
-                            )}
-                        >
-                            Map
+                    {expandStatus && (
+                        <div className={cn(
+                            'w-full rounded px-4 py-2 text-sm',
+                            expandStatus.type === 'success'
+                                ? 'bg-green-100 text-green-700'
+                                : 'bg-red-100 text-red-700'
+                        )}>
+                            {expandStatus.message}
                         </div>
-                        <div
-                            onClick={() => setSelectedTab('item')}
-                            className={cn(
-                                'flex flex-1 cursor-pointer items-center justify-center border-b-2 pb-2 font-semibold text-[#838d9d]',
-                                selectedTab === 'item' ? 'border-b-[#854CFF] text-[#2f333b]' : 'border-b-[#EAEAEA]'
-                            )}
-                        >
-                            Item
-                        </div>
-                    </div>
-                    <div className="grid w-full grid-cols-3 gap-4">
-                        {Array.from({ length: 6 }).map((_, index) => {
-                            const isPlaced = true // placedItems.has(index);
-                            // FIXME(yoojin): Disable item selection for now
-                            const isDisabled = true; // selectedTab !== 'item' || isPlaced;
+                    )}
 
-                            return (
-                                <div
-                                    key={index}
-                                    onClick={() => handleItemClick(index)}
-                                    className={cn(
-                                        'relative flex aspect-square items-center justify-center rounded-lg bg-[#EDEFF2] transition-all',
-                                        selectedTab === 'item' && !isPlaced
-                                            ? 'cursor-pointer hover:scale-105 hover:shadow-lg'
-                                            : 'cursor-not-allowed',
-                                        isDisabled && 'opacity-40',
-                                        selectedTab === 'item' && selectedItem === index && !isPlaced
-                                            ? 'ring-4 ring-[#854CFF] ring-offset-2'
-                                            : ''
-                                    )}
-                                >
-                                    <Image
-                                        src={`/tempBuild/${selectedTab}/${index + 1}.png`}
-                                        alt={`${selectedTab} ${index + 1}`}
-                                        width={300}
-                                        height={300}
-                                        className={cn(
-                                            'h-[30%] w-[30%] rounded-lg object-contain',
-                                            isPlaced && 'grayscale'
-                                        )}
+                    {/* Display captured and generated images */}
+                    {(capturedImage || generatedImage) && (
+                        <div className="flex w-full gap-4">
+                            {capturedImage && (
+                                <div className="flex-1">
+                                    <p className="text-sm font-bold text-gray-700 mb-2">Captured Input</p>
+                                    <img
+                                        src={capturedImage}
+                                        alt="Captured tiles"
+                                        className="w-full rounded border border-gray-300"
                                     />
-                                    {/* {isPlaced && (
-                                        <div className="absolute inset-0 flex items-center justify-center">
-                                            <div className="rounded-full bg-black/70 px-3 py-1 text-xs font-semibold text-white">
-                                                Placed
-                                            </div>
-                                        </div>
-                                    )} */}
                                 </div>
-                            );
-                        })}
-                    </div>
-                    {/* {selectedTab === 'item' ? (
+                            )}
+                            {generatedImage && (
+                                <div className="flex-1">
+                                    <p className="text-sm font-bold text-gray-700 mb-2">Generated Output</p>
+                                    <img
+                                        src={generatedImage}
+                                        alt="Generated tiles"
+                                        className="w-full rounded border border-gray-300"
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Buttons */}
+                    {hasPendingTiles ? (
+                        <div className="flex w-full gap-4 mb-20">
+                            <button
+                                onClick={handleRetry}
+                                disabled={isGenerating || isPublishing}
+                                className={cn(
+                                    'shadow-2sm inline-flex h-14 flex-1 items-center justify-center gap-2.5 rounded px-3 py-2',
+                                    isGenerating || isPublishing
+                                        ? 'cursor-not-allowed bg-gray-400'
+                                        : 'cursor-pointer bg-orange-500 hover:bg-orange-600'
+                                )}
+                            >
+                                <p className="justify-start text-xl text-white">
+                                    {isGenerating ? 'Generating...' : 'Retry'}
+                                </p>
+                            </button>
+                            <button
+                                onClick={handleCancel}
+                                disabled={isGenerating || isPublishing}
+                                className={cn(
+                                    'shadow-2sm inline-flex h-14 flex-1 items-center justify-center gap-2.5 rounded px-3 py-2',
+                                    isGenerating || isPublishing
+                                        ? 'cursor-not-allowed bg-gray-400'
+                                        : 'cursor-pointer bg-gray-500 hover:bg-gray-600'
+                                )}
+                            >
+                                <p className="justify-start text-xl text-white">Cancel</p>
+                            </button>
+                            <button
+                                onClick={handleConfirm}
+                                disabled={isGenerating || isPublishing}
+                                className={cn(
+                                    'shadow-2sm inline-flex h-14 flex-1 items-center justify-center gap-2.5 rounded px-3 py-2',
+                                    isGenerating || isPublishing
+                                        ? 'cursor-not-allowed bg-gray-400'
+                                        : 'cursor-pointer bg-green-600 hover:bg-green-700'
+                                )}
+                            >
+                                <p className="justify-start text-xl text-white">
+                                    {isPublishing ? 'Publishing...' : 'Confirm'}
+                                </p>
+                            </button>
+                        </div>
+                    ) : (
                         <button
-                            onClick={onPublishTiles}
+                            onClick={handleGenerate}
+                            disabled={isGenerating || !hasEmptyTiles}
                             className={cn(
-                                'shadow-2sm mb-20 inline-flex h-14 w-full items-center justify-center gap-2.5 rounded bg-[#854CFF] px-3 py-2',
-                                isPublishing ? 'cursor-not-allowed' : 'cursor-pointer'
+                                'shadow-2sm mb-20 inline-flex h-14 w-full items-center justify-center gap-2.5 rounded px-3 py-2',
+                                isGenerating || !hasEmptyTiles
+                                    ? 'cursor-not-allowed bg-gray-400'
+                                    : 'cursor-pointer bg-[#854CFF] hover:bg-[#7340e0]'
                             )}
                         >
                             <p className="justify-start text-xl text-white">
-                                {isPublishing ? 'Publishing...' : 'Publish Items'}
+                                {isGenerating
+                                    ? 'Generating...'
+                                    : hasEmptyTiles
+                                        ? 'Expand the world (x402)'
+                                        : 'Go to the edge of the world to find the empty space'}
                             </p>
                         </button>
-                    ) : ( */}
-                        <div className="shadow-2sm mb-20 inline-flex h-14 w-full cursor-not-allowed items-center justify-center gap-2.5 rounded bg-[#99a1ae] px-3 py-2">
-                            <p className="justify-start text-xl text-white">Coming Soon</p>
-                        </div>
-                    {/* )} */}
+                    )}
                 </div>
             </div>
         </BaseTabContent>

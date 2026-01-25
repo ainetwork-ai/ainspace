@@ -458,6 +458,285 @@ export async function getPlacedAgentCount(userId: string): Promise<number> {
  * Migrate threads from sessionId to walletAddress
  * Combines threads (walletAddress threads take precedence for conflicts by agentComboId)
  */
+// ============ Map Tiles (Infinite Map) ============
+
+export interface MapTileData {
+  layer0: { [key: string]: number };  // "x,y": tileId
+  layer1: { [key: string]: number };
+  layer2: { [key: string]: number };
+}
+
+export interface MapTilesetInfo {
+  firstgid: number;
+  source?: string;
+  image?: string;
+  columns: number;
+  tilecount: number;
+  tilewidth: number;
+  tileheight: number;
+}
+
+const MAP_TILES_KEY = 'map-tiles';
+const MAP_TILESETS_KEY = 'map-tilesets';
+const MAP_CUSTOM_TILES_KEY = 'map-custom-tiles';  // tileId -> base64 이미지 데이터
+const MAP_CUSTOM_TILE_COUNTER_KEY = 'map-custom-tile-counter';  // 다음 커스텀 tileId
+
+/**
+ * 맵 타일 저장 (특정 좌표)
+ */
+export async function setMapTile(
+  layer: 0 | 1 | 2,
+  x: number,
+  y: number,
+  tileId: number
+): Promise<void> {
+  try {
+    const redis = await getRedisClient();
+    const key = `${x},${y}`;
+    await redis.hSet(`${MAP_TILES_KEY}:layer${layer}`, key, tileId.toString());
+  } catch (error) {
+    console.error('Error setting map tile:', error);
+    throw error;
+  }
+}
+
+/**
+ * 맵 타일 조회 (특정 좌표)
+ */
+export async function getMapTile(
+  layer: 0 | 1 | 2,
+  x: number,
+  y: number
+): Promise<number | null> {
+  try {
+    const redis = await getRedisClient();
+    const key = `${x},${y}`;
+    const value = await redis.hGet(`${MAP_TILES_KEY}:layer${layer}`, key);
+    return value ? parseInt(value, 10) : null;
+  } catch (error) {
+    console.error('Error getting map tile:', error);
+    return null;
+  }
+}
+
+/**
+ * 맵 타일 범위 조회 (화면에 보이는 영역)
+ */
+export async function getMapTilesInRange(
+  startX: number,
+  startY: number,
+  endX: number,
+  endY: number
+): Promise<MapTileData> {
+  try {
+    const redis = await getRedisClient();
+
+    const result: MapTileData = {
+      layer0: {},
+      layer1: {},
+      layer2: {}
+    };
+
+    // 각 레이어의 모든 타일 가져오기
+    const [layer0, layer1, layer2] = await Promise.all([
+      redis.hGetAll(`${MAP_TILES_KEY}:layer0`),
+      redis.hGetAll(`${MAP_TILES_KEY}:layer1`),
+      redis.hGetAll(`${MAP_TILES_KEY}:layer2`)
+    ]);
+
+    // 범위 내 타일만 필터링
+    const filterTiles = (tiles: { [key: string]: string }) => {
+      const filtered: { [key: string]: number } = {};
+      for (const [key, value] of Object.entries(tiles)) {
+        const [x, y] = key.split(',').map(Number);
+        if (x >= startX && x <= endX && y >= startY && y <= endY) {
+          filtered[key] = parseInt(value, 10);
+        }
+      }
+      return filtered;
+    };
+
+    result.layer0 = filterTiles(layer0);
+    result.layer1 = filterTiles(layer1);
+    result.layer2 = filterTiles(layer2);
+
+    return result;
+  } catch (error) {
+    console.error('Error getting map tiles in range:', error);
+    return { layer0: {}, layer1: {}, layer2: {} };
+  }
+}
+
+/**
+ * 맵 타일 일괄 저장 (마이그레이션용)
+ */
+export async function setMapTilesBulk(
+  layer: 0 | 1 | 2,
+  tiles: { [key: string]: number }
+): Promise<void> {
+  try {
+    const redis = await getRedisClient();
+    const entries = Object.entries(tiles).map(([key, value]) => [key, value.toString()]);
+
+    if (entries.length > 0) {
+      // Redis hSet은 key-value 쌍을 flat array로 받음
+      const flatEntries: string[] = entries.flat();
+      await redis.hSet(`${MAP_TILES_KEY}:layer${layer}`, flatEntries);
+    }
+  } catch (error) {
+    console.error('Error setting map tiles bulk:', error);
+    throw error;
+  }
+}
+
+/**
+ * 타일셋 정보 저장
+ */
+export async function setMapTilesets(tilesets: MapTilesetInfo[]): Promise<void> {
+  try {
+    const redis = await getRedisClient();
+    await redis.set(MAP_TILESETS_KEY, JSON.stringify(tilesets));
+  } catch (error) {
+    console.error('Error setting map tilesets:', error);
+    throw error;
+  }
+}
+
+/**
+ * 타일셋 정보 조회
+ */
+export async function getMapTilesets(): Promise<MapTilesetInfo[] | null> {
+  try {
+    const redis = await getRedisClient();
+    const data = await redis.get(MAP_TILESETS_KEY);
+    return data ? JSON.parse(data) : null;
+  } catch (error) {
+    console.error('Error getting map tilesets:', error);
+    return null;
+  }
+}
+
+/**
+ * 전체 맵 타일 개수 조회
+ */
+export async function getMapTileCount(): Promise<{ layer0: number; layer1: number; layer2: number }> {
+  try {
+    const redis = await getRedisClient();
+    const [layer0, layer1, layer2] = await Promise.all([
+      redis.hLen(`${MAP_TILES_KEY}:layer0`),
+      redis.hLen(`${MAP_TILES_KEY}:layer1`),
+      redis.hLen(`${MAP_TILES_KEY}:layer2`)
+    ]);
+    return { layer0, layer1, layer2 };
+  } catch (error) {
+    console.error('Error getting map tile count:', error);
+    return { layer0: 0, layer1: 0, layer2: 0 };
+  }
+}
+
+// ============ Custom Tile Images ============
+
+// 커스텀 tileId 시작 번호 (기존 타일셋과 충돌 방지)
+const CUSTOM_TILE_ID_START = 100000;
+
+/**
+ * 커스텀 타일 이미지 저장 (bulk)
+ * @returns 저장된 tileId 배열
+ */
+export async function saveCustomTileImages(
+  images: string[]  // base64 이미지 데이터 배열
+): Promise<number[]> {
+  try {
+    const redis = await getRedisClient();
+
+    // 현재 카운터 가져오기 (없으면 시작값 사용)
+    const currentCounter = await redis.get(MAP_CUSTOM_TILE_COUNTER_KEY);
+    let nextId = currentCounter ? parseInt(currentCounter, 10) : CUSTOM_TILE_ID_START;
+
+    const tileIds: number[] = [];
+    const entries: string[] = [];
+
+    for (const imageData of images) {
+      const tileId = nextId++;
+      tileIds.push(tileId);
+      entries.push(tileId.toString(), imageData);
+    }
+
+    if (entries.length > 0) {
+      await redis.hSet(MAP_CUSTOM_TILES_KEY, entries);
+      await redis.set(MAP_CUSTOM_TILE_COUNTER_KEY, nextId.toString());
+    }
+
+    return tileIds;
+  } catch (error) {
+    console.error('Error saving custom tile images:', error);
+    throw error;
+  }
+}
+
+/**
+ * 커스텀 타일 이미지 조회 (단일)
+ */
+export async function getCustomTileImage(tileId: number): Promise<string | null> {
+  try {
+    const redis = await getRedisClient();
+    return await redis.hGet(MAP_CUSTOM_TILES_KEY, tileId.toString());
+  } catch (error) {
+    console.error('Error getting custom tile image:', error);
+    return null;
+  }
+}
+
+/**
+ * 커스텀 타일 이미지 조회 (bulk)
+ */
+export async function getCustomTileImages(tileIds: number[]): Promise<{ [tileId: number]: string }> {
+  try {
+    const redis = await getRedisClient();
+    const result: { [tileId: number]: string } = {};
+
+    if (tileIds.length === 0) return result;
+
+    const values = await redis.hmGet(
+      MAP_CUSTOM_TILES_KEY,
+      tileIds.map(id => id.toString())
+    );
+
+    tileIds.forEach((tileId, index) => {
+      if (values[index]) {
+        result[tileId] = values[index] as string;
+      }
+    });
+
+    return result;
+  } catch (error) {
+    console.error('Error getting custom tile images:', error);
+    return {};
+  }
+}
+
+/**
+ * 모든 커스텀 타일 이미지 조회
+ */
+export async function getAllCustomTileImages(): Promise<{ [tileId: number]: string }> {
+  try {
+    const redis = await getRedisClient();
+    const data = await redis.hGetAll(MAP_CUSTOM_TILES_KEY);
+
+    const result: { [tileId: number]: string } = {};
+    for (const [key, value] of Object.entries(data)) {
+      result[parseInt(key, 10)] = value;
+    }
+
+    return result;
+  } catch (error) {
+    console.error('Error getting all custom tile images:', error);
+    return {};
+  }
+}
+
+// ============ Thread Migration ============
+
 export async function migrateThreadsToWallet(
     sessionId: string,
     walletAddress: string
