@@ -1,13 +1,154 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleAuth } from 'google-auth-library';
+import { createPublicClient, http, parseUnits } from 'viem';
+import { base } from 'viem/chains';
 
 /**
  * POST /api/map/generate-tile
  * Vertex AI Imagen 3.0을 사용하여 기존 타일맵 이미지를 기반으로 빈 영역을 채움
+ * x402 payment protocol 지원
  */
 export async function POST(request: NextRequest) {
   try {
-    const { contextImage, maskImage, emptyPositions, gridSize, worldPosition, prompt } = await request.json();
+    const body = await request.json();
+    const { contextImage, maskImage, emptyPositions, gridSize, worldPosition, prompt, transactionHash } = body;
+
+    // Calculate price based on tile count: 100 tiles = 1 AIN
+    const tileCount = emptyPositions?.length || 0;
+    const priceInAIN = tileCount / 100;
+    const priceInWei = parseUnits(priceInAIN.toString(), 18);
+
+    // If no transaction hash, return 402 Payment Required
+    if (!transactionHash) {
+      const paymentRequired = {
+        x402Version: 1,
+        tileCount,
+        pricePerHundredTiles: '1 AIN',
+        accepts: [
+          {
+            scheme: 'exact',
+            network: 'eip155:8453', // Base mainnet
+            price: `${priceInAIN} AIN`,
+            payTo: process.env.PAYMENT_WALLET_ADDRESS || '0xYourWalletAddress',
+            asset: process.env.AIN_TOKEN_ADDRESS || '0xAINTokenContract',
+            maxAmountRequired: priceInWei.toString(), // Dynamic amount in wei (18 decimals)
+            resource: '/api/map/generate-tile',
+            description: `AI-generated tile expansion (${tileCount} tiles)`,
+            maxTimeoutSeconds: 60
+          }
+        ]
+      };
+
+      const paymentRequiredBase64 = Buffer.from(JSON.stringify(paymentRequired)).toString('base64');
+
+      return NextResponse.json(
+        {
+          error: 'Payment required',
+          message: 'Please provide payment to generate tiles',
+          tileCount,
+          priceInAIN
+        },
+        {
+          status: 402,
+          headers: {
+            'PAYMENT-REQUIRED': paymentRequiredBase64
+          }
+        }
+      );
+    }
+
+    // Verify transaction on-chain
+    console.log('Verifying transaction:', transactionHash);
+
+    const publicClient = createPublicClient({
+      chain: base,
+      transport: http(),
+    });
+
+    const transaction = await publicClient.getTransaction({
+      hash: transactionHash as `0x${string}`,
+    });
+
+    if (!transaction) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Transaction not found',
+        },
+        { status: 400 }
+      );
+    }
+
+    const receipt = await publicClient.getTransactionReceipt({
+      hash: transactionHash as `0x${string}`,
+    });
+
+    // Check if transaction is confirmed
+    if (!receipt || receipt.status !== 'success') {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Transaction not confirmed or failed',
+        },
+        { status: 400 }
+      );
+    }
+
+    // Verify payment details - calculate expected amount based on tile count
+    const expectedAmount = priceInWei; // Dynamic amount based on tile count
+    const expectedTo = (process.env.PAYMENT_WALLET_ADDRESS || '').toLowerCase();
+
+    // For ERC20 transfer, check the logs
+    const transferLog = receipt.logs.find(log => {
+      // ERC20 Transfer event signature
+      return log.topics[0] === '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
+    });
+
+    if (!transferLog) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'No transfer event found in transaction',
+        },
+        { status: 400 }
+      );
+    }
+
+    // Decode transfer event: Transfer(address indexed from, address indexed to, uint256 value)
+    const toAddress = transferLog.topics[2] ? ('0x' + transferLog.topics[2].slice(26)) : '';
+    const value = transferLog.data ? BigInt(transferLog.data) : 0n;
+
+    console.log('Payment verification:', {
+      tileCount,
+      priceInAIN,
+      to: toAddress.toLowerCase(),
+      expectedTo,
+      value: value.toString(),
+      expectedValue: expectedAmount.toString(),
+    });
+
+    if (toAddress.toLowerCase() !== expectedTo) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Payment sent to wrong address',
+        },
+        { status: 400 }
+      );
+    }
+
+    if (value < expectedAmount) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Insufficient payment amount',
+        },
+        { status: 400 }
+      );
+    }
+
+    console.log('Payment verified successfully!');
+    // Payment verified, proceed with tile generation
 
     const projectId = process.env.VERTEX_AI_PROJECT_ID || 'ainspace';
     const location = process.env.VERTEX_AI_LOCATION || 'us-central1';
