@@ -97,37 +97,60 @@ export async function POST(request: NextRequest) {
     // Verify payment details - calculate expected amount based on tile count
     const expectedAmount = priceInWei; // Dynamic amount based on tile count
     const expectedTo = (process.env.PAYMENT_WALLET_ADDRESS || '').toLowerCase();
+    const ainTokenAddress = (process.env.AIN_TOKEN_ADDRESS || '').toLowerCase();
 
-    // For ERC20 transfer, check the logs
-    const transferLog = receipt.logs.find(log => {
+    // For ERC20 transfer, check all Transfer events from AIN token
+    // This handles both direct transfers and router-based swaps
+    const transferLogs = receipt.logs.filter(log => {
       // ERC20 Transfer event signature
-      return log.topics[0] === '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
+      const isTransferEvent = log.topics[0] === '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
+      // Check if it's from the AIN token contract
+      const isAinToken = log.address.toLowerCase() === ainTokenAddress;
+      return isTransferEvent && isAinToken;
     });
 
-    if (!transferLog) {
+    if (transferLogs.length === 0) {
       return NextResponse.json(
         {
           success: false,
-          error: 'No transfer event found in transaction',
+          error: 'No AIN token transfer event found in transaction',
         },
         { status: 400 }
       );
     }
 
-    // Decode transfer event: Transfer(address indexed from, address indexed to, uint256 value)
-    const toAddress = transferLog.topics[2] ? ('0x' + transferLog.topics[2].slice(26)) : '';
-    const value = transferLog.data ? BigInt(transferLog.data) : BigInt(0);
+    // Find the transfer that goes to our payment wallet
+    let foundValidTransfer = false;
+    let totalReceived = BigInt(0);
+
+    for (const transferLog of transferLogs) {
+      // Decode transfer event: Transfer(address indexed from, address indexed to, uint256 value)
+      const toAddress = transferLog.topics[2] ? ('0x' + transferLog.topics[2].slice(26)) : '';
+      const value = transferLog.data ? BigInt(transferLog.data) : BigInt(0);
+
+      console.log('Transfer event:', {
+        from: transferLog.topics[1] ? ('0x' + transferLog.topics[1].slice(26)) : '',
+        to: toAddress.toLowerCase(),
+        value: value.toString(),
+      });
+
+      // Check if this transfer is to our payment wallet
+      if (toAddress.toLowerCase() === expectedTo) {
+        foundValidTransfer = true;
+        totalReceived += value;
+      }
+    }
 
     console.log('Payment verification:', {
       tileCount,
       priceInAIN,
-      to: toAddress.toLowerCase(),
       expectedTo,
-      value: value.toString(),
+      totalReceived: totalReceived.toString(),
       expectedValue: expectedAmount.toString(),
+      foundValidTransfer,
     });
 
-    if (toAddress.toLowerCase() !== expectedTo) {
+    if (!foundValidTransfer) {
       return NextResponse.json(
         {
           success: false,
@@ -137,11 +160,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (value < expectedAmount) {
+    if (totalReceived < expectedAmount) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Insufficient payment amount',
+          error: `Insufficient payment amount. Received: ${totalReceived.toString()}, Expected: ${expectedAmount.toString()}`,
         },
         { status: 400 }
       );
