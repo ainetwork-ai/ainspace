@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
 
     // Decode transfer event: Transfer(address indexed from, address indexed to, uint256 value)
     const toAddress = transferLog.topics[2] ? ('0x' + transferLog.topics[2].slice(26)) : '';
-    const value = transferLog.data ? BigInt(transferLog.data) : 0n;
+    const value = transferLog.data ? BigInt(transferLog.data) : BigInt(0);
 
     console.log('Payment verification:', {
       tileCount,
