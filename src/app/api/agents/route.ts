@@ -216,6 +216,17 @@ export async function PUT(request: NextRequest) {
       // Parse existing data and merge with updates (partial update)
       const existingData: StoredAgent = JSON.parse(existing);
 
+      // Optional: Validate movement mode if provided
+      if (state?.movementMode !== undefined) {
+        const validModes: string[] = ['village_wide', 'spawn_centered', 'stationary'];
+        if (!validModes.includes(state.movementMode)) {
+          return NextResponse.json(
+            { error: `Invalid movement mode: ${state.movementMode}` },
+            { status: 400 }
+          );
+        }
+      }
+
       // If placing an agent (isPlaced: true), check permissions
       if (isPlaced === true && existingData.isPlaced !== true && creator) {
         // Check if user can place agents

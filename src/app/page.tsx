@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import MapTab from '@/components/tabs/MapTab';
 import AgentTab from '@/components/tabs/AgentTab';
 import Footer from '@/components/Footer';
-import { DIRECTION, MAP_TILES, ENABLE_AGENT_MOVEMENT, BROADCAST_RADIUS } from '@/constants/game';
+import { DIRECTION, MAP_TILES, ENABLE_AGENT_MOVEMENT, BROADCAST_RADIUS, MOVEMENT_MODE, SPAWN_RADIUS, MAP_ZONES, MAP_NAMES } from '@/constants/game';
 import { useUIStore, useThreadStore, useBuildStore, useAgentStore, useUserStore, useUserAgentStore } from '@/stores';
 import TempBuildTab from '@/components/tabs/TempBuildTab';
 import { useAccount } from 'wagmi';
@@ -14,6 +14,8 @@ import sdk from '@farcaster/miniapp-sdk';
 import { StoredAgent } from '@/lib/redis';
 import { useMapStore } from '@/stores/useMapStore';
 import { cn } from '@/lib/utils';
+import { getMapNameFromCoordinates } from '@/lib/map-utils';
+import { AgentState } from '@/lib/agent';
 
 export default function Home() {
     // Global stores
@@ -245,6 +247,24 @@ export default function Home() {
                         spawnY = validPosition.y;
                     }
 
+                    // Migration logic for spawn position and movement mode
+                    const migratedState = {
+                        ...state,
+                        // If spawn position not set, use current position
+                        spawnX: state.spawnX ?? spawnX,
+                        spawnY: state.spawnY ?? spawnY,
+                        // If mapName not set, determine from position
+                        mapName: state.mapName ?? getMapNameFromCoordinates(spawnX, spawnY),
+                        // If movement mode not set, default to village-wide (most permissive)
+                        movementMode: state.movementMode ?? MOVEMENT_MODE.VILLAGE_WIDE
+                    };
+
+                    console.log(`Migrated agent ${card.name}:`, {
+                        spawn: `(${migratedState.spawnX}, ${migratedState.spawnY})`,
+                        map: migratedState.mapName,
+                        mode: migratedState.movementMode
+                    });
+
                     // Restore agent to store with saved position and sprite
                     // We know x and y are numbers because they were filtered above
                     spawnAgent({
@@ -259,7 +279,12 @@ export default function Home() {
                         moveInterval: state.moveInterval || 800,
                         skills: card.skills,
                         spriteUrl: spriteUrl,
-                        spriteHeight: spriteHeight || 40
+                        spriteHeight: spriteHeight || 40,
+                        // Include migrated fields
+                        spawnX: migratedState.spawnX,
+                        spawnY: migratedState.spawnY,
+                        mapName: migratedState.mapName,
+                        movementMode: migratedState.movementMode
                     });
                 });
 
@@ -305,6 +330,9 @@ export default function Home() {
         const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8'];
         const randomColor = colors[Math.floor(Math.random() * colors.length)];
 
+        // Default movement mode: village-wide
+        const defaultMovementMode = MOVEMENT_MODE.VILLAGE_WIDE;
+
         // Register agent with backend Redis
         const registerResponse = await fetch('/api/agents', {
             method: 'PUT',
@@ -319,7 +347,12 @@ export default function Home() {
                     y: y,
                     behavior: 'random',
                     color: randomColor,
-                    moveInterval: 600 + Math.random() * 400
+                    moveInterval: 600 + Math.random() * 400,
+                    // Include spawn data and movement mode
+                    spawnX: x,
+                    spawnY: y,
+                    mapName: mapName as MAP_NAMES,
+                    movementMode: defaultMovementMode
                 },
                 isPlaced: true,
                 mapName: mapName,
@@ -331,7 +364,7 @@ export default function Home() {
             throw new Error(errorData.error || 'Failed to place agent');
         }
 
-        console.log(`✓ Agent registered with backend Redis at (${x}, ${y})`);
+        console.log(`✓ Agent registered with backend Redis at (${x}, ${y}): spawn=(${x}, ${y}), map=${mapName}, mode=${defaultMovementMode}`);
 
         updateUserAgent(agent.url, {
             isPlaced: true,
@@ -349,9 +382,14 @@ export default function Home() {
             moveInterval: agent.state.moveInterval || 600 + Math.random() * 400,
             skills: agent.card.skills || [],
             spriteUrl: agent.spriteUrl,
-            spriteHeight: agent.spriteHeight || 50
+            spriteHeight: agent.spriteHeight || 50,
+            // Include spawn data and movement mode
+            spawnX: x,
+            spawnY: y,
+            mapName: mapName as MAP_NAMES,
+            movementMode: defaultMovementMode
         });
-    }, [address, spawnAgent]);
+    }, [address, spawnAgent, updateUserAgent]);
 
     const handlePublishTiles = async () => {
         const totalCustomTiles =
@@ -501,6 +539,77 @@ export default function Home() {
     return null; // No valid position found in this zone
 }, [isPositionValid, worldPosition]);
 
+    // Check if position is within village boundaries for an agent
+    const isWithinVillageBounds = useCallback((
+        agent: AgentState,
+        newX: number,
+        newY: number
+    ): boolean => {
+        // If no mapName stored, allow movement (backward compatibility)
+        if (!agent.mapName) {
+            console.log(`[Movement] Agent ${agent.name} has no mapName, allowing movement`);
+            return true;
+        }
+
+        const zone = MAP_ZONES[agent.mapName];
+        if (!zone) {
+            console.log(`[Movement] Agent ${agent.name} has unknown zone ${agent.mapName}, allowing movement`);
+            return true; // Unknown zone, allow movement
+        }
+
+        const isWithin = (
+            newX >= zone.startX &&
+            newX <= zone.endX &&
+            newY >= zone.startY &&
+            newY <= zone.endY
+        );
+
+        console.log(`[Movement] Agent ${agent.name} at (${agent.x}, ${agent.y}) trying to move to (${newX}, ${newY}), zone: ${agent.mapName} (${zone.startX},${zone.startY})-(${zone.endX},${zone.endY}), allowed: ${isWithin}`);
+
+        return isWithin;
+    }, []);
+
+    // Check if position is within spawn radius
+    const isWithinSpawnRadius = useCallback((
+        agent: AgentState,
+        newX: number,
+        newY: number
+    ): boolean => {
+        // If no spawn position stored, use current position as spawn
+        const spawnX = agent.spawnX ?? agent.x;
+        const spawnY = agent.spawnY ?? agent.y;
+
+        const dx = Math.abs(newX - spawnX);
+        const dy = Math.abs(newY - spawnY);
+        const distance = Math.max(dx, dy); // Chebyshev distance (square pattern)
+
+        return distance <= SPAWN_RADIUS;
+    }, []);
+
+    // Check if agent can move to new position based on movement mode
+    const canAgentMoveTo = useCallback((
+        agent: AgentState,
+        newX: number,
+        newY: number
+    ): boolean => {
+        // Default to village-wide for backward compatibility
+        const mode = agent.movementMode ?? MOVEMENT_MODE.VILLAGE_WIDE;
+
+        switch (mode) {
+            case MOVEMENT_MODE.STATIONARY:
+                return false; // Never allow movement
+
+            case MOVEMENT_MODE.SPAWN_CENTERED:
+                return isWithinSpawnRadius(agent, newX, newY);
+
+            case MOVEMENT_MODE.VILLAGE_WIDE:
+                return isWithinVillageBounds(agent, newX, newY);
+
+            default:
+                // Unknown mode, fall back to village-wide
+                return isWithinVillageBounds(agent, newX, newY);
+        }
+    }, [isWithinVillageBounds, isWithinSpawnRadius]);
 
     // A2A Agent movement system
     useEffect(() => {
@@ -521,6 +630,15 @@ export default function Home() {
 
                 // Only try to move if enough time has passed
                 if (timeSinceLastMove < moveInterval) {
+                    return;
+                }
+
+                // Skip movement entirely for stationary agents
+                const mode = agent.movementMode ?? MOVEMENT_MODE.VILLAGE_WIDE;
+                if (mode === MOVEMENT_MODE.STATIONARY) {
+                    agent.lastMoved = now;
+                    agent.isMoving = false;
+                    hasUpdates = true;
                     return;
                 }
 
@@ -562,6 +680,11 @@ export default function Home() {
 
                     // Check layer1 collision - don't move if blocked
                     if (globalIsBlocked(newX, newY)) {
+                        continue; // Try next direction
+                    }
+
+                    // Check movement mode boundaries
+                    if (!canAgentMoveTo(agent, newX, newY)) {
                         continue; // Try next direction
                     }
 
@@ -612,7 +735,7 @@ export default function Home() {
 
         const interval = setInterval(moveA2AAgents, 100); // Check every 100ms, matching original agents
         return () => clearInterval(interval);
-    }, [globalIsBlocked, agents, worldAgents, worldPosition, setAgents]);
+    }, [globalIsBlocked, agents, worldAgents, worldPosition, setAgents, canAgentMoveTo]);
 
     useEffect(() => {
         const load = async () => {

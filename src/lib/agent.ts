@@ -1,6 +1,6 @@
 import { AgentSkill } from '@a2a-js/sdk';
 import { useChatStore } from '@/stores/useChatStore';
-import { AGENT_RESPONSE_DISTANCE, DIRECTION } from '@/constants/game';
+import { AGENT_RESPONSE_DISTANCE, DIRECTION, MOVEMENT_MODE, MAP_NAMES } from '@/constants/game';
 
 export interface AgentInfo {
     id: string;
@@ -19,6 +19,12 @@ export interface AgentWorldState {
     lastMoved?: number;
     moveInterval?: number;
     isMoving?: boolean;
+
+    // Movement mode and spawn tracking
+    movementMode?: MOVEMENT_MODE;
+    spawnX?: number;
+    spawnY?: number;
+    mapName?: MAP_NAMES | null;
 };
 
 export interface AgentVisualState {
