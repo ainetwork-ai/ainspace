@@ -588,7 +588,7 @@ export default function Home() {
             return isOccupiedByA2A || isOccupiedByWorld;
         };
 
-        // Helper: Try to move agent in a random valid direction
+        // Helper: Try to move agent in a random valid direction (returns new agent object if moved, null if not)
         const tryMoveAgent = (
             agent: AgentState,
             updated: AgentState[],
@@ -596,7 +596,7 @@ export default function Home() {
             checkCollision: (x: number, y: number) => boolean,
             mapStartPos: { x: number; y: number },
             mapEndPos: { x: number; y: number }
-        ): boolean => {
+        ): AgentState | null => {
             const directions = [
                 { dx: 0, dy: -1 }, // up
                 { dx: 0, dy: 1 },  // down
@@ -616,20 +616,23 @@ export default function Home() {
                 if (newX < mapStartPos.x || newX > mapEndPos.x || newY < mapStartPos.y || newY > mapEndPos.y) continue;
                 if (!canAgentMoveTo(agent, newX, newY)) continue;
 
-                // Valid move found! Apply movement
-                agent.x = newX;
-                agent.y = newY;
-                agent.lastMoved = Date.now();
-                agent.direction = getDirectionFromMovement(direction);
-                agent.isMoving = true;
+                // Valid move found! Return new agent object with updated state
+                const movedAgent = {
+                    ...agent,
+                    x: newX,
+                    y: newY,
+                    lastMoved: Date.now(),
+                    direction: getDirectionFromMovement(direction),
+                    isMoving: true
+                };
 
                 // Clear isMoving flag after animation
                 scheduleIsMovingClear(agent.agentUrl);
 
-                return true; // Movement successful
+                return movedAgent; // Movement successful
             }
 
-            return false; // No valid move found
+            return null; // No valid move found
         };
 
         // Helper: Convert movement direction to DIRECTION enum
@@ -663,37 +666,36 @@ export default function Home() {
             const mapEndPos = useMapStore.getState().mapEndPosition;
             const checkCollision = useMapStore.getState().isCollisionTile;
 
-            const updated = currentAgents.map(agent => ({...agent}));
             let hasUpdates = false;
 
-            updated.forEach((agent) => {
+            // Use map instead of forEach to create completely new objects
+            const updated = currentAgents.map((agent) => {
                 const moveInterval = agent.moveInterval || 5000;
                 const timeSinceLastMove = now - (agent.lastMoved || 0);
 
                 // Only try to move if enough time has passed
                 if (timeSinceLastMove < moveInterval) {
-                    return;
+                    return agent; // Return unchanged
                 }
 
                 // Skip movement for stationary agents
                 const mode = agent.movementMode ?? MOVEMENT_MODE.VILLAGE_WIDE;
                 if (mode === MOVEMENT_MODE.STATIONARY) {
-                    agent.lastMoved = now;
-                    agent.isMoving = false;
                     hasUpdates = true;
-                    return;
+                    return { ...agent, lastMoved: now, isMoving: false };
                 }
 
                 // Try to move agent (world agents collision will be checked by collision map)
-                const moved = tryMoveAgent(agent, updated, [], checkCollision, mapStartPos, mapEndPos);
+                const movedAgent = tryMoveAgent(agent, currentAgents, [], checkCollision, mapStartPos, mapEndPos);
 
                 // If couldn't move, still update timestamp to prevent getting stuck
-                if (!moved) {
-                    agent.lastMoved = now;
-                    agent.isMoving = false;
+                if (!movedAgent) {
+                    hasUpdates = true;
+                    return { ...agent, lastMoved: now, isMoving: false };
                 }
 
                 hasUpdates = true;
+                return movedAgent; // Return the new agent object with updated position and direction
             });
 
             // Update store if there were changes
