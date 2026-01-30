@@ -46,7 +46,9 @@ export enum MOVEMENT_MODE {
 }
 
 // Radius for spawn-centered movement (in tiles)
-export const SPAWN_RADIUS = 7;
+export const SPAWN_RADIUS = process.env.NEXT_PUBLIC_SPAWN_RADIUS
+    ? parseInt(process.env.NEXT_PUBLIC_SPAWN_RADIUS, 10)
+    : 3;
 
 export enum MAP_NAMES {
   HAPPY_VILLAGE = 'Happy Village',
