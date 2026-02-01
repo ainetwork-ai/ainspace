@@ -45,6 +45,9 @@ export enum MOVEMENT_MODE {
     STATIONARY = 'stationary'
 }
 
+// Default movement mode for agents without explicit mode set
+export const DEFAULT_MOVEMENT_MODE = MOVEMENT_MODE.STATIONARY;
+
 // Radius for spawn-centered movement (in tiles)
 export const SPAWN_RADIUS = process.env.NEXT_PUBLIC_SPAWN_RADIUS
     ? parseInt(process.env.NEXT_PUBLIC_SPAWN_RADIUS, 10)

@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import MapTab from '@/components/tabs/MapTab';
 import AgentTab from '@/components/tabs/AgentTab';
 import Footer from '@/components/Footer';
-import { DIRECTION, MAP_TILES, ENABLE_AGENT_MOVEMENT, BROADCAST_RADIUS, MOVEMENT_MODE, SPAWN_RADIUS, MAP_ZONES, MAP_NAMES } from '@/constants/game';
+import { DIRECTION, ENABLE_AGENT_MOVEMENT, BROADCAST_RADIUS, MOVEMENT_MODE, DEFAULT_MOVEMENT_MODE, SPAWN_RADIUS, MAP_ZONES, MAP_NAMES } from '@/constants/game';
 import { useUIStore, useThreadStore, useBuildStore, useAgentStore, useUserStore, useUserAgentStore } from '@/stores';
 import TempBuildTab from '@/components/tabs/TempBuildTab';
 import { useAccount } from 'wagmi';
@@ -255,8 +255,8 @@ export default function Home() {
                         spawnY: state.spawnY ?? spawnY,
                         // If mapName not set, determine from position
                         mapName: state.mapName ?? getMapNameFromCoordinates(spawnX, spawnY),
-                        // If movement mode not set, default to village-wide (most permissive)
-                        movementMode: state.movementMode ?? MOVEMENT_MODE.VILLAGE_WIDE
+                        // If movement mode not set, use default
+                        movementMode: state.movementMode ?? DEFAULT_MOVEMENT_MODE
                     };
 
                     console.log(`Migrated agent ${card.name}:`, {
@@ -330,8 +330,8 @@ export default function Home() {
         const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8'];
         const randomColor = colors[Math.floor(Math.random() * colors.length)];
 
-        // Default movement mode: village-wide
-        const defaultMovementMode = MOVEMENT_MODE.VILLAGE_WIDE;
+        // Default movement mode
+        const defaultMovementMode = DEFAULT_MOVEMENT_MODE;
 
         // Register agent with backend Redis
         const registerResponse = await fetch('/api/agents', {
@@ -548,7 +548,7 @@ export default function Home() {
 
         // Helper: Check if agent can move based on movement mode
         const canAgentMoveTo = (agent: AgentState, newX: number, newY: number): boolean => {
-            const mode = agent.movementMode ?? MOVEMENT_MODE.VILLAGE_WIDE;
+            const mode = agent.movementMode ?? DEFAULT_MOVEMENT_MODE;
 
             if (mode === MOVEMENT_MODE.STATIONARY) {
                 return false;
@@ -679,7 +679,7 @@ export default function Home() {
                 }
 
                 // Skip movement for stationary agents
-                const mode = agent.movementMode ?? MOVEMENT_MODE.VILLAGE_WIDE;
+                const mode = agent.movementMode ?? DEFAULT_MOVEMENT_MODE;
                 if (mode === MOVEMENT_MODE.STATIONARY) {
                     hasUpdates = true;
                     return { ...agent, lastMoved: now, isMoving: false };

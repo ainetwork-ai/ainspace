@@ -2,6 +2,7 @@
 import { config } from 'dotenv';
 import { resolve } from 'path';
 import { createClient } from 'redis';
+import { MOVEMENT_MODE, DEFAULT_MOVEMENT_MODE } from '@/constants/game';
 
 // .env.local 파일 우선, 없으면 .env 파일 로드
 const envLocalResult = config({ path: resolve(process.cwd(), '.env.local') });
@@ -16,8 +17,6 @@ if (envLocalResult.error && envResult.error) {
 import type { AgentCard } from '@a2a-js/sdk';
 
 const AGENTS_KEY = 'agent:';
-
-type MovementMode = 'village_wide' | 'spawn_centered' | 'stationary';
 
 interface StoredAgent {
   url: string;
@@ -43,7 +42,7 @@ interface StoredAgent {
 /**
  * 에이전트에 movement mode를 설정하는 함수
  */
-function setAgentMovementMode(agent: StoredAgent, mode: MovementMode): StoredAgent {
+function setAgentMovementMode(agent: StoredAgent, mode: MOVEMENT_MODE): StoredAgent {
   return {
     ...agent,
     state: {
@@ -59,7 +58,7 @@ function setAgentMovementMode(agent: StoredAgent, mode: MovementMode): StoredAge
 /**
  * 모든 에이전트의 movement mode를 기본값으로 설정
  */
-async function setDefaultMovementMode(defaultMode: MovementMode = 'stationary') {
+async function setDefaultMovementMode(defaultMode: MOVEMENT_MODE = DEFAULT_MOVEMENT_MODE) {
   try {
     console.log('마이그레이션 시작...');
     console.log(`기본 movement mode: ${defaultMode}`);
@@ -161,9 +160,9 @@ async function setDefaultMovementMode(defaultMode: MovementMode = 'stationary') 
 
 // 스크립트 실행
 if (require.main === module) {
-  // 커맨드라인 인자로 mode 받기 (기본값: stationary)
-  const mode = (process.argv[2] as MovementMode) || 'stationary';
-  const validModes: MovementMode[] = ['village_wide', 'spawn_centered', 'stationary'];
+  // 커맨드라인 인자로 mode 받기
+  const mode = (process.argv[2] as MOVEMENT_MODE) || DEFAULT_MOVEMENT_MODE;
+  const validModes: MOVEMENT_MODE[] = Object.values(MOVEMENT_MODE);
 
   if (!validModes.includes(mode)) {
     console.error(`❌ 잘못된 movement mode: ${mode}`);

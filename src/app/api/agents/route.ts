@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRedisClient, StoredAgent, addPlacedAgent, removePlacedAgent, getPlacedAgentCount } from '@/lib/redis';
 import { canImportAgent, canPlaceAgent, canPlaceAgentOnMap } from '@/lib/auth/permissions';
+import { MOVEMENT_MODE } from '@/constants/game';
 
 const AGENTS_KEY = 'agents:';
 
@@ -218,8 +219,8 @@ export async function PUT(request: NextRequest) {
 
       // Optional: Validate movement mode if provided
       if (state?.movementMode !== undefined) {
-        const validModes: string[] = ['village_wide', 'spawn_centered', 'stationary'];
-        if (!validModes.includes(state.movementMode)) {
+        const validModes = Object.values(MOVEMENT_MODE);
+        if (!validModes.includes(state.movementMode as MOVEMENT_MODE)) {
           return NextResponse.json(
             { error: `Invalid movement mode: ${state.movementMode}` },
             { status: 400 }
