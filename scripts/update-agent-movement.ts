@@ -203,7 +203,7 @@ async function loadAgents(redis: RedisClientType): Promise<{ key: string; agent:
     try {
       const valueStr = Buffer.isBuffer(value) ? value.toString('utf-8') : value;
       const agent: StoredAgent = JSON.parse(valueStr);
-      console.log(agent);
+      // console.log(agent); // Remove or use conditional logging
       // isPlaced = true인 에이전트만 포함
       if (agent.isPlaced) {
         agents.push({ key, agent });
