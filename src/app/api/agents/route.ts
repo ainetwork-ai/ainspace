@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getRedisClient, StoredAgent, addPlacedAgent, removePlacedAgent, getPlacedAgentCount } from '@/lib/redis';
+import { getRedisClient, StoredAgent, addPlacedAgent, removePlacedAgent, getPlacedAgentCount, scanKeys } from '@/lib/redis';
 import { canImportAgent, canPlaceAgent, canPlaceAgentOnMap } from '@/lib/auth/permissions';
 import { MOVEMENT_MODE } from '@/constants/game';
 
@@ -17,10 +17,10 @@ export async function GET(request: NextRequest) {
     
     try {
       // Try Redis first
-      const redis = await getRedisClient();
-      const keys = await redis.keys(`${AGENTS_KEY}*`);
-      
+      const keys = await scanKeys(`${AGENTS_KEY}*`);
+
       if (keys.length > 0) {
+        const redis = await getRedisClient();
         const values = await redis.mGet(keys);
         agents = values
           .filter(value => value !== null)

@@ -1,4 +1,4 @@
-import { getRedisClient } from '@/lib/redis';
+import { getRedisClient, scanKeys } from '@/lib/redis';
 import {
   AuthDefinition,
   AuthDefinitionRaw,
@@ -70,14 +70,13 @@ export const getAuthDefinitions = async (
 }
 
 export const getAllAuthDefinitions = async (): Promise<AuthDefinition[]> => {
-  const redis = await getRedisClient();
-
-  // auth:* 패턴으로 모든 auth key 조회
-  const keys = await redis.keys(`${AUTH_KEY_PREFIX}:*`);
+  const keys = await scanKeys(`${AUTH_KEY_PREFIX}:*`);
 
   if (!keys || keys.length === 0) {
     return [];
   }
+
+  const redis = await getRedisClient();
 
   const definitions = await Promise.all(
     keys.map(async (key) => {
