@@ -20,7 +20,7 @@ interface MovementOption {
 
 const MOVEMENT_OPTIONS: MovementOption[] = [
     {
-        value: MOVEMENT_MODE.STATIONARY,
+        value: MOVEMENT_MODE.VILLAGE_WIDE,
         label: 'Free Activity',
         emoji: '🥾',
         description: 'Suitable for agents designed to interact throughout the village.',
@@ -32,7 +32,7 @@ const MOVEMENT_OPTIONS: MovementOption[] = [
         description: 'Ideal for agents assigned to a specific area or exhibition.',
     },
     {
-        value: MOVEMENT_MODE.VILLAGE_WIDE,
+        value: MOVEMENT_MODE.STATIONARY,
         label: 'Fixed Position',
         emoji: '📍',
         description: 'Suitable for guide, docent, or standby agents.',

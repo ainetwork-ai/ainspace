@@ -317,7 +317,8 @@ export default function Home() {
         agent: StoredAgent,
         x: number,
         y: number,
-        mapName: string
+        mapName: string,
+        movementMode: MOVEMENT_MODE
     ) => {
         if (!address) {
             throw new Error('Address is not connected');
@@ -328,9 +329,6 @@ export default function Home() {
         const agentId = `a2a-${Date.now()}`;
         const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8'];
         const randomColor = colors[Math.floor(Math.random() * colors.length)];
-
-        // Default movement mode
-        const defaultMovementMode = DEFAULT_MOVEMENT_MODE;
 
         // Register agent with backend Redis
         const registerResponse = await fetch('/api/agents', {
@@ -351,7 +349,7 @@ export default function Home() {
                     spawnX: x,
                     spawnY: y,
                     mapName: mapName as MAP_NAMES,
-                    movementMode: defaultMovementMode
+                    movementMode: movementMode
                 },
                 isPlaced: true,
                 mapName: mapName,
@@ -363,7 +361,7 @@ export default function Home() {
             throw new Error(errorData.error || 'Failed to place agent');
         }
 
-        console.log(`✓ Agent registered with backend Redis at (${x}, ${y}): spawn=(${x}, ${y}), map=${mapName}, mode=${defaultMovementMode}`);
+        console.log(`✓ Agent registered with backend Redis at (${x}, ${y}): spawn=(${x}, ${y}), map=${mapName}, mode=${movementMode}`);
 
         updateUserAgent(agent.url, {
             isPlaced: true,
@@ -386,7 +384,7 @@ export default function Home() {
             spawnX: x,
             spawnY: y,
             mapName: mapName as MAP_NAMES,
-            movementMode: defaultMovementMode
+            movementMode: movementMode
         });
     }, [address, spawnAgent, updateUserAgent]);
 

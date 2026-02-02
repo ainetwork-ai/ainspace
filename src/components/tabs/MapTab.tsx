@@ -8,7 +8,7 @@ import { MapPin } from 'lucide-react';
 
 import BaseTabContent from './BaseTabContent';
 import PlayerJoystick from '@/components/controls/PlayerJoystick';
-import { BROADCAST_RADIUS, DIRECTION, TILE_SIZE, MAP_NAMES } from '@/constants/game';
+import { BROADCAST_RADIUS, DIRECTION, TILE_SIZE, MAP_NAMES, MOVEMENT_MODE } from '@/constants/game';
 import { useGameState } from '@/hooks/useGameState';
 import { TileLayers } from '@/stores/useBuildStore';
 import { shortAddress } from '@/lib/utils';
@@ -33,7 +33,7 @@ interface MapTabProps {
     HUDOff: boolean;
     onHUDOffChange: (hudOff: boolean) => void;
     isPositionValid: (x: number, y: number) => boolean;
-    onPlaceAgentAtPosition?: (agent: StoredAgent, x: number, y: number, mapName: MAP_NAMES) => Promise<void>;
+    onPlaceAgentAtPosition?: (agent: StoredAgent, x: number, y: number, mapName: MAP_NAMES, movementMode: MOVEMENT_MODE) => Promise<void>;
 }
 
 export default function MapTab({
@@ -94,7 +94,7 @@ export default function MapTab({
     const handleAgentPlacementClick = useCallback(async (worldX: number, worldY: number) => {
         if (!selectedAgentForPlacement || !onPlaceAgentAtPosition) return;
 
-        const { agent, allowedMaps } = selectedAgentForPlacement;
+        const { agent, allowedMaps, movementMode } = selectedAgentForPlacement;
 
         // Clear previous error
         setPlacementError(null);
@@ -123,7 +123,7 @@ export default function MapTab({
             // Second tap on same position - confirm placement
             setIsPlacing(true);
             try {
-                await onPlaceAgentAtPosition(agent, worldX, worldY, clickedMap as MAP_NAMES);
+                await onPlaceAgentAtPosition(agent, worldX, worldY, clickedMap as MAP_NAMES, movementMode);
                 // Success - exit placement mode
                 setSelectedAgentForPlacement(null);
                 setSelectedPosition(null);
