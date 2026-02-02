@@ -7,7 +7,7 @@ import MapTab from '@/components/tabs/MapTab';
 import AgentTab from '@/components/tabs/AgentTab';
 import Footer from '@/components/Footer';
 import { DIRECTION, ENABLE_AGENT_MOVEMENT, BROADCAST_RADIUS, MOVEMENT_MODE, DEFAULT_MOVEMENT_MODE, SPAWN_RADIUS, MAP_ZONES, MAP_NAMES } from '@/constants/game';
-import { useUIStore, useThreadStore, useBuildStore, useAgentStore, useUserStore, useUserAgentStore } from '@/stores';
+import { useUIStore, useThreadStore, useBuildStore, useAgentStore, useUserStore, useUserAgentStore, useGameStateStore } from '@/stores';
 import TempBuildTab from '@/components/tabs/TempBuildTab';
 import { useAccount } from 'wagmi';
 import sdk from '@farcaster/miniapp-sdk';
@@ -30,7 +30,6 @@ export default function Home() {
         isPublishing,
         publishStatus,
         collisionMap: globalCollisionMap,
-        isBlocked: globalIsBlocked,
         setCustomTiles,
         setPublishedTiles,
         setSelectedImage,
@@ -595,7 +594,8 @@ export default function Home() {
             currentWorldAgents: { x: number; y: number }[],
             checkCollision: (x: number, y: number) => boolean,
             mapStartPos: { x: number; y: number },
-            mapEndPos: { x: number; y: number }
+            mapEndPos: { x: number; y: number },
+            playerPos: { x: number; y: number }
         ): AgentState | null => {
             const directions = [
                 { dx: 0, dy: -1 }, // up
@@ -615,6 +615,8 @@ export default function Home() {
                 if (checkCollision(newX, newY)) continue;
                 if (newX < mapStartPos.x || newX > mapEndPos.x || newY < mapStartPos.y || newY > mapEndPos.y) continue;
                 if (!canAgentMoveTo(agent, newX, newY)) continue;
+                // Check player position collision
+                if (newX === playerPos.x && newY === playerPos.y) continue;
 
                 // Valid move found! Return new agent object with updated state
                 const movedAgent = {
@@ -665,6 +667,8 @@ export default function Home() {
             const mapStartPos = useMapStore.getState().mapStartPosition;
             const mapEndPos = useMapStore.getState().mapEndPosition;
             const checkCollision = useMapStore.getState().isCollisionTile;
+            // Get latest player position from store instead of closure to avoid stale values
+            const currentWorldPos = useGameStateStore.getState().worldPosition;
 
             let hasUpdates = false;
 
@@ -685,8 +689,8 @@ export default function Home() {
                     return { ...agent, lastMoved: now, isMoving: false };
                 }
 
-                // Try to move agent (world agents collision will be checked by collision map)
-                const movedAgent = tryMoveAgent(agent, currentAgents, [], checkCollision, mapStartPos, mapEndPos);
+                // Try to move agent (prevent moving into player position)
+                const movedAgent = tryMoveAgent(agent, currentAgents, [], checkCollision, mapStartPos, mapEndPos, currentWorldPos);
 
                 // If couldn't move, still update timestamp to prevent getting stuck
                 if (!movedAgent) {
