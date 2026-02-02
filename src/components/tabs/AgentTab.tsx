@@ -208,6 +208,7 @@ export default function AgentTab({
             // Step 3: Get allowed maps from permissions
             const allowedMaps = permissions?.permissions.placeAllowedMaps || [];
             if (allowedMaps.length === 0) {
+                setIsHolderModalOpen(true);
                 setError("You don't have permission to place agents on any map");
                 setIsLoading(false);
                 return;
