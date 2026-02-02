@@ -39,6 +39,11 @@ const tokens: TokenInfo[] = [
     icon: '/tokens/opensea.svg',
     url: 'https://opensea.io/collection/mysterious-minieggs',
   },
+  {
+    name: 'Uncommon Membership',
+    icon: '/tokens/uncommon_membership.svg',
+    url: 'https://comcom.notion.site/AINSpace-2cdd86552212806eab88fa68aefa1ae9?source=copy_link',
+  },
 ];
 
 interface HolderModalProps {
@@ -55,7 +60,7 @@ export default function HolderModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className={cn(
-          'w-auto bg-white rounded-2xl py-6 px-4 shadow-lg',
+          'w-[328px] bg-white rounded-2xl py-6 px-4 shadow-lg ',
           'flex flex-col gap-4',
         )}
       >
@@ -77,7 +82,7 @@ export default function HolderModal({
               href={token.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-between p-2 bg-[#f7f0ff] rounded-lg hover:bg-[#EDE9FE] transition-colors w-[264px]"
+              className="flex items-center justify-between p-2 bg-[#f7f0ff] rounded-lg hover:bg-[#EDE9FE] transition-colors w-full"
             >
               <div className="flex items-center gap-2">
                 <Image

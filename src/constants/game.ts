@@ -25,7 +25,7 @@ export const INITIAL_PLAYER_POSITION = { x: 0, y: 0 };
 // export const INITIAL_PLAYER_POSITION = { x: 59, y: 70 };
 
 // Agent settings
-export const ENABLE_AGENT_MOVEMENT = false; // Set to false to disable agent movement
+export const ENABLE_AGENT_MOVEMENT = true; // Set to false to disable agent movement
 export const AGENT_RESPONSE_DISTANCE = 2; // Distance in tiles for agent to respond to player
 
 // Player movement settings
@@ -38,6 +38,20 @@ export enum DIRECTION {
     RIGHT = 'right',
     STOP = 'stop'
 }
+
+export enum MOVEMENT_MODE {
+    VILLAGE_WIDE = 'village_wide',
+    SPAWN_CENTERED = 'spawn_centered',
+    STATIONARY = 'stationary'
+}
+
+// Default movement mode for agents without explicit mode set
+export const DEFAULT_MOVEMENT_MODE = MOVEMENT_MODE.STATIONARY;
+
+// Radius for spawn-centered movement (in tiles)
+export const SPAWN_RADIUS = process.env.NEXT_PUBLIC_SPAWN_RADIUS
+    ? parseInt(process.env.NEXT_PUBLIC_SPAWN_RADIUS, 10)
+    : 3;
 
 export enum MAP_NAMES {
   HAPPY_VILLAGE = 'Happy Village',

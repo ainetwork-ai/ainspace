@@ -508,7 +508,7 @@ function TileMap({
                         }}
                     >
                         <SpriteAnimator
-                            key={agent.id}
+                            key={`${agent.id}-${agentDirection}`}
                             sprite={agentSpriteUrl}
                             width={TILE_SIZE}
                             height={agentSpriteHeight}

@@ -4,6 +4,7 @@ import { ChatMessage, useAgentStore, useGameStateStore } from '@/stores';
 import { useMemo } from 'react';
 import { AgentProfile } from '@/components/AgentProfile';
 import ReactMarkdown from 'react-markdown';
+import rehypeSanitize from 'rehype-sanitize';
 
 const PROFILE_SIZE = 30;
 
@@ -44,6 +45,7 @@ export default function ChatMessageCard({ message }: { message: ChatMessage }) {
             </div>
             <div className='justify-start font-semibold leading-[25px] text-white prose prose-invert prose-sm max-w-none'>
                 <ReactMarkdown
+                    rehypePlugins={[rehypeSanitize]}
                     components={{
                         a: ({ node, ...props }) => (
                             <a
