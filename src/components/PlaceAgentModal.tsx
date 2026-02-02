@@ -51,9 +51,13 @@ export default function PlaceAgentModal({
                     )}
                 </div>
 
-                {errorMessage && (
+                {errorMessage ? (
                     <p className="text-sm text-red-500 text-center mt-1">
                         {errorMessage}
+                    </p>
+                ) : (
+                    <p className="text-sm text-[#4595FF] text-center mt-1">
+                        Tap once to preview. Tap again to place.
                     </p>
                 )}
             </div>
