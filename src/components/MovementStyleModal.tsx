@@ -7,9 +7,9 @@ import Button from '@/components/ui/Button';
 import { MOVEMENT_MODE } from '@/constants/game';
 
 // NOTE: DB values differ from display labels
-// stationary = Free Activity
+// stationary = Fixed Position
 // spawn_centered = Nearby Activity
-// village_wide = Fixed Position
+// village_wide = Free Activity
 
 interface MovementOption {
     value: MOVEMENT_MODE;

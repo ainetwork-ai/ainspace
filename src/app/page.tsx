@@ -674,19 +674,19 @@ export default function Home() {
 
             // Use map instead of forEach to create completely new objects
             const updated = currentAgents.map((agent) => {
+                // Skip movement for stationary agents
+                const mode = agent.movementMode ?? DEFAULT_MOVEMENT_MODE;
+
+                if (mode === MOVEMENT_MODE.STATIONARY) {
+                    return agent;
+                }
+
                 const moveInterval = agent.moveInterval || 5000;
                 const timeSinceLastMove = now - (agent.lastMoved || 0);
 
                 // Only try to move if enough time has passed
                 if (timeSinceLastMove < moveInterval) {
-                    return agent; // Return unchanged
-                }
-
-                // Skip movement for stationary agents
-                const mode = agent.movementMode ?? DEFAULT_MOVEMENT_MODE;
-                if (mode === MOVEMENT_MODE.STATIONARY) {
-                    hasUpdates = true;
-                    return { ...agent, lastMoved: now, isMoving: false };
+                    return agent;
                 }
 
                 // Try to move agent (prevent moving into player position)
@@ -708,7 +708,7 @@ export default function Home() {
             }
         };
 
-        const interval = setInterval(moveA2AAgents, 100);
+        const interval = setInterval(moveA2AAgents, 300);
         return () => clearInterval(interval);
     }, []);
 
