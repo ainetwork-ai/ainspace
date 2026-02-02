@@ -10,6 +10,8 @@ import ImportedAgentList from '@/components/agent-builder/ImportedAgentList';
 import { useAgentStore, useUIStore, useUserStore, useUserAgentStore } from '@/stores';
 import LoadingModal from '../LoadingModal';
 import HolderModal from '../HolderModal';
+import MovementStyleModal from '../MovementStyleModal';
+import { MOVEMENT_MODE } from '@/constants/game';
 
 interface AgentTabProps {
     isActive: boolean;
@@ -21,6 +23,10 @@ export default function AgentTab({
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
     const [isHolderModalOpen, setIsHolderModalOpen] = useState<boolean>(false);
+    const [pendingPlacementAgent, setPendingPlacementAgent] = useState<{
+        agent: StoredAgent;
+        allowedMaps: string[];
+    } | null>(null);
 
     const { address } = useAccount();
     const { updateAgent } = useAgentStore();
@@ -214,12 +220,11 @@ export default function AgentTab({
                 return;
             }
 
-            // Step 4: Activate placement mode - switch to map with all allowed maps
-            setSelectedAgentForPlacement({
+            // Step 4: Show movement style modal before placement
+            setPendingPlacementAgent({
                 agent: agent,
                 allowedMaps: allowedMaps
             });
-            setActiveTab('map');
         } catch (err) {
             setError(`Failed to activate placement mode: ${err instanceof Error ? err.message : 'Unknown error'}`);
         } finally {
@@ -260,6 +265,18 @@ export default function AgentTab({
 
         setIsLoading(false);
     }
+
+    const handleMovementStyleConfirm = (movementMode: MOVEMENT_MODE) => {
+        if (!pendingPlacementAgent) return;
+
+        setSelectedAgentForPlacement({
+            agent: pendingPlacementAgent.agent,
+            allowedMaps: pendingPlacementAgent.allowedMaps,
+            movementMode: movementMode
+        });
+        setPendingPlacementAgent(null);
+        setActiveTab('map');
+    };
 
     const handleUploadImage = async (agent: StoredAgent, sprite: {url: string, height: number} | File) => {
         let response: Response | null = null;
@@ -320,6 +337,16 @@ export default function AgentTab({
             </div>
             <LoadingModal open={isLoading} />
             <HolderModal open={isHolderModalOpen} onOpenChange={setIsHolderModalOpen}/>
+
+            {/* Movement Style Modal */}
+            {pendingPlacementAgent && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <MovementStyleModal
+                        onConfirm={handleMovementStyleConfirm}
+                        initialStyle={MOVEMENT_MODE.STATIONARY}
+                    />
+                </div>
+            )}
         </BaseTabContent>
     );
 }
