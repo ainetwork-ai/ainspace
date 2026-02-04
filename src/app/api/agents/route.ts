@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getRedisClient, StoredAgent, addPlacedAgent, removePlacedAgent, getPlacedAgentCount } from '@/lib/redis';
+import { getRedisClient, StoredAgent, addPlacedAgent, removePlacedAgent, getPlacedAgentCount, scanKeys } from '@/lib/redis';
 import { canImportAgent, canPlaceAgent, canPlaceAgentOnMap } from '@/lib/auth/permissions';
+import { MOVEMENT_MODE } from '@/constants/game';
 
 const AGENTS_KEY = 'agents:';
 
@@ -16,10 +17,10 @@ export async function GET(request: NextRequest) {
     
     try {
       // Try Redis first
-      const redis = await getRedisClient();
-      const keys = await redis.keys(`${AGENTS_KEY}*`);
-      
+      const keys = await scanKeys(`${AGENTS_KEY}*`);
+
       if (keys.length > 0) {
+        const redis = await getRedisClient();
         const values = await redis.mGet(keys);
         agents = values
           .filter(value => value !== null)
@@ -215,6 +216,17 @@ export async function PUT(request: NextRequest) {
 
       // Parse existing data and merge with updates (partial update)
       const existingData: StoredAgent = JSON.parse(existing);
+
+      // Optional: Validate movement mode if provided
+      if (state?.movementMode !== undefined) {
+        const validModes = Object.values(MOVEMENT_MODE);
+        if (!validModes.includes(state.movementMode as MOVEMENT_MODE)) {
+          return NextResponse.json(
+            { error: `Invalid movement mode: ${state.movementMode}` },
+            { status: 400 }
+          );
+        }
+      }
 
       // If placing an agent (isPlaced: true), check permissions
       if (isPlaced === true && existingData.isPlaced !== true && creator) {

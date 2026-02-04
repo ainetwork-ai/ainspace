@@ -4,7 +4,7 @@ import { useEffect, useCallback } from 'react';
 import { useMapData } from '@/providers/MapDataProvider';
 import { useAgentStore, useBuildStore, useChatStore } from '@/stores';
 import { AgentState } from '@/lib/agent';
-import { DIRECTION, MAP_TILES, ENABLE_AGENT_MOVEMENT } from '@/constants/game';
+import { DIRECTION, MAP_TILES, ENABLE_AGENT_MOVEMENT, MOVEMENT_MODE } from '@/constants/game';
 
 interface UseAgentsProps {
     playerWorldPosition: { x: number; y: number };
@@ -188,6 +188,12 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
                     direction: DIRECTION.DOWN,
                     isMoving: false
                 });
+                return;
+            }
+
+            // STATIONARY mode agents should not move or change direction
+            if (agent.movementMode === MOVEMENT_MODE.STATIONARY) {
+                updateStoredAgent(agent.agentUrl, { isMoving: false });
                 return;
             }
 

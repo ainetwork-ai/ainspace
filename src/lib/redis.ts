@@ -30,6 +30,31 @@ export async function getRedisClient() {
     }
 }
 
+/**
+ * Scan for keys matching a pattern using SCAN command (non-blocking alternative to KEYS)
+ * @param pattern - The pattern to match (e.g., 'agents:*', 'auth:*')
+ * @param count - Hint for number of keys to return per iteration (default: 100)
+ * @returns Array of all matching keys
+ */
+export async function scanKeys(pattern: string, count: number = 100): Promise<string[]> {
+    try {
+        const redis = await getRedisClient();
+        const keys: string[] = [];
+
+        for await (const batch of redis.scanIterator({
+            MATCH: pattern,
+            COUNT: count
+        })) {
+            keys.push(...batch);
+        }
+
+        return keys;
+    } catch (error) {
+        console.error('Error scanning keys from Redis:', error);
+        return [];
+    }
+}
+
 export interface PlayerPosition {
     x: number;
     y: number;
@@ -241,13 +266,13 @@ const AGENTS_KEY = 'agents:';
  */
 export async function getAgents(): Promise<StoredAgent[]> {
     try {
-        const redis = await getRedisClient();
-        const keys = await redis.keys(`${AGENTS_KEY}*`);
+        const keys = await scanKeys(`${AGENTS_KEY}*`);
 
         if (keys.length === 0) {
             return [];
         }
 
+        const redis = await getRedisClient();
         const values = await redis.mGet(keys);
         const agents = values
             .filter(value => value !== null)

@@ -6,14 +6,16 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import MapTab from '@/components/tabs/MapTab';
 import AgentTab from '@/components/tabs/AgentTab';
 import Footer from '@/components/Footer';
-import { DIRECTION, MAP_TILES, ENABLE_AGENT_MOVEMENT, BROADCAST_RADIUS } from '@/constants/game';
-import { useUIStore, useThreadStore, useBuildStore, useAgentStore, useUserStore, useUserAgentStore } from '@/stores';
+import { DIRECTION, ENABLE_AGENT_MOVEMENT, BROADCAST_RADIUS, MOVEMENT_MODE, DEFAULT_MOVEMENT_MODE, SPAWN_RADIUS, MAP_ZONES, MAP_NAMES } from '@/constants/game';
+import { useUIStore, useThreadStore, useBuildStore, useAgentStore, useUserStore, useUserAgentStore, useGameStateStore } from '@/stores';
 import TempBuildTab from '@/components/tabs/TempBuildTab';
 import { useAccount } from 'wagmi';
 import sdk from '@farcaster/miniapp-sdk';
 import { StoredAgent } from '@/lib/redis';
 import { useMapStore } from '@/stores/useMapStore';
 import { cn } from '@/lib/utils';
+import { getMapNameFromCoordinates } from '@/lib/map-utils';
+import { AgentState } from '@/lib/agent';
 
 export default function Home() {
     // Global stores
@@ -28,7 +30,6 @@ export default function Home() {
         isPublishing,
         publishStatus,
         collisionMap: globalCollisionMap,
-        isBlocked: globalIsBlocked,
         setCustomTiles,
         setPublishedTiles,
         setSelectedImage,
@@ -38,7 +39,7 @@ export default function Home() {
         setCollisionMap,
         clearPublishStatusAfterDelay
     } = useBuildStore();
-    const { worldPosition, userId, agents: worldAgents, visibleAgents } = useGameState();
+    const { worldPosition, userId, visibleAgents } = useGameState();
     const { agents, spawnAgent, setAgents } = useAgentStore();
     const { mapStartPosition, mapEndPosition, isCollisionTile, isLoaded: isMapLoaded } = useMapStore();
     const { setFrameReady, isFrameReady } = useMiniKit();
@@ -245,6 +246,24 @@ export default function Home() {
                         spawnY = validPosition.y;
                     }
 
+                    // Migration logic for spawn position and movement mode
+                    const migratedState = {
+                        ...state,
+                        // If spawn position not set, use current position
+                        spawnX: state.spawnX ?? spawnX,
+                        spawnY: state.spawnY ?? spawnY,
+                        // If mapName not set, determine from position
+                        mapName: state.mapName ?? getMapNameFromCoordinates(spawnX, spawnY),
+                        // If movement mode not set, use default
+                        movementMode: state.movementMode ?? DEFAULT_MOVEMENT_MODE
+                    };
+
+                    console.log(`Migrated agent ${card.name}:`, {
+                        spawn: `(${migratedState.spawnX}, ${migratedState.spawnY})`,
+                        map: migratedState.mapName,
+                        mode: migratedState.movementMode
+                    });
+
                     // Restore agent to store with saved position and sprite
                     // We know x and y are numbers because they were filtered above
                     spawnAgent({
@@ -259,7 +278,12 @@ export default function Home() {
                         moveInterval: state.moveInterval || 800,
                         skills: card.skills,
                         spriteUrl: spriteUrl,
-                        spriteHeight: spriteHeight || 40
+                        spriteHeight: spriteHeight || 40,
+                        // Include migrated fields
+                        spawnX: migratedState.spawnX,
+                        spawnY: migratedState.spawnY,
+                        mapName: migratedState.mapName,
+                        movementMode: migratedState.movementMode
                     });
                 });
 
@@ -293,7 +317,8 @@ export default function Home() {
         agent: StoredAgent,
         x: number,
         y: number,
-        mapName: string
+        mapName: string,
+        movementMode: MOVEMENT_MODE
     ) => {
         if (!address) {
             throw new Error('Address is not connected');
@@ -319,7 +344,12 @@ export default function Home() {
                     y: y,
                     behavior: 'random',
                     color: randomColor,
-                    moveInterval: 600 + Math.random() * 400
+                    moveInterval: 600 + Math.random() * 400,
+                    // Include spawn data and movement mode
+                    spawnX: x,
+                    spawnY: y,
+                    mapName: mapName as MAP_NAMES,
+                    movementMode: movementMode
                 },
                 isPlaced: true,
                 mapName: mapName,
@@ -331,7 +361,7 @@ export default function Home() {
             throw new Error(errorData.error || 'Failed to place agent');
         }
 
-        console.log(`✓ Agent registered with backend Redis at (${x}, ${y})`);
+        console.log(`✓ Agent registered with backend Redis at (${x}, ${y}): spawn=(${x}, ${y}), map=${mapName}, mode=${movementMode}`);
 
         updateUserAgent(agent.url, {
             isPlaced: true,
@@ -349,9 +379,14 @@ export default function Home() {
             moveInterval: agent.state.moveInterval || 600 + Math.random() * 400,
             skills: agent.card.skills || [],
             spriteUrl: agent.spriteUrl,
-            spriteHeight: agent.spriteHeight || 50
+            spriteHeight: agent.spriteHeight || 50,
+            // Include spawn data and movement mode
+            spawnX: x,
+            spawnY: y,
+            mapName: mapName as MAP_NAMES,
+            movementMode: movementMode
         });
-    }, [address, spawnAgent]);
+    }, [address, spawnAgent, updateUserAgent]);
 
     const handlePublishTiles = async () => {
         const totalCustomTiles =
@@ -501,7 +536,6 @@ export default function Home() {
     return null; // No valid position found in this zone
 }, [isPositionValid, worldPosition]);
 
-
     // A2A Agent movement system
     useEffect(() => {
         // Skip movement if disabled
@@ -509,110 +543,172 @@ export default function Home() {
             return;
         }
 
+        // Helper: Check if agent can move based on movement mode
+        const canAgentMoveTo = (agent: AgentState, newX: number, newY: number): boolean => {
+            const mode = agent.movementMode ?? DEFAULT_MOVEMENT_MODE;
+
+            if (mode === MOVEMENT_MODE.STATIONARY) {
+                return false;
+            }
+
+            if (mode === MOVEMENT_MODE.SPAWN_CENTERED) {
+                const spawnX = agent.spawnX ?? agent.x;
+                const spawnY = agent.spawnY ?? agent.y;
+                const dx = Math.abs(newX - spawnX);
+                const dy = Math.abs(newY - spawnY);
+                const distance = Math.max(dx, dy);
+                return distance <= SPAWN_RADIUS;
+            }
+
+            // VILLAGE_WIDE mode
+            if (!agent.mapName) {
+                return true; // Backward compatibility
+            }
+
+            const zone = MAP_ZONES[agent.mapName];
+            return zone ? (
+                newX >= zone.startX &&
+                newX <= zone.endX &&
+                newY >= zone.startY &&
+                newY <= zone.endY
+            ) : true;
+        };
+
+        // Helper: Check if position is occupied by any agent
+        const isPositionOccupied = (x: number, y: number, currentAgentId: string, allAgents: AgentState[], worldAgents: { x: number; y: number }[]): boolean => {
+            const isOccupiedByA2A = allAgents.some(
+                (agent) => agent.id !== currentAgentId && agent.x === x && agent.y === y
+            );
+            const isOccupiedByWorld = worldAgents.some(
+                (agent) => agent.x === x && agent.y === y
+            );
+            return isOccupiedByA2A || isOccupiedByWorld;
+        };
+
+        // Helper: Try to move agent in a random valid direction (returns new agent object if moved, null if not)
+        const tryMoveAgent = (
+            agent: AgentState,
+            updated: AgentState[],
+            currentWorldAgents: { x: number; y: number }[],
+            checkCollision: (x: number, y: number) => boolean,
+            mapStartPos: { x: number; y: number },
+            mapEndPos: { x: number; y: number },
+            playerPos: { x: number; y: number }
+        ): AgentState | null => {
+            const directions = [
+                { dx: 0, dy: -1 }, // up
+                { dx: 0, dy: 1 },  // down
+                { dx: -1, dy: 0 }, // left
+                { dx: 1, dy: 0 }   // right
+            ];
+
+            const shuffledDirections = [...directions].sort(() => Math.random() - 0.5);
+
+            for (const direction of shuffledDirections) {
+                const newX = agent.x + direction.dx;
+                const newY = agent.y + direction.dy;
+
+                // Check all movement constraints
+                if (isPositionOccupied(newX, newY, agent.id, updated, currentWorldAgents)) continue;
+                if (checkCollision(newX, newY)) continue;
+                if (newX < mapStartPos.x || newX > mapEndPos.x || newY < mapStartPos.y || newY > mapEndPos.y) continue;
+                if (!canAgentMoveTo(agent, newX, newY)) continue;
+                // Check player position collision
+                if (newX === playerPos.x && newY === playerPos.y) continue;
+
+                // Valid move found! Return new agent object with updated state
+                const movedAgent = {
+                    ...agent,
+                    x: newX,
+                    y: newY,
+                    lastMoved: Date.now(),
+                    direction: getDirectionFromMovement(direction),
+                    isMoving: true
+                };
+
+                // Clear isMoving flag after animation
+                scheduleIsMovingClear(agent.agentUrl);
+
+                return movedAgent; // Movement successful
+            }
+
+            return null; // No valid move found
+        };
+
+        // Helper: Convert movement direction to DIRECTION enum
+        const getDirectionFromMovement = (direction: { dx: number; dy: number }) => {
+            if (direction.dy === -1) return DIRECTION.UP;
+            if (direction.dy === 1) return DIRECTION.DOWN;
+            if (direction.dx === -1) return DIRECTION.LEFT;
+            if (direction.dx === 1) return DIRECTION.RIGHT;
+            return DIRECTION.DOWN;
+        };
+
+        // Helper: Schedule clearing of isMoving flag
+        const scheduleIsMovingClear = (agentUrl?: string) => {
+            if (!agentUrl) return;
+            setTimeout(() => {
+                const currentAgents = useAgentStore.getState().agents;
+                const currentAgent = currentAgents.find((agent) => agent.agentUrl === agentUrl);
+                if (currentAgent) {
+                    useAgentStore.getState().updateAgent(agentUrl, { isMoving: false });
+                }
+            }, 500);
+        };
+
+        // Main movement loop
         const moveA2AAgents = () => {
             const now = Date.now();
-            const updated = agents;
+
+            // Get latest state from stores
+            const currentAgents = useAgentStore.getState().agents;
+            const mapStartPos = useMapStore.getState().mapStartPosition;
+            const mapEndPos = useMapStore.getState().mapEndPosition;
+            const checkCollision = useMapStore.getState().isCollisionTile;
+            // Get latest player position from store instead of closure to avoid stale values
+            const currentWorldPos = useGameStateStore.getState().worldPosition;
+
             let hasUpdates = false;
 
-            updated.forEach((agent) => {
-                // Use the stored moveInterval (or default if not set)
+            // Use map instead of forEach to create completely new objects
+            const updated = currentAgents.map((agent) => {
+                // Skip movement for stationary agents
+                const mode = agent.movementMode ?? DEFAULT_MOVEMENT_MODE;
+
+                if (mode === MOVEMENT_MODE.STATIONARY) {
+                    return agent;
+                }
+
                 const moveInterval = agent.moveInterval || 5000;
                 const timeSinceLastMove = now - (agent.lastMoved || 0);
 
                 // Only try to move if enough time has passed
                 if (timeSinceLastMove < moveInterval) {
-                    return;
+                    return agent;
                 }
 
-                const directions = [
-                    { dx: 0, dy: -1 }, // up
-                    { dx: 0, dy: 1 }, // down
-                    { dx: -1, dy: 0 }, // left
-                    { dx: 1, dy: 0 } // right
-                ];
+                // Try to move agent (prevent moving into player position)
+                const movedAgent = tryMoveAgent(agent, currentAgents, [], checkCollision, mapStartPos, mapEndPos, currentWorldPos);
 
-                // Try random directions until we find a valid move or exhaust all options
-                const shuffledDirections = [...directions].sort(() => Math.random() - 0.5);
-                let moved = false;
-
-                for (const direction of shuffledDirections) {
-                    const newX = agent.x + direction.dx;
-                    const newY = agent.y + direction.dy;
-
-                    // Check map boundaries
-                    if (newX < 0 || newX >= MAP_TILES || newY < 0 || newY >= MAP_TILES) {
-                        continue; // Try next direction
-                    }
-
-                    // Check if player is at this position
-                    if (newX === worldPosition.x && newY === worldPosition.y) {
-                        continue; // Try next direction
-                    }
-
-                    // Check if another agent (A2A or world agent) is at this position
-                    const isOccupiedByA2A = updated.some(
-                        (otherAgent) => otherAgent.id !== agent.id && otherAgent.x === newX && otherAgent.y === newY
-                    );
-                    const isOccupiedByWorldAgent = worldAgents.some(
-                        (worldAgent) => worldAgent.x === newX && worldAgent.y === newY
-                    );
-                    if (isOccupiedByA2A || isOccupiedByWorldAgent) {
-                        continue; // Try next direction
-                    }
-
-                    // Check layer1 collision - don't move if blocked
-                    if (globalIsBlocked(newX, newY)) {
-                        continue; // Try next direction
-                    }
-
-                    // Determine direction based on movement
-                    let agentDirection = DIRECTION.DOWN;
-                    if (direction.dy === -1) agentDirection = DIRECTION.UP;
-                    else if (direction.dy === 1) agentDirection = DIRECTION.DOWN;
-                    else if (direction.dx === -1) agentDirection = DIRECTION.LEFT;
-                    else if (direction.dx === 1) agentDirection = DIRECTION.RIGHT;
-
-                    // Valid move found! Update position, direction and set moving flag
-                    agent.x = newX;
-                    agent.y = newY;
-                    agent.lastMoved = now;
-                    agent.direction = agentDirection;
-                    agent.isMoving = true;
-                    moved = true;
+                // If couldn't move, still update timestamp to prevent getting stuck
+                if (!movedAgent) {
                     hasUpdates = true;
-
-                    // Clear isMoving flag after a short delay (animation duration)
-                    const agentUrl = agent.agentUrl;
-                    if (agentUrl) {
-                        setTimeout(() => {
-                            const currentAgents = useAgentStore.getState().agents;
-                            const currentAgent = currentAgents.find((agent) => agent.agentUrl === agentUrl);
-                            if (currentAgent) {
-                                useAgentStore.getState().updateAgent(agentUrl, { isMoving: false });
-                            }
-                        }, 500); // Match animation duration
-                    }
-
-                    break; // Successfully moved, exit the direction loop
+                    return { ...agent, lastMoved: now, isMoving: false };
                 }
 
-                // If we couldn't move in any direction, still update lastMoved to prevent getting stuck
-                if (!moved) {
-                    agent.lastMoved = now;
-                    agent.isMoving = false;
-                    hasUpdates = true;
-                }
+                hasUpdates = true;
+                return movedAgent; // Return the new agent object with updated position and direction
             });
 
-            // Only update state if there were actual changes
+            // Update store if there were changes
             if (hasUpdates) {
-                setAgents(updated);
+                useAgentStore.getState().setAgents(updated);
             }
         };
 
-        const interval = setInterval(moveA2AAgents, 100); // Check every 100ms, matching original agents
+        const interval = setInterval(moveA2AAgents, 300);
         return () => clearInterval(interval);
-    }, [globalIsBlocked, agents, worldAgents, worldPosition, setAgents]);
+    }, []);
 
     useEffect(() => {
         const load = async () => {

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { StoredAgent } from '@/lib/redis';
+import { MOVEMENT_MODE } from '@/constants/game';
 
 export const FOOTER_HEIGHT = 73; // 72px + 1px border
 
@@ -9,6 +10,7 @@ interface UIState {
     selectedAgentForPlacement: {
         agent: StoredAgent;
         allowedMaps: string[];
+        movementMode: MOVEMENT_MODE;
     } | null;
     setSelectedAgentForPlacement: (data: UIState['selectedAgentForPlacement']) => void;
 }
