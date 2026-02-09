@@ -152,12 +152,6 @@ export function useVillageLoader(initialVillageSlug: string | null) {
 
   // 초기 마을 로드
   useEffect(() => {
-    console.log('[INIT] useEffect triggered', {
-      initialVillageSlug,
-      initializedSlug: initializedSlugRef.current,
-      willRun: initialVillageSlug !== null && initialVillageSlug !== initializedSlugRef.current
-    });
-
     // 이미 이 slug로 초기화했으면 스킵
     if (!initialVillageSlug || initialVillageSlug === initializedSlugRef.current) return;
 
@@ -165,7 +159,6 @@ export function useVillageLoader(initialVillageSlug: string | null) {
     initializedSlugRef.current = initialVillageSlug;
 
     async function init() {
-      console.log('[INIT] Starting initialization for:', initialVillageSlug);
       setLoading(true);
 
       try {
@@ -194,7 +187,6 @@ export function useVillageLoader(initialVillageSlug: string | null) {
         );
         const centerX = Math.floor((range.startX + range.endX) / 2);
         const centerY = Math.floor((range.startY + range.endY) / 2);
-        console.log('[INIT] Setting player to center:', { x: centerX, y: centerY });
         setWorldPosition({ x: centerX, y: centerY });
 
         // 현재 마을 우선 로드
@@ -222,15 +214,6 @@ export function useVillageLoader(initialVillageSlug: string | null) {
     const { gridX, gridY } = worldToGrid(worldPosition.x, worldPosition.y);
     const slugAtPlayerGrid = getVillageSlugAtGrid(gridX, gridY);
 
-    console.log('[TRANSITION] Check', {
-      worldPos: worldPosition,
-      gridX,
-      gridY,
-      slugAtPlayerGrid,
-      currentVillageSlug,
-      willTransition: slugAtPlayerGrid !== currentVillageSlug
-    });
-
     // 플레이어가 있는 grid의 slug가 현재 마을 slug와 다르면 마을 전환
     if (slugAtPlayerGrid !== currentVillageSlug) {
       if (!slugAtPlayerGrid) {
@@ -244,7 +227,6 @@ export function useVillageLoader(initialVillageSlug: string | null) {
       const newMeta = nearbyVillages.get(slugAtPlayerGrid);
       if (!newMeta) return;
 
-      console.log('[TRANSITION] Switching to village:', slugAtPlayerGrid);
       setCurrentVillage(slugAtPlayerGrid, newMeta);
 
       // URL 업데이트 (페이지 리로드 없이)
