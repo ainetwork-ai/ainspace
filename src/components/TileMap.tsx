@@ -9,7 +9,7 @@ import * as Sentry from '@sentry/nextjs';
 import { AgentState } from '@/lib/agent';
 import { useTiledMap } from '@/hooks/useTiledMap';
 import { Z_INDEX_OFFSETS } from '@/constants/common';
-import { useMapStore } from '@/stores/useMapStore';
+import { useVillageStore } from '@/stores/useVillageStore';
 
 // Data structure for multi-tile items
 interface ItemTileData {
@@ -87,8 +87,7 @@ function TileMap({
 
     const tileSize = baseTileSize * (fixedZoom !== undefined ? fixedZoom : zoomLevel);
     
-    const { canvasRef, isLoaded, cameraTilePosition } = useTiledMap(
-        '/map/map.tmj',
+    const { canvasRef, cameraTilePosition } = useTiledMap(
         canvasSize,
         tileSize
     );
@@ -220,8 +219,8 @@ function TileMap({
         const canvas = canvasRef.current;
         if (!canvas) return null;
 
-        const { mapData } = useMapStore.getState();
-        if (!mapData) return null;
+        const { isCurrentVillageLoaded } = useVillageStore.getState();
+        if (!isCurrentVillageLoaded) return null;
 
         const rect = canvas.getBoundingClientRect();
         const scaleX = canvas.width / rect.width;
@@ -233,29 +232,15 @@ function TileMap({
         const screenTileX = Math.floor(canvasX / tileSize);
         const screenTileY = Math.floor(canvasY / tileSize);
 
-        // Calculate map center (same as useTiledMap.ts)
-        const { width, height } = mapData;
-        const mapCenterX = Math.floor(width / 2);
-        const mapCenterY = Math.floor(height / 2);
-
         // Calculate visible tiles
         const tilesX = Math.ceil(canvasSize.width / tileSize);
         const tilesY = Math.ceil(canvasSize.height / tileSize);
         const halfTilesX = Math.floor(tilesX / 2);
         const halfTilesY = Math.floor(tilesY / 2);
 
-        // Calculate camera position in center-based coordinates
-        let cameraTileX = worldPosition.x - halfTilesX;
-        let cameraTileY = worldPosition.y - halfTilesY;
-
-        // Map boundaries in center-based coordinates
-        const minCameraX = -mapCenterX;
-        const maxCameraX = mapCenterX - tilesX + 1;
-        const minCameraY = -mapCenterY;
-        const maxCameraY = mapCenterY - tilesY + 1;
-
-        cameraTileX = Math.max(minCameraX, Math.min(maxCameraX, cameraTileX));
-        cameraTileY = Math.max(minCameraY, Math.min(maxCameraY, cameraTileY));
+        // Camera position (no clamping - village boundaries handle movement limits)
+        const cameraTileX = worldPosition.x - halfTilesX;
+        const cameraTileY = worldPosition.y - halfTilesY;
 
         if (screenTileX >= 0 && screenTileX < tilesX && screenTileY >= 0 && screenTileY < tilesY) {
             // Calculate world coordinates in center-based system

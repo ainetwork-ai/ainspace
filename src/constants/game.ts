@@ -3,6 +3,9 @@
 // Tile size in pixels (both for rendering and game coordinates)
 export const TILE_SIZE = 40;
 
+// Village dimensions (in tiles) - each village is a square grid
+export const VILLAGE_SIZE = 20;
+
 // Map dimensions
 export const MAP_SIZE_PIXELS = 4200;
 export const MAP_TILES = MAP_SIZE_PIXELS / TILE_SIZE; // 105 tiles
