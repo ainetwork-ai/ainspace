@@ -25,7 +25,6 @@ export function useGameState() {
     const { isBlocked: isLayer1Blocked, collisionMap } = useBuildStore();
     const { agents: a2aAgents } = useAgentStore();
     const isCollisionAt = useVillageStore((s) => s.isCollisionAt);
-    const hasVillageAt = useVillageStore((s) => s.hasVillageAt);
     const {
         worldPosition,
         setWorldPosition,
@@ -83,17 +82,14 @@ export function useGameState() {
 
     /**
      * 주어진 좌표로 이동 가능한지 검사한다.
-     * - 마을이 존재하는지 (hasVillageAt)
-     * - 마을 TMJ Layer1 충돌 (isCollisionAt)
+     * - 마을 TMJ Layer1 충돌 (isCollisionAt) - 마을이 없으면 default map 사용
      * - 빌드 layer1 충돌 (isLayer1Blocked)
      * - 에이전트 충돌
      */
     const isPositionBlocked = useCallback(
         (x: number, y: number): boolean => {
-            // 마을이 없는 곳은 이동 불가
-            if (!hasVillageAt(x, y)) return true;
-
-            // 마을 TMJ 충돌 체크
+            // 마을 TMJ 또는 default map 충돌 체크
+            // (마을이 없으면 isCollisionAt이 default map 기준으로 체크 = 충돌 없음)
             if (isCollisionAt(x, y)) return true;
 
             // 빌드 layer1 충돌
@@ -112,7 +108,7 @@ export function useGameState() {
 
             return false;
         },
-        [hasVillageAt, isCollisionAt, isLayer1Blocked, agents, a2aAgents]
+        [isCollisionAt, isLayer1Blocked, agents, a2aAgents]
     );
 
     const movePlayer = useCallback(

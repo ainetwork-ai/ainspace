@@ -24,6 +24,9 @@ interface VillageState {
   // 격자 위치 → slug 매핑 캐시
   gridIndex: Map<string, string>;
 
+  // 기본 맵 (마을이 없는 grid 위치에 렌더링됨)
+  defaultVillage: LoadedVillage | null;
+
   // 로딩 상태
   isLoading: boolean;
   isCurrentVillageLoaded: boolean;
@@ -39,6 +42,9 @@ interface VillageState {
   setNearbyVillages: (villages: VillageMetadata[]) => void;
   updateGridIndex: (villages: VillageMetadata[]) => void;
 
+  // Default village
+  setDefaultVillage: (village: LoadedVillage) => void;
+
   // 조회
   getLoadedVillageAtGrid: (gridX: number, gridY: number) => LoadedVillage | null;
   getVillageSlugAtGrid: (gridX: number, gridY: number) => string | null;
@@ -52,6 +58,7 @@ export const useVillageStore = create<VillageState>((set, get) => ({
   loadedVillages: new Map(),
   nearbyVillages: new Map(),
   gridIndex: new Map(),
+  defaultVillage: null,
   isLoading: false,
   isCurrentVillageLoaded: false,
 
@@ -60,6 +67,8 @@ export const useVillageStore = create<VillageState>((set, get) => ({
 
   setLoading: (loading) => set({ isLoading: loading }),
   setCurrentVillageLoaded: (loaded) => set({ isCurrentVillageLoaded: loaded }),
+
+  setDefaultVillage: (village) => set({ defaultVillage: village }),
 
   addLoadedVillage: (slug, village) =>
     set((state) => {
@@ -116,19 +125,22 @@ export const useVillageStore = create<VillageState>((set, get) => ({
     const { gridX, gridY } = worldToGrid(worldX, worldY);
     const slug = state.gridIndex.get(gridKey(gridX, gridY));
 
-    // 마을이 없는 곳은 이동 불가
-    if (!slug) return true;
+    // 마을이 있는 경우
+    if (slug) {
+      const village = state.loadedVillages.get(slug);
+      // 아직 로드 안 된 마을은 이동 불가
+      if (!village) return true;
 
-    const village = state.loadedVillages.get(slug);
-    // 아직 로드 안 된 마을은 이동 불가
-    if (!village) return true;
+      // village origin 기준으로 로컬 좌표 계산 (NxM 마을 지원)
+      const { localX, localY } = worldToLocalInVillage(
+        worldX, worldY,
+        village.metadata.gridX, village.metadata.gridY,
+      );
+      return village.collisionTiles.has(`${localX},${localY}`);
+    }
 
-    // village origin 기준으로 로컬 좌표 계산 (NxM 마을 지원)
-    const { localX, localY } = worldToLocalInVillage(
-      worldX, worldY,
-      village.metadata.gridX, village.metadata.gridY,
-    );
-    return village.collisionTiles.has(`${localX},${localY}`);
+    // 마을이 없는 곳: default village 사용 (충돌 없음)
+    return false;
   },
 
   hasVillageAt: (worldX, worldY) => {

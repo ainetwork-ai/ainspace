@@ -138,3 +138,23 @@ export async function loadVillageMap(
     collisionTiles,
   };
 }
+
+/**
+ * /public/map/default_map.tmj 파일에서 기본 맵을 로드한다.
+ * 마을이 없는 grid 위치에 렌더링되는 무한맵 확장용 맵.
+ *
+ * @returns 파싱된 맵 데이터, 로드된 타일셋, 빈 충돌 타일 세트 (모든 곳 이동 가능)
+ */
+export async function loadDefaultVillageMap(): Promise<LoadedVillageMap> {
+  const tmjUrl = '/map/default_map.tmj';
+  const tilesetBaseUrl = '/map';
+
+  // loadVillageMap을 재사용하되, 충돌 타일은 무시 (모든 곳 이동 가능)
+  const result = await loadVillageMap(tmjUrl, tilesetBaseUrl);
+
+  // 충돌 타일을 빈 세트로 교체 (default map은 충돌 없음)
+  return {
+    ...result,
+    collisionTiles: new Set(),
+  };
+}

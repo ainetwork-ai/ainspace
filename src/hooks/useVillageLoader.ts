@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useVillageStore, LoadedVillage } from '@/stores/useVillageStore';
 import { VillageMetadata } from '@/lib/village-redis';
-import { loadVillageMap } from '@/lib/village-map-loader';
+import { loadVillageMap, loadDefaultVillageMap } from '@/lib/village-map-loader';
 import { worldToGrid, gridKey, getNearbyCells } from '@/lib/village-utils';
 import { useGameStateStore } from '@/stores';
 
@@ -18,6 +18,7 @@ export function useVillageLoader(initialVillageSlug: string | null) {
     currentVillage,
     loadedVillages,
     gridIndex,
+    defaultVillage,
     setCurrentVillage,
     setLoading,
     setCurrentVillageLoaded,
@@ -26,6 +27,7 @@ export function useVillageLoader(initialVillageSlug: string | null) {
     setNearbyVillages,
     updateGridIndex,
     getVillageSlugAtGrid,
+    setDefaultVillage,
   } = useVillageStore();
 
   const loadingRef = useRef<Set<string>>(new Set());
@@ -111,6 +113,41 @@ export function useVillageLoader(initialVillageSlug: string | null) {
     }
   }, [setNearbyVillages, updateGridIndex, loadVillage, loadedVillages, removeLoadedVillage]);
 
+  // Default village 로드
+  useEffect(() => {
+    if (defaultVillage) return;
+
+    async function loadDefault() {
+      try {
+        const { mapData, tilesets, collisionTiles } = await loadDefaultVillageMap();
+
+        const loaded: LoadedVillage = {
+          metadata: {
+            slug: '__default__',
+            name: 'Default Map',
+            gridX: 0,
+            gridY: 0,
+            gridWidth: 1,
+            gridHeight: 1,
+            tmjUrl: '/map/default_map.tmj',
+            tilesetBaseUrl: '/map',
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          },
+          mapData,
+          tilesets,
+          collisionTiles,
+        };
+
+        setDefaultVillage(loaded);
+      } catch (err) {
+        console.warn('Failed to load default village map:', err);
+      }
+    }
+
+    loadDefault();
+  }, [defaultVillage, setDefaultVillage]);
+
   // 초기 마을 로드
   useEffect(() => {
     if (!initialVillageSlug || initializedRef.current) return;
@@ -150,7 +187,7 @@ export function useVillageLoader(initialVillageSlug: string | null) {
     }
 
     init();
-  }, [initialVillageSlug, setLoading, setCurrentVillage, setCurrentVillageLoaded, loadVillage, loadNearbyVillages]);
+  }, [initialVillageSlug, setLoading, setCurrentVillage, setCurrentVillageLoaded, loadVillage, loadNearbyVillages, updateGridIndex]);
 
   // 플레이어 이동 시 마을 전환 감지
   useEffect(() => {
