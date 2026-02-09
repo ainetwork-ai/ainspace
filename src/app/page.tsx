@@ -577,12 +577,13 @@ export default function Home() {
             const vStore = useVillageStore.getState();
             const loaded = vStore.loadedVillages.get(agent.mapName);
             if (loaded) {
-                const range = gridToWorldRange(loaded.metadata.gridX, loaded.metadata.gridY);
+                const m = loaded.metadata;
+                const range = gridToWorldRange(m.gridX, m.gridY, m.gridWidth || 1, m.gridHeight || 1);
                 return newX >= range.startX && newX <= range.endX && newY >= range.startY && newY <= range.endY;
             }
             const nearby = vStore.nearbyVillages.get(agent.mapName);
             if (nearby) {
-                const range = gridToWorldRange(nearby.gridX, nearby.gridY);
+                const range = gridToWorldRange(nearby.gridX, nearby.gridY, nearby.gridWidth || 1, nearby.gridHeight || 1);
                 return newX >= range.startX && newX <= range.endX && newY >= range.startY && newY <= range.endY;
             }
 

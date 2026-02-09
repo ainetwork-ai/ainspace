@@ -69,7 +69,10 @@ export function useTiledMap(
     }> = [];
 
     for (const [, village] of loadedVillages) {
-      const range = gridToWorldRange(village.metadata.gridX, village.metadata.gridY);
+      const range = gridToWorldRange(
+        village.metadata.gridX, village.metadata.gridY,
+        village.metadata.gridWidth || 1, village.metadata.gridHeight || 1,
+      );
       // 뷰포트와 마을 범위가 겹치는지 확인
       if (
         range.endX < renderStartX || range.startX > renderEndX ||

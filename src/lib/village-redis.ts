@@ -6,6 +6,8 @@ export interface VillageMetadata {
   name: string;
   gridX: number;
   gridY: number;
+  gridWidth: number;   // 격자 가로 크기 (기본 1)
+  gridHeight: number;  // 격자 세로 크기 (기본 1)
   tmjUrl: string;
   tilesetBaseUrl: string;
   createdAt: number;
@@ -18,19 +20,28 @@ const VILLAGES_ALL_KEY = 'villages:all';
 
 /**
  * 마을 메타데이터를 Redis에 저장한다.
- * 격자 위치가 이미 사용 중이면 에러를 던진다.
+ * 점유하는 격자 위치가 이미 다른 마을에 사용 중이면 에러를 던진다.
  */
 export async function saveVillage(village: VillageMetadata): Promise<void> {
   const redis = await getRedisClient();
+  const gw = village.gridWidth || 1;
+  const gh = village.gridHeight || 1;
 
-  // 격자 위치 중복 체크
-  const existingSlug = await redis.get(`${VILLAGE_GRID_PREFIX}${gridKey(village.gridX, village.gridY)}`);
-  if (existingSlug && existingSlug !== village.slug) {
-    throw new Error(`Grid position (${village.gridX}, ${village.gridY}) is already occupied by village "${existingSlug}"`);
+  // 점유할 모든 격자 셀의 중복 체크
+  for (let dy = 0; dy < gh; dy++) {
+    for (let dx = 0; dx < gw; dx++) {
+      const key = gridKey(village.gridX + dx, village.gridY + dy);
+      const existingSlug = await redis.get(`${VILLAGE_GRID_PREFIX}${key}`);
+      if (existingSlug && existingSlug !== village.slug) {
+        throw new Error(`Grid position (${village.gridX + dx}, ${village.gridY + dy}) is already occupied by village "${existingSlug}"`);
+      }
+    }
   }
 
   // slug 중복 체크 (새로 생성 시)
-  if (!existingSlug) {
+  const originKey = gridKey(village.gridX, village.gridY);
+  const originSlug = await redis.get(`${VILLAGE_GRID_PREFIX}${originKey}`);
+  if (!originSlug) {
     const existingVillage = await redis.hGetAll(`${VILLAGE_KEY_PREFIX}${village.slug}`);
     if (existingVillage && Object.keys(existingVillage).length > 0) {
       throw new Error(`Village slug "${village.slug}" already exists`);
@@ -43,17 +54,23 @@ export async function saveVillage(village: VillageMetadata): Promise<void> {
     name: village.name,
     gridX: village.gridX.toString(),
     gridY: village.gridY.toString(),
+    gridWidth: gw.toString(),
+    gridHeight: gh.toString(),
     tmjUrl: village.tmjUrl,
     tilesetBaseUrl: village.tilesetBaseUrl,
     createdAt: village.createdAt.toString(),
     updatedAt: village.updatedAt.toString(),
   });
 
-  // 격자 위치 → slug 역방향 인덱스
-  await redis.set(
-    `${VILLAGE_GRID_PREFIX}${gridKey(village.gridX, village.gridY)}`,
-    village.slug,
-  );
+  // 점유하는 모든 격자 셀에 역방향 인덱스 등록
+  for (let dy = 0; dy < gh; dy++) {
+    for (let dx = 0; dx < gw; dx++) {
+      await redis.set(
+        `${VILLAGE_GRID_PREFIX}${gridKey(village.gridX + dx, village.gridY + dy)}`,
+        village.slug,
+      );
+    }
+  }
 
   // 전체 목록에 추가
   await redis.sAdd(VILLAGES_ALL_KEY, village.slug);
@@ -104,12 +121,12 @@ export async function getNearbyVillages(
   // 한번에 모든 격자 키 조회
   const slugs = await redis.mGet(gridKeys);
 
-  // null이 아닌 slug들의 메타데이터를 병렬로 조회
-  const validSlugs = slugs.filter((s): s is string => s !== null);
-  if (validSlugs.length === 0) return [];
+  // null이 아닌 slug들의 메타데이터를 병렬로 조회 (NxM 마을 중복 제거)
+  const uniqueSlugs = [...new Set(slugs.filter((s): s is string => s !== null))];
+  if (uniqueSlugs.length === 0) return [];
 
   const villages: VillageMetadata[] = [];
-  for (const slug of validSlugs) {
+  for (const slug of uniqueSlugs) {
     const data = await redis.hGetAll(`${VILLAGE_KEY_PREFIX}${slug}`);
     if (data && Object.keys(data).length > 0) {
       villages.push(parseVillageData(data));
@@ -171,7 +188,16 @@ export async function deleteVillage(slug: string): Promise<boolean> {
   if (!existing) return false;
 
   await redis.del(`${VILLAGE_KEY_PREFIX}${slug}`);
-  await redis.del(`${VILLAGE_GRID_PREFIX}${gridKey(existing.gridX, existing.gridY)}`);
+
+  // 점유하는 모든 격자 셀의 역방향 인덱스 제거
+  const gw = existing.gridWidth || 1;
+  const gh = existing.gridHeight || 1;
+  for (let dy = 0; dy < gh; dy++) {
+    for (let dx = 0; dx < gw; dx++) {
+      await redis.del(`${VILLAGE_GRID_PREFIX}${gridKey(existing.gridX + dx, existing.gridY + dy)}`);
+    }
+  }
+
   await redis.sRem(VILLAGES_ALL_KEY, slug);
 
   return true;
@@ -183,6 +209,8 @@ function parseVillageData(data: Record<string, string>): VillageMetadata {
     name: data.name,
     gridX: parseInt(data.gridX) || 0,
     gridY: parseInt(data.gridY) || 0,
+    gridWidth: parseInt(data.gridWidth) || 1,
+    gridHeight: parseInt(data.gridHeight) || 1,
     tmjUrl: data.tmjUrl || '',
     tilesetBaseUrl: data.tilesetBaseUrl || '',
     createdAt: parseInt(data.createdAt) || 0,

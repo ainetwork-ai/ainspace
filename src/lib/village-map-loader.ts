@@ -45,7 +45,7 @@ export async function loadVillageMap(
 ): Promise<LoadedVillageMap> {
   // 1. 맵 JSON 로드
   // NOTE(yoojin): tmp: noCache=true 쿼리 파라미터를 추가하여 캐시를 무시하고 새로 로드한다. (TODO: 나중에 제거)
-  const mapRes = await fetch(tmjUrl + '?noCache=true');
+  const mapRes = await fetch(tmjUrl);
   const mapData = await mapRes.json();
 
   // 2. 타일셋 로드 (병렬)
@@ -60,11 +60,11 @@ export async function loadVillageMap(
       try {
         if ('source' in ts) {
           // TSX 파일 참조 형태
-          const tsxPath = `${tilesetBaseUrl}/${ts.source}`;
+          const tsxPath = `${tilesetBaseUrl}/${ts.source}?noCache=false`;
           const tsxText = await (await fetch(tsxPath)).text();
           const tileset = parser.parse(tsxText).tileset;
 
-          const imagePath = `${tilesetBaseUrl}/${tileset.image.source.replace('./', '')}`;
+          const imagePath = `${tilesetBaseUrl}/${tileset.image.source.replace('./', '') + '?noCache=false'}`;
           const image = new Image();
           await new Promise<void>((resolve) => {
             image.onload = () => resolve();
@@ -90,7 +90,7 @@ export async function loadVillageMap(
         }
 
         // 인라인 타일셋 형태
-        const imagePath = `${tilesetBaseUrl}/${ts.image.replace('./', '')}`;
+        const imagePath = `${tilesetBaseUrl}/${ts.image.replace('./', '') + '?noCache=false'}`;
         const image = new Image();
         await new Promise<void>((resolve) => {
           image.onload = () => resolve();

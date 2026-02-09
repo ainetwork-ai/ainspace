@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { TiledMap, Tileset } from './useMapStore';
 import { VillageMetadata } from '@/lib/village-redis';
-import { worldToGrid, worldToLocal, gridKey } from '@/lib/village-utils';
+import { worldToGrid, worldToLocalInVillage, gridKey } from '@/lib/village-utils';
 
 export interface LoadedVillage {
   metadata: VillageMetadata;
@@ -88,7 +88,14 @@ export const useVillageStore = create<VillageState>((set, get) => ({
     set((state) => {
       const newIndex = new Map(state.gridIndex);
       for (const v of villages) {
-        newIndex.set(gridKey(v.gridX, v.gridY), v.slug);
+        // NxM 마을: 점유하는 모든 격자 셀에 slug 등록
+        const gw = v.gridWidth || 1;
+        const gh = v.gridHeight || 1;
+        for (let dy = 0; dy < gh; dy++) {
+          for (let dx = 0; dx < gw; dx++) {
+            newIndex.set(gridKey(v.gridX + dx, v.gridY + dy), v.slug);
+          }
+        }
       }
       return { gridIndex: newIndex };
     }),
@@ -116,7 +123,11 @@ export const useVillageStore = create<VillageState>((set, get) => ({
     // 아직 로드 안 된 마을은 이동 불가
     if (!village) return true;
 
-    const { localX, localY } = worldToLocal(worldX, worldY);
+    // village origin 기준으로 로컬 좌표 계산 (NxM 마을 지원)
+    const { localX, localY } = worldToLocalInVillage(
+      worldX, worldY,
+      village.metadata.gridX, village.metadata.gridY,
+    );
     return village.collisionTiles.has(`${localX},${localY}`);
   },
 

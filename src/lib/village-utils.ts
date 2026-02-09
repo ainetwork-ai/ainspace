@@ -17,8 +17,9 @@ export function worldToGrid(worldX: number, worldY: number): { gridX: number; gr
 
 /**
  * 마을 격자 좌표에서 해당 마을의 글로벌 월드 좌표 범위를 반환한다.
+ * NxM 마을의 경우 gridWidth, gridHeight를 전달한다. (기본 1x1)
  */
-export function gridToWorldRange(gridX: number, gridY: number): {
+export function gridToWorldRange(gridX: number, gridY: number, gridWidth = 1, gridHeight = 1): {
   startX: number;
   startY: number;
   endX: number;
@@ -27,19 +28,23 @@ export function gridToWorldRange(gridX: number, gridY: number): {
   centerY: number;
 } {
   const half = VILLAGE_SIZE / 2;
+  const startX = gridX * VILLAGE_SIZE - half;
+  const startY = gridY * VILLAGE_SIZE - half;
+  const endX = startX + gridWidth * VILLAGE_SIZE - 1;
+  const endY = startY + gridHeight * VILLAGE_SIZE - 1;
   return {
-    startX: gridX * VILLAGE_SIZE - half,
-    startY: gridY * VILLAGE_SIZE - half,
-    endX: gridX * VILLAGE_SIZE + half - 1,
-    endY: gridY * VILLAGE_SIZE + half - 1,
-    centerX: gridX * VILLAGE_SIZE,
-    centerY: gridY * VILLAGE_SIZE,
+    startX,
+    startY,
+    endX,
+    endY,
+    centerX: Math.floor((startX + endX) / 2),
+    centerY: Math.floor((startY + endY) / 2),
   };
 }
 
 /**
  * 글로벌 월드 좌표를 해당 마을 내 로컬 좌표(TMJ 인덱스용)로 변환한다.
- * localX, localY는 0 ~ VILLAGE_SIZE-1 범위.
+ * 1x1 마을 전용. NxM 마을은 worldToLocalInVillage를 사용한다.
  */
 export function worldToLocal(worldX: number, worldY: number): {
   localX: number;
@@ -54,6 +59,26 @@ export function worldToLocal(worldX: number, worldY: number): {
     localY: worldY - (gridY * VILLAGE_SIZE - half),
     gridX,
     gridY,
+  };
+}
+
+/**
+ * 글로벌 월드 좌표를 마을 origin 기준 로컬 좌표로 변환한다.
+ * NxM 마을에서는 origin grid(좌상단)를 기준으로 계산해야 한다.
+ *
+ * 예: 2x2 마을 origin(0,0) → world(-10,-10)~(29,29), TMJ 40x40
+ *     world(15, 5) → local(25, 15)
+ */
+export function worldToLocalInVillage(
+  worldX: number,
+  worldY: number,
+  villageGridX: number,
+  villageGridY: number,
+): { localX: number; localY: number } {
+  const half = VILLAGE_SIZE / 2;
+  return {
+    localX: worldX - (villageGridX * VILLAGE_SIZE - half),
+    localY: worldY - (villageGridY * VILLAGE_SIZE - half),
   };
 }
 

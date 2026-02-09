@@ -107,6 +107,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const gridWidthStr = formData.get('gridWidth') as string | null;
+    const gridHeightStr = formData.get('gridHeight') as string | null;
+    const gridWidth = gridWidthStr ? parseInt(gridWidthStr) : 1;
+    const gridHeight = gridHeightStr ? parseInt(gridHeightStr) : 1;
+    if (gridWidth < 1 || gridHeight < 1) {
+      return NextResponse.json(
+        { success: false, error: 'gridWidth and gridHeight must be >= 1' },
+        { status: 400 },
+      );
+    }
+
     let tmjUrl = '';
     let tilesetBaseUrl = '';
 
@@ -139,6 +150,8 @@ export async function POST(request: NextRequest) {
       name,
       gridX,
       gridY,
+      gridWidth,
+      gridHeight,
       tmjUrl,
       tilesetBaseUrl,
       createdAt: now,
