@@ -191,22 +191,41 @@ export function useVillageLoader(initialVillageSlug: string | null) {
 
   // 플레이어 이동 시 마을 전환 감지
   useEffect(() => {
-    if (!currentVillage) return;
+    if (!currentVillage) {
+      console.log('[useVillageLoader] No currentVillage, skipping transition check');
+      return;
+    }
 
     const { gridX, gridY } = worldToGrid(worldPosition.x, worldPosition.y);
     const currentGrid = gridKey(currentVillage.gridX, currentVillage.gridY);
     const playerGrid = gridKey(gridX, gridY);
 
+    console.log(`[useVillageLoader] currentGrid:${currentGrid}, playerGrid:${playerGrid}, worldPos:(${worldPosition.x},${worldPosition.y})`);
+
     if (currentGrid !== playerGrid) {
       // 마을 경계를 넘었음
+      console.log(`[useVillageLoader] 🚀 Grid boundary crossed!`);
       const newSlug = getVillageSlugAtGrid(gridX, gridY);
-      if (!newSlug) return; // 마을이 없는 곳으로는 이동 불가 (이미 useGameState에서 막힘)
+      console.log(`[useVillageLoader] newSlug at grid(${gridX},${gridY}): ${newSlug}`);
+
+      if (!newSlug) {
+        // 마을이 없는 곳 (default map 영역)으로 이동
+        console.log(`[useVillageLoader] ⚠️ No village at new grid -> moving to default map area`);
+        // 여전히 nearby village 로딩은 실행 (주변에 마을이 있을 수 있음)
+        console.log(`[useVillageLoader] Loading nearby villages for grid(${gridX},${gridY})`);
+        loadNearbyVillages(gridX, gridY);
+        return;
+      }
 
       // nearbyVillages에서 메타데이터 조회
       const nearbyVillages = useVillageStore.getState().nearbyVillages;
       const newMeta = nearbyVillages.get(newSlug);
-      if (!newMeta) return;
+      if (!newMeta) {
+        console.log(`[useVillageLoader] ⚠️ No metadata for ${newSlug} in nearbyVillages`);
+        return;
+      }
 
+      console.log(`[useVillageLoader] ✅ Switching to village ${newSlug}`);
       setCurrentVillage(newSlug, newMeta);
 
       // URL 업데이트 (페이지 리로드 없이)
@@ -215,6 +234,7 @@ export function useVillageLoader(initialVillageSlug: string | null) {
       window.history.replaceState({}, '', url.toString());
 
       // 새 인접 마을 로드
+      console.log(`[useVillageLoader] Loading nearby villages for grid(${gridX},${gridY})`);
       loadNearbyVillages(gridX, gridY);
     }
   }, [worldPosition, currentVillage, getVillageSlugAtGrid, setCurrentVillage, loadNearbyVillages]);

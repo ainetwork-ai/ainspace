@@ -88,24 +88,39 @@ export function useGameState() {
      */
     const isPositionBlocked = useCallback(
         (x: number, y: number): boolean => {
+            console.log(`[isPositionBlocked] Checking position (${x}, ${y})`);
+
             // 마을 TMJ 또는 default map 충돌 체크
             // (마을이 없으면 isCollisionAt이 default map 기준으로 체크 = 충돌 없음)
-            if (isCollisionAt(x, y)) return true;
+            if (isCollisionAt(x, y)) {
+                console.log(`[isPositionBlocked] BLOCKED by village collision`);
+                return true;
+            }
 
             // 빌드 layer1 충돌
-            if (isLayer1Blocked(x, y)) return true;
+            if (isLayer1Blocked(x, y)) {
+                console.log(`[isPositionBlocked] BLOCKED by build layer1`);
+                return true;
+            }
 
             // 에이전트 충돌
             const occupiedByWorldAgent = agents.some(
                 (agent) => agent.x === x && agent.y === y
             );
-            if (occupiedByWorldAgent) return true;
+            if (occupiedByWorldAgent) {
+                console.log(`[isPositionBlocked] BLOCKED by world agent`);
+                return true;
+            }
 
             const occupiedByA2AAgent = Object.values(a2aAgents).some(
                 (agent) => agent.x === x && agent.y === y
             );
-            if (occupiedByA2AAgent) return true;
+            if (occupiedByA2AAgent) {
+                console.log(`[isPositionBlocked] BLOCKED by A2A agent`);
+                return true;
+            }
 
+            console.log(`[isPositionBlocked] Position (${x}, ${y}) is NOT BLOCKED`);
             return false;
         },
         [isCollisionAt, isLayer1Blocked, agents, a2aAgents]
@@ -141,10 +156,15 @@ export function useGameState() {
                     break;
             }
 
+            console.log(`[movePlayer] Trying to move from (${worldPosition.x}, ${worldPosition.y}) to (${newWorldPosition.x}, ${newWorldPosition.y})`);
+
             // Village-based collision check
             if (isPositionBlocked(newWorldPosition.x, newWorldPosition.y)) {
+                console.log(`[movePlayer] ❌ Movement BLOCKED`);
                 return;
             }
+
+            console.log(`[movePlayer] ✅ Movement SUCCESS`);
 
             // Save new position to Redis
             savePositionToRedis(newWorldPosition);

@@ -70,7 +70,6 @@ export default function MapTab({
     } = useGameState();
 
     const villageIsCollisionAt = useVillageStore((s) => s.isCollisionAt);
-    const villageHasVillageAt = useVillageStore((s) => s.hasVillageAt);
 
     const [isJoystickVisible, setIsJoystickVisible] = useState(true);
 
@@ -86,10 +85,6 @@ export default function MapTab({
             return distance <= broadcastRadius;
         });
     }, [agents, worldPosition]);
-    
-    const isOutOfBounds = useCallback((x: number, y: number) => {
-      return !villageHasVillageAt(x, y);
-    }, [villageHasVillageAt]);
 
     // Handle agent placement click (two-tap: first tap selects, second tap confirms)
     const handleAgentPlacementClick = useCallback(async (worldX: number, worldY: number) => {
@@ -170,9 +165,10 @@ export default function MapTab({
                 return;
             }
 
-            if (isOutOfBounds(newX, newY)) {
-                return;
-            }
+            // ⚠️ isOutOfBounds 체크 제거: default map으로 이동 가능하게 함
+            // if (isOutOfBounds(newX, newY)) {
+            //     return;
+            // }
 
             // Check if A2A agent is at this position
             const isOccupiedByA2A = Object.values(agents).some((agent) => agent.x === newX && agent.y === newY);
@@ -183,7 +179,7 @@ export default function MapTab({
             // Move player (this will also check worldAgents in useGameState)
             movePlayer(direction);
         },
-        [isAutonomous, worldPosition, agents, movePlayer, isOutOfBounds, villageIsCollisionAt]
+        [isAutonomous, worldPosition, agents, movePlayer, villageIsCollisionAt]
     );
 
     const handleWalletDisconnect = useCallback(() => {
