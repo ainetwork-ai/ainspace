@@ -88,39 +88,24 @@ export function useGameState() {
      */
     const isPositionBlocked = useCallback(
         (x: number, y: number): boolean => {
-            console.log(`[isPositionBlocked] Checking position (${x}, ${y})`);
-
             // 마을 TMJ 또는 default map 충돌 체크
             // (마을이 없으면 isCollisionAt이 default map 기준으로 체크 = 충돌 없음)
-            if (isCollisionAt(x, y)) {
-                console.log(`[isPositionBlocked] BLOCKED by village collision`);
-                return true;
-            }
+            if (isCollisionAt(x, y)) return true;
 
             // 빌드 layer1 충돌
-            if (isLayer1Blocked(x, y)) {
-                console.log(`[isPositionBlocked] BLOCKED by build layer1`);
-                return true;
-            }
+            if (isLayer1Blocked(x, y)) return true;
 
             // 에이전트 충돌
             const occupiedByWorldAgent = agents.some(
                 (agent) => agent.x === x && agent.y === y
             );
-            if (occupiedByWorldAgent) {
-                console.log(`[isPositionBlocked] BLOCKED by world agent`);
-                return true;
-            }
+            if (occupiedByWorldAgent) return true;
 
             const occupiedByA2AAgent = Object.values(a2aAgents).some(
                 (agent) => agent.x === x && agent.y === y
             );
-            if (occupiedByA2AAgent) {
-                console.log(`[isPositionBlocked] BLOCKED by A2A agent`);
-                return true;
-            }
+            if (occupiedByA2AAgent) return true;
 
-            console.log(`[isPositionBlocked] Position (${x}, ${y}) is NOT BLOCKED`);
             return false;
         },
         [isCollisionAt, isLayer1Blocked, agents, a2aAgents]
@@ -156,15 +141,10 @@ export function useGameState() {
                     break;
             }
 
-            console.log(`[movePlayer] Trying to move from (${worldPosition.x}, ${worldPosition.y}) to (${newWorldPosition.x}, ${newWorldPosition.y})`);
-
             // Village-based collision check
             if (isPositionBlocked(newWorldPosition.x, newWorldPosition.y)) {
-                console.log(`[movePlayer] ❌ Movement BLOCKED`);
                 return;
             }
-
-            console.log(`[movePlayer] ✅ Movement SUCCESS`);
 
             // Save new position to Redis
             savePositionToRedis(newWorldPosition);
@@ -178,7 +158,7 @@ export function useGameState() {
             // Track recent movements
             setRecentMovements([direction, ...recentMovements.slice(0, 4)]);
         },
-        [isPositionBlocked, savePositionToRedis, lastMoveTime]
+        [worldPosition, recentMovements, isPositionBlocked, savePositionToRedis, lastMoveTime, setPlayerDirection, setIsPlayerMoving, setLastMoveTime, setRecentMovements, setWorldPosition]
     );
 
     const toggleAutonomous = useCallback(() => {
@@ -320,13 +300,19 @@ export function useGameState() {
     ]);
 
     // Initialize to default position on mount/refresh
-    useEffect(() => {
-        // Always start at initial position on refresh
-        setWorldPosition(INITIAL_PLAYER_POSITION);
-        setIsLoading(false);
+    // NOTE: Initial position is now set by useVillageLoader based on the village slug
+    // This useEffect is commented out to allow village-based starting position
+    // useEffect(() => {
+    //     // Always start at initial position on refresh
+    //     setWorldPosition(INITIAL_PLAYER_POSITION);
+    //     setIsLoading(false);
+    //
+    //     console.log('Player position initialized to:', INITIAL_PLAYER_POSITION);
+    // }, []); // Empty dependency array - only run once on mount
 
-        console.log('Player position initialized to:', INITIAL_PLAYER_POSITION);
-    }, []); // Empty dependency array - only run once on mount
+    useEffect(() => {
+        setIsLoading(false);
+    }, [setIsLoading]);
 
     // Autonomous movement interval
     useEffect(() => {

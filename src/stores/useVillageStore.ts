@@ -125,37 +125,27 @@ export const useVillageStore = create<VillageState>((set, get) => ({
     const { gridX, gridY } = worldToGrid(worldX, worldY);
     const slug = state.gridIndex.get(gridKey(gridX, gridY));
 
-    console.log(`[isCollisionAt] world(${worldX},${worldY}) -> grid(${gridX},${gridY}) -> slug:${slug}`);
-
     // 마을이 있는 경우
     if (slug) {
       const village = state.loadedVillages.get(slug);
       // 아직 로드 안 된 마을은 이동 불가
-      if (!village) {
-        console.log(`[isCollisionAt] Village ${slug} not loaded yet -> BLOCKED`);
-        return true;
-      }
+      if (!village) return true;
 
       // village origin 기준으로 로컬 좌표 계산 (NxM 마을 지원)
       const { localX, localY } = worldToLocalInVillage(
         worldX, worldY,
         village.metadata.gridX, village.metadata.gridY,
       );
-      const hasCollision = village.collisionTiles.has(`${localX},${localY}`);
-      console.log(`[isCollisionAt] Village ${slug} local(${localX},${localY}) -> collision:${hasCollision}`);
-      return hasCollision;
+      return village.collisionTiles.has(`${localX},${localY}`);
     }
 
     // 마을이 없는 곳: default village 사용 (충돌 없음)
-    console.log(`[isCollisionAt] No village at grid(${gridX},${gridY}) -> default map (NOT BLOCKED)`);
     return false;
   },
 
   hasVillageAt: (worldX, worldY) => {
     const state = get();
     const { gridX, gridY } = worldToGrid(worldX, worldY);
-    const hasVillage = state.gridIndex.has(gridKey(gridX, gridY));
-    console.log(`[hasVillageAt] world(${worldX},${worldY}) -> grid(${gridX},${gridY}) -> hasVillage:${hasVillage}`);
-    return hasVillage;
+    return state.gridIndex.has(gridKey(gridX, gridY));
   },
 }));

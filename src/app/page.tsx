@@ -25,6 +25,12 @@ export default function Home() {
     // Village system - URL param + loader
     const searchParams = useSearchParams();
     const villageSlug = searchParams.get('village') ?? DEFAULT_VILLAGE_SLUG;
+
+    // Debug: villageSlug 변경 추적
+    useEffect(() => {
+        console.log('[PAGE] villageSlug changed to:', villageSlug);
+    }, [villageSlug]);
+
     const { isCurrentVillageLoaded } = useVillageLoader(villageSlug);
     const villageIsCollisionAt = useVillageStore((s) => s.isCollisionAt);
 

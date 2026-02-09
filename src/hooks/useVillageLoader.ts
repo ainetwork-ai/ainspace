@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useVillageStore, LoadedVillage } from '@/stores/useVillageStore';
 import { VillageMetadata } from '@/lib/village-redis';
 import { loadVillageMap, loadDefaultVillageMap } from '@/lib/village-map-loader';
-import { worldToGrid, gridKey, getNearbyCells } from '@/lib/village-utils';
+import { worldToGrid, gridToWorldRange } from '@/lib/village-utils';
 import { useGameStateStore } from '@/stores';
 
 /**
@@ -13,6 +13,7 @@ import { useGameStateStore } from '@/stores';
  */
 export function useVillageLoader(initialVillageSlug: string | null) {
   const { worldPosition } = useGameStateStore();
+  const setWorldPosition = useGameStateStore((s) => s.setWorldPosition);
   const {
     currentVillageSlug,
     currentVillage,
@@ -32,6 +33,7 @@ export function useVillageLoader(initialVillageSlug: string | null) {
 
   const loadingRef = useRef<Set<string>>(new Set());
   const initializedRef = useRef(false);
+  const initializedSlugRef = useRef<string | null>(null);
 
   // 마을 TMJ/타일셋을 로드하는 함수
   const loadVillage = useCallback(async (metadata: VillageMetadata): Promise<LoadedVillage | null> => {
@@ -150,10 +152,20 @@ export function useVillageLoader(initialVillageSlug: string | null) {
 
   // 초기 마을 로드
   useEffect(() => {
-    if (!initialVillageSlug || initializedRef.current) return;
+    console.log('[INIT] useEffect triggered', {
+      initialVillageSlug,
+      initializedSlug: initializedSlugRef.current,
+      willRun: initialVillageSlug !== null && initialVillageSlug !== initializedSlugRef.current
+    });
+
+    // 이미 이 slug로 초기화했으면 스킵
+    if (!initialVillageSlug || initialVillageSlug === initializedSlugRef.current) return;
+
     initializedRef.current = true;
+    initializedSlugRef.current = initialVillageSlug;
 
     async function init() {
+      console.log('[INIT] Starting initialization for:', initialVillageSlug);
       setLoading(true);
 
       try {
@@ -173,6 +185,18 @@ export function useVillageLoader(initialVillageSlug: string | null) {
         // 현재 마을의 gridIndex를 먼저 등록 (이동 가능하도록)
         updateGridIndex([metadata]);
 
+        // 마을 중심 좌표 계산 및 플레이어 위치 설정
+        const range = gridToWorldRange(
+          metadata.gridX,
+          metadata.gridY,
+          metadata.gridWidth || 1,
+          metadata.gridHeight || 1
+        );
+        const centerX = Math.floor((range.startX + range.endX) / 2);
+        const centerY = Math.floor((range.startY + range.endY) / 2);
+        console.log('[INIT] Setting player to center:', { x: centerX, y: centerY });
+        setWorldPosition({ x: centerX, y: centerY });
+
         // 현재 마을 우선 로드
         await loadVillage(metadata);
         setCurrentVillageLoaded(true);
@@ -187,57 +211,53 @@ export function useVillageLoader(initialVillageSlug: string | null) {
     }
 
     init();
-  }, [initialVillageSlug, setLoading, setCurrentVillage, setCurrentVillageLoaded, loadVillage, loadNearbyVillages, updateGridIndex]);
+
+    // Cleanup 제거: initializedSlugRef로 중복 초기화를 방지하므로 cleanup 불필요
+  }, [initialVillageSlug, setLoading, setCurrentVillage, setCurrentVillageLoaded, loadVillage, loadNearbyVillages, updateGridIndex, setWorldPosition]);
 
   // 플레이어 이동 시 마을 전환 감지
   useEffect(() => {
-    if (!currentVillage) {
-      console.log('[useVillageLoader] No currentVillage, skipping transition check');
-      return;
-    }
+    if (!currentVillage) return;
 
     const { gridX, gridY } = worldToGrid(worldPosition.x, worldPosition.y);
-    const currentGrid = gridKey(currentVillage.gridX, currentVillage.gridY);
-    const playerGrid = gridKey(gridX, gridY);
+    const slugAtPlayerGrid = getVillageSlugAtGrid(gridX, gridY);
 
-    console.log(`[useVillageLoader] currentGrid:${currentGrid}, playerGrid:${playerGrid}, worldPos:(${worldPosition.x},${worldPosition.y})`);
+    console.log('[TRANSITION] Check', {
+      worldPos: worldPosition,
+      gridX,
+      gridY,
+      slugAtPlayerGrid,
+      currentVillageSlug,
+      willTransition: slugAtPlayerGrid !== currentVillageSlug
+    });
 
-    if (currentGrid !== playerGrid) {
-      // 마을 경계를 넘었음
-      console.log(`[useVillageLoader] 🚀 Grid boundary crossed!`);
-      const newSlug = getVillageSlugAtGrid(gridX, gridY);
-      console.log(`[useVillageLoader] newSlug at grid(${gridX},${gridY}): ${newSlug}`);
-
-      if (!newSlug) {
+    // 플레이어가 있는 grid의 slug가 현재 마을 slug와 다르면 마을 전환
+    if (slugAtPlayerGrid !== currentVillageSlug) {
+      if (!slugAtPlayerGrid) {
         // 마을이 없는 곳 (default map 영역)으로 이동
-        console.log(`[useVillageLoader] ⚠️ No village at new grid -> moving to default map area`);
-        // 여전히 nearby village 로딩은 실행 (주변에 마을이 있을 수 있음)
-        console.log(`[useVillageLoader] Loading nearby villages for grid(${gridX},${gridY})`);
         loadNearbyVillages(gridX, gridY);
         return;
       }
 
       // nearbyVillages에서 메타데이터 조회
       const nearbyVillages = useVillageStore.getState().nearbyVillages;
-      const newMeta = nearbyVillages.get(newSlug);
-      if (!newMeta) {
-        console.log(`[useVillageLoader] ⚠️ No metadata for ${newSlug} in nearbyVillages`);
-        return;
-      }
+      const newMeta = nearbyVillages.get(slugAtPlayerGrid);
+      if (!newMeta) return;
 
-      console.log(`[useVillageLoader] ✅ Switching to village ${newSlug}`);
-      setCurrentVillage(newSlug, newMeta);
+      console.log('[TRANSITION] Switching to village:', slugAtPlayerGrid);
+      setCurrentVillage(slugAtPlayerGrid, newMeta);
 
       // URL 업데이트 (페이지 리로드 없이)
-      const url = new URL(window.location.href);
-      url.searchParams.set('village', newSlug);
-      window.history.replaceState({}, '', url.toString());
+      // NOTE: URL 업데이트를 하면 초기화 useEffect가 다시 실행되어 플레이어가 중앙으로 이동됨
+      // 따라서 URL 업데이트는 초기 로드 시에만 수행하고, 마을 전환 시에는 하지 않음
+      // const url = new URL(window.location.href);
+      // url.searchParams.set('village', slugAtPlayerGrid);
+      // window.history.replaceState({}, '', url.toString());
 
       // 새 인접 마을 로드
-      console.log(`[useVillageLoader] Loading nearby villages for grid(${gridX},${gridY})`);
       loadNearbyVillages(gridX, gridY);
     }
-  }, [worldPosition, currentVillage, getVillageSlugAtGrid, setCurrentVillage, loadNearbyVillages]);
+  }, [worldPosition, currentVillage, currentVillageSlug, getVillageSlugAtGrid, setCurrentVillage, loadNearbyVillages]);
 
   return {
     isLoading: useVillageStore((s) => s.isLoading),
