@@ -6,22 +6,12 @@ export const TILE_SIZE = 40;
 // Village dimensions (in tiles) - each village is a square grid
 export const VILLAGE_SIZE = 20;
 
-// Map dimensions
-export const MAP_SIZE_PIXELS = 4200;
-export const MAP_TILES = MAP_SIZE_PIXELS / TILE_SIZE; // 105 tiles
-
 // Viewport dimensions (in tiles)
 export const MAP_WIDTH = 16;
 export const MAP_HEIGHT = 12;
 export const VIEW_RADIUS = 6;
 
 export const BROADCAST_RADIUS = 5;
-
-// Map boundaries
-export const MIN_WORLD_X = Math.floor(MAP_WIDTH / 2);
-export const MAX_WORLD_X = MAP_TILES - Math.ceil(MAP_WIDTH / 2);
-export const MIN_WORLD_Y = Math.floor(MAP_HEIGHT / 2);
-export const MAX_WORLD_Y = MAP_TILES - Math.ceil(MAP_HEIGHT / 2);
 
 // Player initial position
 export const INITIAL_PLAYER_POSITION = { x: 0, y: 0 };
@@ -56,6 +46,9 @@ export const SPAWN_RADIUS = process.env.NEXT_PUBLIC_SPAWN_RADIUS
     ? parseInt(process.env.NEXT_PUBLIC_SPAWN_RADIUS, 10)
     : 3;
 
+// @deprecated Legacy hardcoded village zones. Use Redis-based village system instead.
+// Villages are now dynamically managed with slug identifiers (e.g., 'happy-village').
+// Use /api/villages API and useVillageStore for village metadata and boundaries.
 export enum MAP_NAMES {
   HAPPY_VILLAGE = 'Happy Village',
   HAHOE_VILLAGE = 'Hahoe Village',
@@ -64,6 +57,7 @@ export enum MAP_NAMES {
   UNBLOCK_VILLAGE = 'Unblock Village',
 }
 
+// @deprecated Use useVillageStore.getLoadedVillageAtGrid() or gridToWorldRange() instead.
 export const MAP_ZONES: {
   [key in MAP_NAMES]: {
     startX: number;

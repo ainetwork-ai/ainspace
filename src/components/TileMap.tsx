@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { SpriteAnimator } from 'react-sprite-animator';
-import { TILE_SIZE, MAP_TILES, DIRECTION } from '@/constants/game';
+import { TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, DIRECTION } from '@/constants/game';
 import { getMapNameFromCoordinates } from '@/lib/map-utils';
 import { useBuildStore, useChatStore, useGameStateStore, useUserStore } from '@/stores';
 import * as Sentry from '@sentry/nextjs';
@@ -458,7 +458,8 @@ function TileMap({
                 const agentScreenX = agent.x - cameraTilePosition.x;
                 const agentScreenY = agent.y - cameraTilePosition.y;
 
-                if (agentScreenX < -1 || agentScreenX > MAP_TILES || agentScreenY < -1 || agentScreenY > MAP_TILES) {
+                // Skip rendering agents far outside the viewport
+                if (agentScreenX < -1 || agentScreenX > MAP_WIDTH + 1 || agentScreenY < -1 || agentScreenY > MAP_HEIGHT + 1) {
                     return null;
                 }
 

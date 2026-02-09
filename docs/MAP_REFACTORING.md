@@ -235,34 +235,58 @@ mapStartPosition/mapEndPosition → 제거
 src/app/page.tsx (MODIFY) - URL param 읽기, 마을 전환 로직
 src/hooks/useGameState.tsx (MODIFY) - 이동 유효성 검사 변경
 src/components/tabs/MapTab.tsx (MODIFY) - 현재 마을 표시 업데이트
-Phase 5: 상수 & 설정 정리
-5-1. src/constants/game.ts 변경
+Phase 5: 상수 & 설정 정리 (✅ COMPLETED)
+5-1. src/constants/game.ts 변경 (✅ DONE)
 
-// 추가
-export const VILLAGE_SIZE = 20;  // 마을 한 변 타일 수
+// 추가됨
+export const VILLAGE_SIZE = 20;  // 마을 격자 기준 타일 수 (실제 TMJ는 NxM * 20)
 
 // 제거/deprecated
-// MAP_SIZE_PIXELS, MAP_TILES → 더 이상 단일 맵 크기 불필요
-// MAP_ZONES (하드코딩) → Redis 동적 관리로 대체
-// MAP_NAMES enum → Redis에서 동적으로
-// MIN_WORLD_X/MAX_WORLD_X/MIN_WORLD_Y/MAX_WORLD_Y → 월드 경계 없음 (마을 존재 여부로 판단)
-// getMapNameFromCoordinates() → useVillageStore.getVillageAtGrid()로 대체
+// MAP_ZONES (하드코딩) → Redis 동적 관리로 대체 ✅
+// MAP_NAMES enum → village slug로 대체 ✅
+// MIN_WORLD_X/MAX_WORLD_X/MIN_WORLD_Y/MAX_WORLD_Y → 제거 (마을 존재 여부로 판단) ✅
+// getMapNameFromCoordinates() → useVillageStore.getVillageSlugAtGrid()로 대체 ✅
 
 // 유지
-// TILE_SIZE = 40
-// MAP_WIDTH = 16, MAP_HEIGHT = 12 (뷰포트)
-// VIEW_RADIUS, BROADCAST_RADIUS
-// MOVEMENT_MODE, SPAWN_RADIUS
-// INITIAL_PLAYER_POSITION → 기본 마을 중심으로 변경
-5-2. 에이전트 시스템 업데이트
-AgentWorldState.mapName 타입: MAP_NAMES | null → string | null (village slug)
-에이전트 이동 제약: MAP_ZONES[mapName] → useVillageStore에서 해당 마을 범위 조회
-에이전트 배치 시 마을 slug 할당
-수정 파일
-src/constants/game.ts (MODIFY)
-src/lib/map-utils.ts (DEPRECATED → village-utils.ts로 대체)
-src/lib/agent.ts (MODIFY) - mapName 타입 변경
-src/app/page.tsx (MODIFY) - 에이전트 이동 로직
+// TILE_SIZE = 40 ✅
+// MAP_WIDTH = 16, MAP_HEIGHT = 12 (뷰포트) ✅
+// VIEW_RADIUS, BROADCAST_RADIUS ✅
+// MOVEMENT_MODE, SPAWN_RADIUS ✅
+// INITIAL_PLAYER_POSITION → 마을 slug 기반 중심 좌표로 변경됨 ✅
+
+5-2. NxM 마을 지원 (✅ IMPLEMENTED)
+- gridWidth, gridHeight 필드 추가 (VillageMetadata)
+- 2x2, 3x3 등 다양한 크기 마을 지원
+- gridToWorldRange() 함수에서 NxM 계산
+- 충돌 검사 시 worldToLocalInVillage() 사용
+
+5-3. Default Village 시스템 (✅ IMPLEMENTED)
+- 마을이 없는 grid에는 default map 렌더링
+- loadDefaultVillageMap() 함수로 기본 맵 로드
+- useVillageStore.defaultVillage 상태 관리
+- 충돌 없음 (자유롭게 이동 가능)
+
+5-4. 좌표 변환 유틸리티 (✅ src/lib/village-utils.ts)
+- worldToGrid(worldX, worldY) - 글로벌 → 격자
+- gridToWorldRange(gridX, gridY, gridWidth, gridHeight) - 격자 → 월드 범위
+- worldToLocal(worldX, worldY) - 글로벌 → 로컬 (1x1 전용)
+- worldToLocalInVillage(worldX, worldY, villageGridX, villageGridY) - NxM 지원
+- localToWorld(gridX, gridY, localX, localY) - 로컬 → 글로벌
+- gridKey(gridX, gridY) - Redis 키 생성
+- getNearbyCells(gridX, gridY) - 인접 9칸 계산
+
+5-5. 마을 전환 시스템 (✅ IMPLEMENTED)
+- initializedSlugRef로 중복 초기화 방지
+- URL slug 변경 시에만 초기화 실행
+- 마을 경계 넘을 때 자동 전환 (중심 이동 없음)
+- nearbyVillages 동적 로드/언로드
+
+수정 완료된 파일
+✅ src/constants/game.ts - VILLAGE_SIZE 추가
+✅ src/lib/village-utils.ts (NEW) - 좌표 변환 유틸
+✅ src/stores/useVillageStore.ts - NxM 지원, default village
+✅ src/hooks/useVillageLoader.ts - 마을 전환 로직
+✅ src/hooks/useGameState.tsx - 충돌 검사 업데이트
 Phase 6: 커스텀 타일(빌드) 시스템 적응
 6-1. 커스텀 타일 Redis 키 변경
 

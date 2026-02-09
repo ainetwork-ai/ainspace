@@ -3,8 +3,9 @@
 import { useEffect, useCallback } from 'react';
 import { useMapData } from '@/providers/MapDataProvider';
 import { useAgentStore, useBuildStore, useChatStore } from '@/stores';
+import { useVillageStore } from '@/stores/useVillageStore';
 import { AgentState } from '@/lib/agent';
-import { DIRECTION, MAP_TILES, ENABLE_AGENT_MOVEMENT, MOVEMENT_MODE } from '@/constants/game';
+import { DIRECTION, ENABLE_AGENT_MOVEMENT, MOVEMENT_MODE } from '@/constants/game';
 
 interface UseAgentsProps {
     playerWorldPosition: { x: number; y: number };
@@ -28,9 +29,9 @@ interface CachedAgentData {
 
 export function useAgents({ playerWorldPosition }: UseAgentsProps) {
     const { generateTileAt } = useMapData();
-    // FIXME(yoojin): check collision for agent movement
     const { isBlocked: isBuildStoreBlocked } = useBuildStore();
     const { isAgentLoading } = useChatStore();
+    const villageIsCollisionAt = useVillageStore((s) => s.isCollisionAt);
 
     const { agents, setAgents, updateAgent: updateStoredAgent } = useAgentStore();
 
@@ -42,14 +43,12 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
 
     const isWalkable = useCallback(
         (x: number, y: number, currentAgents: AgentState[], checkingAgentId?: string): boolean => {
-            if (x < 0 || x >= MAP_TILES || y < 0 || y >= MAP_TILES) {
-                return false;
-            }
-
+            // Check player collision
             if (x === playerWorldPosition.x && y === playerWorldPosition.y) {
                 return false;
             }
 
+            // Check agent collision
             const isOccupiedByAgent = currentAgents.some(
                 (agent) => agent.id !== checkingAgentId && agent.x === x && agent.y === y
             );
@@ -57,12 +56,23 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
                 return false;
             }
 
+            // Check village TMJ collision (includes default map)
+            if (villageIsCollisionAt(x, y)) {
+                return false;
+            }
+
+            // Check build layer collision
+            if (isBuildStoreBlocked(x, y)) {
+                return false;
+            }
+
+            // Check legacy tile type (for backward compatibility)
             const tileType = generateTileAt(x, y);
             if (tileType === 3) return false;
-            if (isBuildStoreBlocked(x, y)) return false;
+
             return true;
         },
-        [generateTileAt, isBuildStoreBlocked, playerWorldPosition]
+        [generateTileAt, isBuildStoreBlocked, playerWorldPosition, villageIsCollisionAt]
     );
 
     const getRandomDirection = (): DIRECTION => {
