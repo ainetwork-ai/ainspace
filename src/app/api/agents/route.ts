@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getRedisClient, StoredAgent, addPlacedAgent, removePlacedAgent, getPlacedAgentCount, scanKeys } from '@/lib/redis';
 import { canImportAgent, canPlaceAgent, canPlaceAgentOnMap } from '@/lib/auth/permissions';
 import { MOVEMENT_MODE } from '@/constants/game';
+import { worldToGrid } from '@/lib/village-utils';
+import { getVillageByGrid } from '@/lib/village-redis';
 
 const AGENTS_KEY = 'agents:';
 
@@ -241,16 +243,39 @@ export async function PUT(request: NextRequest) {
           );
         }
 
-        // Check if user can place on the specified map
-        // FIXME(yoojin): get map name from db by position?
-        if (mapName) {
-          const mapCheck = await canPlaceAgentOnMap(creator, mapName);
-          if (!mapCheck.allowed) {
+        // Verify mapName by calculating from coordinates (security check)
+        if (state?.x !== undefined && state?.y !== undefined) {
+          const { gridX, gridY } = worldToGrid(state.x, state.y);
+          const village = await getVillageByGrid(gridX, gridY);
+          const actualMapName = village?.slug ?? null;
+          const displayName = village?.name ?? actualMapName ?? 'no village';
+
+          // Compare client-provided mapName with server-calculated mapName
+          if (actualMapName !== mapName) {
             return NextResponse.json(
-              { error: mapCheck.reason || `No permission to place agents on ${mapName}` },
-              { status: 403 }
+              {
+                error: `Map validation failed: position (${state.x}, ${state.y}) is in ${displayName}, but received mapName="${mapName}"`
+              },
+              { status: 400 }
             );
           }
+
+          // Check if user can place on the actual map
+          if (actualMapName) {
+            const mapCheck = await canPlaceAgentOnMap(creator, actualMapName);
+            if (!mapCheck.allowed) {
+              return NextResponse.json(
+                { error: mapCheck.reason || `No permission to place agents on ${displayName}` },
+                { status: 403 }
+              );
+            }
+          }
+        } else if (mapName) {
+          // If mapName is provided but coordinates are missing, reject
+          return NextResponse.json(
+            { error: 'Coordinates (x, y) are required when placing an agent' },
+            { status: 400 }
+          );
         }
       }
 

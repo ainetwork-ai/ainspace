@@ -24,9 +24,11 @@ interface UserStore {
   clearUser: () => void;
   verifyPermissions: (address: string) => Promise<{ success: boolean; permissions?: UserPermissions }>;
   checkPermission: (permissionKey: keyof UserPermissions['permissions']) => boolean;
+  isPermissionExpired: () => boolean;
 }
 
-const VERIFY_COOLDOWN = 1000;
+const VERIFY_COOLDOWN = 1000; // 1 second - prevents rapid API calls
+const PERMISSION_EXPIRY_TIME = 6 * 60 * 60 * 1000; // 6 hours - permission cache validity
 
 export const useUserStore = create<UserStore>((set, get) => ({
   address: null,
@@ -145,5 +147,13 @@ export const useUserStore = create<UserStore>((set, get) => ({
     if (Array.isArray(value)) return value.length > 0;
 
     return false;
+  },
+
+  // Check if permission cache has expired
+  isPermissionExpired: () => {
+    const state = get();
+    if (!state.lastVerifiedAt) return true;
+    const now = Date.now();
+    return now - state.lastVerifiedAt > PERMISSION_EXPIRY_TIME;
   },
 }));

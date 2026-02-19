@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "seed:villages": "tsx scripts/seed-villages.ts",
+    "migrate:auth": "tsx scripts/migrate-auth-map-names.ts"
   },
   "dependencies": {
     "@a2a-js/sdk": "^0.3.4",
@@ -47,6 +49,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv": "^16.4.7",
     "eslint": "^9",
     "eslint-config-next": "15.5.3",
     "prettier": "^3.6.2",

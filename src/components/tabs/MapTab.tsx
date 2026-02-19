@@ -8,7 +8,7 @@ import { MapPin } from 'lucide-react';
 
 import BaseTabContent from './BaseTabContent';
 import PlayerJoystick from '@/components/controls/PlayerJoystick';
-import { BROADCAST_RADIUS, DIRECTION, TILE_SIZE, MAP_NAMES, MOVEMENT_MODE } from '@/constants/game';
+import { BROADCAST_RADIUS, DIRECTION, TILE_SIZE, MOVEMENT_MODE } from '@/constants/game';
 import { useGameState } from '@/hooks/useGameState';
 import { TileLayers } from '@/stores/useBuildStore';
 import { shortAddress } from '@/lib/utils';
@@ -16,11 +16,11 @@ import { config } from '@/lib/wagmi-config';
 import ChatBoxOverlay from '@/components/chat/ChatBoxOverlay';
 import { ChatBoxRef } from '@/components/chat/ChatBox';
 import { useAgentStore, useThreadStore, useUIStore } from '@/stores';
-import { useMapStore } from '@/stores/useMapStore';
 import TileMap from '@/components/TileMap';
 import { Z_INDEX_OFFSETS } from '@/constants/common';
 import { StoredAgent } from '@/lib/redis';
-import { getMapNameFromCoordinates } from '@/lib/map-utils';
+import { useVillageStore } from '@/stores/useVillageStore';
+import { worldToGrid } from '@/lib/village-utils';
 import LoadingModal from '@/components/LoadingModal';
 import PlaceAgentModal from '@/components/PlaceAgentModal';
 
@@ -33,7 +33,7 @@ interface MapTabProps {
     HUDOff: boolean;
     onHUDOffChange: (hudOff: boolean) => void;
     isPositionValid: (x: number, y: number) => boolean;
-    onPlaceAgentAtPosition?: (agent: StoredAgent, x: number, y: number, mapName: MAP_NAMES, movementMode: MOVEMENT_MODE) => Promise<void>;
+    onPlaceAgentAtPosition?: (agent: StoredAgent, x: number, y: number, mapName: string, movementMode: MOVEMENT_MODE) => Promise<void>;
 }
 
 export default function MapTab({
@@ -69,7 +69,7 @@ export default function MapTab({
         isPlayerMoving,
     } = useGameState();
 
-    const { isCollisionTile, mapStartPosition, mapEndPosition } = useMapStore();
+    const villageIsCollisionAt = useVillageStore((s) => s.isCollisionAt);
 
     const [isJoystickVisible, setIsJoystickVisible] = useState(true);
 
@@ -85,10 +85,6 @@ export default function MapTab({
             return distance <= broadcastRadius;
         });
     }, [agents, worldPosition]);
-    
-    const isOutOfBounds = useCallback((x: number, y: number) => {
-      return x < mapStartPosition.x || x > mapEndPosition.x || y < mapStartPosition.y || y > mapEndPosition.y;
-    }, [mapStartPosition.x, mapStartPosition.y, mapEndPosition.x, mapEndPosition.y]);
 
     // Handle agent placement click (two-tap: first tap selects, second tap confirms)
     const handleAgentPlacementClick = useCallback(async (worldX: number, worldY: number) => {
@@ -102,9 +98,12 @@ export default function MapTab({
         console.log('Clicked coordinates:', worldX, worldY);
 
         // Check if clicked coordinates are within one of the allowed maps
-        const clickedMap = getMapNameFromCoordinates(worldX, worldY);
-        const isAllowedMap = allowedMaps.includes('*') || (clickedMap && allowedMaps.includes(clickedMap));
-
+        const { gridX, gridY } = worldToGrid(worldX, worldY);
+        const clickedVillageSlug = useVillageStore.getState().getVillageSlugAtGrid(gridX, gridY);
+        const isAllowedMap = allowedMaps.includes('*') || (clickedVillageSlug && allowedMaps.includes(clickedVillageSlug));
+        console.log('clickedVillageSlug', clickedVillageSlug);
+        console.log('allowedMaps', allowedMaps);
+        console.log('isAllowedMap', isAllowedMap);
         if (!isAllowedMap) {
             setPlacementError(`Please place agent within allowed area.`);
             setSelectedPosition(null);
@@ -123,7 +122,7 @@ export default function MapTab({
             // Second tap on same position - confirm placement
             setIsPlacing(true);
             try {
-                await onPlaceAgentAtPosition(agent, worldX, worldY, clickedMap as MAP_NAMES, movementMode);
+                await onPlaceAgentAtPosition(agent, worldX, worldY, clickedVillageSlug ?? '', movementMode);
                 // Success - exit placement mode
                 setSelectedAgentForPlacement(null);
                 setSelectedPosition(null);
@@ -164,13 +163,14 @@ export default function MapTab({
                     break;
             }
 
-            if (isCollisionTile(newX, newY)) {
+            if (villageIsCollisionAt(newX, newY)) {
                 return;
             }
 
-            if (isOutOfBounds(newX, newY)) {
-                return;
-            }
+            // ⚠️ isOutOfBounds 체크 제거: default map으로 이동 가능하게 함
+            // if (isOutOfBounds(newX, newY)) {
+            //     return;
+            // }
 
             // Check if A2A agent is at this position
             const isOccupiedByA2A = Object.values(agents).some((agent) => agent.x === newX && agent.y === newY);
@@ -181,7 +181,7 @@ export default function MapTab({
             // Move player (this will also check worldAgents in useGameState)
             movePlayer(direction);
         },
-        [isAutonomous, worldPosition, agents, movePlayer, isOutOfBounds, isCollisionTile]
+        [isAutonomous, worldPosition, agents, movePlayer, villageIsCollisionAt]
     );
 
     const handleWalletDisconnect = useCallback(() => {
@@ -304,7 +304,7 @@ export default function MapTab({
                     <MapPin size={16} className="text-[#C0A9F1]" />
                     <p className="text-xs font-bold">
                         <span className="text-[#C0A9F1]">Area: </span>
-                        <span className="text-white">{worldPosition ? (getMapNameFromCoordinates(worldPosition.x, worldPosition.y) || 'Unknown') : 'Unknown'}</span>
+                        <span className="text-white">{worldPosition ? (useVillageStore.getState().currentVillage?.name || 'Unknown') : 'Unknown'}</span>
                         {worldPosition && <span className="text-[#CAD0D7]"> [{worldPosition.x}, {worldPosition.y}]</span>}
                     </p>
                 </div>

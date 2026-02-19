@@ -1,6 +1,6 @@
 import { AgentSkill } from '@a2a-js/sdk';
 import { useChatStore } from '@/stores/useChatStore';
-import { AGENT_RESPONSE_DISTANCE, DIRECTION, MOVEMENT_MODE, MAP_NAMES } from '@/constants/game';
+import { AGENT_RESPONSE_DISTANCE, DIRECTION, MOVEMENT_MODE } from '@/constants/game';
 
 export interface AgentInfo {
     id: string;
@@ -24,7 +24,7 @@ export interface AgentWorldState {
     movementMode?: MOVEMENT_MODE;
     spawnX?: number;
     spawnY?: number;
-    mapName?: MAP_NAMES | null;
+    mapName?: string | null; // Village slug (e.g., 'happy-village')
 };
 
 export interface AgentVisualState {

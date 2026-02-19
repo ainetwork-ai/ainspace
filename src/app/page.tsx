@@ -3,21 +3,31 @@
 import { useGameState } from '@/hooks/useGameState';
 import { useMiniKit } from '@coinbase/onchainkit/minikit';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import MapTab from '@/components/tabs/MapTab';
 import AgentTab from '@/components/tabs/AgentTab';
 import Footer from '@/components/Footer';
-import { DIRECTION, ENABLE_AGENT_MOVEMENT, BROADCAST_RADIUS, MOVEMENT_MODE, DEFAULT_MOVEMENT_MODE, SPAWN_RADIUS, MAP_ZONES, MAP_NAMES } from '@/constants/game';
+import { DIRECTION, ENABLE_AGENT_MOVEMENT, BROADCAST_RADIUS, MOVEMENT_MODE, DEFAULT_MOVEMENT_MODE, SPAWN_RADIUS } from '@/constants/game';
 import { useUIStore, useThreadStore, useBuildStore, useAgentStore, useUserStore, useUserAgentStore, useGameStateStore } from '@/stores';
 import TempBuildTab from '@/components/tabs/TempBuildTab';
 import { useAccount } from 'wagmi';
 import sdk from '@farcaster/miniapp-sdk';
 import { StoredAgent } from '@/lib/redis';
-import { useMapStore } from '@/stores/useMapStore';
 import { cn } from '@/lib/utils';
-import { getMapNameFromCoordinates } from '@/lib/map-utils';
 import { AgentState } from '@/lib/agent';
+import { useVillageLoader } from '@/hooks/useVillageLoader';
+import { useVillageStore } from '@/stores/useVillageStore';
+import { worldToGrid, gridToWorldRange } from '@/lib/village-utils';
+
+const DEFAULT_VILLAGE_SLUG = 'happy-village';
 
 export default function Home() {
+    // Village system - URL param + loader
+    const searchParams = useSearchParams();
+    const villageSlug = searchParams.get('village') ?? DEFAULT_VILLAGE_SLUG;
+    const { isCurrentVillageLoaded } = useVillageLoader(villageSlug);
+    const villageIsCollisionAt = useVillageStore((s) => s.isCollisionAt);
+
     // Global stores
     const { activeTab, setActiveTab } = useUIStore();
     const {
@@ -40,16 +50,16 @@ export default function Home() {
         clearPublishStatusAfterDelay
     } = useBuildStore();
     const { worldPosition, userId, visibleAgents } = useGameState();
-    const { agents, spawnAgent, setAgents } = useAgentStore();
-    const { mapStartPosition, mapEndPosition, isCollisionTile, isLoaded: isMapLoaded } = useMapStore();
+    const { spawnAgent } = useAgentStore();
     const { setFrameReady, isFrameReady } = useMiniKit();
     const [isSDKLoaded, setIsSDKLoaded] = useState(false);
     const { address } = useAccount();
-    const { setAddress, setPermissions, setLastVerifiedAt, initSessionId, getSessionId, hasMigratedThreads, setMigratedThreads } = useUserStore();
+    const { setAddress, setPermissions, setLastVerifiedAt, initSessionId, getSessionId, hasMigratedThreads, setMigratedThreads, isPermissionExpired, verifyPermissions } = useUserStore();
     const { updateAgent: updateUserAgent } = useUserAgentStore();
 
     const [HUDOff, setHUDOff] = useState<boolean>(false);
     const hasInitializedAuth = useRef(false);
+    const prevAddressRef = useRef<string | null>(null);
 
     // Initialize sessionId for guest users on mount
     useEffect(() => {
@@ -74,10 +84,19 @@ export default function Home() {
                 setAddress(null);
                 setPermissions(null);
                 hasInitializedAuth.current = false;
+                prevAddressRef.current = null;
                 return;
             }
 
-            // 이미 초기화했으면 스킵
+            // 재로그인 감지: address가 변경되면 무조건 재검증
+            const isRelogin = address !== prevAddressRef.current;
+            if (isRelogin) {
+                console.log('Address changed, forcing re-verification:', { prev: prevAddressRef.current, new: address });
+                hasInitializedAuth.current = false;
+                prevAddressRef.current = address;
+            }
+
+            // 이미 초기화했으면 스킵 (단, 재로그인은 제외)
             if (hasInitializedAuth.current) return;
             hasInitializedAuth.current = true;
 
@@ -121,8 +140,26 @@ export default function Home() {
                     if (getData.success && getData.data) {
                         console.log('User already has permissions:', getData.data.permissions);
                         setPermissions(getData.data);
-                        setLastVerifiedAt(Date.now());
-                        return;
+
+                        // Parse authCheckedAt from Redis and set as lastVerifiedAt
+                        if (getData.data.authCheckedAt) {
+                            const authCheckedTimestamp = new Date(getData.data.authCheckedAt).getTime();
+                            setLastVerifiedAt(authCheckedTimestamp);
+                        }
+
+                        // 재로그인 시: 무조건 재검증 (expiry 체크 스킵)
+                        if (isRelogin) {
+                            console.log('Re-login detected, forcing verification regardless of expiry');
+                            // Continue to verify below (don't return)
+                        }
+                        // 재접속 시: 6시간 expiry 체크
+                        else if (isPermissionExpired()) {
+                            console.log('Permission cache expired (6h+), re-verifying...');
+                            // Continue to verify below (don't return)
+                        } else {
+                            console.log('Permission cache still valid (within 6h)');
+                            return;
+                        }
                     }
                 }
 
@@ -157,6 +194,27 @@ export default function Home() {
 
         initUserAuth();
     }, [address, setAddress, setPermissions, setLastVerifiedAt, getSessionId, hasMigratedThreads, setMigratedThreads])
+
+    // Periodic permission refresh
+    useEffect(() => {
+        if (!address) return;
+
+        const checkInterval = 5 * 60 * 1000; // Check every 5 minutes
+
+        const intervalId = setInterval(async () => {
+            if (isPermissionExpired()) {
+                console.log('Permission expired during session, refreshing...');
+                const result = await verifyPermissions(address);
+                if (result.success) {
+                    console.log('Permission refreshed successfully');
+                } else {
+                    console.error('Failed to refresh permission');
+                }
+            }
+        }, checkInterval);
+
+        return () => clearInterval(intervalId);
+    }, [address, isPermissionExpired, verifyPermissions]);
 
     useEffect(() => {
         const loadCustomTiles = async () => {
@@ -246,15 +304,19 @@ export default function Home() {
                         spawnY = validPosition.y;
                     }
 
+                    // Determine village slug for agents without mapName
+                    let agentMapName = state.mapName;
+                    if (!agentMapName) {
+                        const { gridX, gridY } = worldToGrid(spawnX, spawnY);
+                        agentMapName = useVillageStore.getState().getVillageSlugAtGrid(gridX, gridY) ?? villageSlug;
+                    }
+
                     // Migration logic for spawn position and movement mode
                     const migratedState = {
                         ...state,
-                        // If spawn position not set, use current position
                         spawnX: state.spawnX ?? spawnX,
                         spawnY: state.spawnY ?? spawnY,
-                        // If mapName not set, determine from position
-                        mapName: state.mapName ?? getMapNameFromCoordinates(spawnX, spawnY),
-                        // If movement mode not set, use default
+                        mapName: agentMapName,
                         movementMode: state.movementMode ?? DEFAULT_MOVEMENT_MODE
                     };
 
@@ -292,10 +354,10 @@ export default function Home() {
             }
         };
 
-        if (isMapLoaded) {
+        if (isCurrentVillageLoaded) {
             loadDeployedAgents();
         }
-    }, [spawnAgent, isMapLoaded]);
+    }, [spawnAgent, isCurrentVillageLoaded]);
 
     const handleAgentClick = (agentId: string, agentName: string) => {
         console.log(`Agent clicked: ${agentName} (${agentId})`);
@@ -348,7 +410,7 @@ export default function Home() {
                     // Include spawn data and movement mode
                     spawnX: x,
                     spawnY: y,
-                    mapName: mapName as MAP_NAMES,
+                    mapName: mapName,
                     movementMode: movementMode
                 },
                 isPlaced: true,
@@ -383,7 +445,7 @@ export default function Home() {
             // Include spawn data and movement mode
             spawnX: x,
             spawnY: y,
-            mapName: mapName as MAP_NAMES,
+            mapName: mapName,
             movementMode: movementMode
         });
     }, [address, spawnAgent, updateUserAgent]);
@@ -475,13 +537,13 @@ export default function Home() {
 
     // Position validation for agent placement
     const isPositionValid = useCallback((x: number, y: number): boolean => {
-      // Check boundaries
-      if (x < mapStartPosition.x || x > mapEndPosition.x || y < mapStartPosition.y || y > mapEndPosition.y) {
+      // Check if position is in a village and not blocked by TMJ collision
+      if (villageIsCollisionAt(x, y)) {
           return false;
       }
 
-      // Check if position is blocked by collision map
-      if (isCollisionTile(x, y)) {
+      // Check if position is blocked by build items
+      if (useBuildStore.getState().isBlocked(x, y)) {
           return false;
       }
 
@@ -491,16 +553,11 @@ export default function Home() {
       }
 
       // Check if position is occupied by another agent
-      // Get latest agents from store to avoid stale closure
       const currentA2AAgents = useAgentStore.getState().agents;
       const allAgents = [...visibleAgents, ...currentA2AAgents];
-      const isOccupied = allAgents.some((agent) => 
-        {
-          return agent.x === x && agent.y === y;
-        }
-      );
+      const isOccupied = allAgents.some((agent) => agent.x === x && agent.y === y);
       return !isOccupied;
-  }, [isCollisionTile, mapStartPosition, mapEndPosition, worldPosition, visibleAgents]);
+  }, [villageIsCollisionAt, worldPosition, visibleAgents]);
 
   // Find a non-blocked spawn position in one of the deployment zones
   const findAvailableSpawnPositionByRadius = useCallback((selectedCenter: { x: number; y: number }): { x: number; y: number } | null => {
@@ -560,18 +617,26 @@ export default function Home() {
                 return distance <= SPAWN_RADIUS;
             }
 
-            // VILLAGE_WIDE mode
+            // VILLAGE_WIDE mode - check if within the agent's assigned village
             if (!agent.mapName) {
                 return true; // Backward compatibility
             }
 
-            const zone = MAP_ZONES[agent.mapName];
-            return zone ? (
-                newX >= zone.startX &&
-                newX <= zone.endX &&
-                newY >= zone.startY &&
-                newY <= zone.endY
-            ) : true;
+            // Look up village metadata from the village store
+            const vStore = useVillageStore.getState();
+            const loaded = vStore.loadedVillages.get(agent.mapName);
+            if (loaded) {
+                const m = loaded.metadata;
+                const range = gridToWorldRange(m.gridX, m.gridY, m.gridWidth || 1, m.gridHeight || 1);
+                return newX >= range.startX && newX <= range.endX && newY >= range.startY && newY <= range.endY;
+            }
+            const nearby = vStore.nearbyVillages.get(agent.mapName);
+            if (nearby) {
+                const range = gridToWorldRange(nearby.gridX, nearby.gridY, nearby.gridWidth || 1, nearby.gridHeight || 1);
+                return newX >= range.startX && newX <= range.endX && newY >= range.startY && newY <= range.endY;
+            }
+
+            return true; // Unknown village slug, allow movement (backward compat)
         };
 
         // Helper: Check if position is occupied by any agent
@@ -590,11 +655,11 @@ export default function Home() {
             agent: AgentState,
             updated: AgentState[],
             currentWorldAgents: { x: number; y: number }[],
-            checkCollision: (x: number, y: number) => boolean,
-            mapStartPos: { x: number; y: number },
-            mapEndPos: { x: number; y: number },
             playerPos: { x: number; y: number }
         ): AgentState | null => {
+            const vStore = useVillageStore.getState();
+            const buildStore = useBuildStore.getState();
+
             const directions = [
                 { dx: 0, dy: -1 }, // up
                 { dx: 0, dy: 1 },  // down
@@ -610,8 +675,10 @@ export default function Home() {
 
                 // Check all movement constraints
                 if (isPositionOccupied(newX, newY, agent.id, updated, currentWorldAgents)) continue;
-                if (checkCollision(newX, newY)) continue;
-                if (newX < mapStartPos.x || newX > mapEndPos.x || newY < mapStartPos.y || newY > mapEndPos.y) continue;
+                // Village existence + TMJ collision check
+                if (vStore.isCollisionAt(newX, newY)) continue;
+                // Build layer1 collision check
+                if (buildStore.isBlocked(newX, newY)) continue;
                 if (!canAgentMoveTo(agent, newX, newY)) continue;
                 // Check player position collision
                 if (newX === playerPos.x && newY === playerPos.y) continue;
@@ -662,9 +729,6 @@ export default function Home() {
 
             // Get latest state from stores
             const currentAgents = useAgentStore.getState().agents;
-            const mapStartPos = useMapStore.getState().mapStartPosition;
-            const mapEndPos = useMapStore.getState().mapEndPosition;
-            const checkCollision = useMapStore.getState().isCollisionTile;
             // Get latest player position from store instead of closure to avoid stale values
             const currentWorldPos = useGameStateStore.getState().worldPosition;
 
@@ -688,7 +752,7 @@ export default function Home() {
                 }
 
                 // Try to move agent (prevent moving into player position)
-                const movedAgent = tryMoveAgent(agent, currentAgents, [], checkCollision, mapStartPos, mapEndPos, currentWorldPos);
+                const movedAgent = tryMoveAgent(agent, currentAgents, [], currentWorldPos);
 
                 // If couldn't move, still update timestamp to prevent getting stuck
                 if (!movedAgent) {
