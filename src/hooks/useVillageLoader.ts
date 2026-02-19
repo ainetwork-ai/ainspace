@@ -103,10 +103,29 @@ export function useVillageLoader(initialVillageSlug: string | null) {
       // 대각 병렬 로드
       await Promise.all(diagonal.map(v => loadVillage(v)));
 
-      // 더 이상 인접하지 않는 마을 언로드
-      const nearbyKeys = new Set(villages.map(v => v.slug));
-      for (const [slug] of loadedVillages) {
-        if (!nearbyKeys.has(slug)) {
+      // Viewport 기준 언로드: 플레이어 grid에서 ±2 이상 떨어진 마을 제거
+      // (viewport 16x12, 마을 20x20이므로 ±2 grid면 충분히 커버)
+      const UNLOAD_DISTANCE = 2;
+      for (const [slug, village] of loadedVillages) {
+        const vgx = village.metadata.gridX;
+        const vgy = village.metadata.gridY;
+        const vgw = village.metadata.gridWidth || 1;
+        const vgh = village.metadata.gridHeight || 1;
+
+        // 마을이 점유하는 grid 범위의 최소 거리 계산
+        let minDist = Infinity;
+        for (let dy = 0; dy < vgh; dy++) {
+          for (let dx = 0; dx < vgw; dx++) {
+            const dist = Math.max(
+              Math.abs((vgx + dx) - gridX),
+              Math.abs((vgy + dy) - gridY)
+            );
+            minDist = Math.min(minDist, dist);
+          }
+        }
+
+        // 거리가 UNLOAD_DISTANCE보다 크면 언로드
+        if (minDist > UNLOAD_DISTANCE) {
           removeLoadedVillage(slug);
         }
       }
@@ -240,6 +259,57 @@ export function useVillageLoader(initialVillageSlug: string | null) {
       loadNearbyVillages(gridX, gridY);
     }
   }, [worldPosition, currentVillage, currentVillageSlug, getVillageSlugAtGrid, setCurrentVillage, loadNearbyVillages]);
+
+  // 플레이어 이동 시 viewport 범위의 언로드된 마을 재로드
+  useEffect(() => {
+    if (!currentVillage) return;
+
+    const { gridX, gridY } = worldToGrid(worldPosition.x, worldPosition.y);
+    const nearbyVillages = useVillageStore.getState().nearbyVillages;
+
+    // viewport 범위의 grid 확인 (±2 범위)
+    const LOAD_DISTANCE = 2;
+    const reloadPromises: Promise<void>[] = [];
+
+    for (let dy = -LOAD_DISTANCE; dy <= LOAD_DISTANCE; dy++) {
+      for (let dx = -LOAD_DISTANCE; dx <= LOAD_DISTANCE; dx++) {
+        const checkGridX = gridX + dx;
+        const checkGridY = gridY + dy;
+        const checkSlug = getVillageSlugAtGrid(checkGridX, checkGridY);
+
+        if (checkSlug && !loadedVillages.has(checkSlug)) {
+          // nearbyVillages에서 메타데이터 확인
+          const metadata = nearbyVillages.get(checkSlug);
+
+          if (metadata) {
+            // nearbyVillages에 있으면 바로 로드
+            loadVillage(metadata);
+          } else {
+            // nearbyVillages에 없으면 API에서 fetch하여 로드
+            const promise = (async () => {
+              try {
+                const res = await fetch(`/api/villages/${checkSlug}`);
+                const data = await res.json();
+                if (data.success && data.village) {
+                  await loadVillage(data.village);
+                }
+              } catch (err) {
+                console.error(`Failed to fetch village ${checkSlug}:`, err);
+              }
+            })();
+            reloadPromises.push(promise);
+          }
+        }
+      }
+    }
+
+    // 모든 fetch 완료 대기 (background)
+    if (reloadPromises.length > 0) {
+      Promise.all(reloadPromises).catch(err => {
+        console.error('Error reloading villages:', err);
+      });
+    }
+  }, [worldPosition, currentVillage, getVillageSlugAtGrid, loadedVillages, loadVillage]);
 
   return {
     isLoading: useVillageStore((s) => s.isLoading),

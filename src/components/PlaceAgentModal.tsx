@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { X } from 'lucide-react';
+import { useVillages, getVillageDisplayName } from '@/hooks/useVillages';
 
 interface PlaceAgentModalProps {
     allowedMaps: string[];
@@ -14,6 +15,7 @@ export default function PlaceAgentModal({
     errorMessage,
     onCancel,
 }: PlaceAgentModalProps) {
+    const { villages } = useVillages();
     const isAllMaps = allowedMaps.includes('*');
 
     return (
@@ -40,12 +42,12 @@ export default function PlaceAgentModal({
                             All maps
                         </span>
                     ) : (
-                        allowedMaps.map((mapName) => (
+                        allowedMaps.map((mapSlug) => (
                             <span
-                                key={mapName}
+                                key={mapSlug}
                                 className="rounded-md bg-[#D7FFBD] px-3 py-1 text-sm font-medium text-[#189D35]"
                             >
-                                {mapName}
+                                {getVillageDisplayName(mapSlug, villages)}
                             </span>
                         ))
                     )}

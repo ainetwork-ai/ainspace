@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { SpriteAnimator } from 'react-sprite-animator';
-import { TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, DIRECTION } from '@/constants/game';
-import { getMapNameFromCoordinates } from '@/lib/map-utils';
+import { TILE_SIZE, DIRECTION } from '@/constants/game';
+import { worldToGrid } from '@/lib/village-utils';
 import { useBuildStore, useChatStore, useGameStateStore, useUserStore } from '@/stores';
 import * as Sentry from '@sentry/nextjs';
 import { AgentState } from '@/lib/agent';
@@ -458,8 +458,12 @@ function TileMap({
                 const agentScreenX = agent.x - cameraTilePosition.x;
                 const agentScreenY = agent.y - cameraTilePosition.y;
 
+                // Calculate actual viewport size based on canvas
+                const tilesX = Math.ceil(canvasSize.width / tileSize);
+                const tilesY = Math.ceil(canvasSize.height / tileSize);
+
                 // Skip rendering agents far outside the viewport
-                if (agentScreenX < -1 || agentScreenX > MAP_WIDTH + 1 || agentScreenY < -1 || agentScreenY > MAP_HEIGHT + 1) {
+                if (agentScreenX < -1 || agentScreenX > tilesX + 1 || agentScreenY < -1 || agentScreenY > tilesY + 1) {
                     return null;
                 }
 
@@ -675,8 +679,9 @@ function TileMap({
                                 // First check: map permission from user store
                                 const allowedMaps = useUserStore.getState().permissions?.permissions.placeAllowedMaps || [];
                                 if (allowedMaps.length > 0 && !allowedMaps.includes('*')) {
-                                    const tileMapName = getMapNameFromCoordinates(checkX, checkY);
-                                    if (!tileMapName || !allowedMaps.includes(tileMapName)) {
+                                    const { gridX, gridY } = worldToGrid(checkX, checkY);
+                                    const villageSlug = useVillageStore.getState().getVillageSlugAtGrid(gridX, gridY);
+                                    if (!villageSlug || !allowedMaps.includes(villageSlug)) {
                                         blocked = true;
                                     }
                                 }

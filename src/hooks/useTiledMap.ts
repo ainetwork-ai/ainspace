@@ -86,7 +86,30 @@ export function useTiledMap(
         if (slug) {
           // 마을이 있는 경우
           const village = loadedVillages.get(slug);
-          if (!village) continue; // 아직 로드 안 됨
+
+          if (!village) {
+            // 아직 로드 안 됨: defaultVillage로 fallback
+            if (!defaultVillage) continue;
+
+            const range = gridToWorldRange(gx, gy, 1, 1);
+            const virtualVillage: LoadedVillage = {
+              ...defaultVillage,
+              metadata: {
+                ...defaultVillage.metadata,
+                gridX: gx,
+                gridY: gy,
+              },
+            };
+
+            visibleVillages.push({
+              village: virtualVillage,
+              worldStartX: range.startX,
+              worldStartY: range.startY,
+              worldEndX: range.endX,
+              worldEndY: range.endY,
+            });
+            continue;
+          }
 
           const range = gridToWorldRange(
             village.metadata.gridX, village.metadata.gridY,

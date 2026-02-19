@@ -8,7 +8,7 @@ import { MapPin } from 'lucide-react';
 
 import BaseTabContent from './BaseTabContent';
 import PlayerJoystick from '@/components/controls/PlayerJoystick';
-import { BROADCAST_RADIUS, DIRECTION, TILE_SIZE, MAP_NAMES, MOVEMENT_MODE } from '@/constants/game';
+import { BROADCAST_RADIUS, DIRECTION, TILE_SIZE, MOVEMENT_MODE } from '@/constants/game';
 import { useGameState } from '@/hooks/useGameState';
 import { TileLayers } from '@/stores/useBuildStore';
 import { shortAddress } from '@/lib/utils';
@@ -33,7 +33,7 @@ interface MapTabProps {
     HUDOff: boolean;
     onHUDOffChange: (hudOff: boolean) => void;
     isPositionValid: (x: number, y: number) => boolean;
-    onPlaceAgentAtPosition?: (agent: StoredAgent, x: number, y: number, mapName: MAP_NAMES, movementMode: MOVEMENT_MODE) => Promise<void>;
+    onPlaceAgentAtPosition?: (agent: StoredAgent, x: number, y: number, mapName: string, movementMode: MOVEMENT_MODE) => Promise<void>;
 }
 
 export default function MapTab({
@@ -101,7 +101,9 @@ export default function MapTab({
         const { gridX, gridY } = worldToGrid(worldX, worldY);
         const clickedVillageSlug = useVillageStore.getState().getVillageSlugAtGrid(gridX, gridY);
         const isAllowedMap = allowedMaps.includes('*') || (clickedVillageSlug && allowedMaps.includes(clickedVillageSlug));
-
+        console.log('clickedVillageSlug', clickedVillageSlug);
+        console.log('allowedMaps', allowedMaps);
+        console.log('isAllowedMap', isAllowedMap);
         if (!isAllowedMap) {
             setPlacementError(`Please place agent within allowed area.`);
             setSelectedPosition(null);
@@ -120,7 +122,7 @@ export default function MapTab({
             // Second tap on same position - confirm placement
             setIsPlacing(true);
             try {
-                await onPlaceAgentAtPosition(agent, worldX, worldY, (clickedVillageSlug ?? '') as MAP_NAMES, movementMode);
+                await onPlaceAgentAtPosition(agent, worldX, worldY, clickedVillageSlug ?? '', movementMode);
                 // Success - exit placement mode
                 setSelectedAgentForPlacement(null);
                 setSelectedPosition(null);
