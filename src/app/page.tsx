@@ -7,7 +7,7 @@ import { useSearchParams } from 'next/navigation';
 import MapTab from '@/components/tabs/MapTab';
 import AgentTab from '@/components/tabs/AgentTab';
 import Footer from '@/components/Footer';
-import { DIRECTION, ENABLE_AGENT_MOVEMENT, BROADCAST_RADIUS, MOVEMENT_MODE, DEFAULT_MOVEMENT_MODE, SPAWN_RADIUS, MAP_NAMES } from '@/constants/game';
+import { DIRECTION, ENABLE_AGENT_MOVEMENT, BROADCAST_RADIUS, MOVEMENT_MODE, DEFAULT_MOVEMENT_MODE, SPAWN_RADIUS } from '@/constants/game';
 import { useUIStore, useThreadStore, useBuildStore, useAgentStore, useUserStore, useUserAgentStore, useGameStateStore } from '@/stores';
 import TempBuildTab from '@/components/tabs/TempBuildTab';
 import { useAccount } from 'wagmi';
@@ -54,11 +54,12 @@ export default function Home() {
     const { setFrameReady, isFrameReady } = useMiniKit();
     const [isSDKLoaded, setIsSDKLoaded] = useState(false);
     const { address } = useAccount();
-    const { setAddress, setPermissions, setLastVerifiedAt, initSessionId, getSessionId, hasMigratedThreads, setMigratedThreads } = useUserStore();
+    const { setAddress, setPermissions, setLastVerifiedAt, initSessionId, getSessionId, hasMigratedThreads, setMigratedThreads, isPermissionExpired, verifyPermissions } = useUserStore();
     const { updateAgent: updateUserAgent } = useUserAgentStore();
 
     const [HUDOff, setHUDOff] = useState<boolean>(false);
     const hasInitializedAuth = useRef(false);
+    const prevAddressRef = useRef<string | null>(null);
 
     // Initialize sessionId for guest users on mount
     useEffect(() => {
@@ -83,10 +84,19 @@ export default function Home() {
                 setAddress(null);
                 setPermissions(null);
                 hasInitializedAuth.current = false;
+                prevAddressRef.current = null;
                 return;
             }
 
-            // 이미 초기화했으면 스킵
+            // 재로그인 감지: address가 변경되면 무조건 재검증
+            const isRelogin = address !== prevAddressRef.current;
+            if (isRelogin) {
+                console.log('Address changed, forcing re-verification:', { prev: prevAddressRef.current, new: address });
+                hasInitializedAuth.current = false;
+                prevAddressRef.current = address;
+            }
+
+            // 이미 초기화했으면 스킵 (단, 재로그인은 제외)
             if (hasInitializedAuth.current) return;
             hasInitializedAuth.current = true;
 
@@ -130,8 +140,26 @@ export default function Home() {
                     if (getData.success && getData.data) {
                         console.log('User already has permissions:', getData.data.permissions);
                         setPermissions(getData.data);
-                        setLastVerifiedAt(Date.now());
-                        return;
+
+                        // Parse authCheckedAt from Redis and set as lastVerifiedAt
+                        if (getData.data.authCheckedAt) {
+                            const authCheckedTimestamp = new Date(getData.data.authCheckedAt).getTime();
+                            setLastVerifiedAt(authCheckedTimestamp);
+                        }
+
+                        // 재로그인 시: 무조건 재검증 (expiry 체크 스킵)
+                        if (isRelogin) {
+                            console.log('Re-login detected, forcing verification regardless of expiry');
+                            // Continue to verify below (don't return)
+                        }
+                        // 재접속 시: 6시간 expiry 체크
+                        else if (isPermissionExpired()) {
+                            console.log('Permission cache expired (6h+), re-verifying...');
+                            // Continue to verify below (don't return)
+                        } else {
+                            console.log('Permission cache still valid (within 6h)');
+                            return;
+                        }
                     }
                 }
 
@@ -166,6 +194,27 @@ export default function Home() {
 
         initUserAuth();
     }, [address, setAddress, setPermissions, setLastVerifiedAt, getSessionId, hasMigratedThreads, setMigratedThreads])
+
+    // Periodic permission refresh
+    useEffect(() => {
+        if (!address) return;
+
+        const checkInterval = 5 * 60 * 1000; // Check every 5 minutes
+
+        const intervalId = setInterval(async () => {
+            if (isPermissionExpired()) {
+                console.log('Permission expired during session, refreshing...');
+                const result = await verifyPermissions(address);
+                if (result.success) {
+                    console.log('Permission refreshed successfully');
+                } else {
+                    console.error('Failed to refresh permission');
+                }
+            }
+        }, checkInterval);
+
+        return () => clearInterval(intervalId);
+    }, [address, isPermissionExpired, verifyPermissions]);
 
     useEffect(() => {
         const loadCustomTiles = async () => {
@@ -259,7 +308,7 @@ export default function Home() {
                     let agentMapName = state.mapName;
                     if (!agentMapName) {
                         const { gridX, gridY } = worldToGrid(spawnX, spawnY);
-                        agentMapName = (useVillageStore.getState().getVillageSlugAtGrid(gridX, gridY) ?? villageSlug) as MAP_NAMES;
+                        agentMapName = useVillageStore.getState().getVillageSlugAtGrid(gridX, gridY) ?? villageSlug;
                     }
 
                     // Migration logic for spawn position and movement mode
@@ -361,7 +410,7 @@ export default function Home() {
                     // Include spawn data and movement mode
                     spawnX: x,
                     spawnY: y,
-                    mapName: mapName as MAP_NAMES,
+                    mapName: mapName,
                     movementMode: movementMode
                 },
                 isPlaced: true,
@@ -396,7 +445,7 @@ export default function Home() {
             // Include spawn data and movement mode
             spawnX: x,
             spawnY: y,
-            mapName: mapName as MAP_NAMES,
+            mapName: mapName,
             movementMode: movementMode
         });
     }, [address, spawnAgent, updateUserAgent]);
