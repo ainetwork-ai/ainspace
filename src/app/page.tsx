@@ -7,17 +7,16 @@ import { useSearchParams } from 'next/navigation';
 import MapTab from '@/components/tabs/MapTab';
 import AgentTab from '@/components/tabs/AgentTab';
 import Footer from '@/components/Footer';
-import { DIRECTION, ENABLE_AGENT_MOVEMENT, BROADCAST_RADIUS, MOVEMENT_MODE, DEFAULT_MOVEMENT_MODE, SPAWN_RADIUS } from '@/constants/game';
-import { useUIStore, useThreadStore, useBuildStore, useAgentStore, useUserStore, useUserAgentStore, useGameStateStore } from '@/stores';
+import { BROADCAST_RADIUS, MOVEMENT_MODE, DEFAULT_MOVEMENT_MODE } from '@/constants/game';
+import { useUIStore, useThreadStore, useBuildStore, useAgentStore, useUserStore, useUserAgentStore } from '@/stores';
 import TempBuildTab from '@/components/tabs/TempBuildTab';
 import { useAccount } from 'wagmi';
 import sdk from '@farcaster/miniapp-sdk';
 import { StoredAgent } from '@/lib/redis';
 import { cn } from '@/lib/utils';
-import { AgentState } from '@/lib/agent';
 import { useVillageLoader } from '@/hooks/useVillageLoader';
 import { useVillageStore } from '@/stores/useVillageStore';
-import { worldToGrid, gridToWorldRange } from '@/lib/village-utils';
+import { worldToGrid } from '@/lib/village-utils';
 
 const DEFAULT_VILLAGE_SLUG = 'happy-village';
 
@@ -592,187 +591,6 @@ export default function Home() {
 
     return null; // No valid position found in this zone
 }, [isPositionValid, worldPosition]);
-
-    // A2A Agent movement system
-    useEffect(() => {
-        // Skip movement if disabled
-        if (!ENABLE_AGENT_MOVEMENT) {
-            return;
-        }
-
-        // Helper: Check if agent can move based on movement mode
-        const canAgentMoveTo = (agent: AgentState, newX: number, newY: number): boolean => {
-            const mode = agent.movementMode ?? DEFAULT_MOVEMENT_MODE;
-
-            if (mode === MOVEMENT_MODE.STATIONARY) {
-                return false;
-            }
-
-            if (mode === MOVEMENT_MODE.SPAWN_CENTERED) {
-                const spawnX = agent.spawnX ?? agent.x;
-                const spawnY = agent.spawnY ?? agent.y;
-                const dx = Math.abs(newX - spawnX);
-                const dy = Math.abs(newY - spawnY);
-                const distance = Math.max(dx, dy);
-                return distance <= SPAWN_RADIUS;
-            }
-
-            // VILLAGE_WIDE mode - check if within the agent's assigned village
-            if (!agent.mapName) {
-                return true; // Backward compatibility
-            }
-
-            // Look up village metadata from the village store
-            const vStore = useVillageStore.getState();
-            const loaded = vStore.loadedVillages.get(agent.mapName);
-            if (loaded) {
-                const m = loaded.metadata;
-                const range = gridToWorldRange(m.gridX, m.gridY, m.gridWidth || 1, m.gridHeight || 1);
-                return newX >= range.startX && newX <= range.endX && newY >= range.startY && newY <= range.endY;
-            }
-            const nearby = vStore.nearbyVillages.get(agent.mapName);
-            if (nearby) {
-                const range = gridToWorldRange(nearby.gridX, nearby.gridY, nearby.gridWidth || 1, nearby.gridHeight || 1);
-                return newX >= range.startX && newX <= range.endX && newY >= range.startY && newY <= range.endY;
-            }
-
-            return true; // Unknown village slug, allow movement (backward compat)
-        };
-
-        // Helper: Check if position is occupied by any agent
-        const isPositionOccupied = (x: number, y: number, currentAgentId: string, allAgents: AgentState[], worldAgents: { x: number; y: number }[]): boolean => {
-            const isOccupiedByA2A = allAgents.some(
-                (agent) => agent.id !== currentAgentId && agent.x === x && agent.y === y
-            );
-            const isOccupiedByWorld = worldAgents.some(
-                (agent) => agent.x === x && agent.y === y
-            );
-            return isOccupiedByA2A || isOccupiedByWorld;
-        };
-
-        // Helper: Try to move agent in a random valid direction (returns new agent object if moved, null if not)
-        const tryMoveAgent = (
-            agent: AgentState,
-            updated: AgentState[],
-            currentWorldAgents: { x: number; y: number }[],
-            playerPos: { x: number; y: number }
-        ): AgentState | null => {
-            const vStore = useVillageStore.getState();
-            const buildStore = useBuildStore.getState();
-
-            const directions = [
-                { dx: 0, dy: -1 }, // up
-                { dx: 0, dy: 1 },  // down
-                { dx: -1, dy: 0 }, // left
-                { dx: 1, dy: 0 }   // right
-            ];
-
-            const shuffledDirections = [...directions].sort(() => Math.random() - 0.5);
-
-            for (const direction of shuffledDirections) {
-                const newX = agent.x + direction.dx;
-                const newY = agent.y + direction.dy;
-
-                // Check all movement constraints
-                if (isPositionOccupied(newX, newY, agent.id, updated, currentWorldAgents)) continue;
-                // Village existence + TMJ collision check
-                if (vStore.isCollisionAt(newX, newY)) continue;
-                // Build layer1 collision check
-                if (buildStore.isBlocked(newX, newY)) continue;
-                if (!canAgentMoveTo(agent, newX, newY)) continue;
-                // Check player position collision
-                if (newX === playerPos.x && newY === playerPos.y) continue;
-
-                // Valid move found! Return new agent object with updated state
-                const movedAgent = {
-                    ...agent,
-                    x: newX,
-                    y: newY,
-                    lastMoved: Date.now(),
-                    direction: getDirectionFromMovement(direction),
-                    isMoving: true
-                };
-
-                // Clear isMoving flag after animation
-                scheduleIsMovingClear(agent.agentUrl);
-
-                return movedAgent; // Movement successful
-            }
-
-            return null; // No valid move found
-        };
-
-        // Helper: Convert movement direction to DIRECTION enum
-        const getDirectionFromMovement = (direction: { dx: number; dy: number }) => {
-            if (direction.dy === -1) return DIRECTION.UP;
-            if (direction.dy === 1) return DIRECTION.DOWN;
-            if (direction.dx === -1) return DIRECTION.LEFT;
-            if (direction.dx === 1) return DIRECTION.RIGHT;
-            return DIRECTION.DOWN;
-        };
-
-        // Helper: Schedule clearing of isMoving flag
-        const scheduleIsMovingClear = (agentUrl?: string) => {
-            if (!agentUrl) return;
-            setTimeout(() => {
-                const currentAgents = useAgentStore.getState().agents;
-                const currentAgent = currentAgents.find((agent) => agent.agentUrl === agentUrl);
-                if (currentAgent) {
-                    useAgentStore.getState().updateAgent(agentUrl, { isMoving: false });
-                }
-            }, 500);
-        };
-
-        // Main movement loop
-        const moveA2AAgents = () => {
-            const now = Date.now();
-
-            // Get latest state from stores
-            const currentAgents = useAgentStore.getState().agents;
-            // Get latest player position from store instead of closure to avoid stale values
-            const currentWorldPos = useGameStateStore.getState().worldPosition;
-
-            let hasUpdates = false;
-
-            // Use map instead of forEach to create completely new objects
-            const updated = currentAgents.map((agent) => {
-                // Skip movement for stationary agents
-                const mode = agent.movementMode ?? DEFAULT_MOVEMENT_MODE;
-
-                if (mode === MOVEMENT_MODE.STATIONARY) {
-                    return agent;
-                }
-
-                const moveInterval = agent.moveInterval || 5000;
-                const timeSinceLastMove = now - (agent.lastMoved || 0);
-
-                // Only try to move if enough time has passed
-                if (timeSinceLastMove < moveInterval) {
-                    return agent;
-                }
-
-                // Try to move agent (prevent moving into player position)
-                const movedAgent = tryMoveAgent(agent, currentAgents, [], currentWorldPos);
-
-                // If couldn't move, still update timestamp to prevent getting stuck
-                if (!movedAgent) {
-                    hasUpdates = true;
-                    return { ...agent, lastMoved: now, isMoving: false };
-                }
-
-                hasUpdates = true;
-                return movedAgent; // Return the new agent object with updated position and direction
-            });
-
-            // Update store if there were changes
-            if (hasUpdates) {
-                useAgentStore.getState().setAgents(updated);
-            }
-        };
-
-        const interval = setInterval(moveA2AAgents, 300);
-        return () => clearInterval(interval);
-    }, []);
 
     useEffect(() => {
         const load = async () => {
