@@ -16,7 +16,7 @@ import { StoredAgent } from '@/lib/redis';
 import { cn } from '@/lib/utils';
 import { useVillageLoader } from '@/hooks/useVillageLoader';
 import { useVillageStore } from '@/stores/useVillageStore';
-import { worldToGrid } from '@/lib/village-utils';
+import { worldToGrid, findNearestValidPosition } from '@/lib/village-utils';
 
 const DEFAULT_VILLAGE_SLUG = 'happy-village';
 
@@ -215,48 +215,47 @@ export default function Home() {
         return () => clearInterval(intervalId);
     }, [address, isPermissionExpired, verifyPermissions]);
 
-    useEffect(() => {
-        const loadCustomTiles = async () => {
-            if (!userId) return;
+    // useEffect(() => {
+    //     const loadCustomTiles = async () => {
+    //         if (!userId) return;
 
-            try {
-                const response = await fetch(`/api/custom-tiles?userId=${userId}`);
-                if (response.ok) {
-                    const data = await response.json();
-                    if (!data.isDefault && data.tiles) {
-                        setPublishedTiles(data.tiles);
-                        const totalTiles =
-                            Object.keys(data.tiles.layer0 || {}).length +
-                            Object.keys(data.tiles.layer1 || {}).length +
-                            Object.keys(data.tiles.layer2 || {}).length;
-                        console.log(`Loaded ${totalTiles} published tiles from server`);
+    //         try {
+    //             const response = await fetch(`/api/custom-tiles?userId=${userId}`);
+    //             if (response.ok) {
+    //                 const data = await response.json();
+    //                 if (!data.isDefault && data.tiles) {
+    //                     setPublishedTiles(data.tiles);
+    //                     const totalTiles =
+    //                         Object.keys(data.tiles.layer0 || {}).length +
+    //                         Object.keys(data.tiles.layer1 || {}).length +
+    //                         Object.keys(data.tiles.layer2 || {}).length;
+    //                     console.log(`Loaded ${totalTiles} published tiles from server`);
 
-                        // Also update collision map with existing layer1 items
-                        const layer1Items = data.tiles.layer1 || {};
+    //                     // Also update collision map with existing layer1 items
+    //                     const layer1Items = data.tiles.layer1 || {};
 
-                        // Get current collision map from store to avoid dependency
-                        const currentCollisionMap = useBuildStore.getState().collisionMap;
-                        const existingCollisionTiles: { [key: string]: boolean } = { ...currentCollisionMap };
+    //                     // Get current collision map from store to avoid dependency
+    //                     const currentCollisionMap = useBuildStore.getState().collisionMap;
+    //                     const existingCollisionTiles: { [key: string]: boolean } = { ...currentCollisionMap };
 
-                        Object.keys(layer1Items).forEach((key) => {
-                            existingCollisionTiles[key] = true;
-                        });
+    //                     Object.keys(layer1Items).forEach((key) => {
+    //                         existingCollisionTiles[key] = true;
+    //                     });
 
-                        setCollisionMap(existingCollisionTiles);
-                        console.log(
-                            `Updated collision map with ${Object.keys(layer1Items).length} existing blocked tiles`
-                        );
-                    }
-                }
-            } catch (error) {
-                console.error('Failed to load custom tiles:', error);
-            }
-        };
+    //                     setCollisionMap(existingCollisionTiles);
+    //                     console.log(
+    //                         `Updated collision map with ${Object.keys(layer1Items).length} existing blocked tiles`
+    //                     );
+    //                 }
+    //             }
+    //         } catch (error) {
+    //             console.error('Failed to load custom tiles:', error);
+    //         }
+    //     };
 
-        // loadCustomTiles();
-    }, [userId, setPublishedTiles, setCollisionMap]);
+    //     // loadCustomTiles();
+    // }, [userId, setPublishedTiles, setCollisionMap]);
 
-    // Load deployed agents from Redis on mount (모든 유저에게 허용)
     useEffect(() => {
         const loadDeployedAgents = async () => {
             try {
@@ -560,37 +559,13 @@ export default function Home() {
 
   // Find a non-blocked spawn position in one of the deployment zones
   const findAvailableSpawnPositionByRadius = useCallback((selectedCenter: { x: number; y: number }): { x: number; y: number } | null => {
-    // Search in expanding radius from selected zone center
-    for (let radius = 1; radius <= BROADCAST_RADIUS; radius++) {
-        // Collect all positions at current radius
-        const positionsAtRadius: { x: number; y: number }[] = [];
-
-        for (let dx = -radius; dx <= radius; dx++) {
-            for (let dy = -radius; dy <= radius; dy++) {
-                // Only check positions on the perimeter (not interior)
-                if (Math.abs(dx) === radius || Math.abs(dy) === radius) {
-                    positionsAtRadius.push({
-                        x: selectedCenter.x + dx,
-                        y: selectedCenter.y + dy
-                    });
-                }
-            }
-        }
-
-        // Shuffle to add randomness and avoid clustering
-        positionsAtRadius.sort(() => Math.random() - 0.5);
-
-        // Check each position at this radius
-        for (const pos of positionsAtRadius) {
-            if (isPositionValid(pos.x, pos.y)) {
-                console.log(`Found spawn position at (${pos.x}, ${pos.y}) - radius ${radius} from zone center`);
-                return pos;
-            }
-        }
-    }
-
-    return null; // No valid position found in this zone
-}, [isPositionValid, worldPosition]);
+    return findNearestValidPosition(
+      selectedCenter.x,
+      selectedCenter.y,
+      (x, y) => !isPositionValid(x, y),
+      BROADCAST_RADIUS,
+    );
+  }, [isPositionValid]);
 
     useEffect(() => {
         const load = async () => {
