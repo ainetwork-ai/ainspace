@@ -95,23 +95,18 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
 
             if (mode === MOVEMENT_MODE.VILLAGE_WIDE) {
                 if (!agent.mapName) {
-                    return true; // Backward compatibility
+                    return false;
                 }
 
                 const vStore = useVillageStore.getState();
                 const loaded = vStore.loadedVillages.get(agent.mapName);
-                if (loaded) {
-                    const m = loaded.metadata;
-                    const range = gridToWorldRange(m.gridX, m.gridY, m.gridWidth || 1, m.gridHeight || 1);
-                    return newX >= range.startX && newX <= range.endX && newY >= range.startY && newY <= range.endY;
-                }
-                const nearby = vStore.nearbyVillages.get(agent.mapName);
-                if (nearby) {
-                    const range = gridToWorldRange(nearby.gridX, nearby.gridY, nearby.gridWidth || 1, nearby.gridHeight || 1);
-                    return newX >= range.startX && newX <= range.endX && newY >= range.startY && newY <= range.endY;
+                if (!loaded) {
+                    return false;
                 }
 
-                return true; // Unknown village slug
+                const m = loaded.metadata;
+                const range = gridToWorldRange(m.gridX, m.gridY, m.gridWidth || 1, m.gridHeight || 1);
+                return newX >= range.startX && newX <= range.endX && newY >= range.startY && newY <= range.endY;
             }
 
             return true; // No restriction for other modes
