@@ -7,7 +7,7 @@ import { useSearchParams } from 'next/navigation';
 import MapTab from '@/components/tabs/MapTab';
 import AgentTab from '@/components/tabs/AgentTab';
 import Footer from '@/components/Footer';
-import { BROADCAST_RADIUS, MOVEMENT_MODE, DEFAULT_MOVEMENT_MODE } from '@/constants/game';
+import { BROADCAST_RADIUS, MOVEMENT_MODE } from '@/constants/game';
 import { useUIStore, useThreadStore, useBuildStore, useAgentStore, useUserStore, useUserAgentStore } from '@/stores';
 import TempBuildTab from '@/components/tabs/TempBuildTab';
 import { useAccount } from 'wagmi';
@@ -16,7 +16,8 @@ import { StoredAgent } from '@/lib/redis';
 import { cn } from '@/lib/utils';
 import { useVillageLoader } from '@/hooks/useVillageLoader';
 import { useVillageStore } from '@/stores/useVillageStore';
-import { worldToGrid, findNearestValidPosition } from '@/lib/village-utils';
+import { findNearestValidPosition } from '@/lib/village-utils';
+import { useAgentLoader } from '@/hooks/useAgentLoader';
 
 const DEFAULT_VILLAGE_SLUG = 'happy-village';
 
@@ -256,107 +257,6 @@ export default function Home() {
     //     // loadCustomTiles();
     // }, [userId, setPublishedTiles, setCollisionMap]);
 
-    useEffect(() => {
-        const loadDeployedAgents = async () => {
-            try {
-                const response = await fetch(`/api/agents`);
-                if (!response.ok) {
-                    console.error('Failed to load deployed agents from Redis');
-                    return;
-                }
-
-                const data = await response.json();
-                if (!data.success || !data.agents) {
-                    console.error('Invalid agents data from API');
-                    return;
-                }
-
-                const deployedAgents = data.agents.filter((agentData: StoredAgent) => agentData.isPlaced);
-
-                console.log(`Found ${deployedAgents.length} user-deployed agents in Redis`);
-
-                // Restore agents to useAgentStore
-                deployedAgents.forEach((agentData: StoredAgent) => {
-                    const { url, card, state, spriteUrl, spriteHeight } = agentData;
-
-                    // Check if agent is already in store (avoid duplicates)
-                    const existingAgents = useAgentStore.getState().agents;
-                    if (existingAgents.find((agent) => agent.agentUrl === url)) {
-                        console.log(`Agent already in store: ${card.name}`);
-                        return;
-                    }
-
-                    const agentId = `a2a-deployed-${Date.now()}-${Math.random()}`;
-
-                    let spawnX = state.x!;
-                    let spawnY = state.y!;
-
-                    if (!isPositionValid(spawnX, spawnY)) {
-                        const validPosition = findAvailableSpawnPositionByRadius({ x: spawnX, y: spawnY });
-                        if (!validPosition) {
-                            console.error('Cannot spawn agent: no available positions found in deployment zones');
-                            alert('Cannot spawn agent: no available space found in deployment zones. Please remove some agents or clear space on the map.');
-                            return;
-                        }
-                        spawnX = validPosition.x;
-                        spawnY = validPosition.y;
-                    }
-
-                    // Determine village slug for agents without mapName
-                    let agentMapName = state.mapName;
-                    if (!agentMapName) {
-                        const { gridX, gridY } = worldToGrid(spawnX, spawnY);
-                        agentMapName = useVillageStore.getState().getVillageSlugAtGrid(gridX, gridY) ?? villageSlug;
-                    }
-
-                    // Migration logic for spawn position and movement mode
-                    const migratedState = {
-                        ...state,
-                        spawnX: state.spawnX ?? spawnX,
-                        spawnY: state.spawnY ?? spawnY,
-                        mapName: agentMapName,
-                        movementMode: state.movementMode ?? DEFAULT_MOVEMENT_MODE
-                    };
-
-                    console.log(`Migrated agent ${card.name}:`, {
-                        spawn: `(${migratedState.spawnX}, ${migratedState.spawnY})`,
-                        map: migratedState.mapName,
-                        mode: migratedState.movementMode
-                    });
-
-                    // Restore agent to store with saved position and sprite
-                    // We know x and y are numbers because they were filtered above
-                    spawnAgent({
-                        id: agentId,
-                        name: card.name || 'Deployed Agent',
-                        color: state.color,
-                        behavior: 'random',
-                        x: spawnX,
-                        y: spawnY,
-                        agentUrl: url,
-                        lastMoved: Date.now(),
-                        moveInterval: state.moveInterval || 800,
-                        skills: card.skills,
-                        spriteUrl: spriteUrl,
-                        spriteHeight: spriteHeight || 40,
-                        // Include migrated fields
-                        spawnX: migratedState.spawnX,
-                        spawnY: migratedState.spawnY,
-                        mapName: migratedState.mapName,
-                        movementMode: migratedState.movementMode
-                    });
-                });
-
-            } catch (error) {
-                console.error('Error loading deployed agents:', error);
-            }
-        };
-
-        if (isCurrentVillageLoaded) {
-            loadDeployedAgents();
-        }
-    }, [spawnAgent, isCurrentVillageLoaded]);
-
     const handleAgentClick = (agentId: string, agentName: string) => {
         console.log(`Agent clicked: ${agentName} (${agentId})`);
 
@@ -566,6 +466,13 @@ export default function Home() {
       BROADCAST_RADIUS,
     );
   }, [isPositionValid]);
+
+    // 에이전트 로딩: loadedVillages 기반으로 마을별 안전 스폰
+    useAgentLoader({
+        isCurrentVillageLoaded,
+        isPositionValid,
+        findAvailableSpawnPosition: findAvailableSpawnPositionByRadius,
+    });
 
     useEffect(() => {
         const load = async () => {
