@@ -106,6 +106,54 @@ export function gridKey(gridX: number, gridY: number): string {
 }
 
 /**
+ * 중심 좌표에서 가장 가까운 유효 위치를 찾는다.
+ * 중심이 유효하면 그대로 반환하고, 아니면 반경을 확장하며 perimeter를 탐색한다.
+ *
+ * @param centerX - 중심 world X 좌표
+ * @param centerY - 중심 world Y 좌표
+ * @param isBlocked - 해당 좌표가 막혀있는지 판별하는 콜백
+ * @param maxRadius - 최대 탐색 반경 (기본 10)
+ * @returns 유효한 위치 또는 null
+ */
+export function findNearestValidPosition(
+  centerX: number,
+  centerY: number,
+  isBlocked: (x: number, y: number) => boolean,
+  maxRadius = 10,
+): { x: number; y: number } | null {
+  // 중심이 유효하면 그대로 반환
+  if (!isBlocked(centerX, centerY)) {
+    return { x: centerX, y: centerY };
+  }
+
+  for (let radius = 1; radius <= maxRadius; radius++) {
+    const positionsAtRadius: { x: number; y: number }[] = [];
+
+    for (let dx = -radius; dx <= radius; dx++) {
+      for (let dy = -radius; dy <= radius; dy++) {
+        if (Math.abs(dx) === radius || Math.abs(dy) === radius) {
+          positionsAtRadius.push({
+            x: centerX + dx,
+            y: centerY + dy,
+          });
+        }
+      }
+    }
+
+    // 셔플하여 랜덤성 부여
+    positionsAtRadius.sort(() => Math.random() - 0.5);
+
+    for (const pos of positionsAtRadius) {
+      if (!isBlocked(pos.x, pos.y)) {
+        return pos;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
  * 주어진 격자 좌표의 인접 9칸 (자기 자신 포함) 격자 좌표를 반환한다.
  * 순서: 자기 자신 → 상하좌우 → 대각
  */

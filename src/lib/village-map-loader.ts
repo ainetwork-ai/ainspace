@@ -25,6 +25,20 @@ export function getActualGid(gid: number): number {
 
 export { FLIPPED_HORIZONTALLY_FLAG, FLIPPED_VERTICALLY_FLAG, FLIPPED_DIAGONALLY_FLAG };
 
+const IMAGE_LOAD_TIMEOUT = 15_000; // 15초
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    const timer = setTimeout(() => {
+      reject(new Error(`Image load timeout: ${src}`));
+    }, IMAGE_LOAD_TIMEOUT);
+    image.onload = () => { clearTimeout(timer); resolve(image); };
+    image.onerror = () => { clearTimeout(timer); reject(new Error(`Image load failed: ${src}`)); };
+    image.src = src;
+  });
+}
+
 export interface LoadedVillageMap {
   mapData: TiledMap;
   tilesets: Tileset[];
@@ -65,11 +79,7 @@ export async function loadVillageMap(
           const tileset = parser.parse(tsxText).tileset;
 
           const imagePath = `${tilesetBaseUrl}/${tileset.image.source.replace('./', '') + '?noCache=false'}`;
-          const image = new Image();
-          await new Promise<void>((resolve) => {
-            image.onload = () => resolve();
-            image.src = imagePath;
-          });
+          const image = await loadImage(imagePath);
 
           const columns = parseInt(tileset.columns) || 1;
           const tilecount = parseInt(tileset.tilecount) || 1;
@@ -91,11 +101,7 @@ export async function loadVillageMap(
 
         // 인라인 타일셋 형태
         const imagePath = `${tilesetBaseUrl}/${ts.image.replace('./', '') + '?noCache=false'}`;
-        const image = new Image();
-        await new Promise<void>((resolve) => {
-          image.onload = () => resolve();
-          image.src = imagePath;
-        });
+        const image = await loadImage(imagePath);
 
         return {
           firstgid: ts.firstgid,

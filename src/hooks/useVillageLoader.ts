@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useVillageStore, LoadedVillage } from '@/stores/useVillageStore';
 import { VillageMetadata } from '@/lib/village-redis';
 import { loadVillageMap, loadDefaultVillageMap } from '@/lib/village-map-loader';
-import { worldToGrid, gridToWorldRange } from '@/lib/village-utils';
+import { worldToGrid, gridToWorldRange, worldToLocalInVillage, findNearestValidPosition } from '@/lib/village-utils';
 import { useGameStateStore } from '@/stores';
 
 /**
@@ -197,7 +197,10 @@ export function useVillageLoader(initialVillageSlug: string | null) {
         // 현재 마을의 gridIndex를 먼저 등록 (이동 가능하도록)
         updateGridIndex([metadata]);
 
-        // 마을 중심 좌표 계산 및 플레이어 위치 설정
+        // 현재 마을 우선 로드 (collision 데이터 확보)
+        const loaded = await loadVillage(metadata);
+
+        // 마을 중심 좌표 계산 및 collision 회피 스폰 위치 결정
         const range = gridToWorldRange(
           metadata.gridX,
           metadata.gridY,
@@ -206,10 +209,15 @@ export function useVillageLoader(initialVillageSlug: string | null) {
         );
         const centerX = Math.floor((range.startX + range.endX) / 2);
         const centerY = Math.floor((range.startY + range.endY) / 2);
-        setWorldPosition({ x: centerX, y: centerY });
 
-        // 현재 마을 우선 로드
-        await loadVillage(metadata);
+        const spawnPos = loaded
+          ? findNearestValidPosition(centerX, centerY, (x, y) => {
+              const { localX, localY } = worldToLocalInVillage(x, y, metadata.gridX, metadata.gridY);
+              return loaded.collisionTiles.has(`${localX},${localY}`);
+            })
+          : null;
+
+        setWorldPosition(spawnPos ?? { x: centerX, y: centerY });
         setCurrentVillageLoaded(true);
 
         // 인접 마을 로드 (background)

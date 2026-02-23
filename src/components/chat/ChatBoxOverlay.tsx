@@ -1,7 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { useGameStateStore, useThreadStore, useUIStore, useUserStore } from '@/stores';
+import { useThreadStore, useUIStore, useUserStore } from '@/stores';
 import { AgentState } from '@/lib/agent';
 import { Triangle } from 'lucide-react';
 import Image from 'next/image';
