@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { DIRECTION, TILE_SIZE } from '@/constants/game';
 import { useBuildStore, useGameStateStore, useUIStore } from '@/stores';
 import { useGameState } from '@/hooks/useGameState';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
 
 type TileLayers = {
     layer0: { [key: string]: string };
@@ -65,6 +66,7 @@ export default function TempBuildTab({
     const [placedItems, setPlacedItems] = useState<Set<number>>(new Set());
     const tileSize = TILE_SIZE;
 
+    const { isDesktop } = useIsDesktop();
     const { setShowCollisionMap, collisionMap, isBlocked, setCollisionMap } = useBuildStore();
     const { mapData, playerPosition, movePlayer, isAutonomous, worldPosition } = useGameState();
     const { playerDirection, isPlayerMoving, setIsPlayerMoving, lastMoveTime, setLastMoveTime } = useGameStateStore();
@@ -497,15 +499,17 @@ export default function TempBuildTab({
                             // fixedZoom={0.5}
                             hideCoordinates={true}
                         />
-                        <div className="absolute -bottom-20 left-1/2 z-20 -translate-x-1/2 transform">
-                            <PlayerJoystick
-                                onMove={handleMobileMove}
-                                disabled={isAutonomous}
-                                baseColor="#00000050"
-                                stickColor="#FFF"
-                                size={100}
-                            />
-                        </div>
+                        {!isDesktop && (
+                            <div className="absolute -bottom-20 left-1/2 z-20 -translate-x-1/2 transform">
+                                <PlayerJoystick
+                                    onMove={handleMobileMove}
+                                    disabled={isAutonomous}
+                                    baseColor="#00000050"
+                                    stickColor="#FFF"
+                                    size={100}
+                                />
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex w-full flex-row gap-0 self-stretch">

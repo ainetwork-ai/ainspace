@@ -26,6 +26,7 @@ import PlaceAgentModal from '@/components/PlaceAgentModal';
 
 interface MapTabProps {
     isActive: boolean;
+    isDesktop?: boolean;
     publishedTiles: TileLayers;
     customTiles: TileLayers;
     collisionMap: { [key: string]: boolean };
@@ -38,6 +39,7 @@ interface MapTabProps {
 
 export default function MapTab({
     isActive,
+    isDesktop = false,
     publishedTiles,
     customTiles,
     collisionMap,
@@ -308,8 +310,8 @@ export default function MapTab({
                         {worldPosition && <span className="text-[#CAD0D7]"> [{worldPosition.x}, {worldPosition.y}]</span>}
                     </p>
                 </div>
-                {isJoystickVisible && (
-                    <div 
+                {!isDesktop && isJoystickVisible && (
+                    <div
                         className="absolute bottom-4 left-1/2 -translate-x-1/2 transform"
                         style={{ zIndex: Z_INDEX_OFFSETS.UI - 1 }}
                         hidden={HUDOff}
@@ -324,13 +326,15 @@ export default function MapTab({
                     </div>
                 )}
             </div>
-            <ChatBoxOverlay
-                chatBoxRef={chatBoxRef}
-                className="fixed bottom-[73px] left-0 z-1000"
-                setJoystickVisible={setIsJoystickVisible}
-                currentAgentsInRadius={getCurrentAgentsInRadius() || []}
-                HUDOff={HUDOff}
-            />
+            {!isDesktop && (
+                <ChatBoxOverlay
+                    chatBoxRef={chatBoxRef}
+                    className="fixed bottom-[73px] left-0 z-1000"
+                    setJoystickVisible={setIsJoystickVisible}
+                    currentAgentsInRadius={getCurrentAgentsInRadius() || []}
+                    HUDOff={HUDOff}
+                />
+            )}
             <LoadingModal open={isPlacing} />
         </BaseTabContent>
     );
