@@ -6,15 +6,12 @@ import { Thread } from '@/types/thread';
 import { generateAgentComboId } from '@/lib/hash';
 import { BROADCAST_RADIUS } from '@/constants/game';
 import ChatBox, { ChatBoxRef } from './ChatBox';
-import ThreadCard from './ThreadCard';
-import { Spinner } from '@/components/ui/spinner';
-import Image from 'next/image';
-import { cn } from '@/lib/utils';
+import ThreadListLeftDrawer from './ThreadListLeftDrawer';
 
 export default function ChatSidebarPanel() {
     const [isThreadListLoading, setIsThreadListLoading] = useState(false);
-    const [showThreadList, setShowThreadList] = useState(false);
-    const { threads, setThreads, setCurrentThreadId, currentThreadId } = useThreadStore();
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+    const { setThreads, setCurrentThreadId, currentThreadId } = useThreadStore();
     const { address, sessionId } = useUserStore();
     const agents = useAgentStore((s) => s.agents);
     const { worldPosition } = useGameStateStore();
@@ -38,7 +35,7 @@ export default function ChatSidebarPanel() {
                 if (data.success && data.threads) {
                     const _threads = data.threads as { [id: string]: Thread };
                     const fetchedThreads: Thread[] = [];
-                    for (const [id, threadData] of Object.entries(_threads)) {
+                    for (const [, threadData] of Object.entries(_threads)) {
                         const agentComboId =
                             threadData.agentComboId || (await generateAgentComboId(threadData.agentNames));
                         fetchedThreads.push({
@@ -78,74 +75,54 @@ export default function ChatSidebarPanel() {
         });
     }, [agents, worldPosition]);
 
+    const nearbyAgents = currentAgentsInRadius();
+    const shouldShowEmptyState = !currentThreadId || currentThreadId === '0';
+
     const handleThreadSelect = (threadId: string) => {
         setCurrentThreadId(threadId);
-        setShowThreadList(false);
+        setIsDrawerOpen(false);
     };
 
-    const toggleThreadList = () => {
-        setShowThreadList((prev) => !prev);
+    const openDrawer = () => {
+        setIsDrawerOpen(true);
     };
 
     return (
         <div className="flex h-full min-h-0 flex-col bg-[#2F333B]">
-            {/* Thread list header/toggle */}
-            <div className="flex items-center gap-2 border-b border-white/10 px-3 py-2">
-                <button
-                    onClick={toggleThreadList}
-                    className={cn(
-                        'rounded-full p-2 transition-colors',
-                        showThreadList ? 'bg-white/20' : 'bg-black/30 hover:bg-white/10'
-                    )}
-                >
-                    <Image
-                        src="/footer/bottomTab/tab_icon_bubble.svg"
-                        className="h-4 w-4"
-                        alt="Threads"
-                        width={16}
-                        height={16}
-                    />
-                </button>
-                <span className="text-sm font-bold text-white">
-                    {showThreadList ? 'Threads' : (
-                        currentThreadId && currentThreadId !== '0'
-                            ? threads.find(t => t.id === currentThreadId)?.agentNames.join(', ') || 'Chat'
-                            : 'Chat'
-                    )}
-                </span>
-            </div>
+            <ThreadListLeftDrawer
+                open={isDrawerOpen}
+                onOpenChange={setIsDrawerOpen}
+                onThreadSelect={handleThreadSelect}
+                isLoading={isThreadListLoading}
+            />
 
             {/* Content area */}
             <div className="flex flex-1 flex-col min-h-0">
-                {showThreadList ? (
-                    // Thread list
-                    <div className="flex-1 overflow-y-auto">
-                        {isThreadListLoading ? (
-                            <div className="flex items-center justify-center py-8">
-                                <Spinner className="size-6 text-white" />
-                            </div>
-                        ) : threads.length === 0 ? (
-                            <div className="flex items-center justify-center py-8">
-                                <p className="text-sm text-white/50">No threads yet</p>
-                            </div>
+                {shouldShowEmptyState && (
+                    <div className="flex flex-1 items-center justify-center flex-col gap-4">
+                        <div className="h-[160px] w-[160px] rounded-2xl bg-white/5" />
+                        {nearbyAgents.length === 0 ? (
+                            <p className="text-sm text-white/60 text-center whitespace-pre-line">
+                                {'Walk around the village and\nmeet the agents who live here!'}
+                            </p>
                         ) : (
-                            threads.map((thread) => (
-                                <ThreadCard
-                                    key={thread.id}
-                                    thread={thread}
-                                    onThreadSelect={handleThreadSelect}
-                                />
-                            ))
+                            <div className="text-sm text-white/60 text-center">
+                                <p>Try talking to</p>
+                                <p className="text-[#E8D44D] font-bold">
+                                    {nearbyAgents.map(a => a.name).join(', ')}
+                                </p>
+                                <p>nearby.</p>
+                            </div>
                         )}
                     </div>
-                ) : (
-                    // ChatBox inline
+                )}
+                <div className={shouldShowEmptyState ? '' : 'flex-1 min-h-0'}>
                     <ChatBox
                         ref={chatBoxRef}
-                        openThreadList={toggleThreadList}
-                        currentAgentsInRadius={currentAgentsInRadius()}
+                        openThreadList={openDrawer}
+                        currentAgentsInRadius={nearbyAgents}
                     />
-                )}
+                </div>
             </div>
         </div>
     );

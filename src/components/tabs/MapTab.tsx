@@ -279,7 +279,7 @@ export default function MapTab({
                     />
                 </div>
 
-                {address ? (
+                {!isDesktop && (address ? (
                     <button
                         onClick={handleWalletDisconnect}
                         className="absolute top-4 right-4 inline-flex cursor-pointer flex-row items-center justify-center gap-2 rounded-lg bg-white p-2"
@@ -296,9 +296,10 @@ export default function MapTab({
                   >
                     <p className="text-sm font-bold text-white">Wallet Login</p>
                   </button>
-                )}
+                ))}
 
                 {/* Current Area Display */}
+                {!isDesktop && (
                 <div
                     className="absolute top-16 right-4 inline-flex flex-row items-center justify-center gap-2 rounded-lg bg-black/50 backdrop-blur-[6px] px-3 py-1.5"
                     style={{ zIndex: Z_INDEX_OFFSETS.UI }}
@@ -310,6 +311,7 @@ export default function MapTab({
                         {worldPosition && <span className="text-[#CAD0D7]"> [{worldPosition.x}, {worldPosition.y}]</span>}
                     </p>
                 </div>
+                )}
                 {!isDesktop && isJoystickVisible && (
                     <div
                         className="absolute bottom-4 left-1/2 -translate-x-1/2 transform"
