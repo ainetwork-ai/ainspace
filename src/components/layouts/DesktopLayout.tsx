@@ -51,11 +51,11 @@ export default function DesktopLayout({
             {/* 왼쪽 사이드바 */}
             <div className="relative flex w-[440px] flex-col bg-[#2F333B] overflow-hidden" style={{ zIndex: Z_INDEX_OFFSETS.UI }}>
                 {/* 정보 바 */}
-                <div className="flex items-center justify-between px-3 py-2 bg-[#2F333B] border-b border-white/10">
+                <div className="flex items-center p-4 gap-2">
                     {/* 왼쪽: Area 정보 */}
-                    <div className="inline-flex flex-row items-center gap-2">
-                        <MapPin size={16} className="text-[#C0A9F1]" />
-                        <p className="text-xs font-bold">
+                    <div className="inline-flex flex-1 flex-row items-center justify-center gap-2 bg-[#222529] rounded-lg px-4 py-2">
+                        <MapPin size={24} className="text-[#C0A9F1]" />
+                        <p className="font-bold leading-6 gap-2">
                             <span className="text-[#C0A9F1]">Area: </span>
                             <span className="text-white">{worldPosition ? (currentVillageName || 'Unknown') : 'Unknown'}</span>
                             {worldPosition && <span className="text-[#CAD0D7]"> [{worldPosition.x}, {worldPosition.y}]</span>}
