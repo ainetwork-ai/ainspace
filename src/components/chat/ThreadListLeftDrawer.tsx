@@ -30,9 +30,9 @@ export default function ThreadListLeftDrawer({
     }, [threads]);
 
     return (
-        <Drawer open={open} onOpenChange={onOpenChange} direction="left">
+        <Drawer open={open} onOpenChange={onOpenChange} direction="left" shouldScaleBackground={false}>
             <DrawerContent
-                className={cn('min-h-screen w-full overflow-y-auto touch-pan-y', 'bg-[#1A1D22]')}
+                className={cn('min-h-screen w-full overflow-y-auto scrollbar-hide touch-pan-y', 'bg-[#1A1D22]')}
                 style={{ zIndex: Z_INDEX_OFFSETS.UI + 2, touchAction: 'pan-y' }}
             >
                 <DrawerHeader>

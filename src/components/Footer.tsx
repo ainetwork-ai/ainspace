@@ -5,11 +5,12 @@ import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { Z_INDEX_OFFSETS } from '@/constants/common';
 import { useUIStore, useUserStore } from '@/stores';
+import { TabType } from '@/stores/useUIStore';
 import ConnectWalletModal from './ConnectWalletModal';
 
 interface FooterProps {
-    activeTab: 'map' | 'thread' | 'build' | 'agent';
-    onTabChange: (tab: 'map' | 'thread' | 'build' | 'agent') => void;
+    activeTab: TabType;
+    onTabChange: (tab: TabType) => void;
 }
 
 const WALLET_REQUIRED_TABS = ['agent', 'build'] as const;
@@ -19,7 +20,7 @@ export default function Footer({ activeTab, onTabChange }: FooterProps) {
     const selectedAgentForPlacement = useUIStore((state) => state.selectedAgentForPlacement);
     const [showWalletModal, setShowWalletModal] = useState(false);
 
-    const handleTabChange = (tab: 'map' | 'thread' | 'build' | 'agent') => {
+    const handleTabChange = (tab: TabType) => {
         // Block tab change when placing agent
         if (selectedAgentForPlacement) return;
 

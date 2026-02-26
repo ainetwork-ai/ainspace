@@ -17,6 +17,7 @@ interface LoadingModalProps {
   message?: string;
   subMessage?: string;
   className?: string;
+  isDarkMode?: boolean;
 }
 
 export default function LoadingModal({
@@ -25,13 +26,15 @@ export default function LoadingModal({
   message = 'Applying your request.',
   subMessage = 'Please wait for a moment.',
   className,
+  isDarkMode = false,
 }: LoadingModalProps) {
   return (
     <Dialog open={open} modal={true}>
       <DialogContent
         className={cn(
-          'max-w-xs bg-white rounded-2xl py-6 px-4 shadow-lg',
+          'max-w-xs rounded-2xl py-6 px-4 shadow-lg',
           'flex flex-col items-center justify-center gap-4',
+          isDarkMode ? 'bg-[#2F333B]' : 'bg-white',
           className
         )}
         showCloseButton={false}
@@ -39,15 +42,15 @@ export default function LoadingModal({
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
         <DialogHeader className="flex flex-col items-center gap-2">
-          <DialogTitle className="text-lg font-bold text-black text-center">
+          <DialogTitle className={cn("text-lg font-bold text-center", isDarkMode ? 'text-white' : 'text-black')}>
             {title}
           </DialogTitle>
         </DialogHeader>
         <div className="flex flex-col items-center gap-1">
-          <DialogDescription className="text-sm text-gray-600 text-center">
+          <DialogDescription className={cn("text-sm text-center", isDarkMode ? 'text-[#CAD0D7]' : 'text-gray-600')}>
             {message}
           </DialogDescription>
-          <DialogDescription className="text-sm text-gray-600 text-center">
+          <DialogDescription className={cn("text-sm text-center", isDarkMode ? 'text-[#CAD0D7]' : 'text-gray-600')}>
             {subMessage}
           </DialogDescription>
         </div>

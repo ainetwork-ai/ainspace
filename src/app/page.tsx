@@ -4,20 +4,18 @@ import { useGameState } from '@/hooks/useGameState';
 import { useMiniKit } from '@coinbase/onchainkit/minikit';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import MapTab from '@/components/tabs/MapTab';
-import AgentTab from '@/components/tabs/AgentTab';
-import Footer from '@/components/Footer';
 import { BROADCAST_RADIUS, MOVEMENT_MODE } from '@/constants/game';
 import { useUIStore, useThreadStore, useBuildStore, useAgentStore, useUserStore, useUserAgentStore } from '@/stores';
-import TempBuildTab from '@/components/tabs/TempBuildTab';
 import { useAccount } from 'wagmi';
 import sdk from '@farcaster/miniapp-sdk';
 import { StoredAgent } from '@/lib/redis';
-import { cn } from '@/lib/utils';
 import { useVillageLoader } from '@/hooks/useVillageLoader';
 import { useVillageStore } from '@/stores/useVillageStore';
 import { findNearestValidPosition } from '@/lib/village-utils';
 import { useAgentLoader } from '@/hooks/useAgentLoader';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
+import DesktopLayout from '@/components/layouts/DesktopLayout';
+import MobileLayout from '@/components/layouts/MobileLayout';
 
 const DEFAULT_VILLAGE_SLUG = 'happy-village';
 
@@ -27,6 +25,9 @@ export default function Home() {
     const villageSlug = searchParams.get('village') ?? DEFAULT_VILLAGE_SLUG;
     const { isCurrentVillageLoaded } = useVillageLoader(villageSlug);
     const villageIsCollisionAt = useVillageStore((s) => s.isCollisionAt);
+
+    // Desktop/mobile detection
+    const { isDesktop } = useIsDesktop();
 
     // Global stores
     const { activeTab, setActiveTab } = useUIStore();
@@ -484,66 +485,41 @@ export default function Home() {
         }
     }, [isSDKLoaded]);
 
+    // Tab normalization: desktop uses 'chat' instead of 'map', mobile uses 'map' instead of 'chat'
+    useEffect(() => {
+        if (isDesktop && activeTab === 'map') {
+            setActiveTab('chat');
+        } else if (!isDesktop && activeTab === 'chat') {
+            setActiveTab('map');
+        }
+    }, [isDesktop, activeTab, setActiveTab]);
+
     const handleHUDOffChange = (hudOff: boolean) => {
         setHUDOff(hudOff);
     };
 
-    return (
-        <div className="flex h-screen w-full flex-col bg-gray-100">
-            <div className="relative flex-1 overflow-hidden">
-                <div className={cn("absolute inset-0 pb-[73px]")}>
-                    <MapTab
-                        isActive={activeTab === 'map'}
-                        publishedTiles={publishedTiles}
-                        customTiles={customTiles}
-                        collisionMap={globalCollisionMap}
-                        onAgentClick={handleAgentClick}
-                        HUDOff={HUDOff}
-                        onHUDOffChange={handleHUDOffChange}
-                        isPositionValid={isPositionValid}
-                        onPlaceAgentAtPosition={handlePlaceAgentAtPosition}
-                    />
-                    <TempBuildTab
-                        isActive={activeTab === 'build'}
-                        publishedTiles={publishedTiles}
-                        customTiles={customTiles}
-                        setCustomTiles={setCustomTiles}
-                        setPublishedTiles={setPublishedTiles}
-                        isPublishing={isPublishing}
-                        publishStatus={publishStatus}
-                        userId={userId}
-                        onPublishTiles={handlePublishTiles}
-                    />
-                {/* <BuildTab
-                    isActive={activeTab === 'build'}
-                    mapData={mapData}
-                    playerPosition={playerPosition}
-                    worldPosition={worldPosition}
-                    visibleAgents={combinedVisibleAgents}
-                    publishedTiles={publishedTiles}
-                    customTiles={customTiles}
-                    selectedImage={selectedImage}
-                    setSelectedImage={setSelectedImage}
-                    buildMode={buildMode}
-                    setBuildMode={setBuildMode}
-                    setCustomTiles={setCustomTiles}
-                    isPublishing={isPublishing}
-                    publishStatus={publishStatus}
-                    userId={userId}
-                    onPublishTiles={handlePublishTiles}
-                    onMobileMove={handleMobileMove}
-                /> */}
-                    <AgentTab
-                        isActive={activeTab === 'agent'}
-                    />
-                </div>
-            </div>
-            {!HUDOff && (
-                <Footer
-                    activeTab={activeTab}
-                    onTabChange={setActiveTab}
-                />
-            )}
-        </div>
-    );
+    const layoutProps = {
+        activeTab,
+        setActiveTab,
+        HUDOff,
+        onHUDOffChange: handleHUDOffChange,
+        publishedTiles,
+        customTiles,
+        collisionMap: globalCollisionMap,
+        onAgentClick: handleAgentClick,
+        isPositionValid,
+        onPlaceAgentAtPosition: handlePlaceAgentAtPosition,
+        setCustomTiles,
+        setPublishedTiles,
+        isPublishing,
+        publishStatus,
+        userId,
+        onPublishTiles: handlePublishTiles,
+    };
+
+    if (isDesktop) {
+        return <DesktopLayout {...layoutProps} />;
+    }
+
+    return <MobileLayout {...layoutProps} />;
 }

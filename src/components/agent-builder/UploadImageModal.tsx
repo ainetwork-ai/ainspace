@@ -20,6 +20,7 @@ interface UploadImageModalProps {
     onConfirm?: (agent: StoredAgent, sprite: {url:string, height:number} | File) => void;
     agent: StoredAgent;
     children: React.ReactNode;
+    isDarkMode?: boolean;
 }
 
 const DEFAULT_SPRITES: { id: SpriteType; url: string; name: string }[] = [
@@ -28,7 +29,7 @@ const DEFAULT_SPRITES: { id: SpriteType; url: string; name: string }[] = [
     { id: 'sprite_cat', url: '/sprite/sprite_cat.png', name: 'Cat' },
 ];
 
-export default function UploadImageModal({ onConfirm, agent, children }: UploadImageModalProps) {
+export default function UploadImageModal({ onConfirm, agent, children, isDarkMode = false }: UploadImageModalProps) {
     const [activeTab, setActiveTab] = useState<TabType>('default');
     const [selectedSprite, setSelectedSprite] = useState<SpriteType>('sprite_default_male');
     const [isOpen, setIsOpen] = useState(false);
@@ -80,7 +81,9 @@ export default function UploadImageModal({ onConfirm, agent, children }: UploadI
                   {DEFAULT_SPRITES.map((sprite) => (
                     <button key={sprite.id} onClick={() => setSelectedSprite(sprite.id)} className={cn(
                       'relative w-22 h-22 rounded-lg overflow-hidden border-2 transition-all',
-                      selectedSprite === sprite.id ? 'border-[#7F4FE8]' : 'border-[#E6EAEF] hover:border-[#C0A9F1]'
+                      selectedSprite === sprite.id
+                        ? 'border-[#7F4FE8]'
+                        : isDarkMode ? 'border-[#4A4E56] hover:border-[#C0A9F1]' : 'border-[#E6EAEF] hover:border-[#C0A9F1]'
                     )}>
                         <AgentProfile
                           width={88}
@@ -95,6 +98,7 @@ export default function UploadImageModal({ onConfirm, agent, children }: UploadI
                     onClick={handleConfirm}
                     type="large"
                     variant="primary"
+                    isDarkMode={isDarkMode}
                     className="px-4 py-[18px]"
                 >
                     Confirm
@@ -134,12 +138,18 @@ export default function UploadImageModal({ onConfirm, agent, children }: UploadI
                                 value={selectedFile?.name || ''}
                                 onClick={handleUploadClick}
                                 placeholder="PNG image"
-                                className="flex-1 px-4 py-2.5 border border-[#CDD4DE] rounded-[4px] bg-[#F3F4F5] text-sm text-black placeholder:text-[#C6CDD5] hover:cursor-pointer"
+                                className={cn(
+                                    "flex-1 px-4 py-2.5 border rounded-[4px] text-sm hover:cursor-pointer",
+                                    isDarkMode
+                                        ? 'bg-[#1A1D22] border-[#4A4E56] text-white placeholder:text-[#838D9D]'
+                                        : 'bg-[#F3F4F5] border-[#CDD4DE] text-black placeholder:text-[#C6CDD5]'
+                                )}
                             />
                             <Button
                                 onClick={handleConfirm}
                                 type="small"
                                 variant="primary"
+                                isDarkMode={isDarkMode}
                                 className="px-6 py-2"
                                 disabled={!selectedFile}
                             >
@@ -149,7 +159,12 @@ export default function UploadImageModal({ onConfirm, agent, children }: UploadI
                     </div>
 
                     {/* Info Box */}
-                    <div className="bg-[#FFF9E6] border-2 border-dashed border-[#E6D5A3] rounded-lg p-4">
+                    <div className={cn(
+                        "border-2 border-dashed rounded-lg p-4",
+                        isDarkMode
+                            ? 'bg-[#2A2518] border-[#4A4030]'
+                            : 'bg-[#FFF9E6] border-[#E6D5A3]'
+                    )}>
                         <div className="flex flex-col items-center gap-2">
                             {/* Sprite Preview Area - 레이아웃만 */}
                             <div className="flex flex-wrap gap-1 justify-center w-full min-h-[22px]">
@@ -160,7 +175,7 @@ export default function UploadImageModal({ onConfirm, agent, children }: UploadI
                                     alt="Sprite Preview"
                                 />
                             </div>
-                            <p className="text-[#B8860B] text-sm text-center">
+                            <p className={cn("text-sm text-center", isDarkMode ? 'text-[#FFB020]' : 'text-[#B8860B]')}>
                                 Upload a 40×40 transparent PNG sprite. (front-left-back-right)
                             </p>
                         </div>
@@ -173,19 +188,19 @@ export default function UploadImageModal({ onConfirm, agent, children }: UploadI
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>{children}</DialogTrigger>
-            <DialogContent className="max-w-md px-4 py-6">
+            <DialogContent className={cn("max-w-md px-4 py-6", isDarkMode && 'bg-[#2F333B]')}>
                 <DialogHeader className="flex flex-col gap-3">
-                    <DialogTitle className="text-xl font-bold text-black text-center">
+                    <DialogTitle className={cn("text-xl font-bold text-center", isDarkMode ? 'text-white' : 'text-black')}>
                         Set Agent Appearance
                     </DialogTitle>
                     {/* Tabs */}
-                    <div className="flex flex-row gap-0 px-6 border-b border-[#EAEAEA]">
+                    <div className={cn("flex flex-row gap-0 px-6 border-b", isDarkMode ? 'border-[#4A4E56]' : 'border-[#EAEAEA]')}>
                         <button
                             onClick={() => setActiveTab('default')}
                             className={cn(
                                 'flex-1 pb-3 font-semibold transition-colors',
                                 activeTab === 'default'
-                                    ? 'text-black border-b-2 border-[#7F4FE8]'
+                                    ? `border-b-2 border-[#7F4FE8] ${isDarkMode ? 'text-white' : 'text-black'}`
                                     : 'text-[#838D9D] border-b-2 border-transparent'
                             )}
                         >
@@ -196,7 +211,7 @@ export default function UploadImageModal({ onConfirm, agent, children }: UploadI
                             className={cn(
                                 'flex-1 pb-3 font-semibold transition-colors',
                                 activeTab === 'custom'
-                                    ? 'text-black border-b-2 border-[#7F4FE8]'
+                                    ? `border-b-2 border-[#7F4FE8] ${isDarkMode ? 'text-white' : 'text-black'}`
                                     : 'text-[#838D9D] border-b-2 border-transparent'
                             )}
                         >
