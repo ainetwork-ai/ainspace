@@ -36,6 +36,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 0. Admin 사용자는 토큰 검증 스킵
+    const existingPermissions = await getUserPermissions(userId);
+    if (existingPermissions?.permissions?.adminAccess === true) {
+      return NextResponse.json({
+        success: true,
+        data: {
+          grantedAuths: existingPermissions.auths,
+          permissions: existingPermissions,
+        },
+      });
+    }
+
     // 1. 모든 Auth Definition 가져오기
     const allAuthDefinitions = await getAllAuthDefinitions();
 
