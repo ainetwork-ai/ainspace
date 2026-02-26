@@ -27,6 +27,13 @@ export { FLIPPED_HORIZONTALLY_FLAG, FLIPPED_VERTICALLY_FLAG, FLIPPED_DIAGONALLY_
 
 const IMAGE_LOAD_TIMEOUT = 15_000; // 15초
 
+/** 오늘 00:00:00 KST의 타임스탬프 (캐시 버스터용, 하루 단위 갱신) */
+const TODAY_CACHE_KEY = (() => {
+  const now = new Date();
+  const kst = new Date(now.toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' }) + 'T00:00:00+09:00');
+  return kst.getTime().toString();
+})();
+
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image();
@@ -58,7 +65,6 @@ export async function loadVillageMap(
   tilesetBaseUrl: string,
 ): Promise<LoadedVillageMap> {
   // 1. 맵 JSON 로드
-  // NOTE(yoojin): tmp: noCache=true 쿼리 파라미터를 추가하여 캐시를 무시하고 새로 로드한다. (TODO: 나중에 제거)
   const mapRes = await fetch(tmjUrl);
   const mapData = await mapRes.json();
 
@@ -74,12 +80,12 @@ export async function loadVillageMap(
       try {
         if ('source' in ts) {
           // TSX 파일 참조 형태
-          const tsxPath = `${tilesetBaseUrl}/${ts.source}?noCache=false`;
+          const tsxPath = `${tilesetBaseUrl}/${ts.source}?v=${TODAY_CACHE_KEY}`;
           const tsxText = await (await fetch(tsxPath)).text();
           const tileset = parser.parse(tsxText).tileset;
 
           const tsxDir = ts.source.substring(0, ts.source.lastIndexOf('/') + 1);
-          const imagePath = `${tilesetBaseUrl}/${tsxDir}${tileset.image.source.replace('./', '') + '?noCache=true'}`;
+          const imagePath = `${tilesetBaseUrl}/${tsxDir}${tileset.image.source.replace('./', '')}?v=${TODAY_CACHE_KEY}`;
           const image = await loadImage(imagePath);
 
           const columns = parseInt(tileset.columns) || 1;
@@ -101,7 +107,7 @@ export async function loadVillageMap(
         }
 
         // 인라인 타일셋 형태
-        const imagePath = `${tilesetBaseUrl}/${ts.image.replace('./', '') + '?noCache=false'}`;
+        const imagePath = `${tilesetBaseUrl}/${ts.image.replace('./', '')}?v=${TODAY_CACHE_KEY}`;
         const image = await loadImage(imagePath);
 
         return {
@@ -115,9 +121,9 @@ export async function loadVillageMap(
         };
       } catch (err) {
         if ('source' in ts) {
-          console.error(`Error loading tileset ${ts.source} ${ts.firstgid}:`, err);
+          console.error(`Error loading tileset ${JSON.stringify(ts)}:`, err);
         } else {
-          console.error(`Error loading tileset ${ts.image} ${ts.firstgid}:`, err);
+          console.error(`Error loading tileset ${JSON.stringify(ts)}:`, err);
         }
         return null as unknown as Tileset;
       }
