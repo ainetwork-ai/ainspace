@@ -4,14 +4,11 @@ import { useEffect, useCallback } from 'react';
 import { useMapData } from '@/providers/MapDataProvider';
 import { useAgents } from '@/hooks/useAgents';
 import { useBuildStore, useGameStateStore, useAgentStore, useUserStore } from '@/stores';
+import { useVillageStore } from '@/stores/useVillageStore';
 import {
     MAP_WIDTH,
     MAP_HEIGHT,
     VIEW_RADIUS,
-    MIN_WORLD_X,
-    MAX_WORLD_X,
-    MIN_WORLD_Y,
-    MAX_WORLD_Y,
     DIRECTION,
     INITIAL_PLAYER_POSITION,
     MIN_MOVE_INTERVAL
@@ -27,6 +24,7 @@ export function useGameState() {
     const userId = useUserStore((state) => state.getUserId());
     const { isBlocked: isLayer1Blocked, collisionMap } = useBuildStore();
     const { agents: a2aAgents } = useAgentStore();
+    const isCollisionAt = useVillageStore((s) => s.isCollisionAt);
     const {
         worldPosition,
         setWorldPosition,
@@ -82,13 +80,43 @@ export function useGameState() {
         [userId]
     );
 
+    /**
+     * 주어진 좌표로 이동 가능한지 검사한다.
+     * - 마을 TMJ Layer1 충돌 (isCollisionAt) - 마을이 없으면 default map 사용
+     * - 빌드 layer1 충돌 (isLayer1Blocked)
+     * - 에이전트 충돌
+     */
+    const isPositionBlocked = useCallback(
+        (x: number, y: number): boolean => {
+            // 마을 TMJ 또는 default map 충돌 체크
+            // (마을이 없으면 isCollisionAt이 default map 기준으로 체크 = 충돌 없음)
+            if (isCollisionAt(x, y)) return true;
+
+            // 빌드 layer1 충돌
+            if (isLayer1Blocked(x, y)) return true;
+
+            // 에이전트 충돌
+            const occupiedByWorldAgent = agents.some(
+                (agent) => agent.x === x && agent.y === y
+            );
+            if (occupiedByWorldAgent) return true;
+
+            const occupiedByA2AAgent = Object.values(a2aAgents).some(
+                (agent) => agent.x === x && agent.y === y
+            );
+            if (occupiedByA2AAgent) return true;
+
+            return false;
+        },
+        [isCollisionAt, isLayer1Blocked, agents, a2aAgents]
+    );
+
     const movePlayer = useCallback(
         (direction: DIRECTION) => {
             // Check if enough time has passed since last move (prevent double movement)
             const now = Date.now();
             const timeSinceLastMove = now - lastMoveTime;
             if (timeSinceLastMove < MIN_MOVE_INTERVAL) {
-                console.log(`⏱️ Movement throttled: ${timeSinceLastMove}ms since last move (min: ${MIN_MOVE_INTERVAL}ms)`);
                 return;
             }
 
@@ -113,37 +141,8 @@ export function useGameState() {
                     break;
             }
 
-            // Check if the new world position is walkable
-            const tileType = generateTileAt(newWorldPosition.x, newWorldPosition.y);
-            if (tileType === 3) {
-                return;
-            }
-
-            // Check if a world agent is at this position
-            const isOccupiedByWorldAgent = agents.some(
-                (agent) => agent.x === newWorldPosition.x && agent.y === newWorldPosition.y
-            );
-            if (isOccupiedByWorldAgent) {
-                const blockingAgent = agents.find(
-                    (agent) => agent.x === newWorldPosition.x && agent.y === newWorldPosition.y
-                );
-                console.log(
-                    `🎮❌ Movement blocked: World agent "${blockingAgent?.name}" is at (${newWorldPosition.x}, ${newWorldPosition.y})`
-                );
-                return;
-            }
-
-            // Check if an A2A agent is at this position
-            const isOccupiedByA2AAgent = Object.values(a2aAgents).some(
-                (agent) => agent.x === newWorldPosition.x && agent.y === newWorldPosition.y
-            );
-            if (isOccupiedByA2AAgent) {
-                const blockingAgent = Object.values(a2aAgents).find(
-                    (agent) => agent.x === newWorldPosition.x && agent.y === newWorldPosition.y
-                );
-                console.log(
-                    `🤖❌ Movement blocked: A2A agent "${blockingAgent?.name}" is at (${newWorldPosition.x}, ${newWorldPosition.y})`
-                );
+            // Village-based collision check
+            if (isPositionBlocked(newWorldPosition.x, newWorldPosition.y)) {
                 return;
             }
 
@@ -159,7 +158,7 @@ export function useGameState() {
             // Track recent movements
             setRecentMovements([direction, ...recentMovements.slice(0, 4)]);
         },
-        [generateTileAt, savePositionToRedis, isLayer1Blocked, agents, a2aAgents, lastMoveTime]
+        [worldPosition, recentMovements, isPositionBlocked, savePositionToRedis, lastMoveTime, setPlayerDirection, setIsPlayerMoving, setLastMoveTime, setRecentMovements, setWorldPosition]
     );
 
     const toggleAutonomous = useCallback(() => {
@@ -257,25 +256,8 @@ export function useGameState() {
                 break;
         }
 
-        // Check if blocked by boundary or obstacle
-        const isOutOfBounds =
-            nextPosition.x < MIN_WORLD_X ||
-            nextPosition.x > MAX_WORLD_X ||
-            nextPosition.y < MIN_WORLD_Y ||
-            nextPosition.y > MAX_WORLD_Y;
-        const tileType = generateTileAt(nextPosition.x, nextPosition.y);
-        const isOccupiedByWorldAgent = agents.some(
-            (agent) => agent.x === nextPosition.x && agent.y === nextPosition.y
-        );
-        const isOccupiedByA2AAgent = Object.values(a2aAgents).some(
-            (agent) => agent.x === nextPosition.x && agent.y === nextPosition.y
-        );
-        const isBlocked =
-            isOutOfBounds ||
-            tileType === 3 ||
-            isLayer1Blocked(nextPosition.x, nextPosition.y) ||
-            isOccupiedByWorldAgent ||
-            isOccupiedByA2AAgent;
+        // Village-based blocking check
+        const isBlocked = isPositionBlocked(nextPosition.x, nextPosition.y);
 
         if (isBlocked) {
             // Try different directions
@@ -298,24 +280,7 @@ export function useGameState() {
                     default:
                         break;
                 }
-                const outOfBounds =
-                    testPosition.x < MIN_WORLD_X ||
-                    testPosition.x > MAX_WORLD_X ||
-                    testPosition.y < MIN_WORLD_Y ||
-                    testPosition.y > MAX_WORLD_Y;
-                const occupiedByWorldAgent = agents.some(
-                    (agent) => agent.x === testPosition.x && agent.y === testPosition.y
-                );
-                const occupiedByA2AAgent = Object.values(a2aAgents).some(
-                    (agent) => agent.x === testPosition.x && agent.y === testPosition.y
-                );
-                return (
-                    !outOfBounds &&
-                    generateTileAt(testPosition.x, testPosition.y) !== 3 &&
-                    !isLayer1Blocked(testPosition.x, testPosition.y) &&
-                    !occupiedByWorldAgent &&
-                    !occupiedByA2AAgent
-                );
+                return !isPositionBlocked(testPosition.x, testPosition.y);
             });
 
             if (availableDirections.length > 0) {
@@ -330,21 +295,24 @@ export function useGameState() {
         isAutonomous,
         worldPosition,
         playerDirection,
-        generateTileAt,
+        isPositionBlocked,
         movePlayer,
-        isLayer1Blocked,
-        agents,
-        a2aAgents
     ]);
 
     // Initialize to default position on mount/refresh
-    useEffect(() => {
-        // Always start at initial position on refresh
-        setWorldPosition(INITIAL_PLAYER_POSITION);
-        setIsLoading(false);
+    // NOTE: Initial position is now set by useVillageLoader based on the village slug
+    // This useEffect is commented out to allow village-based starting position
+    // useEffect(() => {
+    //     // Always start at initial position on refresh
+    //     setWorldPosition(INITIAL_PLAYER_POSITION);
+    //     setIsLoading(false);
+    //
+    //     console.log('Player position initialized to:', INITIAL_PLAYER_POSITION);
+    // }, []); // Empty dependency array - only run once on mount
 
-        console.log('🔄 Player position initialized to:', INITIAL_PLAYER_POSITION);
-    }, []); // Empty dependency array - only run once on mount
+    useEffect(() => {
+        setIsLoading(false);
+    }, [setIsLoading]);
 
     // Autonomous movement interval
     useEffect(() => {
@@ -394,6 +362,7 @@ export function useGameState() {
         lastCommentary,
         playerDirection,
         isPlayerMoving,
-        collisionMap
+        collisionMap,
+        isPositionBlocked,
     };
 }

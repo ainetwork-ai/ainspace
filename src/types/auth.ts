@@ -25,6 +25,7 @@ export interface UserPermissions {
   userId: string;
   auths: string[];
   permissions: FeaturePermissions;
+  authCheckedAt?: string; // ISO timestamp of last auth verification
 }
 
 export interface PermissionCheckResult {

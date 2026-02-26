@@ -147,11 +147,12 @@ export const getUserPermissions = async (
   const permissions: FeaturePermissions = data[PERMISSIONS_FIELD_NAME]
     ? JSON.parse(data[PERMISSIONS_FIELD_NAME])
     : {};
-    
+
   return {
     userId: data.userId || userId,
     auths,
     permissions,
+    authCheckedAt: data.authCheckedAt,
   };
 };
 

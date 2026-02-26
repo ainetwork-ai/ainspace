@@ -2,14 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { SpriteAnimator } from 'react-sprite-animator';
-import { TILE_SIZE, MAP_TILES, DIRECTION } from '@/constants/game';
-import { getMapNameFromCoordinates } from '@/lib/map-utils';
+import { TILE_SIZE, DIRECTION, BROADCAST_RADIUS } from '@/constants/game';
+import { worldToGrid } from '@/lib/village-utils';
 import { useBuildStore, useChatStore, useGameStateStore, useUserStore } from '@/stores';
 import * as Sentry from '@sentry/nextjs';
 import { AgentState } from '@/lib/agent';
 import { useTiledMap } from '@/hooks/useTiledMap';
 import { Z_INDEX_OFFSETS } from '@/constants/common';
-import { useMapStore } from '@/stores/useMapStore';
+import { useVillageStore } from '@/stores/useVillageStore';
 
 // Data structure for multi-tile items
 interface ItemTileData {
@@ -87,8 +87,7 @@ function TileMap({
 
     const tileSize = baseTileSize * (fixedZoom !== undefined ? fixedZoom : zoomLevel);
     
-    const { canvasRef, isLoaded, cameraTilePosition } = useTiledMap(
-        '/map/map.tmj',
+    const { canvasRef, cameraTilePosition } = useTiledMap(
         canvasSize,
         tileSize
     );
@@ -220,8 +219,8 @@ function TileMap({
         const canvas = canvasRef.current;
         if (!canvas) return null;
 
-        const { mapData } = useMapStore.getState();
-        if (!mapData) return null;
+        const { isCurrentVillageLoaded } = useVillageStore.getState();
+        if (!isCurrentVillageLoaded) return null;
 
         const rect = canvas.getBoundingClientRect();
         const scaleX = canvas.width / rect.width;
@@ -233,29 +232,15 @@ function TileMap({
         const screenTileX = Math.floor(canvasX / tileSize);
         const screenTileY = Math.floor(canvasY / tileSize);
 
-        // Calculate map center (same as useTiledMap.ts)
-        const { width, height } = mapData;
-        const mapCenterX = Math.floor(width / 2);
-        const mapCenterY = Math.floor(height / 2);
-
         // Calculate visible tiles
         const tilesX = Math.ceil(canvasSize.width / tileSize);
         const tilesY = Math.ceil(canvasSize.height / tileSize);
         const halfTilesX = Math.floor(tilesX / 2);
         const halfTilesY = Math.floor(tilesY / 2);
 
-        // Calculate camera position in center-based coordinates
-        let cameraTileX = worldPosition.x - halfTilesX;
-        let cameraTileY = worldPosition.y - halfTilesY;
-
-        // Map boundaries in center-based coordinates
-        const minCameraX = -mapCenterX;
-        const maxCameraX = mapCenterX - tilesX + 1;
-        const minCameraY = -mapCenterY;
-        const maxCameraY = mapCenterY - tilesY + 1;
-
-        cameraTileX = Math.max(minCameraX, Math.min(maxCameraX, cameraTileX));
-        cameraTileY = Math.max(minCameraY, Math.min(maxCameraY, cameraTileY));
+        // Camera position (no clamping - village boundaries handle movement limits)
+        const cameraTileX = worldPosition.x - halfTilesX;
+        const cameraTileY = worldPosition.y - halfTilesY;
 
         if (screenTileX >= 0 && screenTileX < tilesX && screenTileY >= 0 && screenTileY < tilesY) {
             // Calculate world coordinates in center-based system
@@ -473,7 +458,12 @@ function TileMap({
                 const agentScreenX = agent.x - cameraTilePosition.x;
                 const agentScreenY = agent.y - cameraTilePosition.y;
 
-                if (agentScreenX < -1 || agentScreenX > MAP_TILES || agentScreenY < -1 || agentScreenY > MAP_TILES) {
+                // Calculate actual viewport size based on canvas
+                const tilesX = Math.ceil(canvasSize.width / tileSize);
+                const tilesY = Math.ceil(canvasSize.height / tileSize);
+
+                // Skip rendering agents far outside the viewport
+                if (agentScreenX < -1 || agentScreenX > tilesX + 1 || agentScreenY < -1 || agentScreenY > tilesY + 1) {
                     return null;
                 }
 
@@ -485,6 +475,9 @@ function TileMap({
 
                 const topOffset = agentSpriteHeight === TILE_SIZE ? agentSpriteHeight / 4 : agentSpriteHeight / 1.5;
                 const agentZIndex = Z_INDEX_OFFSETS.GAME + (agent.y || 0);
+                const isNearby = Math.sqrt(
+                    Math.pow(agent.x - worldPosition.x, 2) + Math.pow(agent.y - worldPosition.y, 2)
+                ) <= BROADCAST_RADIUS;
 
                 return (
                     <div
@@ -534,7 +527,10 @@ function TileMap({
                                 borderRadius: '4px',
                                 whiteSpace: 'nowrap',
                                 zIndex: 20,
-                                pointerEvents: 'none'
+                                pointerEvents: 'none',
+                                ...(isNearby && {
+                                    border: '1.5px solid #FFE500',
+                                })
                             }}
                         >
                             {showCollisionMap && !hideCoordinates && agent.x !== undefined && agent.y !== undefined
@@ -689,8 +685,9 @@ function TileMap({
                                 // First check: map permission from user store
                                 const allowedMaps = useUserStore.getState().permissions?.permissions.placeAllowedMaps || [];
                                 if (allowedMaps.length > 0 && !allowedMaps.includes('*')) {
-                                    const tileMapName = getMapNameFromCoordinates(checkX, checkY);
-                                    if (!tileMapName || !allowedMaps.includes(tileMapName)) {
+                                    const { gridX, gridY } = worldToGrid(checkX, checkY);
+                                    const villageSlug = useVillageStore.getState().getVillageSlugAtGrid(gridX, gridY);
+                                    if (!villageSlug || !allowedMaps.includes(villageSlug)) {
                                         blocked = true;
                                     }
                                 }

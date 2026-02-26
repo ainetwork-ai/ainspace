@@ -8,6 +8,7 @@ import { StoredAgent } from '@/lib/redis';
 import CreateAgentSection from '@/components/agent-builder/CreateAgentSection';
 import ImportedAgentList from '@/components/agent-builder/ImportedAgentList';
 import { useAgentStore, useUIStore, useUserStore, useUserAgentStore } from '@/stores';
+import { cn } from '@/lib/utils';
 import LoadingModal from '../LoadingModal';
 import HolderModal from '../HolderModal';
 import MovementStyleModal from '../MovementStyleModal';
@@ -15,10 +16,12 @@ import { MOVEMENT_MODE } from '@/constants/game';
 
 interface AgentTabProps {
     isActive: boolean;
+    isDarkMode?: boolean;
 }
 
 export default function AgentTab({
     isActive,
+    isDarkMode = false,
 }: AgentTabProps) {
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
@@ -275,7 +278,9 @@ export default function AgentTab({
             movementMode: movementMode
         });
         setPendingPlacementAgent(null);
-        setActiveTab('map');
+        if (!isDarkMode) {
+            setActiveTab('map');
+        }
     };
 
     const handleUploadImage = async (agent: StoredAgent, sprite: {url: string, height: number} | File) => {
@@ -319,12 +324,12 @@ export default function AgentTab({
     }
 
     return (
-        <BaseTabContent isActive={isActive} className="bg-white">
-            <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-[30px] overflow-y-auto overflow-x-hidden font-manrope min-h-0">
+        <BaseTabContent isActive={isActive} className={isDarkMode ? 'bg-[#2F333B]' : 'bg-white'}>
+            <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-[30px] overflow-y-auto scrollbar-hide overflow-x-hidden font-manrope min-h-0">
                 <div className="flex flex-col gap-4 px-5">
-                    <p className="text-xl font-bold text-black text-center">Place your Agent to AINSpace</p>
-                    <CreateAgentSection />
-                    <ImportAgentSection handleImportAgent={handleImportAgent} isLoading={isLoading} />
+                    <p className={cn("text-xl font-bold text-center", isDarkMode ? 'text-white' : 'text-black')}>Place your Agent to AINSpace</p>
+                    <CreateAgentSection isDarkMode={isDarkMode} />
+                    <ImportAgentSection handleImportAgent={handleImportAgent} isLoading={isLoading} isDarkMode={isDarkMode} />
                     {error && <div className="mt-2 text-sm text-red-600">⚠️ {error}</div>}
                 </div>
                 <ImportedAgentList
@@ -333,19 +338,30 @@ export default function AgentTab({
                     onUnplaceAgent={handleUnplaceAgent}
                     onRemoveAgent={handleRemoveAgent}
                     onUploadImage={handleUploadImage}
+                    isDarkMode={isDarkMode}
                 />
             </div>
-            <LoadingModal open={isLoading} />
+            <LoadingModal open={isLoading} isDarkMode={isDarkMode} />
             <HolderModal open={isHolderModalOpen} onOpenChange={setIsHolderModalOpen}/>
 
             {/* Movement Style Modal */}
             {pendingPlacementAgent && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                    <MovementStyleModal
-                        onConfirm={handleMovementStyleConfirm}
-                        initialStyle={MOVEMENT_MODE.STATIONARY}
-                    />
-                </div>
+                isDarkMode ? (
+                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50">
+                        <MovementStyleModal
+                            onConfirm={handleMovementStyleConfirm}
+                            initialStyle={MOVEMENT_MODE.STATIONARY}
+                            isDarkMode={isDarkMode}
+                        />
+                    </div>
+                ) : (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                        <MovementStyleModal
+                            onConfirm={handleMovementStyleConfirm}
+                            initialStyle={MOVEMENT_MODE.STATIONARY}
+                        />
+                    </div>
+                )
             )}
         </BaseTabContent>
     );

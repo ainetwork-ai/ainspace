@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { DIRECTION, TILE_SIZE } from '@/constants/game';
 import { useBuildStore, useGameStateStore, useUIStore } from '@/stores';
 import { useGameState } from '@/hooks/useGameState';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
 
 type TileLayers = {
     layer0: { [key: string]: string };
@@ -36,6 +37,7 @@ const ITEM_DIMENSIONS: { [key: number]: { width: number; height: number } } = {
 
 interface BuildTabProps {
     isActive: boolean;
+    isDarkMode?: boolean;
     publishedTiles: TileLayers;
     customTiles: TileLayers;
     setCustomTiles: (tiles: TileLayers | ((prev: TileLayers) => TileLayers)) => void;
@@ -51,6 +53,7 @@ interface BuildTabProps {
 
 export default function TempBuildTab({
     isActive,
+    isDarkMode = false,
     publishedTiles,
     customTiles,
     setCustomTiles,
@@ -65,6 +68,7 @@ export default function TempBuildTab({
     const [placedItems, setPlacedItems] = useState<Set<number>>(new Set());
     const tileSize = TILE_SIZE;
 
+    const { isDesktop } = useIsDesktop();
     const { setShowCollisionMap, collisionMap, isBlocked, setCollisionMap } = useBuildStore();
     const { mapData, playerPosition, movePlayer, isAutonomous, worldPosition } = useGameState();
     const { playerDirection, isPlayerMoving, setIsPlayerMoving, lastMoveTime, setLastMoveTime } = useGameStateStore();
@@ -466,12 +470,17 @@ export default function TempBuildTab({
     }, [publishedTiles, customTiles]);
 
     return (
-        <BaseTabContent isActive={isActive} withPadding={false} className="bg-white">
-            <div className="flex h-full w-full flex-col items-center overflow-y-auto px-6">
+        <BaseTabContent isActive={isActive} withPadding={false} className={isDarkMode ? 'bg-[#2F333B]' : 'bg-white'}>
+            <div className="flex h-full w-full flex-col items-center overflow-y-auto scrollbar-hide px-6">
                 <div className="mt-8 flex w-full max-w-4xl flex-col items-center gap-4 pb-8">
-                    <div className="inline-flex flex-col items-start justify-start gap-1 self-stretch rounded bg-[#faf4fe] px-2.5 py-2 outline-1 outline-offset-[-1px] outline-[#d7c1e5]">
-                        <p className="justify-start text-base font-bold text-[#87659e]">Build Mode</p>
-                        <p className="justify-start text-sm font-normal text-[#b68ed2]">
+                    <div className={cn(
+                        "inline-flex flex-col items-start justify-start gap-1 self-stretch rounded px-2.5 py-2 outline-1 outline-offset-[-1px]",
+                        isDarkMode
+                            ? 'bg-[#2A2040] outline-[#5A4070]'
+                            : 'bg-[#faf4fe] outline-[#d7c1e5]'
+                    )}>
+                        <p className={cn("justify-start text-base font-bold", isDarkMode ? 'text-[#C0A9F1]' : 'text-[#87659e]')}>Build Mode</p>
+                        <p className={cn("justify-start text-sm font-normal", isDarkMode ? 'text-[#D4B8E8]' : 'text-[#b68ed2]')}>
                             {selectedTab === 'item'
                                 ? 'Select an item and click on the map to place it.'
                                 : 'Map editing coming soon!'}
@@ -497,15 +506,17 @@ export default function TempBuildTab({
                             // fixedZoom={0.5}
                             hideCoordinates={true}
                         />
-                        <div className="absolute -bottom-20 left-1/2 z-20 -translate-x-1/2 transform">
-                            <PlayerJoystick
-                                onMove={handleMobileMove}
-                                disabled={isAutonomous}
-                                baseColor="#00000050"
-                                stickColor="#FFF"
-                                size={100}
-                            />
-                        </div>
+                        {!isDesktop && (
+                            <div className="absolute -bottom-20 left-1/2 z-20 -translate-x-1/2 transform">
+                                <PlayerJoystick
+                                    onMove={handleMobileMove}
+                                    disabled={isAutonomous}
+                                    baseColor="#00000050"
+                                    stickColor="#FFF"
+                                    size={100}
+                                />
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex w-full flex-row gap-0 self-stretch">
@@ -516,7 +527,9 @@ export default function TempBuildTab({
                             }}
                             className={cn(
                                 'flex flex-1 cursor-pointer items-center justify-center border-b-2 pb-2 font-semibold text-[#838d9d]',
-                                selectedTab === 'map' ? 'border-b-[#854CFF] text-[#2f333b]' : 'border-b-[#EAEAEA]'
+                                selectedTab === 'map'
+                                    ? `border-b-[#854CFF] ${isDarkMode ? 'text-white' : 'text-[#2f333b]'}`
+                                    : isDarkMode ? 'border-b-[#4A4E56]' : 'border-b-[#EAEAEA]'
                             )}
                         >
                             Map
@@ -525,7 +538,9 @@ export default function TempBuildTab({
                             onClick={() => setSelectedTab('item')}
                             className={cn(
                                 'flex flex-1 cursor-pointer items-center justify-center border-b-2 pb-2 font-semibold text-[#838d9d]',
-                                selectedTab === 'item' ? 'border-b-[#854CFF] text-[#2f333b]' : 'border-b-[#EAEAEA]'
+                                selectedTab === 'item'
+                                    ? `border-b-[#854CFF] ${isDarkMode ? 'text-white' : 'text-[#2f333b]'}`
+                                    : isDarkMode ? 'border-b-[#4A4E56]' : 'border-b-[#EAEAEA]'
                             )}
                         >
                             Item
@@ -542,7 +557,8 @@ export default function TempBuildTab({
                                     key={index}
                                     onClick={() => handleItemClick(index)}
                                     className={cn(
-                                        'relative flex aspect-square items-center justify-center rounded-lg bg-[#EDEFF2] transition-all',
+                                        'relative flex aspect-square items-center justify-center rounded-lg transition-all',
+                                        isDarkMode ? 'bg-[#222529]' : 'bg-[#EDEFF2]',
                                         selectedTab === 'item' && !isPlaced
                                             ? 'cursor-pointer hover:scale-105 hover:shadow-lg'
                                             : 'cursor-not-allowed',
@@ -586,7 +602,10 @@ export default function TempBuildTab({
                             </p>
                         </button>
                     ) : ( */}
-                        <div className="shadow-2sm mb-20 inline-flex h-14 w-full cursor-not-allowed items-center justify-center gap-2.5 rounded bg-[#99a1ae] px-3 py-2">
+                        <div className={cn(
+                            "shadow-2sm mb-20 inline-flex h-14 w-full cursor-not-allowed items-center justify-center gap-2.5 rounded px-3 py-2",
+                            isDarkMode ? 'bg-[#5F666F]' : 'bg-[#99a1ae]'
+                        )}>
                             <p className="justify-start text-xl text-white">Coming Soon</p>
                         </div>
                     {/* )} */}

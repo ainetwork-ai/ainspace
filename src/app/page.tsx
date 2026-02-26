@@ -3,21 +3,32 @@
 import { useGameState } from '@/hooks/useGameState';
 import { useMiniKit } from '@coinbase/onchainkit/minikit';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import MapTab from '@/components/tabs/MapTab';
-import AgentTab from '@/components/tabs/AgentTab';
-import Footer from '@/components/Footer';
-import { DIRECTION, ENABLE_AGENT_MOVEMENT, BROADCAST_RADIUS, MOVEMENT_MODE, DEFAULT_MOVEMENT_MODE, SPAWN_RADIUS, MAP_ZONES, MAP_NAMES } from '@/constants/game';
-import { useUIStore, useThreadStore, useBuildStore, useAgentStore, useUserStore, useUserAgentStore, useGameStateStore } from '@/stores';
-import TempBuildTab from '@/components/tabs/TempBuildTab';
+import { useSearchParams } from 'next/navigation';
+import { BROADCAST_RADIUS, MOVEMENT_MODE } from '@/constants/game';
+import { useUIStore, useThreadStore, useBuildStore, useAgentStore, useUserStore, useUserAgentStore } from '@/stores';
 import { useAccount } from 'wagmi';
 import sdk from '@farcaster/miniapp-sdk';
 import { StoredAgent } from '@/lib/redis';
-import { useMapStore } from '@/stores/useMapStore';
-import { cn } from '@/lib/utils';
-import { getMapNameFromCoordinates } from '@/lib/map-utils';
-import { AgentState } from '@/lib/agent';
+import { useVillageLoader } from '@/hooks/useVillageLoader';
+import { useVillageStore } from '@/stores/useVillageStore';
+import { findNearestValidPosition } from '@/lib/village-utils';
+import { useAgentLoader } from '@/hooks/useAgentLoader';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
+import DesktopLayout from '@/components/layouts/DesktopLayout';
+import MobileLayout from '@/components/layouts/MobileLayout';
+
+const DEFAULT_VILLAGE_SLUG = 'happy-village';
 
 export default function Home() {
+    // Village system - URL param + loader
+    const searchParams = useSearchParams();
+    const villageSlug = searchParams.get('village') ?? DEFAULT_VILLAGE_SLUG;
+    const { isCurrentVillageLoaded } = useVillageLoader(villageSlug);
+    const villageIsCollisionAt = useVillageStore((s) => s.isCollisionAt);
+
+    // Desktop/mobile detection
+    const { isDesktop } = useIsDesktop();
+
     // Global stores
     const { activeTab, setActiveTab } = useUIStore();
     const {
@@ -40,16 +51,16 @@ export default function Home() {
         clearPublishStatusAfterDelay
     } = useBuildStore();
     const { worldPosition, userId, visibleAgents } = useGameState();
-    const { agents, spawnAgent, setAgents } = useAgentStore();
-    const { mapStartPosition, mapEndPosition, isCollisionTile, isLoaded: isMapLoaded } = useMapStore();
+    const { spawnAgent } = useAgentStore();
     const { setFrameReady, isFrameReady } = useMiniKit();
     const [isSDKLoaded, setIsSDKLoaded] = useState(false);
     const { address } = useAccount();
-    const { setAddress, setPermissions, setLastVerifiedAt, initSessionId, getSessionId, hasMigratedThreads, setMigratedThreads } = useUserStore();
+    const { setAddress, setPermissions, setLastVerifiedAt, initSessionId, getSessionId, hasMigratedThreads, setMigratedThreads, isPermissionExpired, verifyPermissions } = useUserStore();
     const { updateAgent: updateUserAgent } = useUserAgentStore();
 
     const [HUDOff, setHUDOff] = useState<boolean>(false);
     const hasInitializedAuth = useRef(false);
+    const prevAddressRef = useRef<string | null>(null);
 
     // Initialize sessionId for guest users on mount
     useEffect(() => {
@@ -74,10 +85,19 @@ export default function Home() {
                 setAddress(null);
                 setPermissions(null);
                 hasInitializedAuth.current = false;
+                prevAddressRef.current = null;
                 return;
             }
 
-            // 이미 초기화했으면 스킵
+            // 재로그인 감지: address가 변경되면 무조건 재검증
+            const isRelogin = address !== prevAddressRef.current;
+            if (isRelogin) {
+                console.log('Address changed, forcing re-verification:', { prev: prevAddressRef.current, new: address });
+                hasInitializedAuth.current = false;
+                prevAddressRef.current = address;
+            }
+
+            // 이미 초기화했으면 스킵 (단, 재로그인은 제외)
             if (hasInitializedAuth.current) return;
             hasInitializedAuth.current = true;
 
@@ -121,8 +141,26 @@ export default function Home() {
                     if (getData.success && getData.data) {
                         console.log('User already has permissions:', getData.data.permissions);
                         setPermissions(getData.data);
-                        setLastVerifiedAt(Date.now());
-                        return;
+
+                        // Parse authCheckedAt from Redis and set as lastVerifiedAt
+                        if (getData.data.authCheckedAt) {
+                            const authCheckedTimestamp = new Date(getData.data.authCheckedAt).getTime();
+                            setLastVerifiedAt(authCheckedTimestamp);
+                        }
+
+                        // 재로그인 시: 무조건 재검증 (expiry 체크 스킵)
+                        if (isRelogin) {
+                            console.log('Re-login detected, forcing verification regardless of expiry');
+                            // Continue to verify below (don't return)
+                        }
+                        // 재접속 시: 6시간 expiry 체크
+                        else if (isPermissionExpired()) {
+                            console.log('Permission cache expired (6h+), re-verifying...');
+                            // Continue to verify below (don't return)
+                        } else {
+                            console.log('Permission cache still valid (within 6h)');
+                            return;
+                        }
                     }
                 }
 
@@ -158,144 +196,67 @@ export default function Home() {
         initUserAuth();
     }, [address, setAddress, setPermissions, setLastVerifiedAt, getSessionId, hasMigratedThreads, setMigratedThreads])
 
+    // Periodic permission refresh
     useEffect(() => {
-        const loadCustomTiles = async () => {
-            if (!userId) return;
+        if (!address) return;
 
-            try {
-                const response = await fetch(`/api/custom-tiles?userId=${userId}`);
-                if (response.ok) {
-                    const data = await response.json();
-                    if (!data.isDefault && data.tiles) {
-                        setPublishedTiles(data.tiles);
-                        const totalTiles =
-                            Object.keys(data.tiles.layer0 || {}).length +
-                            Object.keys(data.tiles.layer1 || {}).length +
-                            Object.keys(data.tiles.layer2 || {}).length;
-                        console.log(`Loaded ${totalTiles} published tiles from server`);
+        const checkInterval = 5 * 60 * 1000; // Check every 5 minutes
 
-                        // Also update collision map with existing layer1 items
-                        const layer1Items = data.tiles.layer1 || {};
-
-                        // Get current collision map from store to avoid dependency
-                        const currentCollisionMap = useBuildStore.getState().collisionMap;
-                        const existingCollisionTiles: { [key: string]: boolean } = { ...currentCollisionMap };
-
-                        Object.keys(layer1Items).forEach((key) => {
-                            existingCollisionTiles[key] = true;
-                        });
-
-                        setCollisionMap(existingCollisionTiles);
-                        console.log(
-                            `Updated collision map with ${Object.keys(layer1Items).length} existing blocked tiles`
-                        );
-                    }
+        const intervalId = setInterval(async () => {
+            if (isPermissionExpired()) {
+                console.log('Permission expired during session, refreshing...');
+                const result = await verifyPermissions(address);
+                if (result.success) {
+                    console.log('Permission refreshed successfully');
+                } else {
+                    console.error('Failed to refresh permission');
                 }
-            } catch (error) {
-                console.error('Failed to load custom tiles:', error);
             }
-        };
+        }, checkInterval);
 
-        // loadCustomTiles();
-    }, [userId, setPublishedTiles, setCollisionMap]);
+        return () => clearInterval(intervalId);
+    }, [address, isPermissionExpired, verifyPermissions]);
 
-    // Load deployed agents from Redis on mount (모든 유저에게 허용)
-    useEffect(() => {
-        const loadDeployedAgents = async () => {
-            try {
-                const response = await fetch(`/api/agents`);
-                if (!response.ok) {
-                    console.error('Failed to load deployed agents from Redis');
-                    return;
-                }
+    // useEffect(() => {
+    //     const loadCustomTiles = async () => {
+    //         if (!userId) return;
 
-                const data = await response.json();
-                if (!data.success || !data.agents) {
-                    console.error('Invalid agents data from API');
-                    return;
-                }
+    //         try {
+    //             const response = await fetch(`/api/custom-tiles?userId=${userId}`);
+    //             if (response.ok) {
+    //                 const data = await response.json();
+    //                 if (!data.isDefault && data.tiles) {
+    //                     setPublishedTiles(data.tiles);
+    //                     const totalTiles =
+    //                         Object.keys(data.tiles.layer0 || {}).length +
+    //                         Object.keys(data.tiles.layer1 || {}).length +
+    //                         Object.keys(data.tiles.layer2 || {}).length;
+    //                     console.log(`Loaded ${totalTiles} published tiles from server`);
 
-                const deployedAgents = data.agents.filter((agentData: StoredAgent) => agentData.isPlaced);
+    //                     // Also update collision map with existing layer1 items
+    //                     const layer1Items = data.tiles.layer1 || {};
 
-                console.log(`Found ${deployedAgents.length} user-deployed agents in Redis`);
+    //                     // Get current collision map from store to avoid dependency
+    //                     const currentCollisionMap = useBuildStore.getState().collisionMap;
+    //                     const existingCollisionTiles: { [key: string]: boolean } = { ...currentCollisionMap };
 
-                // Restore agents to useAgentStore
-                deployedAgents.forEach((agentData: StoredAgent) => {
-                    const { url, card, state, spriteUrl, spriteHeight } = agentData;
+    //                     Object.keys(layer1Items).forEach((key) => {
+    //                         existingCollisionTiles[key] = true;
+    //                     });
 
-                    // Check if agent is already in store (avoid duplicates)
-                    const existingAgents = useAgentStore.getState().agents;
-                    if (existingAgents.find((agent) => agent.agentUrl === url)) {
-                        console.log(`Agent already in store: ${card.name}`);
-                        return;
-                    }
+    //                     setCollisionMap(existingCollisionTiles);
+    //                     console.log(
+    //                         `Updated collision map with ${Object.keys(layer1Items).length} existing blocked tiles`
+    //                     );
+    //                 }
+    //             }
+    //         } catch (error) {
+    //             console.error('Failed to load custom tiles:', error);
+    //         }
+    //     };
 
-                    const agentId = `a2a-deployed-${Date.now()}-${Math.random()}`;
-
-                    let spawnX = state.x!;
-                    let spawnY = state.y!;
-
-                    if (!isPositionValid(spawnX, spawnY)) {
-                        const validPosition = findAvailableSpawnPositionByRadius({ x: spawnX, y: spawnY });
-                        if (!validPosition) {
-                            console.error('Cannot spawn agent: no available positions found in deployment zones');
-                            alert('Cannot spawn agent: no available space found in deployment zones. Please remove some agents or clear space on the map.');
-                            return;
-                        }
-                        spawnX = validPosition.x;
-                        spawnY = validPosition.y;
-                    }
-
-                    // Migration logic for spawn position and movement mode
-                    const migratedState = {
-                        ...state,
-                        // If spawn position not set, use current position
-                        spawnX: state.spawnX ?? spawnX,
-                        spawnY: state.spawnY ?? spawnY,
-                        // If mapName not set, determine from position
-                        mapName: state.mapName ?? getMapNameFromCoordinates(spawnX, spawnY),
-                        // If movement mode not set, use default
-                        movementMode: state.movementMode ?? DEFAULT_MOVEMENT_MODE
-                    };
-
-                    console.log(`Migrated agent ${card.name}:`, {
-                        spawn: `(${migratedState.spawnX}, ${migratedState.spawnY})`,
-                        map: migratedState.mapName,
-                        mode: migratedState.movementMode
-                    });
-
-                    // Restore agent to store with saved position and sprite
-                    // We know x and y are numbers because they were filtered above
-                    spawnAgent({
-                        id: agentId,
-                        name: card.name || 'Deployed Agent',
-                        color: state.color,
-                        behavior: 'random',
-                        x: spawnX,
-                        y: spawnY,
-                        agentUrl: url,
-                        lastMoved: Date.now(),
-                        moveInterval: state.moveInterval || 800,
-                        skills: card.skills,
-                        spriteUrl: spriteUrl,
-                        spriteHeight: spriteHeight || 40,
-                        // Include migrated fields
-                        spawnX: migratedState.spawnX,
-                        spawnY: migratedState.spawnY,
-                        mapName: migratedState.mapName,
-                        movementMode: migratedState.movementMode
-                    });
-                });
-
-            } catch (error) {
-                console.error('Error loading deployed agents:', error);
-            }
-        };
-
-        if (isMapLoaded) {
-            loadDeployedAgents();
-        }
-    }, [spawnAgent, isMapLoaded]);
+    //     // loadCustomTiles();
+    // }, [userId, setPublishedTiles, setCollisionMap]);
 
     const handleAgentClick = (agentId: string, agentName: string) => {
         console.log(`Agent clicked: ${agentName} (${agentId})`);
@@ -348,7 +309,7 @@ export default function Home() {
                     // Include spawn data and movement mode
                     spawnX: x,
                     spawnY: y,
-                    mapName: mapName as MAP_NAMES,
+                    mapName: mapName,
                     movementMode: movementMode
                 },
                 isPlaced: true,
@@ -383,7 +344,7 @@ export default function Home() {
             // Include spawn data and movement mode
             spawnX: x,
             spawnY: y,
-            mapName: mapName as MAP_NAMES,
+            mapName: mapName,
             movementMode: movementMode
         });
     }, [address, spawnAgent, updateUserAgent]);
@@ -475,13 +436,13 @@ export default function Home() {
 
     // Position validation for agent placement
     const isPositionValid = useCallback((x: number, y: number): boolean => {
-      // Check boundaries
-      if (x < mapStartPosition.x || x > mapEndPosition.x || y < mapStartPosition.y || y > mapEndPosition.y) {
+      // Check if position is in a village and not blocked by TMJ collision
+      if (villageIsCollisionAt(x, y)) {
           return false;
       }
 
-      // Check if position is blocked by collision map
-      if (isCollisionTile(x, y)) {
+      // Check if position is blocked by build items
+      if (useBuildStore.getState().isBlocked(x, y)) {
           return false;
       }
 
@@ -491,224 +452,28 @@ export default function Home() {
       }
 
       // Check if position is occupied by another agent
-      // Get latest agents from store to avoid stale closure
       const currentA2AAgents = useAgentStore.getState().agents;
       const allAgents = [...visibleAgents, ...currentA2AAgents];
-      const isOccupied = allAgents.some((agent) => 
-        {
-          return agent.x === x && agent.y === y;
-        }
-      );
+      const isOccupied = allAgents.some((agent) => agent.x === x && agent.y === y);
       return !isOccupied;
-  }, [isCollisionTile, mapStartPosition, mapEndPosition, worldPosition, visibleAgents]);
+  }, [villageIsCollisionAt, worldPosition, visibleAgents]);
 
   // Find a non-blocked spawn position in one of the deployment zones
   const findAvailableSpawnPositionByRadius = useCallback((selectedCenter: { x: number; y: number }): { x: number; y: number } | null => {
-    // Search in expanding radius from selected zone center
-    for (let radius = 1; radius <= BROADCAST_RADIUS; radius++) {
-        // Collect all positions at current radius
-        const positionsAtRadius: { x: number; y: number }[] = [];
+    return findNearestValidPosition(
+      selectedCenter.x,
+      selectedCenter.y,
+      (x, y) => !isPositionValid(x, y),
+      BROADCAST_RADIUS,
+    );
+  }, [isPositionValid]);
 
-        for (let dx = -radius; dx <= radius; dx++) {
-            for (let dy = -radius; dy <= radius; dy++) {
-                // Only check positions on the perimeter (not interior)
-                if (Math.abs(dx) === radius || Math.abs(dy) === radius) {
-                    positionsAtRadius.push({
-                        x: selectedCenter.x + dx,
-                        y: selectedCenter.y + dy
-                    });
-                }
-            }
-        }
-
-        // Shuffle to add randomness and avoid clustering
-        positionsAtRadius.sort(() => Math.random() - 0.5);
-
-        // Check each position at this radius
-        for (const pos of positionsAtRadius) {
-            if (isPositionValid(pos.x, pos.y)) {
-                console.log(`Found spawn position at (${pos.x}, ${pos.y}) - radius ${radius} from zone center`);
-                return pos;
-            }
-        }
-    }
-
-    return null; // No valid position found in this zone
-}, [isPositionValid, worldPosition]);
-
-    // A2A Agent movement system
-    useEffect(() => {
-        // Skip movement if disabled
-        if (!ENABLE_AGENT_MOVEMENT) {
-            return;
-        }
-
-        // Helper: Check if agent can move based on movement mode
-        const canAgentMoveTo = (agent: AgentState, newX: number, newY: number): boolean => {
-            const mode = agent.movementMode ?? DEFAULT_MOVEMENT_MODE;
-
-            if (mode === MOVEMENT_MODE.STATIONARY) {
-                return false;
-            }
-
-            if (mode === MOVEMENT_MODE.SPAWN_CENTERED) {
-                const spawnX = agent.spawnX ?? agent.x;
-                const spawnY = agent.spawnY ?? agent.y;
-                const dx = Math.abs(newX - spawnX);
-                const dy = Math.abs(newY - spawnY);
-                const distance = Math.max(dx, dy);
-                return distance <= SPAWN_RADIUS;
-            }
-
-            // VILLAGE_WIDE mode
-            if (!agent.mapName) {
-                return true; // Backward compatibility
-            }
-
-            const zone = MAP_ZONES[agent.mapName];
-            return zone ? (
-                newX >= zone.startX &&
-                newX <= zone.endX &&
-                newY >= zone.startY &&
-                newY <= zone.endY
-            ) : true;
-        };
-
-        // Helper: Check if position is occupied by any agent
-        const isPositionOccupied = (x: number, y: number, currentAgentId: string, allAgents: AgentState[], worldAgents: { x: number; y: number }[]): boolean => {
-            const isOccupiedByA2A = allAgents.some(
-                (agent) => agent.id !== currentAgentId && agent.x === x && agent.y === y
-            );
-            const isOccupiedByWorld = worldAgents.some(
-                (agent) => agent.x === x && agent.y === y
-            );
-            return isOccupiedByA2A || isOccupiedByWorld;
-        };
-
-        // Helper: Try to move agent in a random valid direction (returns new agent object if moved, null if not)
-        const tryMoveAgent = (
-            agent: AgentState,
-            updated: AgentState[],
-            currentWorldAgents: { x: number; y: number }[],
-            checkCollision: (x: number, y: number) => boolean,
-            mapStartPos: { x: number; y: number },
-            mapEndPos: { x: number; y: number },
-            playerPos: { x: number; y: number }
-        ): AgentState | null => {
-            const directions = [
-                { dx: 0, dy: -1 }, // up
-                { dx: 0, dy: 1 },  // down
-                { dx: -1, dy: 0 }, // left
-                { dx: 1, dy: 0 }   // right
-            ];
-
-            const shuffledDirections = [...directions].sort(() => Math.random() - 0.5);
-
-            for (const direction of shuffledDirections) {
-                const newX = agent.x + direction.dx;
-                const newY = agent.y + direction.dy;
-
-                // Check all movement constraints
-                if (isPositionOccupied(newX, newY, agent.id, updated, currentWorldAgents)) continue;
-                if (checkCollision(newX, newY)) continue;
-                if (newX < mapStartPos.x || newX > mapEndPos.x || newY < mapStartPos.y || newY > mapEndPos.y) continue;
-                if (!canAgentMoveTo(agent, newX, newY)) continue;
-                // Check player position collision
-                if (newX === playerPos.x && newY === playerPos.y) continue;
-
-                // Valid move found! Return new agent object with updated state
-                const movedAgent = {
-                    ...agent,
-                    x: newX,
-                    y: newY,
-                    lastMoved: Date.now(),
-                    direction: getDirectionFromMovement(direction),
-                    isMoving: true
-                };
-
-                // Clear isMoving flag after animation
-                scheduleIsMovingClear(agent.agentUrl);
-
-                return movedAgent; // Movement successful
-            }
-
-            return null; // No valid move found
-        };
-
-        // Helper: Convert movement direction to DIRECTION enum
-        const getDirectionFromMovement = (direction: { dx: number; dy: number }) => {
-            if (direction.dy === -1) return DIRECTION.UP;
-            if (direction.dy === 1) return DIRECTION.DOWN;
-            if (direction.dx === -1) return DIRECTION.LEFT;
-            if (direction.dx === 1) return DIRECTION.RIGHT;
-            return DIRECTION.DOWN;
-        };
-
-        // Helper: Schedule clearing of isMoving flag
-        const scheduleIsMovingClear = (agentUrl?: string) => {
-            if (!agentUrl) return;
-            setTimeout(() => {
-                const currentAgents = useAgentStore.getState().agents;
-                const currentAgent = currentAgents.find((agent) => agent.agentUrl === agentUrl);
-                if (currentAgent) {
-                    useAgentStore.getState().updateAgent(agentUrl, { isMoving: false });
-                }
-            }, 500);
-        };
-
-        // Main movement loop
-        const moveA2AAgents = () => {
-            const now = Date.now();
-
-            // Get latest state from stores
-            const currentAgents = useAgentStore.getState().agents;
-            const mapStartPos = useMapStore.getState().mapStartPosition;
-            const mapEndPos = useMapStore.getState().mapEndPosition;
-            const checkCollision = useMapStore.getState().isCollisionTile;
-            // Get latest player position from store instead of closure to avoid stale values
-            const currentWorldPos = useGameStateStore.getState().worldPosition;
-
-            let hasUpdates = false;
-
-            // Use map instead of forEach to create completely new objects
-            const updated = currentAgents.map((agent) => {
-                // Skip movement for stationary agents
-                const mode = agent.movementMode ?? DEFAULT_MOVEMENT_MODE;
-
-                if (mode === MOVEMENT_MODE.STATIONARY) {
-                    return agent;
-                }
-
-                const moveInterval = agent.moveInterval || 5000;
-                const timeSinceLastMove = now - (agent.lastMoved || 0);
-
-                // Only try to move if enough time has passed
-                if (timeSinceLastMove < moveInterval) {
-                    return agent;
-                }
-
-                // Try to move agent (prevent moving into player position)
-                const movedAgent = tryMoveAgent(agent, currentAgents, [], checkCollision, mapStartPos, mapEndPos, currentWorldPos);
-
-                // If couldn't move, still update timestamp to prevent getting stuck
-                if (!movedAgent) {
-                    hasUpdates = true;
-                    return { ...agent, lastMoved: now, isMoving: false };
-                }
-
-                hasUpdates = true;
-                return movedAgent; // Return the new agent object with updated position and direction
-            });
-
-            // Update store if there were changes
-            if (hasUpdates) {
-                useAgentStore.getState().setAgents(updated);
-            }
-        };
-
-        const interval = setInterval(moveA2AAgents, 300);
-        return () => clearInterval(interval);
-    }, []);
+    // 에이전트 로딩: loadedVillages 기반으로 마을별 안전 스폰
+    useAgentLoader({
+        isCurrentVillageLoaded,
+        isPositionValid,
+        findAvailableSpawnPosition: findAvailableSpawnPositionByRadius,
+    });
 
     useEffect(() => {
         const load = async () => {
@@ -720,66 +485,41 @@ export default function Home() {
         }
     }, [isSDKLoaded]);
 
+    // Tab normalization: desktop uses 'chat' instead of 'map', mobile uses 'map' instead of 'chat'
+    useEffect(() => {
+        if (isDesktop && activeTab === 'map') {
+            setActiveTab('chat');
+        } else if (!isDesktop && activeTab === 'chat') {
+            setActiveTab('map');
+        }
+    }, [isDesktop, activeTab, setActiveTab]);
+
     const handleHUDOffChange = (hudOff: boolean) => {
         setHUDOff(hudOff);
     };
 
-    return (
-        <div className="flex h-screen w-full flex-col bg-gray-100">
-            <div className="relative flex-1 overflow-hidden">
-                <div className={cn("absolute inset-0 pb-[73px]")}>
-                    <MapTab
-                        isActive={activeTab === 'map'}
-                        publishedTiles={publishedTiles}
-                        customTiles={customTiles}
-                        collisionMap={globalCollisionMap}
-                        onAgentClick={handleAgentClick}
-                        HUDOff={HUDOff}
-                        onHUDOffChange={handleHUDOffChange}
-                        isPositionValid={isPositionValid}
-                        onPlaceAgentAtPosition={handlePlaceAgentAtPosition}
-                    />
-                    <TempBuildTab
-                        isActive={activeTab === 'build'}
-                        publishedTiles={publishedTiles}
-                        customTiles={customTiles}
-                        setCustomTiles={setCustomTiles}
-                        setPublishedTiles={setPublishedTiles}
-                        isPublishing={isPublishing}
-                        publishStatus={publishStatus}
-                        userId={userId}
-                        onPublishTiles={handlePublishTiles}
-                    />
-                {/* <BuildTab
-                    isActive={activeTab === 'build'}
-                    mapData={mapData}
-                    playerPosition={playerPosition}
-                    worldPosition={worldPosition}
-                    visibleAgents={combinedVisibleAgents}
-                    publishedTiles={publishedTiles}
-                    customTiles={customTiles}
-                    selectedImage={selectedImage}
-                    setSelectedImage={setSelectedImage}
-                    buildMode={buildMode}
-                    setBuildMode={setBuildMode}
-                    setCustomTiles={setCustomTiles}
-                    isPublishing={isPublishing}
-                    publishStatus={publishStatus}
-                    userId={userId}
-                    onPublishTiles={handlePublishTiles}
-                    onMobileMove={handleMobileMove}
-                /> */}
-                    <AgentTab
-                        isActive={activeTab === 'agent'}
-                    />
-                </div>
-            </div>
-            {!HUDOff && (
-                <Footer
-                    activeTab={activeTab}
-                    onTabChange={setActiveTab}
-                />
-            )}
-        </div>
-    );
+    const layoutProps = {
+        activeTab,
+        setActiveTab,
+        HUDOff,
+        onHUDOffChange: handleHUDOffChange,
+        publishedTiles,
+        customTiles,
+        collisionMap: globalCollisionMap,
+        onAgentClick: handleAgentClick,
+        isPositionValid,
+        onPlaceAgentAtPosition: handlePlaceAgentAtPosition,
+        setCustomTiles,
+        setPublishedTiles,
+        isPublishing,
+        publishStatus,
+        userId,
+        onPublishTiles: handlePublishTiles,
+    };
+
+    if (isDesktop) {
+        return <DesktopLayout {...layoutProps} />;
+    }
+
+    return <MobileLayout {...layoutProps} />;
 }

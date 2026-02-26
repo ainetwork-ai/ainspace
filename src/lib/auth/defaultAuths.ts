@@ -7,10 +7,10 @@ export const DEFAULT_AUTH_DEFINITIONS: AuthDefinition[] = [
       importAgent: true,
       placeAgent: 3,
       placeAllowedMaps: [
-        'Happy Village',
+        'happy-village',
       ],
       mapBuild: true,
-      buildAllowedMaps: ['Happy Village'],
+      buildAllowedMaps: ['happy-village'],
     },
     tokenRequirements: [
       // AIN Ethereum
@@ -49,9 +49,9 @@ export const DEFAULT_AUTH_DEFINITIONS: AuthDefinition[] = [
     permissions: {
       importAgent: true,
       placeAgent: 3,
-      placeAllowedMaps: ['Uncommon Village'],
+      placeAllowedMaps: ['uncommon-village'],
       mapBuild: true,
-      buildAllowedMaps: ['Uncommon Village'],
+      buildAllowedMaps: ['uncommon-village'],
     },
     tokenRequirements: [
       {

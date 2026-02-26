@@ -3,8 +3,10 @@
 import { useEffect, useCallback } from 'react';
 import { useMapData } from '@/providers/MapDataProvider';
 import { useAgentStore, useBuildStore, useChatStore } from '@/stores';
+import { useVillageStore } from '@/stores/useVillageStore';
 import { AgentState } from '@/lib/agent';
-import { DIRECTION, MAP_TILES, ENABLE_AGENT_MOVEMENT, MOVEMENT_MODE } from '@/constants/game';
+import { DIRECTION, ENABLE_AGENT_MOVEMENT, MOVEMENT_MODE, SPAWN_RADIUS, DEFAULT_MOVEMENT_MODE } from '@/constants/game';
+import { gridToWorldRange } from '@/lib/village-utils';
 
 interface UseAgentsProps {
     playerWorldPosition: { x: number; y: number };
@@ -28,9 +30,9 @@ interface CachedAgentData {
 
 export function useAgents({ playerWorldPosition }: UseAgentsProps) {
     const { generateTileAt } = useMapData();
-    // FIXME(yoojin): check collision for agent movement
     const { isBlocked: isBuildStoreBlocked } = useBuildStore();
     const { isAgentLoading } = useChatStore();
+    const villageIsCollisionAt = useVillageStore((s) => s.isCollisionAt);
 
     const { agents, setAgents, updateAgent: updateStoredAgent } = useAgentStore();
 
@@ -42,14 +44,12 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
 
     const isWalkable = useCallback(
         (x: number, y: number, currentAgents: AgentState[], checkingAgentId?: string): boolean => {
-            if (x < 0 || x >= MAP_TILES || y < 0 || y >= MAP_TILES) {
-                return false;
-            }
-
+            // Check player collision
             if (x === playerWorldPosition.x && y === playerWorldPosition.y) {
                 return false;
             }
 
+            // Check agent collision
             const isOccupiedByAgent = currentAgents.some(
                 (agent) => agent.id !== checkingAgentId && agent.x === x && agent.y === y
             );
@@ -57,116 +57,61 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
                 return false;
             }
 
+            // Check village TMJ collision (includes default map)
+            if (villageIsCollisionAt(x, y)) {
+                return false;
+            }
+
+            // Check build layer collision
+            if (isBuildStoreBlocked(x, y)) {
+                return false;
+            }
+
+            // Check legacy tile type (for backward compatibility)
             const tileType = generateTileAt(x, y);
             if (tileType === 3) return false;
-            if (isBuildStoreBlocked(x, y)) return false;
+
             return true;
         },
-        [generateTileAt, isBuildStoreBlocked, playerWorldPosition]
+        [generateTileAt, isBuildStoreBlocked, playerWorldPosition, villageIsCollisionAt]
     );
 
-    const getRandomDirection = (): DIRECTION => {
-        const directions = [DIRECTION.UP, DIRECTION.DOWN, DIRECTION.LEFT, DIRECTION.RIGHT] as const;
-        return directions[Math.floor(Math.random() * directions.length)];
-    };
+    const canAgentMoveTo = useCallback(
+        (agent: AgentState, newX: number, newY: number): boolean => {
+            const mode = agent.movementMode ?? DEFAULT_MOVEMENT_MODE;
 
-    const moveInDirection = (x: number, y: number, direction: DIRECTION): { x: number; y: number } => {
-        switch (direction) {
-            case DIRECTION.UP:
-                return { x, y: y - 1 };
-            case DIRECTION.DOWN:
-                return { x, y: y + 1 };
-            case DIRECTION.LEFT:
-                return { x: x - 1, y };
-            case DIRECTION.RIGHT:
-                return { x: x + 1, y };
-            default:
-                return { x, y };
-        }
-    };
-
-    const getAgentBehavior = useCallback(
-        (
-            agent: AgentState,
-            currentAgents: AgentState[]
-        ): { newX: number; newY: number; newDirection: DIRECTION } => {
-            const { x, y, direction = DIRECTION.DOWN, behavior, id } = agent;
-
-            switch (behavior) {
-                case 'random': {
-                    const shouldChangeDirection = Math.random() < 0.3;
-                    const newDirection = shouldChangeDirection ? getRandomDirection() : direction;
-                    const newPos = moveInDirection(x, y, newDirection);
-
-                    if (isWalkable(newPos.x, newPos.y, currentAgents, id)) {
-                        return { newX: newPos.x, newY: newPos.y, newDirection };
-                    }
-
-                    const altDirection = getRandomDirection();
-                    const altPos = moveInDirection(x, y, altDirection);
-                    if (isWalkable(altPos.x, altPos.y, currentAgents, id)) {
-                        return { newX: altPos.x, newY: altPos.y, newDirection: altDirection };
-                    }
-
-                    return { newX: x, newY: y, newDirection: getRandomDirection() };
-                }
-
-                case 'patrol': {
-                    const newPos = moveInDirection(x, y, direction);
-
-                    if (isWalkable(newPos.x, newPos.y, currentAgents, id)) {
-                        return { newX: newPos.x, newY: newPos.y, newDirection: direction };
-                    }
-
-                    const clockwiseDirections = {
-                        [DIRECTION.UP]: DIRECTION.RIGHT,
-                        [DIRECTION.RIGHT]: DIRECTION.DOWN,
-                        [DIRECTION.DOWN]: DIRECTION.LEFT,
-                        [DIRECTION.LEFT]: DIRECTION.UP
-                    };
-                    const newDirection = clockwiseDirections[direction as keyof typeof clockwiseDirections];
-                    const turnPos = moveInDirection(x, y, newDirection);
-
-                    if (isWalkable(turnPos.x, turnPos.y, currentAgents, id)) {
-                        return { newX: turnPos.x, newY: turnPos.y, newDirection };
-                    }
-
-                    return { newX: x, newY: y, newDirection };
-                }
-
-                case 'explorer': {
-                    const playerDistance = Math.abs(x - playerWorldPosition.x) + Math.abs(y - playerWorldPosition.y);
-
-                    if (playerDistance < 3) {
-                        const awayFromPlayerDirections: DIRECTION[] = [];
-                        if (x < playerWorldPosition.x) awayFromPlayerDirections.push(DIRECTION.LEFT);
-                        if (x > playerWorldPosition.x) awayFromPlayerDirections.push(DIRECTION.RIGHT);
-                        if (y < playerWorldPosition.y) awayFromPlayerDirections.push(DIRECTION.UP);
-                        if (y > playerWorldPosition.y) awayFromPlayerDirections.push(DIRECTION.DOWN);
-
-                        for (const dir of awayFromPlayerDirections) {
-                            const pos = moveInDirection(x, y, dir);
-                            if (isWalkable(pos.x, pos.y, currentAgents, id)) {
-                                return { newX: pos.x, newY: pos.y, newDirection: dir };
-                            }
-                        }
-                    }
-
-                    const newDirection = Math.random() < 0.7 ? direction : getRandomDirection();
-                    const newPos = moveInDirection(x, y, newDirection);
-
-                    if (isWalkable(newPos.x, newPos.y, currentAgents, id)) {
-                        return { newX: newPos.x, newY: newPos.y, newDirection };
-                    }
-
-                    return { newX: x, newY: y, newDirection: getRandomDirection() };
-                }
-
-                default:
-                    return { newX: x, newY: y, newDirection: direction };
+            if (mode === MOVEMENT_MODE.STATIONARY) {
+                return false;
             }
+
+            if (mode === MOVEMENT_MODE.SPAWN_CENTERED) {
+                const spawnX = agent.spawnX ?? agent.x;
+                const spawnY = agent.spawnY ?? agent.y;
+                const dx = Math.abs(newX - spawnX);
+                const dy = Math.abs(newY - spawnY);
+                const distance = Math.max(dx, dy);
+                return distance <= SPAWN_RADIUS;
+            }
+
+            if (mode === MOVEMENT_MODE.VILLAGE_WIDE) {
+                if (!agent.mapName) {
+                    return false;
+                }
+
+                const vStore = useVillageStore.getState();
+                const loaded = vStore.loadedVillages.get(agent.mapName);
+                if (!loaded) {
+                    return false;
+                }
+
+                const m = loaded.metadata;
+                const range = gridToWorldRange(m.gridX, m.gridY, m.gridWidth || 1, m.gridHeight || 1);
+                return newX >= range.startX && newX <= range.endX && newY >= range.startY && newY <= range.endY;
+            }
+
+            return true; // No restriction for other modes
         },
-        [isWalkable, playerWorldPosition]
+        []
     );
 
     const updateAgents = useCallback(() => {
@@ -207,7 +152,34 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
                 };
             }
 
-            const { newX, newY, newDirection } = getAgentBehavior(agent, agents);
+            // Try random direction movement
+            const directions = [
+                { dx: 0, dy: -1, dir: DIRECTION.UP },
+                { dx: 0, dy: 1, dir: DIRECTION.DOWN },
+                { dx: -1, dy: 0, dir: DIRECTION.LEFT },
+                { dx: 1, dy: 0, dir: DIRECTION.RIGHT }
+            ];
+
+            // Shuffle directions for randomness
+            const shuffledDirections = [...directions].sort(() => Math.random() - 0.5);
+
+            let newX = agent.x;
+            let newY = agent.y;
+            let newDirection = agent.direction || DIRECTION.DOWN;
+
+            // Try each direction until a valid move is found
+            for (const dir of shuffledDirections) {
+                const testX = agent.x + dir.dx;
+                const testY = agent.y + dir.dy;
+
+                if (isWalkable(testX, testY, agents, agent.id) &&
+                    canAgentMoveTo(agent, testX, testY)) {
+                    newX = testX;
+                    newY = testY;
+                    newDirection = dir.dir;
+                    break;
+                }
+            }
 
             // Check if agent actually moved
             const didMove = newX !== agent.x || newY !== agent.y;
@@ -221,7 +193,7 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
             });
         })
 
-    }, [getAgentBehavior, isAgentLoading, agents, updateStoredAgent]);
+    }, [canAgentMoveTo, isWalkable, isAgentLoading, agents, updateStoredAgent]);
 
     const getVisibleAgents = useCallback(() => {
         return Object.values(agents).map((agent) => ({

@@ -4,9 +4,11 @@ import { MOVEMENT_MODE } from '@/constants/game';
 
 export const FOOTER_HEIGHT = 73; // 72px + 1px border
 
+export type TabType = 'map' | 'chat' | 'thread' | 'build' | 'agent';
+
 interface UIState {
-    activeTab: 'map' | 'thread' | 'build' | 'agent';
-    setActiveTab: (tab: 'map' | 'thread' | 'build' | 'agent') => void;
+    activeTab: TabType;
+    setActiveTab: (tab: TabType) => void;
     selectedAgentForPlacement: {
         agent: StoredAgent;
         allowedMaps: string[];
