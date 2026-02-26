@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { SpriteAnimator } from 'react-sprite-animator';
-import { TILE_SIZE, DIRECTION } from '@/constants/game';
+import { TILE_SIZE, DIRECTION, BROADCAST_RADIUS } from '@/constants/game';
 import { worldToGrid } from '@/lib/village-utils';
 import { useBuildStore, useChatStore, useGameStateStore, useUserStore } from '@/stores';
 import * as Sentry from '@sentry/nextjs';
@@ -475,6 +475,9 @@ function TileMap({
 
                 const topOffset = agentSpriteHeight === TILE_SIZE ? agentSpriteHeight / 4 : agentSpriteHeight / 1.5;
                 const agentZIndex = Z_INDEX_OFFSETS.GAME + (agent.y || 0);
+                const isNearby = Math.sqrt(
+                    Math.pow(agent.x - worldPosition.x, 2) + Math.pow(agent.y - worldPosition.y, 2)
+                ) <= BROADCAST_RADIUS;
 
                 return (
                     <div
@@ -524,7 +527,10 @@ function TileMap({
                                 borderRadius: '4px',
                                 whiteSpace: 'nowrap',
                                 zIndex: 20,
-                                pointerEvents: 'none'
+                                pointerEvents: 'none',
+                                ...(isNearby && {
+                                    border: '1.5px solid #FFE500',
+                                })
                             }}
                         >
                             {showCollisionMap && !hideCoordinates && agent.x !== undefined && agent.y !== undefined
