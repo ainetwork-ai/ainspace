@@ -110,8 +110,8 @@ export default function ChatSidebarPanel() {
                             </div>
                         ) : (
                           <div className="flex flex-col items-center justify-center">
+                              <Image src="/chat/chat_bg_nearby_agent.svg" alt="Nearby Agent" width={180} height={180} />
                               <div className="text-white text-center font-semibold leading-[160%] whitespace-pre-line">
-                                  <Image src="/chat/chat_bg_nearby_agent.svg" alt="Nearby Agent" width={180} height={180} />
                                   <p>Try talking to</p>
                                   <p className="text-[#FFE500] text-xl font-semibold">
                                       {nearbyAgents.map(a => a.name).join(', ')}

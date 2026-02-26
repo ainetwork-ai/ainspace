@@ -52,35 +52,6 @@ export default function DesktopLayout({
         <div className="flex h-screen w-full bg-gray-100">
             {/* 왼쪽 사이드바 */}
             <div className="relative flex w-[440px] flex-col bg-[#2F333B] overflow-hidden" style={{ zIndex: Z_INDEX_OFFSETS.UI }}>
-                {/* 정보 바 */}
-                <div className="flex items-center p-4 gap-2">
-                    {/* 왼쪽: Area 정보 */}
-                    <div className="inline-flex flex-1 flex-row items-center justify-center gap-2 bg-[#222529] rounded-lg px-4 py-2">
-                        <MapPin size={24} className="text-[#C0A9F1]" />
-                        <p className="font-bold leading-6 gap-2">
-                            <span className="text-[#C0A9F1]">Area: </span>
-                            <span className="text-white">{worldPosition ? (currentVillageName || 'Unknown') : 'Unknown'}</span>
-                            {worldPosition && <span className="text-[#CAD0D7]"> [{worldPosition.x}, {worldPosition.y}]</span>}
-                        </p>
-                    </div>
-                    {/* 오른쪽: 지갑 상태 */}
-                    {address ? (
-                        <button
-                            onClick={handleWalletDisconnect}
-                            className="inline-flex cursor-pointer flex-row items-center justify-center gap-2 rounded-lg bg-white p-2"
-                        >
-                            <Image src="/agent/defaultAvatar.svg" alt="agent" width={20} height={20} />
-                            <p className="text-sm font-bold text-black">{shortAddress(address)}</p>
-                        </button>
-                    ) : (
-                        <button
-                            onClick={() => connect({ connector: connectors[0] })}
-                            className="inline-flex cursor-pointer flex-row items-center justify-center gap-2 rounded-lg bg-[#7F4FE8] p-2 px-4"
-                        >
-                            <p className="text-sm font-bold text-white">Connect Wallet</p>
-                        </button>
-                    )}
-                </div>
                 {/* 탭 콘텐츠 영역 */}
                 <div className="relative flex-1 min-h-0 overflow-hidden">
                     {activeTab === 'chat' && <ChatSidebarPanel />}
@@ -120,7 +91,39 @@ export default function DesktopLayout({
                 )}
             </div>
             {/* 오른쪽 맵 */}
-            <div className="flex-1">
+            <div className="relative flex-1">
+                {/* 정보 바: 맵 우측 상단, 가로 배치 */}
+                <div
+                    className="absolute top-4 right-4 flex items-center gap-2"
+                    style={{ zIndex: Z_INDEX_OFFSETS.UI }}
+                >
+                    {/* Area 정보 */}
+                    <div className="inline-flex flex-row items-center gap-2 rounded-lg bg-black/50 backdrop-blur-[6px] px-3 py-1.5">
+                        <MapPin size={16} className="text-[#C0A9F1]" />
+                        <p className="text-xs font-bold">
+                            <span className="text-[#C0A9F1]">Area: </span>
+                            <span className="text-white">{worldPosition ? (currentVillageName || 'Unknown') : 'Unknown'}</span>
+                            {worldPosition && <span className="text-[#CAD0D7]"> [{worldPosition.x}, {worldPosition.y}]</span>}
+                        </p>
+                    </div>
+                    {/* 지갑 상태 */}
+                    {address ? (
+                        <button
+                            onClick={handleWalletDisconnect}
+                            className="inline-flex cursor-pointer flex-row items-center gap-2 rounded-lg bg-white p-2"
+                        >
+                            <Image src="/agent/defaultAvatar.svg" alt="agent" width={20} height={20} />
+                            <p className="text-sm font-bold text-black">{shortAddress(address)}</p>
+                        </button>
+                    ) : (
+                        <button
+                            onClick={() => connect({ connector: connectors[0] })}
+                            className="inline-flex cursor-pointer flex-row items-center gap-2 rounded-lg bg-[#7F4FE8] p-2 px-4"
+                        >
+                            <p className="text-sm font-bold text-white">Connect Wallet</p>
+                        </button>
+                    )}
+                </div>
                 <MapTab
                     isActive={true}
                     isDesktop={true}
