@@ -79,3 +79,57 @@ export async function deleteVillageFiles(slug: string): Promise<void> {
     await Promise.all(files.map(file => file.delete()));
   }
 }
+
+/**
+ * 공유 타일셋 파일을 GCS에 업로드한다.
+ */
+export async function uploadSharedTileset(
+  buffer: Buffer,
+  fileName: string,
+): Promise<string> {
+  const contentType = fileName.endsWith('.tsx')
+    ? 'application/xml'
+    : fileName.endsWith('.png')
+      ? 'image/png'
+      : 'image/webp';
+  return uploadVillageMapFile('common', buffer, `tilesets/${fileName}`, contentType);
+}
+
+/**
+ * 공유 타일셋 파일들을 GCS에서 삭제한다.
+ */
+export async function deleteSharedTilesetFiles(fileNames: string[]): Promise<void> {
+  const storage = getFirebaseStorage();
+  const bucket = storage.bucket();
+
+  await Promise.all(
+    fileNames.map(fileName => {
+      const filePath = `${VILLAGE_MAPS_PATH}/common/tilesets/${fileName}`;
+      return bucket.file(filePath).delete();
+    }),
+  );
+}
+
+/**
+ * 공유 타일셋 파일 목록을 GCS에서 조회한다.
+ */
+export async function listSharedTilesets(): Promise<{ name: string; fileName: string; url: string }[]> {
+  const storage = getFirebaseStorage();
+  const bucket = storage.bucket();
+  const prefix = `${VILLAGE_MAPS_PATH}/common/tilesets/`;
+
+  const [files] = await bucket.getFiles({ prefix });
+  return files.map(file => ({
+    name: file.name,
+    fileName: file.name.replace(prefix, ''),
+    url: `https://storage.googleapis.com/${bucket.name}/${file.name}`,
+  }));
+}
+
+/**
+ * 루트 타일셋 베이스 URL을 반환한다.
+ * 공유 타일셋을 지원하기 위해 villages/ 루트를 반환.
+ */
+export function getRootTilesetBaseUrl(bucketName: string): string {
+  return `https://storage.googleapis.com/${bucketName}/${VILLAGE_MAPS_PATH}`;
+}

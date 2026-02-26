@@ -6,8 +6,9 @@ import {
   getNearbyVillages,
   VillageMetadata,
 } from '@/lib/village-redis';
-import { uploadVillageTmj, uploadVillageTileset, uploadVillageTsx, getVillageTilesetBaseUrl } from '@/lib/gcs';
+import { uploadVillageTmj, uploadVillageTileset, uploadVillageTsx, getRootTilesetBaseUrl } from '@/lib/gcs';
 import { getFirebaseStorage } from '@/lib/firebase';
+import { rewriteTmjTilesetPaths } from '@/lib/tmj-rewriter';
 
 /**
  * GET /api/villages
@@ -121,27 +122,34 @@ export async function POST(request: NextRequest) {
     let tmjUrl = '';
     let tilesetBaseUrl = '';
 
-    // TMJ 파일 업로드
-    if (tmjFile) {
-      const tmjBuffer = Buffer.from(await tmjFile.arrayBuffer());
-      tmjUrl = await uploadVillageTmj(slug, tmjBuffer);
-    }
-
-    // 타일셋 파일들 업로드
+    // 타일셋 파일들 업로드 (병렬)
     const tilesetFiles = formData.getAll('tilesets') as File[];
-    for (const file of tilesetFiles) {
-      const buffer = Buffer.from(await file.arrayBuffer());
-      if (file.name.endsWith('.tsx')) {
-        await uploadVillageTsx(slug, buffer, file.name);
-      } else {
-        await uploadVillageTileset(slug, buffer, file.name);
-      }
+    const uploadedFileNames = tilesetFiles.map(f => f.name);
+
+    await Promise.all(
+      tilesetFiles.map(async (file) => {
+        const buffer = Buffer.from(await file.arrayBuffer());
+        if (file.name.endsWith('.tsx')) {
+          await uploadVillageTsx(slug, buffer, file.name);
+        } else {
+          await uploadVillageTileset(slug, buffer, file.name);
+        }
+      }),
+    );
+
+    // TMJ 파일 업로드 (리라이트 적용)
+    if (tmjFile) {
+      const tmjText = await tmjFile.text();
+      const tmjJson = JSON.parse(tmjText);
+      const rewrittenTmj = await rewriteTmjTilesetPaths(tmjJson, uploadedFileNames, slug);
+      const tmjBuffer = Buffer.from(rewrittenTmj);
+      tmjUrl = await uploadVillageTmj(slug, tmjBuffer);
     }
 
     if (tilesetFiles.length > 0 || tmjFile) {
       const storage = getFirebaseStorage();
       const bucketName = storage.bucket().name;
-      tilesetBaseUrl = getVillageTilesetBaseUrl(bucketName, slug);
+      tilesetBaseUrl = getRootTilesetBaseUrl(bucketName);
     }
 
     const now = Date.now();
