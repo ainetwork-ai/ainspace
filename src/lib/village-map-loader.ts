@@ -78,7 +78,8 @@ export async function loadVillageMap(
           const tsxText = await (await fetch(tsxPath)).text();
           const tileset = parser.parse(tsxText).tileset;
 
-          const imagePath = `${tilesetBaseUrl}/${tileset.image.source.replace('./', '') + '?noCache=false'}`;
+          const tsxDir = ts.source.substring(0, ts.source.lastIndexOf('/') + 1);
+          const imagePath = `${tilesetBaseUrl}/${tsxDir}${tileset.image.source.replace('./', '') + '?noCache=true'}`;
           const image = await loadImage(imagePath);
 
           const columns = parseInt(tileset.columns) || 1;
@@ -113,7 +114,11 @@ export async function loadVillageMap(
           imageScale: 1,
         };
       } catch (err) {
-        console.error(`Error loading tileset ${ts.firstgid}:`, err);
+        if ('source' in ts) {
+          console.error(`Error loading tileset ${ts.source} ${ts.firstgid}:`, err);
+        } else {
+          console.error(`Error loading tileset ${ts.image} ${ts.firstgid}:`, err);
+        }
         return null as unknown as Tileset;
       }
     }),
