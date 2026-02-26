@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useThreadStore, useUserStore, useAgentStore, useGameStateStore } from '@/stores';
 import { Thread } from '@/types/thread';
@@ -100,19 +101,24 @@ export default function ChatSidebarPanel() {
             <div className="flex flex-1 flex-col min-h-0">
                 {shouldShowEmptyState && (
                     <div className="flex flex-1 items-center justify-center flex-col gap-4">
-                        <div className="h-[160px] w-[160px] rounded-2xl bg-white/5" />
                         {nearbyAgents.length === 0 ? (
-                            <p className="text-sm text-white/60 text-center whitespace-pre-line">
-                                {'Walk around the village and\nmeet the agents who live here!'}
-                            </p>
-                        ) : (
-                            <div className="text-sm text-white/60 text-center">
-                                <p>Try talking to</p>
-                                <p className="text-[#E8D44D] font-bold">
-                                    {nearbyAgents.map(a => a.name).join(', ')}
-                                </p>
-                                <p>nearby.</p>
+                          <div>
+                              <Image src="/chat/chat_bg_no_agent.svg" alt="Empty State" width={180} height={180} />
+                              <p className="text-white text-center font-semibold leading-[160%] whitespace-pre-line">
+                                  {'Walk around the village and\nmeet the agents who live here!'}
+                              </p>
                             </div>
+                        ) : (
+                          <div>
+                              <div className="text-white text-center font-semibold leading-[160%] whitespace-pre-line">
+                                  <Image src="/chat/chat_bg_nearby_agent.svg" alt="Nearby Agent" width={180} height={180} />
+                                  <p>Try talking to</p>
+                                  <p className="text-[#FFE500] text-xl font-semibold">
+                                      {nearbyAgents.map(a => a.name).join(', ')}
+                                  </p>
+                                  <p>nearby.</p>
+                              </div>
+                          </div>
                         )}
                     </div>
                 )}
