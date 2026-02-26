@@ -205,7 +205,7 @@ const villageConfigs: Array<Omit<VillageMetadata, 'createdAt' | 'updatedAt' | 't
 const villages: Omit<VillageMetadata, 'createdAt' | 'updatedAt'>[] = villageConfigs.map(config => ({
   ...config,
   tmjUrl: getVillageTmjUrl(config.slug),
-  tilesetBaseUrl: getVillageTilesetBaseUrl(config.slug),
+  tilesetBaseUrl: getVillageTilesetBaseUrl(),
 }));
 
 async function clearAllVillages() {
