@@ -9,9 +9,10 @@ interface DeleteConfirmModalProps {
     onConfirm?: () => void;
     onCancel?: () => void;
     children: React.ReactNode;
+    isDarkMode?: boolean;
 }
 
-export default function DeleteConfirmModal({ onConfirm, onCancel, children }: DeleteConfirmModalProps) {
+export default function DeleteConfirmModal({ onConfirm, onCancel, children, isDarkMode = false }: DeleteConfirmModalProps) {
     const [isOpen, setIsOpen] = useState(false);
 
     const handleConfirm = () => {
@@ -31,16 +32,16 @@ export default function DeleteConfirmModal({ onConfirm, onCancel, children }: De
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>{children}</DialogTrigger>
-            <DialogContent className="max-w-md p-0 bg-white rounded-2xl" showCloseButton={false}>
+            <DialogContent className={cn("max-w-md p-0 rounded-2xl", isDarkMode ? 'bg-[#2F333B]' : 'bg-white')} showCloseButton={false}>
                 <DialogHeader className="px-6 pt-6 pb-4">
-                    <DialogTitle className="text-xl font-bold text-black text-center">
+                    <DialogTitle className={cn("text-xl font-bold text-center", isDarkMode ? 'text-white' : 'text-black')}>
                         Delete Agent
                     </DialogTitle>
                 </DialogHeader>
-                
+
                 {/* Body Text */}
                 <div className="px-6 pb-6">
-                    <p className="text-black text-center text-base leading-relaxed">
+                    <p className={cn("text-center text-base leading-relaxed", isDarkMode ? 'text-white' : 'text-black')}>
                         Do you really want to delete your agent?
                     </p>
                 </div>
@@ -51,8 +52,12 @@ export default function DeleteConfirmModal({ onConfirm, onCancel, children }: De
                         onClick={handleCancel}
                         type="large"
                         variant="secondary"
+                        isDarkMode={isDarkMode}
                         className={cn(
-                            "flex-1 bg-white border border-[#7F4FE8] text-[#7F4FE8] hover:bg-[#F9F7FF]",
+                            "flex-1 border border-[#7F4FE8]",
+                            isDarkMode
+                                ? 'bg-[#222529] text-[#C0A9F1] hover:bg-[#3A3E46]'
+                                : 'bg-white text-[#7F4FE8] hover:bg-[#F9F7FF]',
                             "hover:border-[#7F4FE8]"
                         )}
                     >
@@ -62,6 +67,7 @@ export default function DeleteConfirmModal({ onConfirm, onCancel, children }: De
                         onClick={handleConfirm}
                         type="large"
                         variant="primary"
+                        isDarkMode={isDarkMode}
                         className="flex-1"
                     >
                         Delete

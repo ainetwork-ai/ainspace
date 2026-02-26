@@ -84,6 +84,7 @@ export default function DesktopLayout({
                     {activeTab === 'chat' && <ChatSidebarPanel />}
                     <TempBuildTab
                         isActive={activeTab === 'build'}
+                        isDarkMode={true}
                         publishedTiles={publishedTiles}
                         customTiles={customTiles}
                         setCustomTiles={setCustomTiles}
@@ -95,6 +96,7 @@ export default function DesktopLayout({
                     />
                     <AgentTab
                         isActive={activeTab === 'agent'}
+                        isDarkMode={true}
                     />
                 </div>
                 {/* DesktopSidebarFooter */}
