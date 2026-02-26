@@ -42,11 +42,13 @@ const MOVEMENT_OPTIONS: MovementOption[] = [
 interface MovementStyleModalProps {
     onConfirm: (style: MOVEMENT_MODE) => void;
     initialStyle?: MOVEMENT_MODE;
+    isDarkMode?: boolean;
 }
 
 export default function MovementStyleModal({
     onConfirm,
     initialStyle = MOVEMENT_MODE.STATIONARY,
+    isDarkMode = false,
 }: MovementStyleModalProps) {
     const [selectedStyle, setSelectedStyle] = useState<MOVEMENT_MODE>(initialStyle);
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -63,10 +65,13 @@ export default function MovementStyleModal({
     };
 
     return (
-        <div className="relative flex flex-col items-center gap-4 max-w-[328px] bg-white p-6 shadow-lg w-full rounded-2xl ">
+        <div className={cn(
+            "relative flex flex-col items-center gap-4 max-w-[328px] p-6 shadow-lg w-full rounded-2xl",
+            isDarkMode ? 'bg-[#2F333B]' : 'bg-white'
+        )}>
             <div className="flex flex-col items-center gap-1">
-                <h2 className="text-xl font-bold text-black">Select Movement Style</h2>
-                <p className="text-[#7F4FE8] font-semibold leading-[150%]">Choose how your agent behaves</p>
+                <h2 className={cn("text-xl font-bold", isDarkMode ? 'text-white' : 'text-black')}>Select Movement Style</h2>
+                <p className={cn("font-semibold leading-[150%]", isDarkMode ? 'text-[#C0A9F1]' : 'text-[#7F4FE8]')}>Choose how your agent behaves</p>
             </div>
 
             {/* Dropdown */}
@@ -76,16 +81,19 @@ export default function MovementStyleModal({
                     onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                     className={cn(
                         'w-full flex items-center justify-between px-4 py-3 rounded-lg border-2 transition-colors',
-                        isDropdownOpen ? 'border-[#7F4FE8]' : 'border-gray-200 hover:border-gray-300'
+                        isDropdownOpen
+                            ? 'border-[#7F4FE8]'
+                            : isDarkMode ? 'border-[#4A4E56] hover:border-[#5F666F]' : 'border-gray-200 hover:border-gray-300'
                     )}
                 >
-                    <span className="flex items-center gap-2 text-lg font-medium text-gray-800">
+                    <span className={cn("flex items-center gap-2 text-lg font-medium", isDarkMode ? 'text-white' : 'text-gray-800')}>
                         <span>{selectedOption.emoji}</span>
                         <span>{selectedOption.label}</span>
                     </span>
                     <ChevronDown
                         className={cn(
-                            'w-5 h-5 text-gray-500 transition-transform',
+                            'w-5 h-5 transition-transform',
+                            isDarkMode ? 'text-[#838D9D]' : 'text-gray-500',
                             isDropdownOpen && 'rotate-180'
                         )}
                     />
@@ -93,19 +101,23 @@ export default function MovementStyleModal({
 
                 {/* Dropdown Menu */}
                 {isDropdownOpen && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 overflow-hidden">
+                    <div className={cn(
+                        "absolute top-full left-0 right-0 mt-1 border rounded-lg shadow-lg z-10 overflow-hidden",
+                        isDarkMode ? 'bg-[#222529] border-[#4A4E56]' : 'bg-white border-gray-200'
+                    )}>
                         {MOVEMENT_OPTIONS.map((option) => (
                             <button
                                 key={option.value}
                                 type="button"
                                 onClick={() => handleSelect(option.value)}
                                 className={cn(
-                                    'w-full flex items-center gap-2 px-4 py-3 text-left hover:bg-gray-50 transition-colors',
-                                    selectedStyle === option.value && 'bg-[#F9F7FF]'
+                                    'w-full flex items-center gap-2 px-4 py-3 text-left transition-colors',
+                                    isDarkMode ? 'hover:bg-[#3A3E46]' : 'hover:bg-gray-50',
+                                    selectedStyle === option.value && (isDarkMode ? 'bg-[#3A3050]' : 'bg-[#F9F7FF]')
                                 )}
                             >
                                 <span>{option.emoji}</span>
-                                <span className="font-medium text-gray-800">{option.label}</span>
+                                <span className={cn("font-medium", isDarkMode ? 'text-white' : 'text-gray-800')}>{option.label}</span>
                             </button>
                         ))}
                     </div>
@@ -113,10 +125,10 @@ export default function MovementStyleModal({
             </div>
 
             {/* Description */}
-            <p className="text-gray-500 text-center text-sm">{selectedOption.description}</p>
+            <p className={cn("text-center text-sm", isDarkMode ? 'text-[#CAD0D7]' : 'text-gray-500')}>{selectedOption.description}</p>
 
             {/* Action Button */}
-            <Button onClick={handleConfirm} type="large" variant="primary">
+            <Button onClick={handleConfirm} type="large" variant="primary" isDarkMode={isDarkMode}>
                 Continue
             </Button>
         </div>

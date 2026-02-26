@@ -2,50 +2,65 @@
 
 import React from 'react';
 import { X } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { useVillages, getVillageDisplayName } from '@/hooks/useVillages';
 
 interface PlaceAgentModalProps {
     allowedMaps: string[];
     errorMessage?: string | null;
     onCancel: () => void;
+    isDarkMode?: boolean;
 }
 
 export default function PlaceAgentModal({
     allowedMaps,
     errorMessage,
     onCancel,
+    isDarkMode = false,
 }: PlaceAgentModalProps) {
     const { villages } = useVillages();
     const isAllMaps = allowedMaps.includes('*');
 
     return (
-        <div className="relative flex flex-col items-center gap-4 bg-white px-10 py-6 shadow-lg w-full rounded-t-2xl md:w-auto md:rounded-2xl">
+        <div className={cn(
+            "relative flex flex-col items-center gap-4 px-10 py-6 shadow-lg w-full rounded-t-2xl md:w-auto md:rounded-2xl",
+            isDarkMode ? 'bg-[#2F333B]' : 'bg-white'
+        )}>
             <button
                 onClick={onCancel}
-                className="absolute right-4 top-4 text-gray-400 hover:text-gray-600 transition-colors"
+                className={cn(
+                    "absolute right-4 top-4 transition-colors",
+                    isDarkMode ? 'text-[#838D9D] hover:text-[#CAD0D7]' : 'text-gray-400 hover:text-gray-600'
+                )}
             >
                 <X size={24} />
             </button>
 
-            <p className="text-center text-xl font-bold text-gray-800">
+            <p className={cn("text-center text-xl font-bold", isDarkMode ? 'text-white' : 'text-gray-800')}>
                 Tap the map to place your agent
             </p>
 
             <div className="flex flex-col items-center gap-1">
-                <p className="text-sm text-gray-400">
+                <p className={cn("text-sm", isDarkMode ? 'text-[#838D9D]' : 'text-gray-400')}>
                     Allowed area:
                 </p>
 
                 <div className="flex flex-wrap justify-center gap-2">
                     {isAllMaps ? (
-                        <span className="rounded-md bg-[#D7FFBD] px-3 py-1 text-sm font-medium text-[#189D35]">
+                        <span className={cn(
+                            "rounded-md px-3 py-1 text-sm font-medium",
+                            isDarkMode ? 'bg-[#1A3320] text-[#4ADE80]' : 'bg-[#D7FFBD] text-[#189D35]'
+                        )}>
                             All maps
                         </span>
                     ) : (
                         allowedMaps.map((mapSlug) => (
                             <span
                                 key={mapSlug}
-                                className="rounded-md bg-[#D7FFBD] px-3 py-1 text-sm font-medium text-[#189D35]"
+                                className={cn(
+                                    "rounded-md px-3 py-1 text-sm font-medium",
+                                    isDarkMode ? 'bg-[#1A3320] text-[#4ADE80]' : 'bg-[#D7FFBD] text-[#189D35]'
+                                )}
                             >
                                 {getVillageDisplayName(mapSlug, villages)}
                             </span>

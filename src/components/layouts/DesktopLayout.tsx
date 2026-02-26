@@ -9,12 +9,13 @@ import MapTab from '@/components/tabs/MapTab';
 import TempBuildTab from '@/components/tabs/TempBuildTab';
 import AgentTab from '@/components/tabs/AgentTab';
 import ChatSidebarPanel from '@/components/chat/ChatSidebarPanel';
+import PlaceAgentModal from '@/components/PlaceAgentModal';
 import DesktopSidebarFooter from '@/components/DesktopSidebarFooter';
 import { Z_INDEX_OFFSETS } from '@/constants/common';
 import { LayoutProps } from './MobileLayout';
 import { shortAddress } from '@/lib/utils';
 import { config } from '@/lib/wagmi-config';
-import { useGameStateStore, useThreadStore } from '@/stores';
+import { useGameStateStore, useThreadStore, useUIStore } from '@/stores';
 import { useVillageStore } from '@/stores/useVillageStore';
 
 export default function DesktopLayout({
@@ -40,6 +41,7 @@ export default function DesktopLayout({
     const { clearThreads } = useThreadStore();
     const { worldPosition } = useGameStateStore();
     const currentVillageName = useVillageStore((s) => s.currentVillage?.name);
+    const { selectedAgentForPlacement, setSelectedAgentForPlacement } = useUIStore();
 
     const handleWalletDisconnect = useCallback(() => {
         disconnect(config);
@@ -98,6 +100,16 @@ export default function DesktopLayout({
                         isActive={activeTab === 'agent'}
                         isDarkMode={true}
                     />
+                    {/* 데스크탑: PlaceAgentModal 사이드바 오버레이 */}
+                    {selectedAgentForPlacement && (
+                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50">
+                            <PlaceAgentModal
+                                allowedMaps={selectedAgentForPlacement.allowedMaps}
+                                isDarkMode={true}
+                                onCancel={() => setSelectedAgentForPlacement(null)}
+                            />
+                        </div>
+                    )}
                 </div>
                 {/* DesktopSidebarFooter */}
                 {!HUDOff && (

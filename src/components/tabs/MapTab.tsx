@@ -237,10 +237,10 @@ export default function MapTab({
         <BaseTabContent isActive={isActive} withPadding={false}>
             {/* Game Area */}
             <div className="relative flex h-full w-full flex-col" style={{ touchAction: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}>
-                {/* Agent Placement Mode UI */}
-                {selectedAgentForPlacement && (
+                {/* Agent Placement Mode UI (모바일만) */}
+                {!isDesktop && selectedAgentForPlacement && (
                     <div
-                        className="fixed bottom-0 left-0 right-0 flex justify-center md:absolute md:bottom-auto md:top-4"
+                        className="fixed bottom-0 left-0 right-0 flex justify-center"
                         style={{ zIndex: Z_INDEX_OFFSETS.UI + 100 }}
                     >
                         <PlaceAgentModal

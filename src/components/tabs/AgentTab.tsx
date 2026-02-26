@@ -278,7 +278,9 @@ export default function AgentTab({
             movementMode: movementMode
         });
         setPendingPlacementAgent(null);
-        setActiveTab('map');
+        if (!isDarkMode) {
+            setActiveTab('map');
+        }
     };
 
     const handleUploadImage = async (agent: StoredAgent, sprite: {url: string, height: number} | File) => {
@@ -339,17 +341,27 @@ export default function AgentTab({
                     isDarkMode={isDarkMode}
                 />
             </div>
-            <LoadingModal open={isLoading} />
+            <LoadingModal open={isLoading} isDarkMode={isDarkMode} />
             <HolderModal open={isHolderModalOpen} onOpenChange={setIsHolderModalOpen}/>
 
             {/* Movement Style Modal */}
             {pendingPlacementAgent && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                    <MovementStyleModal
-                        onConfirm={handleMovementStyleConfirm}
-                        initialStyle={MOVEMENT_MODE.STATIONARY}
-                    />
-                </div>
+                isDarkMode ? (
+                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50">
+                        <MovementStyleModal
+                            onConfirm={handleMovementStyleConfirm}
+                            initialStyle={MOVEMENT_MODE.STATIONARY}
+                            isDarkMode={isDarkMode}
+                        />
+                    </div>
+                ) : (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                        <MovementStyleModal
+                            onConfirm={handleMovementStyleConfirm}
+                            initialStyle={MOVEMENT_MODE.STATIONARY}
+                        />
+                    </div>
+                )
             )}
         </BaseTabContent>
     );
