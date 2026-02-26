@@ -58,8 +58,8 @@ function getVillageTmjUrl(slug: string): string {
   return `https://storage.googleapis.com/${STORAGE_BUCKET}/villages/${slug}/map.tmj`;
 }
 
-function getVillageTilesetBaseUrl(slug: string): string {
-  return `https://storage.googleapis.com/${STORAGE_BUCKET}/villages/${slug}/tilesets`;
+function getVillageTilesetBaseUrl(): string {
+  return `https://storage.googleapis.com/${STORAGE_BUCKET}/villages`;
 }
 
 // Redis 작업 함수들
@@ -191,6 +191,14 @@ const villageConfigs: Array<Omit<VillageMetadata, 'createdAt' | 'updatedAt' | 't
     gridWidth: 1,
     gridHeight: 1,
   },
+  {
+    slug: 'peshka',
+    name: 'Peshka',
+    gridX: -2,
+    gridY: 1,
+    gridWidth: 1,
+    gridHeight: 1,
+  }
 ];
 
 // URL이 포함된 완전한 마을 데이터 생성
