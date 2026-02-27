@@ -119,6 +119,9 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     setMessages(messages, currentThreadId);
                 });
             }
+        } else {
+            setDisplayedMessages([]);
+            setHasStartedConversation(false);
         }
     }, [currentThreadId, setMessages, getMessagesByThreadId, fetchThreadMessages]);
 
@@ -675,9 +678,9 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 {
                   isDesktop && currentThreadId !== '0' && !isMessageLoading && (
                     <div className="flex items-start justify-start">
-                        <button 
+                        <button
                           onClick={handleEndConversation}
-                          className="bg-[#5F666F66] text-white font-semibold text-sm rounded-lg border border-[#969EAA] p-2"
+                          className="bg-[#5F666F66] text-white font-semibold text-sm rounded-lg border border-[#969EAA] p-2 active:bg-[#5C2A4A] active:border-[#E8837C]"
                         >
                             <div className="flex flex-row items-center gap-1 ">
                                 <X className="size-4" />
