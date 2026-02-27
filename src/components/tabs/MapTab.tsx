@@ -202,6 +202,7 @@ export default function MapTab({
                     console.log('Location reset to initial position (63, 58)');
                     return;
                 } else if (event.key.toLowerCase() === 'h') {
+                    event.preventDefault();
                     onHUDOffChange(!HUDOff);
                     return;
                 }

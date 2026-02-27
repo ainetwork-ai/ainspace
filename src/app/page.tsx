@@ -68,15 +68,15 @@ export default function Home() {
         initSessionId();
     }, [initSessionId]);
 
-    // Guest session reset: Ctrl+Shift+X
+    // Guest session reset: Ctrl+K
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.ctrlKey && e.shiftKey && e.key === 'X') {
+            if (e.ctrlKey && e.key.toLowerCase() === 'k') {
                 e.preventDefault();
 
                 // Only allow when wallet is not connected (guest mode)
                 if (address) return;
-
+                console.log('resetting session');
                 clearThreads();
                 setCurrentThreadId('0');
                 resetSessionId();
