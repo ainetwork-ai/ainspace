@@ -310,6 +310,12 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 setMessages([errorMessage], currentThreadId);
             }
         } else if (inputValue.trim()) {
+            const isCurrentThreadSelected = currentThreadId && currentThreadId !== '0';
+            const selectedThread = isCurrentThreadSelected ? findThreadById(currentThreadId) : undefined;
+
+            // Block send when no thread is selected and no nearby agents
+            if (!selectedThread && currentAgentsInRadius.length === 0) return;
+
             const userMessageText = inputValue.trim();
             const currentPlayerPosition = playerPosition || INITIAL_PLAYER_POSITION;
 
@@ -317,10 +323,6 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             setIsMessageLoading(true);
 
             const agentNames: string[] = [];
-
-            const isCurrentThreadSelected = currentThreadId && currentThreadId !== '0';
-
-            const selectedThread = isCurrentThreadSelected ? findThreadById(currentThreadId) : undefined;
             let threadIdToSend: string | undefined = undefined;
             let threadName = '';
 
@@ -611,6 +613,30 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     const unplacedPlaceholder = 'Agents have left the village...';
 
     const showUnplacedNotice = hasUnplacedAgents && inputValue.trim().length === 0;
+
+    // Global Enter key listener to focus chat input
+    useEffect(() => {
+        const handleGlobalKeyDown = (e: KeyboardEvent) => {
+            if (e.key !== 'Enter') return;
+
+            // Skip if input is disabled
+            if (isMessageLoading || showUnplacedNotice) return;
+
+            // Skip if another input/textarea/contenteditable is focused
+            const active = document.activeElement;
+            if (active) {
+                const tag = active.tagName.toLowerCase();
+                if (tag === 'input' || tag === 'textarea' || (active as HTMLElement).isContentEditable) return;
+            }
+
+            // Focus the chat input (don't prevent default so Enter doesn't trigger send)
+            e.preventDefault();
+            inputRef.current?.focus();
+        };
+
+        window.addEventListener('keydown', handleGlobalKeyDown);
+        return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+    }, [isMessageLoading, showUnplacedNotice]);
 
     const inputPlaceholder = showUnplacedNotice
         ? unplacedPlaceholder

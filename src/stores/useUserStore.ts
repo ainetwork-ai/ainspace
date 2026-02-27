@@ -21,6 +21,7 @@ interface UserStore {
   setPermissions: (permissions: UserPermissions | null) => void;
   setLastVerifiedAt: (timestamp: number) => void;
   initSessionId: () => void;
+  resetSessionId: () => void;
   clearUser: () => void;
   verifyPermissions: (address: string) => Promise<{ success: boolean; permissions?: UserPermissions }>;
   checkPermission: (permissionKey: keyof UserPermissions['permissions']) => boolean;
@@ -87,6 +88,13 @@ export const useUserStore = create<UserStore>((set, get) => ({
       localStorage.setItem(SESSION_STORAGE_KEY, sessionId);
     }
     set({ sessionId });
+  },
+
+  resetSessionId: () => {
+    if (typeof window === 'undefined') return;
+    localStorage.removeItem(SESSION_STORAGE_KEY);
+    set({ sessionId: null });
+    get().initSessionId();
   },
 
   clearUser: () => set({ address: null, permissions: null, lastVerifiedAt: null }),
