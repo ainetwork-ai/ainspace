@@ -625,29 +625,37 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
 
     const showUnplacedNotice = hasUnplacedAgents && inputValue.trim().length === 0;
 
-    // Global Enter key listener to focus chat input
+    // Global keyboard shortcuts: Enter to focus, Escape to end conversation
     useEffect(() => {
         const handleGlobalKeyDown = (e: KeyboardEvent) => {
-            if (e.key !== 'Enter') return;
-
-            // Skip if input is disabled
-            if (isMessageLoading || showUnplacedNotice) return;
-
-            // Skip if another input/textarea/contenteditable is focused
-            const active = document.activeElement;
-            if (active) {
-                const tag = active.tagName.toLowerCase();
-                if (tag === 'input' || tag === 'textarea' || (active as HTMLElement).isContentEditable) return;
+            // Escape: end conversation (same as End Conversation button)
+            if (e.key === 'Escape') {
+                if (!currentThreadId || currentThreadId === '0') return;
+                if (isMessageLoading) return;
+                e.preventDefault();
+                handleEndConversation();
+                inputRef.current?.blur();
+                return;
             }
 
-            // Focus the chat input (don't prevent default so Enter doesn't trigger send)
-            e.preventDefault();
-            inputRef.current?.focus();
+            // Enter: focus chat input
+            if (e.key === 'Enter') {
+                if (isMessageLoading || showUnplacedNotice) return;
+
+                const active = document.activeElement;
+                if (active) {
+                    const tag = active.tagName.toLowerCase();
+                    if (tag === 'input' || tag === 'textarea' || (active as HTMLElement).isContentEditable) return;
+                }
+
+                e.preventDefault();
+                inputRef.current?.focus();
+            }
         };
 
         window.addEventListener('keydown', handleGlobalKeyDown);
         return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-    }, [isMessageLoading, showUnplacedNotice]);
+    }, [isMessageLoading, showUnplacedNotice, currentThreadId]);
 
     const handleEndConversation = () => {
         setMessages([], '0');
