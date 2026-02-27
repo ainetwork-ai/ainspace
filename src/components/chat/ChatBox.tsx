@@ -23,6 +23,7 @@ interface ChatBoxProps {
     onThreadSelect?: (threadId: string | undefined) => void;
     onResetLocation?: () => void;
     currentAgentsInRadius: AgentState[];
+    onLoadingChange?: (loading: boolean) => void;
 }
 
 export interface ChatBoxRef {
@@ -30,7 +31,7 @@ export interface ChatBoxRef {
 }
 
 const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
-    { className = '', aiCommentary, onResetLocation, openThreadList, currentAgentsInRadius },
+    { className = '', aiCommentary, onResetLocation, openThreadList, currentAgentsInRadius, onLoadingChange },
     ref
 ) {
     const { messages, setMessages, getMessagesByThreadId } = useChatStore();
@@ -61,6 +62,11 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     const { worldPosition: playerPosition } = useGameStateStore();
     const { updateThread } = useThreadStore();
     const { isDesktop } = useIsDesktop();
+
+    // Notify parent when loading state changes
+    useEffect(() => {
+        onLoadingChange?.(isMessageLoading);
+    }, [isMessageLoading, onLoadingChange]);
 
     // FIXME(yoojin): move type
     interface BackendMessage {
@@ -667,7 +673,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     <ChatMessageCard key={message.id} message={message} />
                 ))}
                 {
-                  isDesktop && currentThreadId !== '0' && (
+                  isDesktop && currentThreadId !== '0' && !isMessageLoading && (
                     <div className="flex items-start justify-start">
                         <button 
                           onClick={handleEndConversation}
