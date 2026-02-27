@@ -8,11 +8,12 @@ import { BROADCAST_RADIUS, INITIAL_PLAYER_POSITION } from '@/constants/game';
 import * as Sentry from '@sentry/nextjs';
 import { useThreadStream } from '@/hooks/useThreadStream';
 import { StreamEvent } from '@/lib/a2aOrchestration';
-import { AlertTriangle, Triangle } from 'lucide-react';
+import { AlertTriangle, Triangle, X } from 'lucide-react';
 import ChatMessageCard from '@/components/chat/ChatMessageCard';
 import { AgentState } from '@/lib/agent';
 import { generateAgentComboId } from '@/lib/hash';
 import { Spinner } from '@/components/ui/spinner';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
 
 interface ChatBoxProps {
     className?: string;
@@ -59,6 +60,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     const userId = useUserStore((state) => state.getUserId());
     const { worldPosition: playerPosition } = useGameStateStore();
     const { updateThread } = useThreadStore();
+    const { isDesktop } = useIsDesktop();
 
     // FIXME(yoojin): move type
     interface BackendMessage {
@@ -638,6 +640,13 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         return () => window.removeEventListener('keydown', handleGlobalKeyDown);
     }, [isMessageLoading, showUnplacedNotice]);
 
+    const handleEndConversation = () => {
+        setMessages([], '0');
+        setDisplayedMessages([]);
+        setCurrentThreadId('0');
+        setHasStartedConversation(false);
+    };
+
     const inputPlaceholder = showUnplacedNotice
         ? unplacedPlaceholder
         : isMessageLoading
@@ -657,6 +666,21 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 {displayedMessages.map((message) => (
                     <ChatMessageCard key={message.id} message={message} />
                 ))}
+                {
+                  isDesktop && currentThreadId !== '0' && (
+                    <div className="flex items-start justify-start">
+                        <button 
+                          onClick={handleEndConversation}
+                          className="bg-[#5F666F66] text-white font-semibold text-sm rounded-lg border border-[#969EAA] p-2"
+                        >
+                            <div className="flex flex-row items-center gap-1 ">
+                                <X className="size-4" />
+                                <span>End Conversation</span>
+                            </div>
+                        </button>
+                    </div>
+                  )
+                }
                 <div ref={messagesEndRef} />
             </div>
 
@@ -668,7 +692,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             )}
 
             {/* NOTE: Chat Input Area */}
-            <div className={cn('w-full bg-transparent')}>
+            <div className={cn('w-full', isDesktop ? 'bg-[#222529]' : 'bg-black/30 backdrop-blur-[6px]')}>
                 {showSuggestions && filteredAgents.length > 0 && (
                     <div className="absolute right-3 bottom-full left-3 z-10 mb-1 max-h-32 overflow-y-auto rounded-md border border-gray-600 bg-gray-800 shadow-lg">
                         {filteredAgents.map((agent, index) => {
