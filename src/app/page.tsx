@@ -34,6 +34,7 @@ export default function Home() {
     const {
         threads,
         setCurrentThreadId,
+        clearThreads,
     } = useThreadStore();
     const {
         customTiles,
@@ -55,7 +56,7 @@ export default function Home() {
     const { setFrameReady, isFrameReady } = useMiniKit();
     const [isSDKLoaded, setIsSDKLoaded] = useState(false);
     const { address } = useAccount();
-    const { setAddress, setPermissions, setLastVerifiedAt, initSessionId, getSessionId, hasMigratedThreads, setMigratedThreads, isPermissionExpired, verifyPermissions } = useUserStore();
+    const { setAddress, setPermissions, setLastVerifiedAt, initSessionId, resetSessionId, getSessionId, hasMigratedThreads, setMigratedThreads, isPermissionExpired, verifyPermissions } = useUserStore();
     const { updateAgent: updateUserAgent } = useUserAgentStore();
 
     const [HUDOff, setHUDOff] = useState<boolean>(false);
@@ -66,6 +67,26 @@ export default function Home() {
     useEffect(() => {
         initSessionId();
     }, [initSessionId]);
+
+    // Guest session reset: Ctrl+K
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.ctrlKey && e.key.toLowerCase() === 'k') {
+                e.preventDefault();
+
+                // Only allow when wallet is not connected (guest mode)
+                if (address) return;
+                console.log('resetting session');
+                clearThreads();
+                setCurrentThreadId('0');
+                resetSessionId();
+                console.log('[AINSpace] Guest session reset: threads cleared, new session ID issued.');
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [address, clearThreads, setCurrentThreadId, resetSessionId]);
 
     useEffect(() => {
         if (!isFrameReady) {
