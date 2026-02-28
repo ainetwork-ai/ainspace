@@ -402,7 +402,7 @@ function TileMap({
     };
 
     return (
-        <div ref={containerRef} className="relative h-full w-full">
+        <div ref={containerRef} className="relative h-full w-full overflow-hidden">
             <canvas
                 ref={canvasRef}
                 width={canvasSize.width}

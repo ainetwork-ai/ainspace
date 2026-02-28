@@ -37,7 +37,7 @@ export default function DesktopSidebarFooter({ activeTab, onTabChange }: Desktop
                 <button
                     onClick={() => handleTabChange('agent')}
                     className={cn(
-                        'flex px-10 py-3 cursor-pointer flex-col items-center justify-center gap-2 rounded font-medium transition-colors',
+                        'flex h-[88px] px-10 py-3 cursor-pointer flex-col items-center justify-center gap-2 rounded font-medium transition-colors',
                         activeTab === 'agent' ? 'text-[#AFB5BC] border-2 border-[#5F666F]' : 'bg-[#5F666F80] text-white'
                     )}
                 >
@@ -47,7 +47,7 @@ export default function DesktopSidebarFooter({ activeTab, onTabChange }: Desktop
                 <button
                     onClick={() => handleTabChange('chat')}
                     className={cn(
-                        'flex px-10 py-3 cursor-pointer flex-col items-center justify-center gap-1 rounded font-medium transition-colors',
+                        'flex h-[88px] px-10 py-3 cursor-pointer flex-col items-center justify-center gap-2 rounded font-medium transition-colors',
                         activeTab === 'chat' ? 'text-[#AFB5BC] border-2 border-[#5F666F]' : 'bg-[#5F666F80] text-white'
                     )}
                 >
@@ -57,7 +57,7 @@ export default function DesktopSidebarFooter({ activeTab, onTabChange }: Desktop
                 <button
                     onClick={() => handleTabChange('build')}
                     className={cn(
-                        'flex px-10 py-3 cursor-pointer flex-col items-center justify-center gap-1 rounded font-medium transition-colors',
+                        'flex h-[88px] px-10 py-3 cursor-pointer flex-col items-center justify-center gap-2 rounded font-medium transition-colors',
                         activeTab === 'build' ? 'text-[#AFB5BC] border-2 border-[#5F666F]' : 'bg-[#5F666F80] text-white'
                     )}
                 >

@@ -88,13 +88,6 @@ export function useAgentLoader({
 
       const agentId = `a2a-deployed-${Date.now()}-${Math.random()}`;
 
-      console.log(`[useAgentLoader] Spawning agent ${card.name}:`, {
-        spawn: `(${migratedState.spawnX}, ${migratedState.spawnY})`,
-        actual: `(${spawnX}, ${spawnY})`,
-        map: migratedState.mapName,
-        mode: migratedState.movementMode,
-      });
-
       spawnAgent({
         id: agentId,
         name: card.name || 'Deployed Agent',
@@ -137,7 +130,6 @@ export function useAgentLoader({
         }
 
         const deployedAgents = data.agents.filter((a: StoredAgent) => a.isPlaced);
-        console.log(`[useAgentLoader] Fetched ${deployedAgents.length} deployed agents`);
 
         allAgentsRef.current = deployedAgents;
         hasFetchedRef.current = true;
