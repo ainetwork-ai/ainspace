@@ -1,11 +1,11 @@
 'use client';
 
 import Image from 'next/image';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useThreadStore, useUserStore, useAgentStore, useGameStateStore } from '@/stores';
+import React, { useEffect, useRef, useState } from 'react';
+import { useThreadStore, useUserStore } from '@/stores';
 import { Thread } from '@/types/thread';
 import { generateAgentComboId } from '@/lib/hash';
-import { BROADCAST_RADIUS } from '@/constants/game';
+import { useWorld } from '@/hooks/useWorld';
 import ChatBox, { ChatBoxRef } from './ChatBox';
 import ThreadListLeftDrawer from './ThreadListLeftDrawer';
 
@@ -14,8 +14,6 @@ export default function ChatSidebarPanel() {
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const { setThreads, setCurrentThreadId, currentThreadId } = useThreadStore();
     const { address, sessionId } = useUserStore();
-    const agents = useAgentStore((s) => s.agents);
-    const { worldPosition } = useGameStateStore();
     const chatBoxRef = useRef<ChatBoxRef>(null);
     const userId = address || sessionId;
 
@@ -65,18 +63,7 @@ export default function ChatSidebarPanel() {
         loadThreadMappings();
     }, [userId, setThreads]);
 
-    // Agents in radius
-    const currentAgentsInRadius = useCallback(() => {
-        if (!worldPosition) return [];
-        return agents.filter((agent) => {
-            const distance = Math.sqrt(
-                Math.pow(agent.x - worldPosition.x, 2) + Math.pow(agent.y - worldPosition.y, 2)
-            );
-            return distance <= BROADCAST_RADIUS;
-        });
-    }, [agents, worldPosition]);
-
-    const nearbyAgents = currentAgentsInRadius();
+    const { nearbyAgents } = useWorld();
     const [isChatLoading, setIsChatLoading] = useState(false);
     const shouldShowEmptyState = (!currentThreadId || currentThreadId === '0') && !isChatLoading;
 
@@ -125,7 +112,6 @@ export default function ChatSidebarPanel() {
                     <ChatBox
                         ref={chatBoxRef}
                         openThreadList={openDrawer}
-                        currentAgentsInRadius={nearbyAgents}
                         onLoadingChange={setIsChatLoading}
                     />
                 </div>

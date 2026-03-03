@@ -7,6 +7,7 @@ import { worldToGrid } from '@/lib/village-utils';
 import { useBuildStore, useChatStore, useGameStateStore, useUserStore } from '@/stores';
 import * as Sentry from '@sentry/nextjs';
 import { AgentState } from '@/lib/agent';
+import { calculateDistance } from '@/lib/world';
 import { useTiledMap } from '@/hooks/useTiledMap';
 import { Z_INDEX_OFFSETS } from '@/constants/common';
 import { useVillageStore } from '@/stores/useVillageStore';
@@ -475,9 +476,7 @@ function TileMap({
 
                 const topOffset = agentSpriteHeight === TILE_SIZE ? agentSpriteHeight / 4 : agentSpriteHeight / 1.5;
                 const agentZIndex = Z_INDEX_OFFSETS.GAME + (agent.y || 0);
-                const isNearby = Math.sqrt(
-                    Math.pow(agent.x - worldPosition.x, 2) + Math.pow(agent.y - worldPosition.y, 2)
-                ) <= BROADCAST_RADIUS;
+                const isNearby = calculateDistance(agent, worldPosition) <= BROADCAST_RADIUS;
 
                 return (
                     <div

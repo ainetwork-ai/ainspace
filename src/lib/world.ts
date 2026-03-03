@@ -1,6 +1,11 @@
 import { BaseAgent, createAgent, AgentState, Message as AgentMessage } from './agent';
 import { INITIAL_PLAYER_POSITION } from '@/constants/game';
 
+// Calculate Euclidean distance between two points
+export function calculateDistance(pos1: { x: number; y: number }, pos2: { x: number; y: number }): number {
+    return Math.sqrt(Math.pow(pos1.x - pos2.x, 2) + Math.pow(pos1.y - pos2.y, 2));
+}
+
 export interface Player {
     x: number;
     y: number;
@@ -80,11 +85,6 @@ export class World {
         });
     }
 
-    // Calculate Euclidean distance between two points
-    private calculateDistance(pos1: { x: number; y: number }, pos2: { x: number; y: number }): number {
-        return Math.sqrt(Math.pow(pos1.x - pos2.x, 2) + Math.pow(pos1.y - pos2.y, 2));
-    }
-
     // Calculate message travel delay based on distance
     private calculateResponseDelay(distance: number, baseDelay: number = 500): number {
         const travelTime = (distance / this.MAX_SPEED) * 1000; // Convert to milliseconds
@@ -156,7 +156,7 @@ export class World {
             // If no mentions, filter agents by broadcast radius if specified
             if (broadcastRadius !== undefined) {
                 respondingAgentInstances = this.agentInstances.filter((instance) => {
-                    const distance = this.calculateDistance(this.player, instance.position);
+                    const distance = calculateDistance(this.player, instance.position);
                     return distance <= broadcastRadius;
                 });
 
@@ -179,7 +179,7 @@ export class World {
         console.log('respondingAgentInstances :>> ', respondingAgentInstances);
         // Process responses concurrently but with staggered delays
         const responsePromises = respondingAgentInstances.map(async (agentInstance, index) => {
-            const distance = this.calculateDistance(this.player, agentInstance.position);
+            const distance = calculateDistance(this.player, agentInstance.position);
 
             // Check if this specific agent was mentioned
             const mentionedAgents = this.findMentionedAgents(mentions);
@@ -234,7 +234,7 @@ export class World {
         }
 
         return this.agents.filter((agent) => {
-            const distance = this.calculateDistance(this.player, { x: agent.x, y: agent.y });
+            const distance = calculateDistance(this.player, { x: agent.x, y: agent.y });
             return distance <= radius;
         });
     }

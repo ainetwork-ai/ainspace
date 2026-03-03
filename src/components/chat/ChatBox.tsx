@@ -11,9 +11,11 @@ import { StreamEvent } from '@/lib/a2aOrchestration';
 import { AlertTriangle, Triangle, X } from 'lucide-react';
 import ChatMessageCard from '@/components/chat/ChatMessageCard';
 import { AgentState } from '@/lib/agent';
+import { calculateDistance } from '@/lib/world';
 import { generateAgentComboId } from '@/lib/hash';
 import { Spinner } from '@/components/ui/spinner';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
+import { useWorld } from '@/hooks/useWorld';
 
 interface ChatBoxProps {
     className?: string;
@@ -22,7 +24,6 @@ interface ChatBoxProps {
     aiCommentary?: string;
     onThreadSelect?: (threadId: string | undefined) => void;
     onResetLocation?: () => void;
-    currentAgentsInRadius: AgentState[];
     onLoadingChange?: (loading: boolean) => void;
 }
 
@@ -31,11 +32,12 @@ export interface ChatBoxRef {
 }
 
 const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
-    { className = '', aiCommentary, onResetLocation, openThreadList, currentAgentsInRadius, onLoadingChange },
+    { className = '', aiCommentary, onResetLocation, openThreadList, onLoadingChange },
     ref
 ) {
     const { messages, setMessages, getMessagesByThreadId } = useChatStore();
     const { currentThreadId, setCurrentThreadId, findThreadByName, findThreadById, addThread } = useThreadStore();
+    const { nearbyAgents, getAgentSuggestions } = useWorld();
     const [inputValue, setInputValue] = useState('');
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [filteredAgents, setFilteredAgents] = useState<AgentState[]>([]);
@@ -325,7 +327,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             const selectedThread = isCurrentThreadSelected ? findThreadById(currentThreadId) : undefined;
 
             // Block send when no thread is selected and no nearby agents
-            if (!selectedThread && currentAgentsInRadius.length === 0) return;
+            if (!selectedThread && nearbyAgents.length === 0) return;
 
             const userMessageText = inputValue.trim();
             const currentPlayerPosition = playerPosition || INITIAL_PLAYER_POSITION;
@@ -356,7 +358,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 threadName = selectedThread.threadName;
                 threadIdToSend = selectedThread.id;
             } else {
-                currentAgentsInRadius.forEach((a: AgentState) => {
+                nearbyAgents.forEach((a: AgentState) => {
                     agentNames.push(a.name);
                 });
                 threadName = generateThreadName(agentNames);
@@ -577,20 +579,19 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             const beforeCursor = value.substring(0, cursorPos);
             const atMatch = beforeCursor.match(/@(\w*)$/);
 
-            // if (atMatch) {
-            //     const searchTerm = atMatch[1];
-            //     const filtered = getAgentSuggestions(searchTerm);
-            //     setFilteredAgents(filtered);
-            //     setShowSuggestions(filtered.length > 0);
-            //     setSelectedSuggestionIndex(0);
-            // } else {
-            setShowSuggestions(false);
-            setFilteredAgents([]);
-            setSelectedSuggestionIndex(0);
-            // }
+            if (atMatch) {
+                const searchTerm = atMatch[1];
+                const filtered = getAgentSuggestions(searchTerm);
+                setFilteredAgents(filtered);
+                setShowSuggestions(filtered.length > 0);
+                setSelectedSuggestionIndex(0);
+            } else {
+                setShowSuggestions(false);
+                setFilteredAgents([]);
+                setSelectedSuggestionIndex(0);
+            }
         },
-        // [getAgentSuggestions]
-        []
+        [getAgentSuggestions]
     );
 
     // Handle suggestion selection
@@ -714,9 +715,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     <div className="absolute right-3 bottom-full left-3 z-10 mb-1 max-h-32 overflow-y-auto rounded-md border border-gray-600 bg-gray-800 shadow-lg">
                         {filteredAgents.map((agent, index) => {
                             const distance = playerPosition
-                                ? Math.sqrt(
-                                      Math.pow(agent.x - playerPosition.x, 2) + Math.pow(agent.y - playerPosition.y, 2)
-                                  )
+                                ? calculateDistance(agent, playerPosition)
                                 : 0;
 
                             const isSelected = index === selectedSuggestionIndex;

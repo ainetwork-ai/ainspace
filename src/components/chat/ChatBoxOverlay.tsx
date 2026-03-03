@@ -2,7 +2,7 @@
 
 import { cn } from '@/lib/utils';
 import { useThreadStore, useUIStore, useUserStore } from '@/stores';
-import { AgentState } from '@/lib/agent';
+import { useWorld } from '@/hooks/useWorld';
 import { Triangle } from 'lucide-react';
 import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
@@ -18,7 +18,6 @@ interface ChatBoxOverlayProps {
     setJoystickVisible: (isJoystickVisible: boolean) => void;
     className?: string;
     lastCommentary?: string;
-    currentAgentsInRadius: AgentState[];
     HUDOff: boolean;
 }
 
@@ -27,9 +26,9 @@ export default function ChatBoxOverlay({
     className,
     lastCommentary,
     setJoystickVisible,
-    currentAgentsInRadius,
     HUDOff
 }: ChatBoxOverlayProps) {
+    const { nearbyAgents } = useWorld();
     const [isChatSheetOpen, setIsChatSheetOpen] = useState(false);
     const [isThreadListSheetOpen, setIsThreadListSheetOpen] = useState(false);
     const [isThreadListLoading, setIsThreadListLoading] = useState(false);
@@ -102,13 +101,13 @@ export default function ChatBoxOverlay({
 
     // Generate placeholder text
     const chatPlaceholder = useMemo(() => {
-        if (currentAgentsInRadius.length === 0) {
+        if (nearbyAgents.length === 0) {
             return `Talk to: No agents nearby`;
         }
         
-        const agentNames = currentAgentsInRadius.map((a) => a.name).join(', ');
+        const agentNames = nearbyAgents.map((a) => a.name).join(', ');
         return `Talk to: ${agentNames}`;
-    }, [currentAgentsInRadius]);
+    }, [nearbyAgents]);
 
     const openChatSheet = () => {
         if (selectedAgentForPlacement) return;
@@ -161,7 +160,6 @@ export default function ChatBoxOverlay({
                 openThreadList={() => handleThreadListSheetOpen(true)}
                 chatBoxRef={chatBoxRef as React.RefObject<ChatBoxRef>}
                 onThreadSelect={setCurrentThreadId}
-                currentAgentsInRadius={currentAgentsInRadius}
             />
             <ThreadListLeftDrawer
                 open={isThreadListSheetOpen}

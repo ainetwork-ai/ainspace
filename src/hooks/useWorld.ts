@@ -1,50 +1,37 @@
-import { useCallback, useEffect, useRef } from 'react';
-import { World, Player, AgentResponse } from '@/lib/world';
-import { AgentState } from '@/lib/agent';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { World, calculateDistance } from '@/lib/world';
+import { useAgentStore, useGameStateStore } from '@/stores';
+import { BROADCAST_RADIUS } from '@/constants/game';
 
-interface UseWorldProps {
-    agents: AgentState[];
-    playerPosition: Player;
-    onAgentResponse?: (response: AgentResponse & { threadId?: string }) => void;
-}
-
-export function useWorld({ agents, playerPosition, onAgentResponse }: UseWorldProps) {
+export function useWorld() {
+    const agents = useAgentStore((s) => s.agents);
+    const worldPosition = useGameStateStore((s) => s.worldPosition);
     const worldRef = useRef<World | null>(null);
 
     // Initialize or update world instance
     useEffect(() => {
         if (!worldRef.current) {
-            worldRef.current = new World(agents, playerPosition);
+            worldRef.current = new World(agents, worldPosition);
         } else {
             worldRef.current.updateAgents(agents);
-            worldRef.current.updatePlayer(playerPosition);
+            worldRef.current.updatePlayer(worldPosition);
         }
-    }, [agents, playerPosition]);
+    }, [agents, worldPosition]);
 
-    // Send message through the world system
-    const sendMessage = useCallback(
-        async (content: string, threadId?: string, broadcastRadius?: number) => {
-            if (!worldRef.current) return;
-
-            const responses = await worldRef.current.processMessage(content, broadcastRadius, threadId);
-
-            // Schedule each response based on its delay
-            responses.forEach((response) => {
-                setTimeout(() => {
-                    onAgentResponse?.({ ...response, threadId });
-                }, response.delay);
-            });
-
-            return responses;
-        },
-        [onAgentResponse]
-    );
+    // Agents within broadcast radius
+    const nearbyAgents = useMemo(() => {
+        if (!worldPosition) return [];
+        return agents.filter((agent) => calculateDistance(agent, worldPosition) <= BROADCAST_RADIUS);
+    }, [agents, worldPosition]);
 
     // Get agent suggestions for autocomplete
-    const getAgentSuggestions = useCallback((partialName: string) => {
-        if (!worldRef.current) return [];
-        return worldRef.current.getAgentSuggestions(partialName);
-    }, []);
+    const getAgentSuggestions = useCallback(
+        (partialName: string) => {
+            if (!worldRef.current) return [];
+            return worldRef.current.getAgentSuggestions(partialName);
+        },
+        []
+    );
 
     // Get all agents
     const getAllAgents = useCallback(() => {
@@ -59,9 +46,10 @@ export function useWorld({ agents, playerPosition, onAgentResponse }: UseWorldPr
     }, []);
 
     return {
-        sendMessage,
         getAgentSuggestions,
         getAllAgents,
-        getAgentsInRange
+        getAgentsInRange,
+        nearbyAgents,
+        calculateDistance,
     };
 }
