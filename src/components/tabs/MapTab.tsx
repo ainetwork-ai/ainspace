@@ -8,7 +8,7 @@ import { MapPin } from 'lucide-react';
 
 import BaseTabContent from './BaseTabContent';
 import PlayerJoystick from '@/components/controls/PlayerJoystick';
-import { BROADCAST_RADIUS, DIRECTION, TILE_SIZE, MOVEMENT_MODE } from '@/constants/game';
+import { DIRECTION, TILE_SIZE, MOVEMENT_MODE } from '@/constants/game';
 import { useGameState } from '@/hooks/useGameState';
 import { TileLayers } from '@/stores/useBuildStore';
 import { shortAddress } from '@/lib/utils';
@@ -74,19 +74,6 @@ export default function MapTab({
     const villageIsCollisionAt = useVillageStore((s) => s.isCollisionAt);
 
     const [isJoystickVisible, setIsJoystickVisible] = useState(true);
-
-    // Get current agents in radius
-    const getCurrentAgentsInRadius = useCallback(() => {
-        if (!worldPosition) return [];
-
-        const broadcastRadius = BROADCAST_RADIUS;
-        return agents.filter((agent) => {
-            const distance = Math.sqrt(
-                Math.pow(agent.x - worldPosition.x, 2) + Math.pow(agent.y - worldPosition.y, 2)
-            );
-            return distance <= broadcastRadius;
-        });
-    }, [agents, worldPosition]);
 
     // Handle agent placement click (two-tap: first tap selects, second tap confirms)
     const handleAgentPlacementClick = useCallback(async (worldX: number, worldY: number) => {
@@ -334,7 +321,6 @@ export default function MapTab({
                     chatBoxRef={chatBoxRef}
                     className="fixed bottom-[73px] left-0 z-1000"
                     setJoystickVisible={setIsJoystickVisible}
-                    currentAgentsInRadius={getCurrentAgentsInRadius() || []}
                     HUDOff={HUDOff}
                 />
             )}

@@ -11,9 +11,11 @@ import { StreamEvent } from '@/lib/a2aOrchestration';
 import { AlertTriangle, Triangle, X } from 'lucide-react';
 import ChatMessageCard from '@/components/chat/ChatMessageCard';
 import { AgentState } from '@/lib/agent';
+import MentionSuggestionDropdown from '@/components/chat/MentionSuggestionDropdown';
 import { generateAgentComboId } from '@/lib/hash';
 import { Spinner } from '@/components/ui/spinner';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
+import { useNearbyAgents } from '@/hooks/useNearbyAgents';
 
 interface ChatBoxProps {
     className?: string;
@@ -22,7 +24,6 @@ interface ChatBoxProps {
     aiCommentary?: string;
     onThreadSelect?: (threadId: string | undefined) => void;
     onResetLocation?: () => void;
-    currentAgentsInRadius: AgentState[];
     onLoadingChange?: (loading: boolean) => void;
 }
 
@@ -31,19 +32,19 @@ export interface ChatBoxRef {
 }
 
 const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
-    { className = '', aiCommentary, onResetLocation, openThreadList, currentAgentsInRadius, onLoadingChange },
+    { className = '', aiCommentary, onResetLocation, openThreadList, onLoadingChange },
     ref
 ) {
     const { messages, setMessages, getMessagesByThreadId } = useChatStore();
     const { currentThreadId, setCurrentThreadId, findThreadByName, findThreadById, addThread } = useThreadStore();
+    const nearbyAgents = useNearbyAgents();
     const [inputValue, setInputValue] = useState('');
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [filteredAgents, setFilteredAgents] = useState<AgentState[]>([]);
     const [cursorPosition, setCursorPosition] = useState(0);
     const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
     const [isMessageLoading, setIsMessageLoading] = useState(false);
-    const { showCollisionMap, setShowCollisionMap, updateCollisionMapFromImage, publishedTiles, setCollisionMap } =
-        useBuildStore();
+    const { setShowCollisionMap } = useBuildStore();
     const inputRef = useRef<HTMLInputElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -325,7 +326,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             const selectedThread = isCurrentThreadSelected ? findThreadById(currentThreadId) : undefined;
 
             // Block send when no thread is selected and no nearby agents
-            if (!selectedThread && currentAgentsInRadius.length === 0) return;
+            if (!selectedThread && nearbyAgents.length === 0) return;
 
             const userMessageText = inputValue.trim();
             const currentPlayerPosition = playerPosition || INITIAL_PLAYER_POSITION;
@@ -356,7 +357,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 threadName = selectedThread.threadName;
                 threadIdToSend = selectedThread.id;
             } else {
-                currentAgentsInRadius.forEach((a: AgentState) => {
+                nearbyAgents.forEach((a: AgentState) => {
                     agentNames.push(a.name);
                 });
                 threadName = generateThreadName(agentNames);
@@ -527,6 +528,8 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
 
     const handleKeyPress = (e: React.KeyboardEvent) => {
         if (showSuggestions && filteredAgents.length > 0) {
+            e.stopPropagation();
+
             if (e.key === 'ArrowDown') {
                 e.preventDefault();
                 setSelectedSuggestionIndex((prev) => (prev < filteredAgents.length - 1 ? prev + 1 : 0));
@@ -577,20 +580,19 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             const beforeCursor = value.substring(0, cursorPos);
             const atMatch = beforeCursor.match(/@(\w*)$/);
 
-            // if (atMatch) {
-            //     const searchTerm = atMatch[1];
-            //     const filtered = getAgentSuggestions(searchTerm);
-            //     setFilteredAgents(filtered);
-            //     setShowSuggestions(filtered.length > 0);
-            //     setSelectedSuggestionIndex(0);
-            // } else {
-            setShowSuggestions(false);
-            setFilteredAgents([]);
-            setSelectedSuggestionIndex(0);
-            // }
+            if (atMatch) {
+                const searchLower = atMatch[1].toLowerCase();
+                const filtered = nearbyAgents.filter((agent) => agent.name.toLowerCase().includes(searchLower));
+                setFilteredAgents(filtered);
+                setShowSuggestions(filtered.length > 0);
+                setSelectedSuggestionIndex(0);
+            } else {
+                setShowSuggestions(false);
+                setFilteredAgents([]);
+                setSelectedSuggestionIndex(0);
+            }
         },
-        // [getAgentSuggestions]
-        []
+        [nearbyAgents]
     );
 
     // Handle suggestion selection
@@ -628,6 +630,9 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     // Global keyboard shortcuts: Enter to focus, Escape to end conversation
     useEffect(() => {
         const handleGlobalKeyDown = (e: KeyboardEvent) => {
+            // Suggestion dropdown이 열려있으면 글로벌 키 핸들링 하지 않음
+            if (showSuggestions) return;
+
             // Escape: end conversation (same as End Conversation button)
             if (e.key === 'Escape') {
                 if (!currentThreadId || currentThreadId === '0') return;
@@ -655,7 +660,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
 
         window.addEventListener('keydown', handleGlobalKeyDown);
         return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-    }, [isMessageLoading, showUnplacedNotice, currentThreadId]);
+    }, [isMessageLoading, showUnplacedNotice, currentThreadId, showSuggestions]);
 
     const handleEndConversation = () => {
         setMessages([], '0');
@@ -709,43 +714,13 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             )}
 
             {/* NOTE: Chat Input Area */}
-            <div className={cn('w-full', isDesktop ? 'bg-[#222529]' : 'bg-black/30 backdrop-blur-[6px]')}>
+            <div className={cn('relative w-full', isDesktop ? 'bg-[#222529]' : 'bg-black/30 backdrop-blur-[6px]')}>
                 {showSuggestions && filteredAgents.length > 0 && (
-                    <div className="absolute right-3 bottom-full left-3 z-10 mb-1 max-h-32 overflow-y-auto rounded-md border border-gray-600 bg-gray-800 shadow-lg">
-                        {filteredAgents.map((agent, index) => {
-                            const distance = playerPosition
-                                ? Math.sqrt(
-                                      Math.pow(agent.x - playerPosition.x, 2) + Math.pow(agent.y - playerPosition.y, 2)
-                                  )
-                                : 0;
-
-                            const isSelected = index === selectedSuggestionIndex;
-
-                            return (
-                                <button
-                                    key={agent.id}
-                                    onClick={() => selectSuggestion(agent)}
-                                    className={cn(
-                                        'flex w-full items-center justify-between px-3 py-2 text-left text-sm focus:outline-none',
-                                        isSelected ? 'bg-blue-600 text-white' : 'text-gray-200 hover:bg-gray-700'
-                                    )}
-                                >
-                                    <div className="flex items-center">
-                                        <div
-                                            className="mr-2 h-3 w-3 rounded-sm border border-gray-400"
-                                            style={{ backgroundColor: agent.color }}
-                                        ></div>
-                                        <span className="font-medium">{agent.name}</span>
-                                    </div>
-                                    {showCollisionMap && (
-                                        <div className={cn('text-xs', isSelected ? 'text-blue-200' : 'text-gray-400')}>
-                                            ({agent.x}, {agent.y}) [{distance.toFixed(1)}u]
-                                        </div>
-                                    )}
-                                </button>
-                            );
-                        })}
-                    </div>
+                    <MentionSuggestionDropdown
+                        agents={filteredAgents}
+                        selectedIndex={selectedSuggestionIndex}
+                        onSelect={selectSuggestion}
+                    />
                 )}
 
                 <div className={cn('flex w-full items-center justify-center gap-1.5 self-stretch p-3')}>

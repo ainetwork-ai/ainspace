@@ -160,7 +160,6 @@ export default function Home() {
                     const getData = await getResponse.json();
 
                     if (getData.success && getData.data) {
-                        console.log('User already has permissions:', getData.data.permissions);
                         setPermissions(getData.data);
 
                         // Parse authCheckedAt from Redis and set as lastVerifiedAt
