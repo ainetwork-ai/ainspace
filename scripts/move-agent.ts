@@ -3,6 +3,8 @@ import { config } from 'dotenv';
 import { resolve } from 'path';
 import { createClient } from 'redis';
 import * as readline from 'readline';
+import { StoredAgent } from "@/lib/redis";
+import { MOVEMENT_MODE } from "@/constants/game";
 
 // .env.local 파일 우선, 없으면 .env 파일 로드
 const envLocalResult = config({ path: resolve(process.cwd(), '.env.local') });
@@ -13,9 +15,6 @@ if (envLocalResult.error && envResult.error) {
 } else {
   console.log('환경변수 파일 로드 완료');
 }
-
-import { StoredAgent } from "@/lib/redis";
-import { MOVEMENT_MODE } from "@/constants/game";
 
 const AGENTS_KEY = 'agents:';
 
