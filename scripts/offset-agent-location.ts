@@ -235,7 +235,9 @@ async function offsetAgentLocations() {
           state: {
             ...agent.state,
             x: newX,
-            y: newY
+            y: newY,
+            spawnX: newX,
+            spawnY: newY
           }
         };
         

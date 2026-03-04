@@ -1,6 +1,5 @@
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import ChatBox, { ChatBoxRef } from './ChatBox';
-import { AgentState } from '@/lib/agent';
 import { cn } from '@/lib/utils';
 import { useKeyboardOpen } from '@/hooks/useKeyboardOpen';
 import { Z_INDEX_OFFSETS } from '@/constants/common';
@@ -13,7 +12,6 @@ interface ChatBottomDrawerProps {
     chatBoxRef: React.RefObject<ChatBoxRef>;
     lastCommentary?: string;
     onThreadSelect: (threadId: string | undefined) => void;
-    currentAgentsInRadius: AgentState[];
 }
 
 export default function ChatBottomDrawer({
@@ -23,7 +21,6 @@ export default function ChatBottomDrawer({
     chatBoxRef,
     lastCommentary,
     onThreadSelect,
-    currentAgentsInRadius,
   }: ChatBottomDrawerProps) {
     const { isKeyboardOpen } = useKeyboardOpen();
     const [viewportHeight, setViewportHeight] = useState(800);
@@ -68,7 +65,6 @@ export default function ChatBottomDrawer({
                       aiCommentary={lastCommentary}
                       onThreadSelect={onThreadSelect}
                       openThreadList={openThreadList}
-                      currentAgentsInRadius={currentAgentsInRadius}
                 />
             </DrawerContent>
         </Drawer>

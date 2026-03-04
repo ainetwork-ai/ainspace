@@ -3,6 +3,7 @@
 import { ChatMessage, useAgentStore, useGameStateStore } from '@/stores';
 import { useMemo } from 'react';
 import { AgentProfile } from '@/components/AgentProfile';
+import { calculateDistance } from '@/lib/utils';
 import ReactMarkdown from 'react-markdown';
 import rehypeSanitize from 'rehype-sanitize';
 
@@ -20,9 +21,7 @@ export default function ChatMessageCard({ message }: { message: ChatMessage }) {
         // FIXME(yoojin): need to change senderId to agent id. now senderId is agent name.
         const agent = getAgentByName(message.senderId);
         if (agent && playerPosition) {
-            const distance = Math.sqrt(
-                Math.pow(agent.x - playerPosition.x, 2) + Math.pow(agent.y - playerPosition.y, 2)
-            );
+            const distance = calculateDistance(agent, playerPosition);
             return `${agent.name} (${agent.x}, ${agent.y}) [${distance.toFixed(1)}u]`;
         }
         // If agent not found in local agents array, just return the senderId as name
