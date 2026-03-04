@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { AgentState } from '@/lib/agent';
 import { AgentProfile } from '@/components/AgentProfile';
@@ -11,14 +12,21 @@ interface MentionSuggestionDropdownProps {
 }
 
 export default function MentionSuggestionDropdown({ agents, selectedIndex, onSelect }: MentionSuggestionDropdownProps) {
+    const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+    useEffect(() => {
+        itemRefs.current[selectedIndex]?.scrollIntoView({ block: 'nearest' });
+    }, [selectedIndex]);
+
     return (
-        <div className="absolute right-3 bottom-full left-3 z-10 mb-1 max-h-32 overflow-y-auto rounded-md border border-gray-600 bg-gray-800 shadow-lg">
+        <div className="absolute right-3 bottom-full left-3 z-10 mb-1 max-h-48 overflow-y-auto rounded-md border border-gray-600 bg-gray-800 shadow-lg">
             {agents.map((agent, index) => {
                 const isSelected = index === selectedIndex;
 
                 return (
                     <button
                         key={agent.id}
+                        ref={(el) => { itemRefs.current[index] = el; }}
                         onClick={() => onSelect(agent)}
                         className={cn(
                             'flex w-full items-center px-3 py-2 text-left text-sm focus:outline-none',
