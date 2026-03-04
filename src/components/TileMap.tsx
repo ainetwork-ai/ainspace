@@ -7,7 +7,7 @@ import { worldToGrid } from '@/lib/village-utils';
 import { useBuildStore, useChatStore, useGameStateStore, useUserStore } from '@/stores';
 import * as Sentry from '@sentry/nextjs';
 import { AgentState } from '@/lib/agent';
-import { calculateDistance } from '@/lib/world';
+import { calculateDistance } from '@/lib/utils';
 import { useTiledMap } from '@/hooks/useTiledMap';
 import { Z_INDEX_OFFSETS } from '@/constants/common';
 import { useVillageStore } from '@/stores/useVillageStore';

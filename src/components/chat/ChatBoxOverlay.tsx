@@ -2,7 +2,7 @@
 
 import { cn } from '@/lib/utils';
 import { useThreadStore, useUIStore, useUserStore } from '@/stores';
-import { useWorld } from '@/hooks/useWorld';
+import { useNearbyAgents } from '@/hooks/useNearbyAgents';
 import { Triangle } from 'lucide-react';
 import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
@@ -28,7 +28,7 @@ export default function ChatBoxOverlay({
     setJoystickVisible,
     HUDOff
 }: ChatBoxOverlayProps) {
-    const { nearbyAgents } = useWorld();
+    const nearbyAgents = useNearbyAgents();
     const [isChatSheetOpen, setIsChatSheetOpen] = useState(false);
     const [isThreadListSheetOpen, setIsThreadListSheetOpen] = useState(false);
     const [isThreadListLoading, setIsThreadListLoading] = useState(false);

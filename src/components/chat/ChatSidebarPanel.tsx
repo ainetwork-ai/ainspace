@@ -3,9 +3,9 @@
 import Image from 'next/image';
 import React, { useEffect, useRef, useState } from 'react';
 import { useThreadStore, useUserStore } from '@/stores';
+import { useNearbyAgents } from '@/hooks/useNearbyAgents';
 import { Thread } from '@/types/thread';
 import { generateAgentComboId } from '@/lib/hash';
-import { useWorld } from '@/hooks/useWorld';
 import ChatBox, { ChatBoxRef } from './ChatBox';
 import ThreadListLeftDrawer from './ThreadListLeftDrawer';
 
@@ -63,7 +63,7 @@ export default function ChatSidebarPanel() {
         loadThreadMappings();
     }, [userId, setThreads]);
 
-    const { nearbyAgents } = useWorld();
+    const nearbyAgents = useNearbyAgents();
     const [isChatLoading, setIsChatLoading] = useState(false);
     const shouldShowEmptyState = (!currentThreadId || currentThreadId === '0') && !isChatLoading;
 

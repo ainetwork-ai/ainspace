@@ -3,7 +3,7 @@
 import { ChatMessage, useAgentStore, useGameStateStore } from '@/stores';
 import { useMemo } from 'react';
 import { AgentProfile } from '@/components/AgentProfile';
-import { calculateDistance } from '@/lib/world';
+import { calculateDistance } from '@/lib/utils';
 import ReactMarkdown from 'react-markdown';
 import rehypeSanitize from 'rehype-sanitize';
 

@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback, forwardRef } from 'react';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
-import { ChatMessage, useBuildStore, useChatStore, useGameStateStore, useThreadStore, useUserStore } from '@/stores';
+import { ChatMessage, useAgentStore, useBuildStore, useChatStore, useGameStateStore, useThreadStore, useUserStore } from '@/stores';
 import { BROADCAST_RADIUS, INITIAL_PLAYER_POSITION } from '@/constants/game';
 import * as Sentry from '@sentry/nextjs';
 import { useThreadStream } from '@/hooks/useThreadStream';
@@ -11,11 +11,11 @@ import { StreamEvent } from '@/lib/a2aOrchestration';
 import { AlertTriangle, Triangle, X } from 'lucide-react';
 import ChatMessageCard from '@/components/chat/ChatMessageCard';
 import { AgentState } from '@/lib/agent';
-import { calculateDistance } from '@/lib/world';
+import { calculateDistance } from '@/lib/utils';
 import { generateAgentComboId } from '@/lib/hash';
 import { Spinner } from '@/components/ui/spinner';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
-import { useWorld } from '@/hooks/useWorld';
+import { useNearbyAgents } from '@/hooks/useNearbyAgents';
 
 interface ChatBoxProps {
     className?: string;
@@ -37,7 +37,8 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
 ) {
     const { messages, setMessages, getMessagesByThreadId } = useChatStore();
     const { currentThreadId, setCurrentThreadId, findThreadByName, findThreadById, addThread } = useThreadStore();
-    const { nearbyAgents, getAgentSuggestions } = useWorld();
+    const agents = useAgentStore((s) => s.agents);
+    const nearbyAgents = useNearbyAgents();
     const [inputValue, setInputValue] = useState('');
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [filteredAgents, setFilteredAgents] = useState<AgentState[]>([]);
@@ -580,8 +581,8 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             const atMatch = beforeCursor.match(/@(\w*)$/);
 
             if (atMatch) {
-                const searchTerm = atMatch[1];
-                const filtered = getAgentSuggestions(searchTerm);
+                const searchLower = atMatch[1].toLowerCase();
+                const filtered = agents.filter((agent) => agent.name.toLowerCase().includes(searchLower));
                 setFilteredAgents(filtered);
                 setShowSuggestions(filtered.length > 0);
                 setSelectedSuggestionIndex(0);
@@ -591,7 +592,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 setSelectedSuggestionIndex(0);
             }
         },
-        [getAgentSuggestions]
+        [agents]
     );
 
     // Handle suggestion selection
