@@ -15,11 +15,11 @@ if (envLocalResult.error && envResult.error) {
 }
 
 import { StoredAgent } from "@/lib/redis";
+import { MOVEMENT_MODE } from "@/constants/game";
 
 const AGENTS_KEY = 'agents:';
 
-const MOVEMENT_MODES = ['village_wide', 'spawn_centered', 'stationary'] as const;
-type MovementMode = typeof MOVEMENT_MODES[number];
+const MOVEMENT_MODES = Object.values(MOVEMENT_MODE);
 
 function createReadlineInterface(): readline.Interface {
   return readline.createInterface({
@@ -109,7 +109,7 @@ async function getTargetPosition(current: { x: number; y: number }): Promise<{ x
 /**
  * movement mode 입력받기
  */
-async function getMovementMode(current: string | undefined): Promise<MovementMode | null> {
+async function getMovementMode(current: string | undefined): Promise<MOVEMENT_MODE | null> {
   const rl = createReadlineInterface();
 
   try {
