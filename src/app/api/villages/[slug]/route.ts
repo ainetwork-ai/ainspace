@@ -9,6 +9,7 @@ import {
 } from '@/lib/gcs';
 import { getFirebaseStorage } from '@/lib/firebase';
 import { rewriteTmjTilesetPaths } from '@/lib/tmj-rewriter';
+import { hasAdminAccess } from '@/lib/auth/permissions';
 
 /**
  * GET /api/villages/[slug]
@@ -71,6 +72,22 @@ export async function PUT(
     // FormData 요청: TMJ + 타일셋 업로드
     if (contentType.includes('multipart/form-data')) {
       const formData = await request.formData();
+
+      const userId = formData.get('userId') as string;
+      if (!userId) {
+        return NextResponse.json(
+          { success: false, error: 'User ID is required' },
+          { status: 400 },
+        );
+      }
+      const adminCheck = await hasAdminAccess(userId);
+      if (!adminCheck.allowed) {
+        return NextResponse.json(
+          { success: false, error: 'Admin access required' },
+          { status: 403 },
+        );
+      }
+
       const name = formData.get('name') as string | null;
       const tmjFile = formData.get('tmj') as File | null;
       const tilesetFiles = formData.getAll('tilesets') as File[];
@@ -112,6 +129,21 @@ export async function PUT(
 
     // JSON 요청: 메타데이터만 업데이트
     const body = await request.json();
+
+    if (!body.userId) {
+      return NextResponse.json(
+        { success: false, error: 'User ID is required' },
+        { status: 400 },
+      );
+    }
+    const adminCheckJson = await hasAdminAccess(body.userId);
+    if (!adminCheckJson.allowed) {
+      return NextResponse.json(
+        { success: false, error: 'Admin access required' },
+        { status: 403 },
+      );
+    }
+
     const updated = await updateVillage(slug, {
       name: body.name,
       tmjUrl: body.tmjUrl,
@@ -134,11 +166,26 @@ export async function PUT(
  * 마을 삭제 (Redis 메타데이터 + GCS 파일)
  */
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ slug: string }> },
 ) {
   try {
     const { slug } = await params;
+
+    const { userId } = await request.json();
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: 'User ID is required' },
+        { status: 400 },
+      );
+    }
+    const adminCheck = await hasAdminAccess(userId);
+    if (!adminCheck.allowed) {
+      return NextResponse.json(
+        { success: false, error: 'Admin access required' },
+        { status: 403 },
+      );
+    }
 
     // GCS 파일 삭제
     try {

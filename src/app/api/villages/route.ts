@@ -9,6 +9,7 @@ import {
 import { uploadVillageTmj, uploadVillageTileset, uploadVillageTsx, getRootTilesetBaseUrl } from '@/lib/gcs';
 import { getFirebaseStorage } from '@/lib/firebase';
 import { rewriteTmjTilesetPaths } from '@/lib/tmj-rewriter';
+import { hasAdminAccess } from '@/lib/auth/permissions';
 
 /**
  * GET /api/villages
@@ -77,6 +78,22 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
+
+    const userId = formData.get('userId') as string;
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: 'User ID is required' },
+        { status: 400 },
+      );
+    }
+
+    const adminCheck = await hasAdminAccess(userId);
+    if (!adminCheck.allowed) {
+      return NextResponse.json(
+        { success: false, error: 'Admin access required' },
+        { status: 403 },
+      );
+    }
 
     const slug = formData.get('slug') as string;
     const name = formData.get('name') as string;

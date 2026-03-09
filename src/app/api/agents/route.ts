@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRedisClient, StoredAgent, addPlacedAgent, removePlacedAgent, getPlacedAgentCount, scanKeys } from '@/lib/redis';
-import { canImportAgent, canPlaceAgent, canPlaceAgentOnMap } from '@/lib/auth/permissions';
+import { canImportAgent, canPlaceAgent, canPlaceAgentOnMap, hasAdminAccess } from '@/lib/auth/permissions';
 import { MOVEMENT_MODE } from '@/constants/game';
 import { worldToGrid } from '@/lib/village-utils';
 import { getVillageByGrid } from '@/lib/village-redis';
@@ -361,6 +361,22 @@ export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const agentUrl = searchParams.get('url');
+    const userId = searchParams.get('userId');
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'User ID is required' },
+        { status: 400 }
+      );
+    }
+
+    const adminCheck = await hasAdminAccess(userId);
+    if (!adminCheck.allowed) {
+      return NextResponse.json(
+        { error: 'Admin access required' },
+        { status: 403 }
+      );
+    }
 
     if (!agentUrl) {
       return NextResponse.json(
