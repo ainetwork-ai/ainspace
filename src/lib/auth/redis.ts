@@ -32,7 +32,7 @@ export const saveAuthDefinition = async (
   await redis.hSet(key, {
     name: auth.name,
     permissions: JSON.stringify(auth.permissions),
-    tokenRequirements: JSON.stringify(auth.tokenRequirements),
+    tokenRequirements: JSON.stringify(auth.tokenRequirements ?? []),
   });
 };
 
