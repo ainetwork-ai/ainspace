@@ -14,14 +14,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { userId, auths, adminId } = body;
 
-    if (!adminId) {
-      return NextResponse.json(
-        { error: 'User ID is required' },
-        { status: 400 }
-      );
-    }
-
-    const adminCheck = await hasAdminAccess(adminId);
+    const adminCheck = await hasAdminAccess(adminId ?? '');
     if (!adminCheck.allowed) {
       return NextResponse.json(
         { error: 'Admin access required' },

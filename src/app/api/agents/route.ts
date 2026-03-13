@@ -363,21 +363,6 @@ export async function DELETE(request: NextRequest) {
     const agentUrl = searchParams.get('url');
     const userId = searchParams.get('userId');
 
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'User ID is required' },
-        { status: 400 }
-      );
-    }
-
-    const adminCheck = await hasAdminAccess(userId);
-    if (!adminCheck.allowed) {
-      return NextResponse.json(
-        { error: 'Admin access required' },
-        { status: 403 }
-      );
-    }
-
     if (!agentUrl) {
       return NextResponse.json(
         { error: 'Agent URL is required' },
@@ -386,34 +371,58 @@ export async function DELETE(request: NextRequest) {
     }
 
     const agentKey = `${AGENTS_KEY}${Buffer.from(agentUrl).toString('base64')}`;
-    let deleted = false;
 
+    // Fetch agent data to check ownership
+    let existingData: StoredAgent | null = null;
     try {
-      // Try Redis first
+      const redis = await getRedisClient();
+      const existing = await redis.get(agentKey);
+      if (!existing) {
+        return NextResponse.json(
+          { error: 'Agent not found' },
+          { status: 404 }
+        );
+      }
+      existingData = JSON.parse(existing);
+    } catch (redisError) {
+      console.warn('Redis unavailable, using fallback storage:', redisError);
+      const fallback = agentStore.get(agentUrl);
+      if (!fallback) {
+        return NextResponse.json(
+          { error: 'Agent not found' },
+          { status: 404 }
+        );
+      }
+      existingData = fallback;
+    }
+
+    // Check permission: admin (bypass) or owner
+    const isAdmin = await hasAdminAccess(userId ?? '');
+    if (!isAdmin.allowed && existingData?.creator !== userId) {
+      return NextResponse.json(
+        { error: 'Only the agent creator or admin can delete this agent' },
+        { status: 403 }
+      );
+    }
+
+    // Delete agent
+    let deleted = false;
+    try {
       const redis = await getRedisClient();
       const result = await redis.del(agentKey);
       deleted = result > 0;
-      
       if (deleted) {
         console.log(`Deleted agent from Redis: ${agentUrl}`);
       }
     } catch (redisError) {
       console.warn('Redis unavailable, using fallback storage:', redisError);
       deleted = agentStore.delete(agentUrl);
-      
       if (deleted) {
         console.log(`Deleted agent from memory: ${agentUrl}`);
       }
     }
 
-    if (!deleted) {
-      return NextResponse.json(
-        { error: 'Agent not found' },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
       message: 'Agent deleted successfully'
     });

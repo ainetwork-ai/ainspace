@@ -8,16 +8,9 @@ import { hasAdminAccess } from '@/lib/auth/permissions';
  */
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await request.json();
+    const { userId } = await request.json().catch(() => ({ userId: undefined }));
 
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'User ID is required' },
-        { status: 400 }
-      );
-    }
-
-    const adminCheck = await hasAdminAccess(userId);
+    const adminCheck = await hasAdminAccess(userId ?? '');
     if (!adminCheck.allowed) {
       return NextResponse.json(
         { error: 'Admin access required' },

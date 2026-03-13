@@ -64,17 +64,10 @@ export async function DELETE(
     }
 
     // Check admin permission
-    const body = await request.json();
+    const body = await request.json().catch(() => ({}));
     const { userId } = body;
 
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'User ID is required' },
-        { status: 400 }
-      );
-    }
-
-    const adminCheck = await hasAdminAccess(userId);
+    const adminCheck = await hasAdminAccess(userId ?? '');
     if (!adminCheck.allowed) {
       return NextResponse.json(
         { error: 'Admin access required' },

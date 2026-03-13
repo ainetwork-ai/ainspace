@@ -18,10 +18,24 @@ export function middleware(request: NextRequest) {
     if (origin && ALLOWED_ORIGINS.includes(origin)) {
       response.headers.set('Access-Control-Allow-Origin', origin);
       response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-      response.headers.set('Access-Control-Allow-Headers', 'Content-Type');
+      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, X-Admin-Secret');
       response.headers.set('Access-Control-Max-Age', '86400');
       response.headers.set('Vary', 'Origin');
     }
+    return response;
+  }
+
+  // Handle admin dashboard requests with verified secret
+  const adminSecret = process.env.ADMIN_API_SECRET;
+  if (
+    adminSecret &&
+    origin === process.env.ADMIN_DASHBOARD_URL &&
+    request.headers.get('x-admin-secret') === adminSecret
+  ) {
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set('x-admin-verified', 'true');
+    const response = NextResponse.next({ request: { headers: requestHeaders } });
+    response.headers.set('Access-Control-Allow-Origin', origin);
     return response;
   }
 

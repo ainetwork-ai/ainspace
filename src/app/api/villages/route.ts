@@ -80,14 +80,8 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
 
     const userId = formData.get('userId') as string;
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: 'User ID is required' },
-        { status: 400 },
-      );
-    }
 
-    const adminCheck = await hasAdminAccess(userId);
+    const adminCheck = await hasAdminAccess(userId ?? '');
     if (!adminCheck.allowed) {
       return NextResponse.json(
         { success: false, error: 'Admin access required' },

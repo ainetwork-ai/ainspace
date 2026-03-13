@@ -74,13 +74,7 @@ export async function PUT(
       const formData = await request.formData();
 
       const userId = formData.get('userId') as string;
-      if (!userId) {
-        return NextResponse.json(
-          { success: false, error: 'User ID is required' },
-          { status: 400 },
-        );
-      }
-      const adminCheck = await hasAdminAccess(userId);
+      const adminCheck = await hasAdminAccess(userId ?? '');
       if (!adminCheck.allowed) {
         return NextResponse.json(
           { success: false, error: 'Admin access required' },
@@ -130,13 +124,7 @@ export async function PUT(
     // JSON 요청: 메타데이터만 업데이트
     const body = await request.json();
 
-    if (!body.userId) {
-      return NextResponse.json(
-        { success: false, error: 'User ID is required' },
-        { status: 400 },
-      );
-    }
-    const adminCheckJson = await hasAdminAccess(body.userId);
+    const adminCheckJson = await hasAdminAccess(body.userId ?? '');
     if (!adminCheckJson.allowed) {
       return NextResponse.json(
         { success: false, error: 'Admin access required' },
@@ -172,14 +160,8 @@ export async function DELETE(
   try {
     const { slug } = await params;
 
-    const { userId } = await request.json();
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: 'User ID is required' },
-        { status: 400 },
-      );
-    }
-    const adminCheck = await hasAdminAccess(userId);
+    const { userId } = await request.json().catch(() => ({ userId: undefined }));
+    const adminCheck = await hasAdminAccess(userId ?? '');
     if (!adminCheck.allowed) {
       return NextResponse.json(
         { success: false, error: 'Admin access required' },
