@@ -23,6 +23,13 @@ export async function checkUserPermission(
       return { allowed: true };
     }
 
+    if (!userId) {
+      return {
+        allowed: false,
+        reason: 'User ID is required',
+      };
+    }
+
     const userPermissions = await getUserPermissions(userId);
 
     if (!userPermissions) {

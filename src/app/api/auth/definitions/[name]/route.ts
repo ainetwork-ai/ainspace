@@ -70,7 +70,7 @@ export async function DELETE(
     const adminCheck = await hasAdminAccess(userId ?? '');
     if (!adminCheck.allowed) {
       return NextResponse.json(
-        { error: 'Admin access required' },
+        { error: adminCheck.reason || 'Admin access required' },
         { status: 403 }
       );
     }

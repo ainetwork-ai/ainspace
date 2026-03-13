@@ -36,6 +36,7 @@ export function middleware(request: NextRequest) {
     requestHeaders.set('x-admin-verified', 'true');
     const response = NextResponse.next({ request: { headers: requestHeaders } });
     response.headers.set('Access-Control-Allow-Origin', origin);
+    response.headers.set('Vary', 'Origin');
     return response;
   }
 
@@ -45,6 +46,7 @@ export function middleware(request: NextRequest) {
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   if (origin && ALLOWED_ORIGINS.includes(origin)) {
     response.headers.set('Access-Control-Allow-Origin', origin);
+    response.headers.set('Vary', 'Origin');
   }
   return response;
 }

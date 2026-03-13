@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     const adminCheck = await hasAdminAccess(adminId ?? '');
     if (!adminCheck.allowed) {
       return NextResponse.json(
-        { error: 'Admin access required' },
+        { error: adminCheck.reason || 'Admin access required' },
         { status: 403 }
       );
     }

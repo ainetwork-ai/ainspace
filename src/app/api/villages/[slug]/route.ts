@@ -77,7 +77,7 @@ export async function PUT(
       const adminCheck = await hasAdminAccess(userId ?? '');
       if (!adminCheck.allowed) {
         return NextResponse.json(
-          { success: false, error: 'Admin access required' },
+          { success: false, error: adminCheck.reason || 'Admin access required' },
           { status: 403 },
         );
       }
@@ -127,7 +127,7 @@ export async function PUT(
     const adminCheckJson = await hasAdminAccess(body.userId ?? '');
     if (!adminCheckJson.allowed) {
       return NextResponse.json(
-        { success: false, error: 'Admin access required' },
+        { success: false, error: adminCheckJson.reason || 'Admin access required' },
         { status: 403 },
       );
     }
@@ -164,7 +164,7 @@ export async function DELETE(
     const adminCheck = await hasAdminAccess(userId ?? '');
     if (!adminCheck.allowed) {
       return NextResponse.json(
-        { success: false, error: 'Admin access required' },
+        { success: false, error: adminCheck.reason || 'Admin access required' },
         { status: 403 },
       );
     }
