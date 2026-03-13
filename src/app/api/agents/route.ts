@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRedisClient, StoredAgent, addPlacedAgent, removePlacedAgent, getPlacedAgentCount, scanKeys } from '@/lib/redis';
-import { canImportAgent, canPlaceAgent, canPlaceAgentOnMap } from '@/lib/auth/permissions';
+import { canImportAgent, canPlaceAgent, canPlaceAgentOnMap, hasAdminAccess } from '@/lib/auth/permissions';
 import { MOVEMENT_MODE } from '@/constants/game';
 import { worldToGrid } from '@/lib/village-utils';
 import { getVillageByGrid } from '@/lib/village-redis';
@@ -361,6 +361,7 @@ export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const agentUrl = searchParams.get('url');
+    const userId = searchParams.get('userId');
 
     if (!agentUrl) {
       return NextResponse.json(
@@ -370,21 +371,52 @@ export async function DELETE(request: NextRequest) {
     }
 
     const agentKey = `${AGENTS_KEY}${Buffer.from(agentUrl).toString('base64')}`;
-    let deleted = false;
 
+    // Fetch agent data to check ownership
+    let existingData: StoredAgent | null = null;
     try {
-      // Try Redis first
+      const redis = await getRedisClient();
+      const existing = await redis.get(agentKey);
+      if (!existing) {
+        return NextResponse.json(
+          { error: 'Agent not found' },
+          { status: 404 }
+        );
+      }
+      existingData = JSON.parse(existing);
+    } catch (redisError) {
+      console.warn('Redis unavailable, using fallback storage:', redisError);
+      const fallback = agentStore.get(agentUrl);
+      if (!fallback) {
+        return NextResponse.json(
+          { error: 'Agent not found' },
+          { status: 404 }
+        );
+      }
+      existingData = fallback;
+    }
+
+    // Check permission: admin (bypass) or owner
+    const isAdmin = await hasAdminAccess(userId ?? '');
+    if (!isAdmin.allowed && existingData?.creator !== userId) {
+      return NextResponse.json(
+        { error: 'Only the agent creator or admin can delete this agent' },
+        { status: 403 }
+      );
+    }
+
+    // Delete agent
+    let deleted = false;
+    try {
       const redis = await getRedisClient();
       const result = await redis.del(agentKey);
       deleted = result > 0;
-      
       if (deleted) {
         console.log(`Deleted agent from Redis: ${agentUrl}`);
       }
     } catch (redisError) {
       console.warn('Redis unavailable, using fallback storage:', redisError);
       deleted = agentStore.delete(agentUrl);
-      
       if (deleted) {
         console.log(`Deleted agent from memory: ${agentUrl}`);
       }
@@ -392,12 +424,12 @@ export async function DELETE(request: NextRequest) {
 
     if (!deleted) {
       return NextResponse.json(
-        { error: 'Agent not found' },
-        { status: 404 }
+        { error: 'Failed to delete agent' },
+        { status: 500 }
       );
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
       message: 'Agent deleted successfully'
     });

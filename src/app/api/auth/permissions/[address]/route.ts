@@ -3,6 +3,7 @@ import {
   getUserPermissions,
   deleteUserPermissions,
 } from '@/lib/auth';
+import { hasAdminAccess } from '@/lib/auth/permissions';
 
 /**
  * GET /api/auth/permissions/[address]
@@ -60,6 +61,17 @@ export async function DELETE(
       return NextResponse.json(
         { error: 'Address is required' },
         { status: 400 }
+      );
+    }
+
+    const body = await request.json().catch(() => ({}));
+    const { userId } = body;
+
+    const adminCheck = await hasAdminAccess(userId ?? '');
+    if (!adminCheck.allowed) {
+      return NextResponse.json(
+        { error: adminCheck.reason || 'Admin access required' },
+        { status: 403 }
       );
     }
 

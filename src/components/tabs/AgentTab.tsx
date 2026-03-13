@@ -170,7 +170,7 @@ export default function AgentTab({
 
     const handleRemoveAgent = async (url: string) => {
         setIsLoading(true);
-        const response = await fetch('/api/agents?url=' + url, {
+        const response = await fetch(`/api/agents?url=${encodeURIComponent(url)}&userId=${address}`, {
             method: 'DELETE',
             headers: {
                 'Content-Type': 'application/json'
