@@ -422,6 +422,13 @@ export async function DELETE(request: NextRequest) {
       }
     }
 
+    if (!deleted) {
+      return NextResponse.json(
+        { error: 'Failed to delete agent' },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Agent deleted successfully'

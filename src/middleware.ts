@@ -39,8 +39,10 @@ export function middleware(request: NextRequest) {
     return response;
   }
 
-  // Handle actual requests
-  const response = NextResponse.next();
+  // Handle actual requests — strip x-admin-verified to prevent header forgery
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.delete('x-admin-verified');
+  const response = NextResponse.next({ request: { headers: requestHeaders } });
   if (origin && ALLOWED_ORIGINS.includes(origin)) {
     response.headers.set('Access-Control-Allow-Origin', origin);
   }
