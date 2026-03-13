@@ -3,6 +3,7 @@ import {
   saveUserAuths,
   getUserPermissions,
 } from '@/lib/auth';
+import { hasAdminAccess } from '@/lib/auth/permissions';
 
 /**
  * POST /api/auth/permissions
@@ -11,7 +12,15 @@ import {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { userId, auths } = body;
+    const { userId, auths, adminId } = body;
+
+    const adminCheck = await hasAdminAccess(adminId ?? '');
+    if (!adminCheck.allowed) {
+      return NextResponse.json(
+        { error: adminCheck.reason || 'Admin access required' },
+        { status: 403 }
+      );
+    }
 
     if (!userId) {
       return NextResponse.json(
