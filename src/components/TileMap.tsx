@@ -459,8 +459,7 @@ function TileMap({
             {/* Loading overlay before village is ready */}
             {!isCurrentVillageLoaded && (
                 <div
-                    className="absolute inset-0 z-50 flex flex-col items-center justify-center"
-                    style={{ background: '#434243' }}
+                    className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#434243]"
                 >
                     <Loader2 className="h-10 w-10 animate-spin text-[#C0A9F1]" />
                     <p className="mt-4 text-sm font-medium text-[#C0A9F1]">Loading village...</p>
