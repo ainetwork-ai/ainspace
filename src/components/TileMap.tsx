@@ -11,6 +11,7 @@ import { calculateDistance } from '@/lib/utils';
 import { useTiledMap } from '@/hooks/useTiledMap';
 import { Z_INDEX_OFFSETS } from '@/constants/common';
 import { useVillageStore } from '@/stores/useVillageStore';
+import { Loader2 } from 'lucide-react';
 
 // Data structure for multi-tile items
 interface ItemTileData {
@@ -80,6 +81,7 @@ function TileMap({
     const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
 
     const { worldPosition } = useGameStateStore();
+    const isCurrentVillageLoaded = useVillageStore((s) => s.isCurrentVillageLoaded);
     
     const [zoomLevel, setZoomLevel] = useState(fixedZoom !== undefined ? fixedZoom : 1.0);
     const MIN_ZOOM = 0.5;
@@ -454,8 +456,18 @@ function TileMap({
                 </div>
             )}
 
+            {/* Loading overlay before village is ready */}
+            {!isCurrentVillageLoaded && (
+                <div
+                    className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#434243]"
+                >
+                    <Loader2 className="h-10 w-10 animate-spin text-[#C0A9F1]" />
+                    <p className="mt-4 text-sm font-medium text-[#C0A9F1]">Loading village...</p>
+                </div>
+            )}
+
             {/* Render Agents using SpriteAnimator */}
-            {agents.map((agent) => {
+            {isCurrentVillageLoaded && agents.map((agent) => {
                 const agentScreenX = agent.x - cameraTilePosition.x;
                 const agentScreenY = agent.y - cameraTilePosition.y;
 
@@ -541,7 +553,7 @@ function TileMap({
             })}
 
             {/* Render Player using SpriteAnimator */}
-            {(() => {
+            {isCurrentVillageLoaded && (() => {
                 const playerScreenTileX = worldPosition.x - cameraTilePosition.x;
                 const playerScreenTileY = worldPosition.y - cameraTilePosition.y;
                 const playerStartFrame = getStartFrame(playerDirection);

@@ -185,13 +185,25 @@ export function useVillageLoader(initialVillageSlug: string | null) {
         const res = await fetch(`/api/villages/${initialVillageSlug}?noCache=true`);
         const data = await res.json();
 
-        if (!data.success || !data.village) {
-          console.error(`Village "${initialVillageSlug}" not found`);
-          setLoading(false);
-          return;
-        }
+        let metadata: VillageMetadata;
 
-        const metadata: VillageMetadata = data.village;
+        if (!data.success || !data.village) {
+          console.warn(`Village "${initialVillageSlug}" not found, falling back to grid (0,0)`);
+
+          // grid (0,0)에 존재하는 마을로 fallback
+          const fallbackRes = await fetch('/api/villages?gridX=0&gridY=0');
+          const fallbackData = await fallbackRes.json();
+
+          if (!fallbackData.success || !fallbackData.village) {
+            console.error('Fallback village at grid (0,0) not found');
+            setCurrentVillageLoaded(true);
+            return;
+          }
+
+          metadata = fallbackData.village;
+        } else {
+          metadata = data.village;
+        }
         setCurrentVillage(metadata.slug, metadata);
 
         // 현재 마을의 gridIndex를 먼저 등록 (이동 가능하도록)
@@ -224,6 +236,7 @@ export function useVillageLoader(initialVillageSlug: string | null) {
         loadNearbyVillages(metadata.gridX, metadata.gridY);
       } catch (err) {
         console.error('Failed to initialize village:', err);
+        setCurrentVillageLoaded(true); // 오버레이 해제 (오류 시에도)
       } finally {
         setLoading(false);
       }
@@ -256,17 +269,13 @@ export function useVillageLoader(initialVillageSlug: string | null) {
 
       setCurrentVillage(slugAtPlayerGrid, newMeta);
 
-      // URL 업데이트 (페이지 리로드 없이)
-      // NOTE: URL 업데이트를 하면 초기화 useEffect가 다시 실행되어 플레이어가 중앙으로 이동됨
-      // 따라서 URL 업데이트는 초기 로드 시에만 수행하고, 마을 전환 시에는 하지 않음
-      // const url = new URL(window.location.href);
-      // url.searchParams.set('village', slugAtPlayerGrid);
-      // window.history.replaceState({}, '', url.toString());
+      // 백그라운드 로드 (loadVillage 내부에서 중복 로드 방지)
+      loadVillage(newMeta);
 
       // 새 인접 마을 로드
       loadNearbyVillages(gridX, gridY);
     }
-  }, [worldPosition, currentVillage, currentVillageSlug, getVillageSlugAtGrid, setCurrentVillage, loadNearbyVillages]);
+  }, [worldPosition, currentVillage, currentVillageSlug, getVillageSlugAtGrid, setCurrentVillage, loadVillage, loadNearbyVillages]);
 
   // 플레이어 이동 시 viewport 범위의 언로드된 마을 재로드
   useEffect(() => {
