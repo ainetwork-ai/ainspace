@@ -197,7 +197,6 @@ export function useVillageLoader(initialVillageSlug: string | null) {
           if (!fallbackData.success || !fallbackData.village) {
             console.error('Fallback village at grid (0,0) not found');
             setCurrentVillageLoaded(true);
-            setLoading(false);
             return;
           }
 
@@ -270,15 +269,13 @@ export function useVillageLoader(initialVillageSlug: string | null) {
 
       setCurrentVillage(slugAtPlayerGrid, newMeta);
 
-      // 캐시에 없는 마을이면 백그라운드 로드 (오버레이 없이)
-      if (!loadedVillages.has(slugAtPlayerGrid)) {
-        loadVillage(newMeta);
-      }
+      // 백그라운드 로드 (loadVillage 내부에서 중복 로드 방지)
+      loadVillage(newMeta);
 
       // 새 인접 마을 로드
       loadNearbyVillages(gridX, gridY);
     }
-  }, [worldPosition, currentVillage, currentVillageSlug, getVillageSlugAtGrid, setCurrentVillage, loadVillage, loadedVillages, loadNearbyVillages]);
+  }, [worldPosition, currentVillage, currentVillageSlug, getVillageSlugAtGrid, setCurrentVillage, loadVillage, loadNearbyVillages]);
 
   // 플레이어 이동 시 viewport 범위의 언로드된 마을 재로드
   useEffect(() => {
