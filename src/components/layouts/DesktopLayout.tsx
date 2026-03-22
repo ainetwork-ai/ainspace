@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import Image from 'next/image';
 import { useAccount, useConnect } from 'wagmi';
 import { disconnect } from '@wagmi/core';
-import { MapPin } from 'lucide-react';
+import { MapPin, Copy, Check, LogOut } from 'lucide-react';
 import MapTab from '@/components/tabs/MapTab';
 import TempBuildTab from '@/components/tabs/TempBuildTab';
 import AgentTab from '@/components/tabs/AgentTab';
@@ -43,10 +43,19 @@ export default function DesktopLayout({
     const currentVillageName = useVillageStore((s) => s.currentVillage?.name);
     const { selectedAgentForPlacement, setSelectedAgentForPlacement } = useUIStore();
 
+    const [isCopied, setIsCopied] = useState(false);
+
     const handleWalletDisconnect = useCallback(() => {
         disconnect(config);
         clearThreads();
     }, [clearThreads]);
+
+    const handleCopyAddress = useCallback(async () => {
+        if (!address) return;
+        await navigator.clipboard.writeText(address);
+        setIsCopied(true);
+        setTimeout(() => setIsCopied(false), 2000);
+    }, [address]);
 
     return (
         <div className="flex h-screen w-full bg-gray-100">
@@ -108,13 +117,24 @@ export default function DesktopLayout({
                     </div>
                     {/* 지갑 상태 */}
                     {address ? (
-                        <button
-                            onClick={handleWalletDisconnect}
-                            className="inline-flex cursor-pointer flex-row items-center gap-2 rounded-lg bg-white p-2"
-                        >
-                            <Image src="/agent/defaultAvatar.svg" alt="agent" width={20} height={20} />
-                            <p className="text-sm font-bold text-black">{shortAddress(address)}</p>
-                        </button>
+                        <div className="inline-flex flex-row items-center gap-1">
+                            <div className="inline-flex flex-row items-center gap-2 rounded-lg bg-white p-2">
+                                <Image src="/agent/defaultAvatar.svg" alt="agent" width={20} height={20} />
+                                <p className="text-sm font-bold text-black">{shortAddress(address)}</p>
+                                <button
+                                    onClick={handleCopyAddress}
+                                    className="cursor-pointer rounded p-0.5 hover:bg-gray-100"
+                                >
+                                    {isCopied ? <Check size={14} className="text-green-500" /> : <Copy size={14} className="text-gray-400" />}
+                                </button>
+                            </div>
+                            <button
+                                onClick={handleWalletDisconnect}
+                                className="cursor-pointer rounded-lg bg-white p-2 hover:bg-gray-100"
+                            >
+                                <LogOut size={16} className="text-gray-500" />
+                            </button>
+                        </div>
                     ) : (
                         <button
                             onClick={() => connect({ connector: connectors[0] })}
