@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { SpriteAnimator } from 'react-sprite-animator';
 import { TILE_SIZE, DIRECTION, BROADCAST_RADIUS } from '@/constants/game';
 import { worldToGrid } from '@/lib/village-utils';
 import { useBuildStore, useChatStore, useGameStateStore, useUserStore } from '@/stores';
+import type { TileLayers } from '@/stores';
 import * as Sentry from '@sentry/nextjs';
 import { AgentState } from '@/lib/agent';
 import { calculateDistance } from '@/lib/utils';
@@ -12,22 +12,7 @@ import { useTiledMap } from '@/hooks/useTiledMap';
 import { Z_INDEX_OFFSETS } from '@/constants/common';
 import { useVillageStore } from '@/stores/useVillageStore';
 import { Loader2 } from 'lucide-react';
-
-// Data structure for multi-tile items
-interface ItemTileData {
-    image: string;
-    width: number; // in tiles
-    height: number; // in tiles
-    topLeftX: number; // original placement X coordinate
-    topLeftY: number; // original placement Y coordinate
-    isSecondaryTile?: boolean; // true for tiles that are not the top-left anchor
-}
-
-type TileLayers = {
-    layer0: { [key: string]: string };
-    layer1: { [key: string]: string | ItemTileData };
-    layer2: { [key: string]: string };
-};
+import SpriteAnimatorWrapper from './SpriteAnimatorWrapper';
 
 interface TileMapProps {
     mapData: number[][];
@@ -53,14 +38,11 @@ interface TileMapProps {
 }
 
 function TileMap({
-    mapData,
     tileSize: baseTileSize,
     agents = [],
     customTiles = {},
-    layerVisibility = { 0: true, 1: true, 2: true },
     buildMode = 'view',
     onTileClick,
-    onDeleteTile,
     playerDirection = DIRECTION.DOWN,
     playerIsMoving = false,
     collisionMap = {},
@@ -95,7 +77,6 @@ function TileMap({
         tileSize
     );
   
-    const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
     const [hoveredWorldCoords, setHoveredWorldCoords] = useState<{ worldX: number; worldY: number } | null>(null);
     const [isTouchDevice, setIsTouchDevice] = useState(false);
 
@@ -285,15 +266,6 @@ function TileMap({
         const coords = getWorldCoordinatesFromEvent(event);
 
         if (buildMode === 'paint') {
-            const canvas = canvasRef.current;
-            if (canvas) {
-                const rect = canvas.getBoundingClientRect();
-                setMousePosition({
-                    x: event.clientX - rect.left,
-                    y: event.clientY - rect.top
-                });
-            }
-
             if (coords) {
                 setHoveredWorldCoords({ worldX: coords.worldX, worldY: coords.worldY });
             } else {
@@ -319,16 +291,12 @@ function TileMap({
         setIsPainting(false);
         setLastPaintedTile(null);
         setHoveredWorldCoords(null);
-        setMousePosition(null);
     };
 
     const handleTouchStart = (event: React.TouchEvent<HTMLCanvasElement>) => {
         if (event.touches.length === 0) return;
 
-        // Prevent browser from simulating mouse events after touch
         event.preventDefault();
-
-        // Mark as touch device to hide hover preview
         setIsTouchDevice(true);
 
         const touch = event.touches[0];
@@ -353,7 +321,6 @@ function TileMap({
     };
 
     const handleTouchEnd = (event: React.TouchEvent<HTMLCanvasElement>) => {
-        // Prevent browser from simulating mouse events after touch
         event.preventDefault();
         setIsPainting(false);
         setLastPaintedTile(null);
@@ -367,41 +334,6 @@ function TileMap({
             [DIRECTION.RIGHT]: 9
         };
         return directionMap[direction as keyof typeof directionMap] || 0;
-    };
-
-    const getCustomTilesAtPosition = (worldX: number, worldY: number) => {
-        const key = `${worldX},${worldY}`;
-        const tiles: Array<{ layer: 0 | 1 | 2; image: string; key: string; isSecondaryTile?: boolean }> = [];
-
-        if (isLayeredTiles(customTiles)) {
-            [0, 1, 2].forEach((layerIndex) => {
-                const layerKey = `layer${layerIndex}` as keyof TileLayers;
-                const layer = customTiles[layerKey];
-                if (layer && layer[key]) {
-                    const tileData = layer[key];
-                    let imageUrl: string;
-                    let isSecondary = false;
-
-                    if (typeof tileData === 'string') {
-                        imageUrl = tileData;
-                    } else if (tileData && typeof tileData === 'object') {
-                        imageUrl = tileData.image;
-                        isSecondary = tileData.isSecondaryTile || false;
-                    } else {
-                        return; // Skip invalid data
-                    }
-
-                    tiles.push({
-                        layer: layerIndex as 0 | 1 | 2,
-                        image: imageUrl,
-                        key,
-                        isSecondaryTile: isSecondary
-                    });
-                }
-            });
-        }
-
-        return tiles;
     };
 
     return (
@@ -459,8 +391,7 @@ function TileMap({
             {/* Loading overlay before village is ready */}
             {!isCurrentVillageLoaded && (
                 <div
-                    className="absolute inset-0 z-50 flex flex-col items-center justify-center"
-                    style={{ background: '#434243' }}
+                    className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#434243]"
                 >
                     <Loader2 className="h-10 w-10 animate-spin text-[#C0A9F1]" />
                     <p className="mt-4 text-sm font-medium text-[#C0A9F1]">Loading village...</p>
@@ -468,15 +399,14 @@ function TileMap({
             )}
 
             {/* Render Agents using SpriteAnimator */}
-            {isCurrentVillageLoaded && agents.map((agent) => {
-                const agentScreenX = agent.x - cameraTilePosition.x;
-                const agentScreenY = agent.y - cameraTilePosition.y;
-
-                // Calculate actual viewport size based on canvas
+            {isCurrentVillageLoaded && (() => {
                 const tilesX = Math.ceil(canvasSize.width / tileSize);
                 const tilesY = Math.ceil(canvasSize.height / tileSize);
 
-                // Skip rendering agents far outside the viewport
+                return agents.map((agent) => {
+                const agentScreenX = agent.x - cameraTilePosition.x;
+                const agentScreenY = agent.y - cameraTilePosition.y;
+
                 if (agentScreenX < -1 || agentScreenX > tilesX + 1 || agentScreenY < -1 || agentScreenY > tilesY + 1) {
                     return null;
                 }
@@ -512,19 +442,16 @@ function TileMap({
                             }
                         }}
                     >
-                        <SpriteAnimator
-                            key={`${agent.id}-${agentDirection}`}
+                        <SpriteAnimatorWrapper
                             sprite={agentSpriteUrl}
                             width={TILE_SIZE}
                             height={agentSpriteHeight}
                             scale={1}
                             fps={6}
-                            frameCount={agentStartFrame + 3}
                             direction={'horizontal'}
                             shouldAnimate={agentIsMoving}
                             startFrame={agentStartFrame}
                         />
-                        {/* Show agent name and coordinates */}
                         <div
                             style={{
                                 position: 'absolute',
@@ -545,13 +472,17 @@ function TileMap({
                                 })
                             }}
                         >
-                            {showCollisionMap && !hideCoordinates && agent.x !== undefined && agent.y !== undefined
-                                ? `${agent.name} (${agent.x}, ${agent.y})${isAgentLoading(agent.id) ? ' 💬' : ''}`
-                                : `${agent.name}${isAgentLoading(agent.id) ? ' 💬' : ''}`}
+                            {(() => {
+                                const loadingIndicator = isAgentLoading(agent.id) ? ' 💬' : '';
+                                return showCollisionMap && !hideCoordinates && agent.x !== undefined && agent.y !== undefined
+                                    ? `${agent.name} (${agent.x}, ${agent.y})${loadingIndicator}`
+                                    : `${agent.name}${loadingIndicator}`;
+                            })()}
                         </div>
                     </div>
                 );
-            })}
+            });
+            })()}
 
             {/* Render Player using SpriteAnimator */}
             {isCurrentVillageLoaded && (() => {
@@ -572,19 +503,16 @@ function TileMap({
                             zIndex: playerZIndex
                         }}
                     >
-                        <SpriteAnimator
-                            key={`player-${playerDirection}`}
+                        <SpriteAnimatorWrapper
                             sprite="/sprite/sprite_user.png"
                             width={TILE_SIZE}
                             height={50}
                             scale={1}
                             fps={6}
-                            frameCount={playerStartFrame + 3}
                             direction={'horizontal'}
                             shouldAnimate={playerIsMoving}
                             startFrame={playerStartFrame}
                         />
-                        {/* Show player coordinates when grid is visible */}
                         {showCollisionMap && !hideCoordinates && (
                             <div
                                 style={{
@@ -609,62 +537,6 @@ function TileMap({
                     </div>
                 );
             })()}
-
-            {/* Render delete buttons for placed items in build mode */}
-            {/* {buildMode === 'paint' && onDeleteTile && isLayeredTiles(customTiles) && canvasRef.current && (
-                <>
-                    {(() => {
-                        const canvas = canvasRef.current;
-                        if (!canvas) return null;
-
-                        const screenTileWidth = canvas.width / tilesX;
-                        const screenTileHeight = canvas.height / tilesY;
-
-                        return Array.from({ length: tilesY }).map((_, screenY) =>
-                            Array.from({ length: tilesX }).map((_, screenX) => {
-                                const worldTileX = Math.floor(cameraTileX + screenX);
-                                const worldTileY = Math.floor(cameraTileY + screenY);
-                                const tiles = getCustomTilesAtPosition(worldTileX, worldTileY);
-
-                                const layer1Tile = tiles.find((t) => t.layer === 1);
-                                if (!layer1Tile) return null;
-
-                                return (
-                                    <div
-                                        key={`delete-${worldTileX}-${worldTileY}`}
-                                        className="group absolute"
-                                        style={{
-                                            left: `${screenX * screenTileWidth}px`,
-                                            top: `${screenY * screenTileHeight}px`,
-                                            width: `${screenTileWidth}px`,
-                                            height: `${screenTileHeight}px`,
-                                            pointerEvents: 'auto',
-                                            zIndex: 15
-                                        }}
-                                    >
-                                        {/* <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                onDeleteTile(layer1Tile.layer, layer1Tile.key);
-                                            }}
-                                            className="absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center text-red-500 opacity-0 drop-shadow-lg transition-all group-hover:opacity-100 hover:scale-125 hover:text-red-600"
-                                            style={{
-                                                fontSize: '36px',
-                                                fontWeight: 'bold',
-                                                lineHeight: '1',
-                                                textShadow: '0 0 4px white, 0 0 8px white'
-                                            }}
-                                            title="Delete item"
-                                        >
-                                            ×
-                                        </button>
-                                    </div>
-                                );
-                            })
-                        );
-                    })()}
-                </>
-            )}} */}
 
             {/* Visual preview outline for item/agent placement (hide on touch devices when position is selected) */}
             {buildMode === 'paint' && selectedItemDimensions && hoveredWorldCoords && !(isTouchDevice && selectedPosition) && (
@@ -794,51 +666,6 @@ function TileMap({
                 })()
             )}
 
-            {/* Visual feedback for blocked tiles when hovering (single tile - legacy) */}
-            {/* {buildMode === 'paint' && !selectedItemDimensions && mousePosition && (
-                <>
-                    {(() => {
-                        const canvas = canvasRef.current;
-                        if (!canvas) return null;
-
-                        const rect = canvas.getBoundingClientRect();
-                        const scaleX = canvas.width / rect.width;
-                        const scaleY = canvas.height / rect.height;
-
-                        const canvasX = mousePosition.x * scaleX;
-                        const canvasY = mousePosition.y * scaleY;
-
-                        const screenTileX = Math.floor(canvasX / tileSize);
-                        const screenTileY = Math.floor(canvasY / tileSize);
-
-                        const worldX = Math.floor(cameraTileX + screenTileX);
-                        const worldY = Math.floor(cameraTileY + screenTileY);
-
-                        const isBlockedTile = collisionMap[`${worldX},${worldY}`] === true;
-
-                        if (!isBlockedTile) return null;
-
-                        const screenTileWidth = canvas.width / tilesX;
-                        const screenTileHeight = canvas.height / tilesY;
-
-                        return (
-                            <div
-                                style={{
-                                    position: 'absolute',
-                                    left: `${screenTileX * screenTileWidth}px`,
-                                    top: `${screenTileY * screenTileHeight}px`,
-                                    width: `${screenTileWidth}px`,
-                                    height: `${screenTileHeight}px`,
-                                    backgroundColor: 'rgba(255, 0, 0, 0.4)',
-                                    border: '2px solid rgba(255, 0, 0, 0.8)',
-                                    pointerEvents: 'none',
-                                    zIndex: 20
-                                }}
-                            />
-                        );
-                    })()}
-                </>
-            )} */}
         </div>
     );
 }
