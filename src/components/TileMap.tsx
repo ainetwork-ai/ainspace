@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { SpriteAnimator } from 'react-sprite-animator';
 import { TILE_SIZE, DIRECTION, BROADCAST_RADIUS } from '@/constants/game';
 import { worldToGrid } from '@/lib/village-utils';
 import { useBuildStore, useChatStore, useGameStateStore, useUserStore } from '@/stores';
@@ -12,6 +11,7 @@ import { useTiledMap } from '@/hooks/useTiledMap';
 import { Z_INDEX_OFFSETS } from '@/constants/common';
 import { useVillageStore } from '@/stores/useVillageStore';
 import { Loader2 } from 'lucide-react';
+import SpriteAnimatorWrapper from './SpriteAnimatorWrapper';
 
 // Data structure for multi-tile items
 interface ItemTileData {
@@ -511,14 +511,12 @@ function TileMap({
                             }
                         }}
                     >
-                        <SpriteAnimator
-                            // key={`${agent.id}-${agentDirection}`}
+                        <SpriteAnimatorWrapper
                             sprite={agentSpriteUrl}
                             width={TILE_SIZE}
                             height={agentSpriteHeight}
                             scale={1}
                             fps={6}
-                            frameCount={agentStartFrame + 3}
                             direction={'horizontal'}
                             shouldAnimate={agentIsMoving}
                             startFrame={agentStartFrame}
@@ -571,14 +569,12 @@ function TileMap({
                             zIndex: playerZIndex
                         }}
                     >
-                        <SpriteAnimator
-                            // key={`player-${playerDirection}`}
+                        <SpriteAnimatorWrapper
                             sprite="/sprite/sprite_user.png"
                             width={TILE_SIZE}
                             height={50}
                             scale={1}
                             fps={6}
-                            frameCount={playerStartFrame + 3}
                             direction={'horizontal'}
                             shouldAnimate={playerIsMoving}
                             startFrame={playerStartFrame}
