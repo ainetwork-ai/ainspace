@@ -52,9 +52,6 @@ const SpriteAnimatorWrapper = memo(function SpriteAnimatorWrapper(props: {
     return (
         <SpriteAnimator
             {...rest}
-            sprite={props.sprite}
-            fps={fps}
-            direction={props.direction}
             shouldAnimate={false}
             startFrame={startFrame}
             frame={currentFrame}

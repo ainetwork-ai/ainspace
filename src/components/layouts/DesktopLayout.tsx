@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback } from 'react';
 import Image from 'next/image';
 import { useAccount, useConnect } from 'wagmi';
 import { disconnect } from '@wagmi/core';
 import { MapPin, Copy, Check, LogOut } from 'lucide-react';
+import { useCopyAddress } from '@/hooks/useCopyAddress';
 import MapTab from '@/components/tabs/MapTab';
 import TempBuildTab from '@/components/tabs/TempBuildTab';
 import AgentTab from '@/components/tabs/AgentTab';
@@ -43,19 +44,12 @@ export default function DesktopLayout({
     const currentVillageName = useVillageStore((s) => s.currentVillage?.name);
     const { selectedAgentForPlacement, setSelectedAgentForPlacement } = useUIStore();
 
-    const [isCopied, setIsCopied] = useState(false);
+    const { isCopied, handleCopy: handleCopyAddress } = useCopyAddress(address);
 
     const handleWalletDisconnect = useCallback(() => {
         disconnect(config);
         clearThreads();
     }, [clearThreads]);
-
-    const handleCopyAddress = useCallback(async () => {
-        if (!address) return;
-        await navigator.clipboard.writeText(address);
-        setIsCopied(true);
-        setTimeout(() => setIsCopied(false), 2000);
-    }, [address]);
 
     return (
         <div className="flex h-screen w-full bg-gray-100">

@@ -7,6 +7,7 @@ import { disconnect } from '@wagmi/core';
 import { MapPin, Copy, Check, LogOut } from 'lucide-react';
 
 import BaseTabContent from './BaseTabContent';
+import { useCopyAddress } from '@/hooks/useCopyAddress';
 import PlayerJoystick from '@/components/controls/PlayerJoystick';
 import { DIRECTION, TILE_SIZE, MOVEMENT_MODE } from '@/constants/game';
 import { useGameState } from '@/hooks/useGameState';
@@ -74,14 +75,7 @@ export default function MapTab({
     const villageIsCollisionAt = useVillageStore((s) => s.isCollisionAt);
 
     const [isJoystickVisible, setIsJoystickVisible] = useState(true);
-    const [isCopied, setIsCopied] = useState(false);
-
-    const handleCopyAddress = useCallback(async () => {
-        if (!address) return;
-        await navigator.clipboard.writeText(address);
-        setIsCopied(true);
-        setTimeout(() => setIsCopied(false), 2000);
-    }, [address]);
+    const { isCopied, handleCopy: handleCopyAddress } = useCopyAddress(address);
 
     // Handle agent placement click (two-tap: first tap selects, second tap confirms)
     const handleAgentPlacementClick = useCallback(async (worldX: number, worldY: number) => {
