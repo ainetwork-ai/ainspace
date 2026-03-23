@@ -12,7 +12,7 @@ import { useTiledMap } from '@/hooks/useTiledMap';
 import { Z_INDEX_OFFSETS } from '@/constants/common';
 import { useVillageStore } from '@/stores/useVillageStore';
 import { Loader2 } from 'lucide-react';
-import SpriteAnimatorWrapper from './SpriteAnimatorWrapper';
+import CSSSprite from './CSSSprite';
 
 interface TileMapProps {
     mapData: number[][];
@@ -442,7 +442,7 @@ function TileMap({
                             }
                         }}
                     >
-                        <SpriteAnimatorWrapper
+                        <CSSSprite
                             sprite={agentSpriteUrl}
                             width={TILE_SIZE}
                             height={agentSpriteHeight}
@@ -503,7 +503,7 @@ function TileMap({
                             zIndex: playerZIndex
                         }}
                     >
-                        <SpriteAnimatorWrapper
+                        <CSSSprite
                             sprite="/sprite/sprite_user.png"
                             width={TILE_SIZE}
                             height={50}
