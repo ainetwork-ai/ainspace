@@ -98,10 +98,16 @@ export function useVillageLoader(initialVillageSlug: string | null) {
         }
       }
 
-      // NSEW 먼저 병렬 로드
-      await Promise.all(nsew.map(v => loadVillage(v)));
-      // 대각 병렬 로드
-      await Promise.all(diagonal.map(v => loadVillage(v)));
+      // NSEW 먼저 병렬 로드 (stagger starts to yield main thread between parses)
+      await Promise.all(nsew.map(async (v, i) => {
+        await new Promise(r => setTimeout(r, i * 50));
+        return loadVillage(v);
+      }));
+      // 대각 병렬 로드 (stagger starts)
+      await Promise.all(diagonal.map(async (v, i) => {
+        await new Promise(r => setTimeout(r, i * 50));
+        return loadVillage(v);
+      }));
 
       // Viewport 기준 언로드: 플레이어 grid에서 ±2 이상 떨어진 마을 제거
       // (viewport 16x12, 마을 20x20이므로 ±2 grid면 충분히 커버)
@@ -232,8 +238,8 @@ export function useVillageLoader(initialVillageSlug: string | null) {
         setWorldPosition(spawnPos ?? { x: centerX, y: centerY });
         setCurrentVillageLoaded(true);
 
-        // 인접 마을 로드 (background)
-        loadNearbyVillages(metadata.gridX, metadata.gridY);
+        // 인접 마을 로드 (background, 500ms 지연으로 UI 응답성 확보)
+        setTimeout(() => loadNearbyVillages(metadata.gridX, metadata.gridY), 500);
       } catch (err) {
         console.error('Failed to initialize village:', err);
         setCurrentVillageLoaded(true); // 오버레이 해제 (오류 시에도)
