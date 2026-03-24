@@ -65,6 +65,10 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
         set((state) => {
             const agent = state.agents.find((agent) => agent.agentUrl === agentUrl);
             if (!agent) return state;
+            const hasChanges = Object.keys(updates).some(
+                (key) => agent[key as keyof AgentState] !== updates[key as keyof AgentState]
+            );
+            if (!hasChanges) return state;
             return {
                 agents: state.agents.map((agent) => agent.agentUrl === agentUrl ? { ...agent, ...updates } : agent)
             };

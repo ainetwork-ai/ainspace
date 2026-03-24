@@ -123,33 +123,40 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
             const moveInterval = agent.moveInterval || 3000; // 3 seconds
 
             if (isLoading) {
-                updateStoredAgent(agent.agentUrl, { isMoving: false });
+                if (agent.isMoving !== false) {
+                    updateStoredAgent(agent.agentUrl, { isMoving: false });
+                }
                 return;
             }
 
             // If agent movement is disabled, keep agents in place with down direction
             if (!ENABLE_AGENT_MOVEMENT) {
-                updateStoredAgent(agent.agentUrl, {
-                    direction: DIRECTION.DOWN,
-                    isMoving: false
-                });
+                if (agent.direction !== DIRECTION.DOWN || agent.isMoving !== false) {
+                    updateStoredAgent(agent.agentUrl, {
+                        direction: DIRECTION.DOWN,
+                        isMoving: false
+                    });
+                }
                 return;
             }
 
             // STATIONARY mode agents should not move or change direction
             if (agent.movementMode === MOVEMENT_MODE.STATIONARY) {
-                updateStoredAgent(agent.agentUrl, { isMoving: false });
+                if (agent.isMoving !== false) {
+                    updateStoredAgent(agent.agentUrl, { isMoving: false });
+                }
                 return;
             }
 
             // Check if agent is currently in animation state (within 800ms of last move)
             const isCurrentlyAnimating = currentTime - lastMoved < 800;
 
+            // Not yet time to move — only update isMoving if it changed
             if (currentTime - lastMoved < moveInterval) {
-                return {
-                    ...agent,
-                    isMoving: isCurrentlyAnimating
-                };
+                if (agent.isMoving !== isCurrentlyAnimating) {
+                    updateStoredAgent(agent.agentUrl, { isMoving: isCurrentlyAnimating });
+                }
+                return;
             }
 
             // Try random direction movement
@@ -184,13 +191,24 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
             // Check if agent actually moved
             const didMove = newX !== agent.x || newY !== agent.y;
 
-            updateStoredAgent(agent.agentUrl, {
+            // Skip store update if nothing changed
+            if (!didMove && agent.isMoving === false && agent.direction === newDirection) {
+                return;
+            }
+
+            const updates: Partial<AgentState> = {
                 x: newX,
                 y: newY,
                 direction: newDirection,
-                lastMoved: currentTime,
                 isMoving: didMove
-            });
+            };
+
+            // Only update lastMoved when agent actually moved
+            if (didMove) {
+                updates.lastMoved = currentTime;
+            }
+
+            updateStoredAgent(agent.agentUrl, updates);
         })
 
     }, [canAgentMoveTo, isWalkable, isAgentLoading, agents, updateStoredAgent]);
