@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { useMapData } from '@/providers/MapDataProvider';
 import { useAgents } from '@/hooks/useAgents';
 import { useBuildStore, useGameStateStore, useAgentStore, useUserStore } from '@/stores';
@@ -59,25 +59,37 @@ export function useGameState() {
         viewRadius: VIEW_RADIUS
     });
 
-    const savePositionToRedis = useCallback(
-        async (position: Position) => {
-            if (!userId) return;
-            try {
-                await fetch('/api/position', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        userId,
-                        position: position
-                    })
-                });
-            } catch (error) {
+    const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const pendingPositionRef = useRef<Position | null>(null);
+
+    const flushPositionSave = useCallback(() => {
+        if (debounceTimerRef.current) {
+            clearTimeout(debounceTimerRef.current);
+            debounceTimerRef.current = null;
+        }
+        const position = pendingPositionRef.current;
+        if (position && userId) {
+            pendingPositionRef.current = null;
+            fetch('/api/position', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, position })
+            }).catch((error) => {
                 console.error('Failed to save position:', error);
+            });
+        }
+    }, [userId]);
+
+    const savePositionToRedis = useCallback(
+        (position: Position) => {
+            if (!userId) return;
+            pendingPositionRef.current = position;
+            if (debounceTimerRef.current) {
+                clearTimeout(debounceTimerRef.current);
             }
+            debounceTimerRef.current = setTimeout(flushPositionSave, 300);
         },
-        [userId]
+        [userId, flushPositionSave]
     );
 
     /**
@@ -167,13 +179,15 @@ export function useGameState() {
 
     // Reset player location to initial position
     const resetLocation = useCallback(() => {
+        pendingPositionRef.current = INITIAL_PLAYER_POSITION;
+        flushPositionSave();
+
         setWorldPosition(INITIAL_PLAYER_POSITION);
-        savePositionToRedis(INITIAL_PLAYER_POSITION);
         setPlayerDirection(DIRECTION.RIGHT);
         setRecentMovements([]);
         setIsPlayerMoving(false);
-        resetAgents(); // Reset agents to their initial positions
-    }, [savePositionToRedis, resetAgents]);
+        resetAgents();
+    }, [flushPositionSave, resetAgents]);
 
     // Helper function to determine terrain type
     const getCurrentTerrain = useCallback(() => {
@@ -313,6 +327,28 @@ export function useGameState() {
     useEffect(() => {
         setIsLoading(false);
     }, [setIsLoading]);
+
+    // Flush pending position save on unmount and beforeunload
+    useEffect(() => {
+        const handleBeforeUnload = () => {
+            const position = pendingPositionRef.current;
+            if (position && userId) {
+                const blob = new Blob(
+                    [JSON.stringify({ userId, position })],
+                    { type: 'application/json' }
+                );
+                navigator.sendBeacon('/api/position', blob);
+                pendingPositionRef.current = null;
+            }
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+            flushPositionSave();
+        };
+    }, [userId, flushPositionSave]);
 
     // Autonomous movement interval
     useEffect(() => {
