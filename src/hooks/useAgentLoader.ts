@@ -116,7 +116,9 @@ export function useAgentLoader({
     if (!isCurrentVillageLoaded || hasFetchedRef.current) return;
 
     const fetchAndSpawn = async () => {
+      const isDev = process.env.NODE_ENV === 'development';
       try {
+        if (isDev) performance.mark('agents-fetch-start');
         const response = await fetch('/api/agents');
         if (!response.ok) {
           console.error('[useAgentLoader] Failed to load deployed agents');
@@ -124,6 +126,10 @@ export function useAgentLoader({
         }
 
         const data = await response.json();
+        if (isDev) {
+          performance.mark('agents-fetch-end');
+          performance.measure('⏱ agents fetch', 'agents-fetch-start', 'agents-fetch-end');
+        }
         if (!data.success || !data.agents) {
           console.error('[useAgentLoader] Invalid agents data from API');
           return;
@@ -134,7 +140,12 @@ export function useAgentLoader({
         allAgentsRef.current = deployedAgents;
         hasFetchedRef.current = true;
 
+        if (isDev) performance.mark('agents-spawn-start');
         spawnReadyAgents();
+        if (isDev) {
+          performance.mark('agents-spawn-end');
+          performance.measure(`⏱ agents spawn (${deployedAgents.length} agents)`, 'agents-spawn-start', 'agents-spawn-end');
+        }
       } catch (error) {
         console.error('[useAgentLoader] Error fetching agents:', error);
       }

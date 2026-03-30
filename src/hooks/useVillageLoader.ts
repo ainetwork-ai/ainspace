@@ -185,9 +185,11 @@ export function useVillageLoader(initialVillageSlug: string | null) {
 
     async function init() {
       setLoading(true);
+      if (process.env.NODE_ENV === 'development') performance.mark('village-init-start');
 
       try {
         // 초기 마을 메타데이터 fetch
+        if (process.env.NODE_ENV === 'development') performance.mark('village-metadata-fetch-start');
         const res = await fetch(`/api/villages/${initialVillageSlug}?noCache=true`);
         const data = await res.json();
 
@@ -211,12 +213,15 @@ export function useVillageLoader(initialVillageSlug: string | null) {
           metadata = data.village;
         }
         setCurrentVillage(metadata.slug, metadata);
+        if (process.env.NODE_ENV === 'development') performance.mark('village-metadata-fetch-end');
 
         // 현재 마을의 gridIndex를 먼저 등록 (이동 가능하도록)
         updateGridIndex([metadata]);
 
         // 현재 마을 우선 로드 (collision 데이터 확보)
+        if (process.env.NODE_ENV === 'development') performance.mark('village-map-load-start');
         const loaded = await loadVillage(metadata);
+        if (process.env.NODE_ENV === 'development') performance.mark('village-map-load-end');
 
         // 마을 중심 좌표 계산 및 collision 회피 스폰 위치 결정
         const range = gridToWorldRange(
@@ -237,9 +242,23 @@ export function useVillageLoader(initialVillageSlug: string | null) {
 
         setWorldPosition(spawnPos ?? { x: centerX, y: centerY });
         setCurrentVillageLoaded(true);
+        if (process.env.NODE_ENV === 'development') {
+          performance.mark('village-ready');
+          performance.measure('⏱ metadata fetch', 'village-metadata-fetch-start', 'village-metadata-fetch-end');
+          performance.measure('⏱ map load (TMJ+tilesets+collision)', 'village-map-load-start', 'village-map-load-end');
+          performance.measure('⏱ total village init', 'village-init-start', 'village-ready');
+        }
 
         // 인접 마을 로드 (background, 500ms 지연으로 UI 응답성 확보)
-        setTimeout(() => loadNearbyVillages(metadata.gridX, metadata.gridY), 500);
+        setTimeout(() => {
+          if (process.env.NODE_ENV === 'development') performance.mark('nearby-villages-start');
+          loadNearbyVillages(metadata.gridX, metadata.gridY).then(() => {
+            if (process.env.NODE_ENV === 'development') {
+              performance.mark('nearby-villages-end');
+              performance.measure('⏱ nearby villages load', 'nearby-villages-start', 'nearby-villages-end');
+            }
+          });
+        }, 500);
       } catch (err) {
         console.error('Failed to initialize village:', err);
         setCurrentVillageLoaded(true); // 오버레이 해제 (오류 시에도)
