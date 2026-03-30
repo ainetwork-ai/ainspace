@@ -98,16 +98,29 @@ export function useVillageLoader(initialVillageSlug: string | null) {
         }
       }
 
-      // NSEW 먼저 병렬 로드 (stagger starts to yield main thread between parses)
-      await Promise.all(nsew.map(async (v, i) => {
-        await new Promise(r => setTimeout(r, i * 50));
-        return loadVillage(v);
-      }));
-      // 대각 병렬 로드 (stagger starts)
-      await Promise.all(diagonal.map(async (v, i) => {
-        await new Promise(r => setTimeout(r, i * 50));
-        return loadVillage(v);
-      }));
+      const yieldToMain = () => new Promise<void>(r => setTimeout(r, 0));
+      const isPerfEnabled = process.env.NEXT_PUBLIC_ENABLE_PERF_MARKS === 'true';
+
+      // NSEW 순차 로드 + yield (동기 작업 pile-up 방지)
+      for (let i = 0; i < nsew.length; i++) {
+        if (isPerfEnabled) performance.mark(`nearby-nsew-${i}-start`);
+        await loadVillage(nsew[i]);
+        if (isPerfEnabled) {
+          performance.mark(`nearby-nsew-${i}-end`);
+          console.log(`  🏘 NSEW[${i}] ${nsew[i].slug}: ${performance.measure(`nearby-nsew-${i}`, `nearby-nsew-${i}-start`, `nearby-nsew-${i}-end`).duration.toFixed(0)}ms`);
+        }
+        await yieldToMain();
+      }
+      // 대각 순차 로드 + yield
+      for (let i = 0; i < diagonal.length; i++) {
+        if (isPerfEnabled) performance.mark(`nearby-diag-${i}-start`);
+        await loadVillage(diagonal[i]);
+        if (isPerfEnabled) {
+          performance.mark(`nearby-diag-${i}-end`);
+          console.log(`  🏘 DIAG[${i}] ${diagonal[i].slug}: ${performance.measure(`nearby-diag-${i}`, `nearby-diag-${i}-start`, `nearby-diag-${i}-end`).duration.toFixed(0)}ms`);
+        }
+        await yieldToMain();
+      }
 
       // Viewport 기준 언로드: 플레이어 grid에서 ±2 이상 떨어진 마을 제거
       // (viewport 16x12, 마을 20x20이므로 ±2 grid면 충분히 커버)
