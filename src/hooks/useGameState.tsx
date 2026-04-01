@@ -3,7 +3,7 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { useMapData } from '@/providers/MapDataProvider';
 import { useAgents } from '@/hooks/useAgents';
-import { useBuildStore, useGameStateStore, useAgentStore, useUserStore } from '@/stores';
+import { useBuildStore, useGameStateStore, useUserStore } from '@/stores';
 import { useVillageStore } from '@/stores/useVillageStore';
 import {
     MAP_WIDTH,
@@ -23,7 +23,6 @@ export function useGameState() {
     const { getMapData, generateTileAt } = useMapData();
     const userId = useUserStore((state) => state.getUserId());
     const { isBlocked: isLayer1Blocked, collisionMap } = useBuildStore();
-    const { agents: a2aAgents } = useAgentStore();
     const isCollisionAt = useVillageStore((s) => s.isCollisionAt);
     const {
         worldPosition,
@@ -108,19 +107,14 @@ export function useGameState() {
             if (isLayer1Blocked(x, y)) return true;
 
             // 에이전트 충돌
-            const occupiedByWorldAgent = agents.some(
+            const occupiedByAgent = agents.some(
                 (agent) => agent.x === x && agent.y === y
             );
-            if (occupiedByWorldAgent) return true;
-
-            const occupiedByA2AAgent = Object.values(a2aAgents).some(
-                (agent) => agent.x === x && agent.y === y
-            );
-            if (occupiedByA2AAgent) return true;
+            if (occupiedByAgent) return true;
 
             return false;
         },
-        [isCollisionAt, isLayer1Blocked, agents, a2aAgents]
+        [isCollisionAt, isLayer1Blocked, agents]
     );
 
     const movePlayer = useCallback(

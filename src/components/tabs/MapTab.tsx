@@ -52,16 +52,16 @@ export default function MapTab({
 }: MapTabProps) {
     const { address } = useAccount();
     const { connect, connectors } = useConnect();
-    const { agents } = useAgentStore();
+    const agents = useAgentStore((s) => s.agents);
     const { clearThreads } = useThreadStore();
     const { selectedAgentForPlacement, setSelectedAgentForPlacement } = useUIStore();
     const [placementError, setPlacementError] = useState<string | null>(null);
     const [selectedPosition, setSelectedPosition] = useState<{ x: number; y: number } | null>(null);
     const [isPlacing, setIsPlacing] = useState(false);
-    const { movePlayer } = useGameState();
     const chatBoxRef = useRef<ChatBoxRef>(null);
 
     const {
+        movePlayer,
         playerPosition,
         mapData,
         worldPosition,

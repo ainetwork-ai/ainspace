@@ -31,6 +31,7 @@ export interface AgentVisualState {
     spriteUrl?: string;
     spriteHeight?: number;
     spriteWidth?: number;
+    characterImage?: string;
 }
 
 export interface AgentState extends AgentInfo, AgentWorldState, AgentVisualState {}

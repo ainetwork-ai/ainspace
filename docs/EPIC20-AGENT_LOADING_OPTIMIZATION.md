@@ -228,10 +228,10 @@ const occupiedByWorldAgent = agents.some(
 
 ### 태스크
 
-- [ ] `useGameState.tsx`에서 `const { agents: a2aAgents } = useAgentStore()` 제거 (line 26)
-- [ ] `isPositionBlocked`에서 `a2aAgents` 충돌 체크 제거 (line 116-119) — `agents` 체크 (line 111-114)와 중복
-- [ ] `isPositionBlocked` 의존성 배열에서 `a2aAgents` 제거 (line 123)
-- [ ] `useAgentStore` import가 다른 곳에서 사용되지 않으면 import 제거
+- [x] `useGameState.tsx`에서 `const { agents: a2aAgents } = useAgentStore()` 제거 (line 26)
+- [x] `isPositionBlocked`에서 `a2aAgents` 충돌 체크 제거 (line 116-119) — `agents` 체크 (line 111-114)와 중복
+- [x] `isPositionBlocked` 의존성 배열에서 `a2aAgents` 제거 (line 123)
+- [x] `useAgentStore` import가 다른 곳에서 사용되지 않으면 import 제거
 
 ### 영향
 - `useGameState`가 `useAgentStore`를 직접 구독하지 않게 되므로, 에이전트 변경 → useGameState re-render → page.tsx re-render 경로 **1개 차단**
@@ -277,11 +277,11 @@ updateAgentCharacterImage: (agentUrl, imageUrl) =>
 
 ### 태스크
 
-- [ ] `updateAgentPosition`에 동일 좌표 early return 추가:
+- [x] `updateAgentPosition`에 동일 좌표 early return 추가:
   ```tsx
   if (agent.x === x && agent.y === y) return state;
   ```
-- [ ] `updateAgentCharacterImage`에 동일 이미지 early return 추가:
+- [x] `updateAgentCharacterImage`에 동일 이미지 early return 추가:
   ```tsx
   if (agent.characterImage === imageUrl) return state;
   ```
@@ -310,7 +310,7 @@ const { agents } = useAgentStore();
 
 ### 태스크
 
-- [ ] MapTab의 agents 구독을 selector 기반으로 변경:
+- [x] MapTab의 agents 구독을 selector 기반으로 변경:
   ```tsx
   // Before
   const { agents } = useAgentStore();
