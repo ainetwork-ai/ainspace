@@ -49,8 +49,6 @@ function getTotalFrames(src: string, frameWidth: number): number {
  * Replaces react-sprite-animator to avoid per-instance Image() loads
  * and excessive setState calls on mount.
  */
-const isPerfEnabled = process.env.NEXT_PUBLIC_ENABLE_PERF_MARKS === 'true';
-
 const CSSSprite = memo(function CSSSprite(props: {
     sprite: string;
     width: number;
@@ -66,16 +64,6 @@ const CSSSprite = memo(function CSSSprite(props: {
         const img = imageCache.get(sprite);
         return !!(img && img.naturalWidth > 0);
     });
-    const mountTimeRef = useRef(0);
-
-    useEffect(() => {
-        if (!isPerfEnabled) return;
-        mountTimeRef.current = performance.now();
-        return () => {
-            const alive = performance.now() - mountTimeRef.current;
-            console.log(`🖼 CSSSprite unmount: ${sprite} (alive ${alive.toFixed(0)}ms)`);
-        };
-    }, [sprite]);
 
     const totalFrames = getTotalFrames(sprite, width);
     const clampedStart = Math.min(startFrame, Math.max(totalFrames - 1, 0));
@@ -85,14 +73,7 @@ const CSSSprite = memo(function CSSSprite(props: {
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     useEffect(() => {
-        const loadStart = isPerfEnabled ? performance.now() : 0;
-        const cleanup = preloadImage(sprite, () => {
-            if (isPerfEnabled) {
-                const loadTime = performance.now() - loadStart;
-                console.log(`🖼 CSSSprite image ready: ${sprite} (${loadTime.toFixed(1)}ms)`);
-            }
-            setImageLoaded(true);
-        });
+        const cleanup = preloadImage(sprite, () => setImageLoaded(true));
         return cleanup;
     }, [sprite]);
 

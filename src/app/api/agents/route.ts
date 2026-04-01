@@ -13,10 +13,12 @@ const agentStore = new Map<string, StoredAgent>();
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const address = searchParams.get('address');
+  const villagesParam = searchParams.get('villages');
+  const villageFilter = villagesParam ? new Set(villagesParam.split(',').map(v => v.trim()).filter(Boolean)) : null;
 
   try {
     let agents: StoredAgent[] = [];
-    
+
     try {
       // Try Redis first
       const keys = await scanKeys(`${AGENTS_KEY}*`);
@@ -29,13 +31,16 @@ export async function GET(request: NextRequest) {
           .map(value => JSON.parse(value!))
           .filter(agent => agent && agent.url && agent.card)
           .filter(agent => {
-            if (!address) {
-              return true;
+            if (address) {
+              return agent.creator && agent.creator === address;
             }
-            return agent.creator && agent.creator === address
+            if (villageFilter) {
+              return agent.state?.mapName && villageFilter.has(agent.state.mapName);
+            }
+            return true;
           });
-        
-        console.log(`Loaded ${agents.length} agents from Redis`);
+
+        console.log(`Loaded ${agents.length} agents from Redis${villageFilter ? ` (villages: ${villagesParam})` : ''}`);
       }
     } catch (redisError) {
       console.warn('Redis unavailable, using fallback storage:', redisError);

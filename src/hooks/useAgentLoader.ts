@@ -24,11 +24,13 @@ export function useAgentLoader({
   isPositionValid,
   findAvailableSpawnPosition,
 }: UseAgentLoaderOpts): void {
-  // 전체 에이전트 목록 (API에서 1회 fetch)
+  // 전체 에이전트 목록 (마을별 fetch로 점진적 누적)
   const allAgentsRef = useRef<StoredAgent[]>([]);
   // 이미 스폰한 에이전트 URL 추적 (중복 방지)
   const spawnedUrlsRef = useRef<Set<string>>(new Set());
-  // API fetch 완료 여부
+  // 이미 fetch한 마을 slug 추적 (중복 fetch 방지)
+  const fetchedVillagesRef = useRef<Set<string>>(new Set());
+  // 초기 fetch 완료 여부
   const hasFetchedRef = useRef(false);
 
   const loadedVillages = useVillageStore((s) => s.loadedVillages);
@@ -116,52 +118,81 @@ export function useAgentLoader({
   // ref를 항상 최신 콜백으로 유지
   spawnReadyAgentsRef.current = spawnReadyAgents;
 
-  // 현재 마을 로드 완료 시 1회 fetch + 스폰
+  /** 마을 목록에 해당하는 에이전트를 fetch하고 allAgentsRef에 누적 */
+  const fetchAgentsForVillages = useCallback(async (villageSlugs: string[]) => {
+    const isDev = process.env.NEXT_PUBLIC_ENABLE_PERF_MARKS === 'true';
+    const newSlugs = villageSlugs.filter(s => !fetchedVillagesRef.current.has(s));
+    if (newSlugs.length === 0) return;
+
+    // fetch 전에 마킹하여 중복 방지
+    newSlugs.forEach(s => fetchedVillagesRef.current.add(s));
+
+    try {
+      if (isDev) performance.mark('agents-fetch-start');
+      const response = await fetch(`/api/agents?villages=${newSlugs.join(',')}`);
+      if (!response.ok) {
+        console.error('[useAgentLoader] Failed to load deployed agents');
+        return;
+      }
+
+      const data = await response.json();
+      if (isDev) {
+        performance.mark('agents-fetch-end');
+        performance.measure(`⏱ agents fetch (${newSlugs.join(',')})`, 'agents-fetch-start', 'agents-fetch-end');
+      }
+      if (!data.success || !data.agents) {
+        console.error('[useAgentLoader] Invalid agents data from API');
+        return;
+      }
+
+      const deployedAgents = data.agents.filter((a: StoredAgent) => a.isPlaced);
+
+      // 기존 목록에 점진적 누적 (중복 URL 방지)
+      const existingUrls = new Set(allAgentsRef.current.map(a => a.url));
+      const newAgents = deployedAgents.filter((a: StoredAgent) => !existingUrls.has(a.url));
+      allAgentsRef.current = [...allAgentsRef.current, ...newAgents];
+
+      if (isDev) performance.mark('agents-spawn-start');
+      spawnReadyAgentsRef.current();
+      if (isDev) {
+        performance.mark('agents-spawn-end');
+        performance.measure(`⏱ agents spawn (${newAgents.length} new)`, 'agents-spawn-start', 'agents-spawn-end');
+      }
+    } catch (error) {
+      // fetch 실패 시 마킹 해제하여 재시도 가능
+      newSlugs.forEach(s => fetchedVillagesRef.current.delete(s));
+      console.error('[useAgentLoader] Error fetching agents:', error);
+    }
+  }, []);
+
+  // 현재 마을 로드 완료 시 초기 fetch
   useEffect(() => {
     if (!isCurrentVillageLoaded || hasFetchedRef.current) return;
     hasFetchedRef.current = true;
 
-    const fetchAndSpawn = async () => {
-      const isDev = process.env.NEXT_PUBLIC_ENABLE_PERF_MARKS === 'true';
-      try {
-        if (isDev) performance.mark('agents-fetch-start');
-        const response = await fetch('/api/agents');
-        if (!response.ok) {
-          console.error('[useAgentLoader] Failed to load deployed agents');
-          return;
-        }
+    const currentSlug = useVillageStore.getState().currentVillageSlug;
+    if (currentSlug) {
+      fetchAgentsForVillages([currentSlug]);
+    }
+  }, [isCurrentVillageLoaded, fetchAgentsForVillages]);
 
-        const data = await response.json();
-        if (isDev) {
-          performance.mark('agents-fetch-end');
-          performance.measure('⏱ agents fetch', 'agents-fetch-start', 'agents-fetch-end');
-        }
-        if (!data.success || !data.agents) {
-          console.error('[useAgentLoader] Invalid agents data from API');
-          return;
-        }
-
-        const deployedAgents = data.agents.filter((a: StoredAgent) => a.isPlaced);
-
-        allAgentsRef.current = deployedAgents;
-
-        if (isDev) performance.mark('agents-spawn-start');
-        spawnReadyAgentsRef.current();
-        if (isDev) {
-          performance.mark('agents-spawn-end');
-          performance.measure(`⏱ agents spawn (${deployedAgents.length} agents)`, 'agents-spawn-start', 'agents-spawn-end');
-        }
-      } catch (error) {
-        console.error('[useAgentLoader] Error fetching agents:', error);
-      }
-    };
-
-    fetchAndSpawn();
-  }, [isCurrentVillageLoaded]);
-
-  // loadedVillages 변경 시 대기 중인 에이전트 스폰 시도
+  // loadedVillages 변경 시: 새로 로드된 마을의 에이전트 fetch + 대기 중 스폰
   useEffect(() => {
     if (!hasFetchedRef.current) return;
-    spawnReadyAgents();
-  }, [loadedVillages, spawnReadyAgents]);
+
+    // 새로 로드된 마을 중 아직 fetch하지 않은 것만 추출
+    const newVillages: string[] = [];
+    loadedVillages.forEach((_, slug) => {
+      if (!fetchedVillagesRef.current.has(slug)) {
+        newVillages.push(slug);
+      }
+    });
+
+    if (newVillages.length > 0) {
+      fetchAgentsForVillages(newVillages);
+    } else {
+      // 새 fetch 없어도 대기 중인 에이전트 스폰 시도
+      spawnReadyAgents();
+    }
+  }, [loadedVillages, spawnReadyAgents, fetchAgentsForVillages]);
 }
