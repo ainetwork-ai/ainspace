@@ -34,6 +34,8 @@ export function useAgentLoader({
   const loadedVillages = useVillageStore((s) => s.loadedVillages);
   const { spawnAgent } = useAgentStore();
 
+  const spawnReadyAgentsRef = useRef<() => void>(() => {});
+
   const spawnReadyAgents = useCallback(() => {
     const currentLoadedVillages = useVillageStore.getState().loadedVillages;
     const getVillageSlugAtGrid = useVillageStore.getState().getVillageSlugAtGrid;
@@ -111,9 +113,13 @@ export function useAgentLoader({
     }
   }, [isPositionValid, findAvailableSpawnPosition, spawnAgent]);
 
+  // ref를 항상 최신 콜백으로 유지
+  spawnReadyAgentsRef.current = spawnReadyAgents;
+
   // 현재 마을 로드 완료 시 1회 fetch + 스폰
   useEffect(() => {
     if (!isCurrentVillageLoaded || hasFetchedRef.current) return;
+    hasFetchedRef.current = true;
 
     const fetchAndSpawn = async () => {
       const isDev = process.env.NEXT_PUBLIC_ENABLE_PERF_MARKS === 'true';
@@ -138,10 +144,9 @@ export function useAgentLoader({
         const deployedAgents = data.agents.filter((a: StoredAgent) => a.isPlaced);
 
         allAgentsRef.current = deployedAgents;
-        hasFetchedRef.current = true;
 
         if (isDev) performance.mark('agents-spawn-start');
-        spawnReadyAgents();
+        spawnReadyAgentsRef.current();
         if (isDev) {
           performance.mark('agents-spawn-end');
           performance.measure(`⏱ agents spawn (${deployedAgents.length} agents)`, 'agents-spawn-start', 'agents-spawn-end');
@@ -152,7 +157,7 @@ export function useAgentLoader({
     };
 
     fetchAndSpawn();
-  }, [isCurrentVillageLoaded, spawnReadyAgents]);
+  }, [isCurrentVillageLoaded]);
 
   // loadedVillages 변경 시 대기 중인 에이전트 스폰 시도
   useEffect(() => {

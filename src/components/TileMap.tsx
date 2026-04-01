@@ -81,6 +81,9 @@ function TileMap({
     const { showCollisionMap, toggleCollisionMap } = useBuildStore();
     const { isAgentLoading } = useChatStore();
 
+    const isPerfEnabled = process.env.NEXT_PUBLIC_ENABLE_PERF_MARKS === 'true';
+    const agentRenderCountRef = useRef(0);
+
     useEffect(() => {
         const updateCanvasSize = () => {
             if (containerRef.current) {
@@ -341,13 +344,21 @@ function TileMap({
                 const tilesX = Math.ceil(canvasSize.width / tileSize);
                 const tilesY = Math.ceil(canvasSize.height / tileSize);
 
-                return agents.map((agent) => {
+                const renderN = ++agentRenderCountRef.current;
+                const renderStart = isPerfEnabled ? performance.now() : 0;
+                let visibleCount = 0;
+                const uniqueSprites = isPerfEnabled ? new Set<string>() : null;
+
+                const result = agents.map((agent) => {
                 const agentScreenX = agent.x - cameraTilePosition.x;
                 const agentScreenY = agent.y - cameraTilePosition.y;
 
                 if (agentScreenX < -1 || agentScreenX > tilesX + 1 || agentScreenY < -1 || agentScreenY > tilesY + 1) {
                     return null;
                 }
+
+                visibleCount++;
+                uniqueSprites?.add(agent.spriteUrl || '/sprite/sprite_user.png');
 
                 const agentIsMoving = agent.isMoving || false;
                 const agentDirection = agent.direction || DIRECTION.DOWN;
@@ -420,6 +431,15 @@ function TileMap({
                     </div>
                 );
             });
+
+                if (isPerfEnabled) {
+                    const renderTime = performance.now() - renderStart;
+                    console.log(
+                        `👥 agent DOM render #${renderN}: ${renderTime.toFixed(1)}ms | total=${agents.length} visible=${visibleCount} sprites=${uniqueSprites!.size} DOM nodes=${visibleCount * 3}`
+                    );
+                }
+
+                return result;
             })()}
 
             {/* Render Player using SpriteAnimator */}

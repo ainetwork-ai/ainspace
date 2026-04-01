@@ -31,10 +31,11 @@ interface CachedAgentData {
 export function useAgents({ playerWorldPosition }: UseAgentsProps) {
     const { generateTileAt } = useMapData();
     const { isBlocked: isBuildStoreBlocked } = useBuildStore();
-    const { isAgentLoading } = useChatStore();
     const villageIsCollisionAt = useVillageStore((s) => s.isCollisionAt);
 
-    const { agents, setAgents, updateAgent: updateStoredAgent } = useAgentStore();
+    const agents = useAgentStore((s) => s.agents);
+    const setAgents = useAgentStore((s) => s.setAgents);
+    const updateStoredAgent = useAgentStore((s) => s.updateAgent);
 
     // Log initialization on mount only
     useEffect(() => {
@@ -115,10 +116,12 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
     );
 
     const updateAgents = useCallback(() => {
+        const currentAgents = useAgentStore.getState().agents;
+        const { isAgentLoading: checkLoading } = useChatStore.getState();
         const currentTime = Date.now();
 
-        agents.forEach((agent) => {
-            const isLoading = isAgentLoading(agent.id);
+        currentAgents.forEach((agent) => {
+            const isLoading = checkLoading(agent.id);
             const lastMoved = agent.lastMoved || Date.now();
             const moveInterval = agent.moveInterval || 3000; // 3 seconds
 
@@ -179,7 +182,7 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
                 const testX = agent.x + dir.dx;
                 const testY = agent.y + dir.dy;
 
-                if (isWalkable(testX, testY, agents, agent.id) &&
+                if (isWalkable(testX, testY, currentAgents, agent.id) &&
                     canAgentMoveTo(agent, testX, testY)) {
                     newX = testX;
                     newY = testY;
@@ -211,7 +214,7 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
             updateStoredAgent(agent.agentUrl, updates);
         })
 
-    }, [canAgentMoveTo, isWalkable, isAgentLoading, agents, updateStoredAgent]);
+    }, [canAgentMoveTo, isWalkable, updateStoredAgent]);
 
     const getVisibleAgents = useCallback(() => {
         return Object.values(agents).map((agent) => ({
