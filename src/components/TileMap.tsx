@@ -5,7 +5,6 @@ import { TILE_SIZE, DIRECTION, BROADCAST_RADIUS } from '@/constants/game';
 import { worldToGrid } from '@/lib/village-utils';
 import { useBuildStore, useChatStore, useGameStateStore, useUserStore } from '@/stores';
 import type { TileLayers } from '@/stores';
-import * as Sentry from '@sentry/nextjs';
 import { AgentState } from '@/lib/agent';
 import { calculateDistance } from '@/lib/utils';
 import { useTiledMap } from '@/hooks/useTiledMap';
@@ -56,7 +55,6 @@ function TileMap({
     selectedPosition = null
 }: TileMapProps) {
     const containerRef = useRef<HTMLDivElement>(null);
-    const [loadedImages, setLoadedImages] = useState<{ [key: string]: HTMLImageElement }>({});
 
     const [isPainting, setIsPainting] = useState(false);
     const [lastPaintedTile, setLastPaintedTile] = useState<{ x: number; y: number } | null>(null);
@@ -82,6 +80,8 @@ function TileMap({
 
     const { showCollisionMap, toggleCollisionMap } = useBuildStore();
     const { isAgentLoading } = useChatStore();
+
+
 
     useEffect(() => {
         const updateCanvasSize = () => {
@@ -137,66 +137,6 @@ function TileMap({
             handleZoomOut();
         }
     };
-
-    const isLayeredTiles = (tiles: TileLayers | { [key: string]: string }): tiles is TileLayers => {
-        return tiles && typeof tiles === 'object' && ('layer0' in tiles || 'layer1' in tiles || 'layer2' in tiles);
-    };
-
-    useEffect(() => {
-        let imagesToLoad: string[] = [];
-
-        if (isLayeredTiles(customTiles)) {
-            Object.keys(customTiles).forEach((layerKey) => {
-                const layer = customTiles[layerKey as keyof TileLayers];
-                if (layer) {
-                    Object.values(layer).forEach((tileData) => {
-                        if (typeof tileData === 'string') {
-                            imagesToLoad.push(tileData);
-                        } else if (tileData && typeof tileData === 'object' && tileData.image) {
-                            imagesToLoad.push(tileData.image);
-                        }
-                    });
-                }
-            });
-        } else {
-            imagesToLoad = Object.values(customTiles) as string[];
-        }
-
-        const uniqueImages = [...new Set(imagesToLoad)];
-
-        uniqueImages.forEach((imageUrl) => {
-            if (loadedImages[imageUrl]) return;
-
-            const img = new Image();
-            img.onload = () => {
-                setLoadedImages((prev) => ({
-                    ...prev,
-                    [imageUrl]: img
-                }));
-            };
-            img.onerror = (error) => {
-                // Log the error to Sentry for tracking
-                Sentry.captureException(new Error(`Failed to load tile image: ${imageUrl}`), {
-                    level: 'warning',
-                    extra: {
-                        imageUrl,
-                        errorEvent: error
-                    }
-                });
-                
-                // Add breadcrumb for debugging
-                Sentry.addBreadcrumb({
-                    category: 'tilemap.image',
-                    message: 'Failed to load custom tile image',
-                    level: 'warning',
-                    data: {
-                        imageUrl
-                    }
-                });
-            };
-            img.src = imageUrl;
-        });
-    }, [customTiles]);
 
     // Shared coordinate calculation for both mouse and touch events
     const getWorldCoordinatesFromClientPos = (clientX: number, clientY: number) => {

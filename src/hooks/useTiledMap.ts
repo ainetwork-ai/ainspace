@@ -30,6 +30,8 @@ export function useTiledMap(
   const defaultVillage = useVillageStore((s) => s.defaultVillage);
   const gridIndex = useVillageStore((s) => s.gridIndex);
 
+  const canvasRenderCountRef = useRef(0);
+
   useEffect(() => {
     if (loadedVillages.size === 0 || !isCurrentVillageLoaded) return;
 
@@ -37,6 +39,12 @@ export function useTiledMap(
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+
+    canvasRenderCountRef.current++;
+    const renderN = canvasRenderCountRef.current;
+    const isDev = process.env.NEXT_PUBLIC_ENABLE_PERF_MARKS === 'true';
+    const renderMarkStart = `canvas-render-${renderN}-start`;
+    if (isDev) performance.mark(renderMarkStart);
 
     // 캔버스 크기 지정
     canvas.width = canvasSize.width;
@@ -229,6 +237,17 @@ export function useTiledMap(
             }
           }
         }
+      }
+    }
+    if (isDev) {
+      const renderMarkEnd = `canvas-render-${renderN}-end`;
+      performance.mark(renderMarkEnd);
+      const renderDuration = performance.measure(`canvas-render-${renderN}`, renderMarkStart, renderMarkEnd).duration;
+      if (renderN <= 20) {
+        console.log(`  🖼 canvas render #${renderN}: ${renderDuration.toFixed(1)}ms`);
+      }
+      if (renderN === 1 && performance.getEntriesByName('village-ready').length > 0) {
+        performance.measure('⏱ village-ready → first canvas render', 'village-ready', renderMarkEnd);
       }
     }
   }, [loadedVillages, isCurrentVillageLoaded, worldPosition, canvasSize, effectiveTileSize, defaultVillage, gridIndex]);

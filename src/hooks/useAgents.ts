@@ -31,10 +31,11 @@ interface CachedAgentData {
 export function useAgents({ playerWorldPosition }: UseAgentsProps) {
     const { generateTileAt } = useMapData();
     const { isBlocked: isBuildStoreBlocked } = useBuildStore();
-    const { isAgentLoading } = useChatStore();
     const villageIsCollisionAt = useVillageStore((s) => s.isCollisionAt);
 
-    const { agents, setAgents, updateAgent: updateStoredAgent } = useAgentStore();
+    const agents = useAgentStore((s) => s.agents);
+    const setAgents = useAgentStore((s) => s.setAgents);
+    const updateStoredAgent = useAgentStore((s) => s.updateAgent);
 
     // Log initialization on mount only
     useEffect(() => {
@@ -115,41 +116,50 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
     );
 
     const updateAgents = useCallback(() => {
+        const currentAgents = useAgentStore.getState().agents;
+        const { isAgentLoading: checkLoading } = useChatStore.getState();
         const currentTime = Date.now();
 
-        agents.forEach((agent) => {
-            const isLoading = isAgentLoading(agent.id);
+        currentAgents.forEach((agent) => {
+            const isLoading = checkLoading(agent.id);
             const lastMoved = agent.lastMoved || Date.now();
             const moveInterval = agent.moveInterval || 3000; // 3 seconds
 
             if (isLoading) {
-                updateStoredAgent(agent.agentUrl, { isMoving: false });
+                if (agent.isMoving !== false) {
+                    updateStoredAgent(agent.agentUrl, { isMoving: false });
+                }
                 return;
             }
 
             // If agent movement is disabled, keep agents in place with down direction
             if (!ENABLE_AGENT_MOVEMENT) {
-                updateStoredAgent(agent.agentUrl, {
-                    direction: DIRECTION.DOWN,
-                    isMoving: false
-                });
+                if (agent.direction !== DIRECTION.DOWN || agent.isMoving !== false) {
+                    updateStoredAgent(agent.agentUrl, {
+                        direction: DIRECTION.DOWN,
+                        isMoving: false
+                    });
+                }
                 return;
             }
 
             // STATIONARY mode agents should not move or change direction
             if (agent.movementMode === MOVEMENT_MODE.STATIONARY) {
-                updateStoredAgent(agent.agentUrl, { isMoving: false });
+                if (agent.isMoving !== false) {
+                    updateStoredAgent(agent.agentUrl, { isMoving: false });
+                }
                 return;
             }
 
             // Check if agent is currently in animation state (within 800ms of last move)
             const isCurrentlyAnimating = currentTime - lastMoved < 800;
 
+            // Not yet time to move — only update isMoving if it changed
             if (currentTime - lastMoved < moveInterval) {
-                return {
-                    ...agent,
-                    isMoving: isCurrentlyAnimating
-                };
+                if (agent.isMoving !== isCurrentlyAnimating) {
+                    updateStoredAgent(agent.agentUrl, { isMoving: isCurrentlyAnimating });
+                }
+                return;
             }
 
             // Try random direction movement
@@ -172,7 +182,7 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
                 const testX = agent.x + dir.dx;
                 const testY = agent.y + dir.dy;
 
-                if (isWalkable(testX, testY, agents, agent.id) &&
+                if (isWalkable(testX, testY, currentAgents, agent.id) &&
                     canAgentMoveTo(agent, testX, testY)) {
                     newX = testX;
                     newY = testY;
@@ -184,16 +194,27 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
             // Check if agent actually moved
             const didMove = newX !== agent.x || newY !== agent.y;
 
-            updateStoredAgent(agent.agentUrl, {
+            // Skip store update if nothing changed
+            if (!didMove && agent.isMoving === false && agent.direction === newDirection) {
+                return;
+            }
+
+            const updates: Partial<AgentState> = {
                 x: newX,
                 y: newY,
                 direction: newDirection,
-                lastMoved: currentTime,
                 isMoving: didMove
-            });
+            };
+
+            // Only update lastMoved when agent actually moved
+            if (didMove) {
+                updates.lastMoved = currentTime;
+            }
+
+            updateStoredAgent(agent.agentUrl, updates);
         })
 
-    }, [canAgentMoveTo, isWalkable, isAgentLoading, agents, updateStoredAgent]);
+    }, [canAgentMoveTo, isWalkable, updateStoredAgent]);
 
     const getVisibleAgents = useCallback(() => {
         return Object.values(agents).map((agent) => ({
