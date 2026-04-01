@@ -30,6 +30,9 @@ export function useAgentLoader({
   const spawnedUrlsRef = useRef<Set<string>>(new Set());
   // 이미 fetch한 마을 slug 추적 (중복 fetch 방지)
   const fetchedVillagesRef = useRef<Set<string>>(new Set());
+  // fetch 실패 횟수 추적 (무한 재시도 방지)
+  const fetchFailCountRef = useRef<Map<string, number>>(new Map());
+  const MAX_FETCH_RETRIES = 2;
   // 초기 fetch 완료 여부
   const hasFetchedRef = useRef(false);
 
@@ -121,7 +124,10 @@ export function useAgentLoader({
   /** 마을 목록에 해당하는 에이전트를 fetch하고 allAgentsRef에 누적 */
   const fetchAgentsForVillages = useCallback(async (villageSlugs: string[]) => {
     const isDev = process.env.NEXT_PUBLIC_ENABLE_PERF_MARKS === 'true';
-    const newSlugs = villageSlugs.filter(s => !fetchedVillagesRef.current.has(s));
+    const newSlugs = villageSlugs.filter(s =>
+      !fetchedVillagesRef.current.has(s) &&
+      (fetchFailCountRef.current.get(s) ?? 0) < MAX_FETCH_RETRIES
+    );
     if (newSlugs.length === 0) return;
 
     // fetch 전에 마킹하여 중복 방지
@@ -159,8 +165,11 @@ export function useAgentLoader({
         performance.measure(`⏱ agents spawn (${newAgents.length} new)`, 'agents-spawn-start', 'agents-spawn-end');
       }
     } catch (error) {
-      // fetch 실패 시 마킹 해제하여 재시도 가능
-      newSlugs.forEach(s => fetchedVillagesRef.current.delete(s));
+      // fetch 실패 시 마킹 해제 + 실패 횟수 누적
+      newSlugs.forEach(s => {
+        fetchedVillagesRef.current.delete(s);
+        fetchFailCountRef.current.set(s, (fetchFailCountRef.current.get(s) ?? 0) + 1);
+      });
       console.error('[useAgentLoader] Error fetching agents:', error);
     }
   }, []);

@@ -42,11 +42,13 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 
   const promise = new Promise<HTMLImageElement>((resolve, reject) => {
     const image = new Image();
+    const cleanup = () => { image.onload = null; image.onerror = null; };
     const timer = setTimeout(() => {
+      cleanup();
       reject(new Error(`Image load timeout: ${src}`));
     }, IMAGE_LOAD_TIMEOUT);
-    image.onload = () => { clearTimeout(timer); resolve(image); };
-    image.onerror = () => { clearTimeout(timer); reject(new Error(`Image load failed: ${src}`)); };
+    image.onload = () => { clearTimeout(timer); cleanup(); resolve(image); };
+    image.onerror = () => { clearTimeout(timer); cleanup(); reject(new Error(`Image load failed: ${src}`)); };
     image.src = src;
   }).catch((err) => {
     tilesetImageCache.delete(src);
