@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useGameStateStore } from "@/stores";
 import { TILE_SIZE, VILLAGE_SIZE } from "@/constants/game";
 import { useVillageStore, LoadedVillage } from "@/stores/useVillageStore";
@@ -23,7 +23,6 @@ export function useTiledMap(
   effectiveTileSize?: number,
 ) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [cameraTilePosition, setCameraTilePosition] = useState({ x: 0, y: 0 });
   const { worldPosition } = useGameStateStore();
   const loadedVillages = useVillageStore((s) => s.loadedVillages);
   const isCurrentVillageLoaded = useVillageStore((s) => s.isCurrentVillageLoaded);
@@ -61,7 +60,6 @@ export function useTiledMap(
     // 카메라 위치 계산 (글로벌 좌표계, 경계 클램프 없음 — 마을 존재 여부로 이동이 제한됨)
     const cameraTilePositionX = worldPosition.x - halfTilesX;
     const cameraTilePositionY = worldPosition.y - halfTilesY;
-    setCameraTilePosition({ x: cameraTilePositionX, y: cameraTilePositionY });
 
     // 렌더링 범위 (글로벌 좌표, 버퍼 포함)
     const renderStartX = cameraTilePositionX - BUFFER_TILES;
@@ -251,6 +249,16 @@ export function useTiledMap(
       }
     }
   }, [loadedVillages, isCurrentVillageLoaded, worldPosition, canvasSize, effectiveTileSize, defaultVillage, gridIndex]);
+
+  const cameraTilePosition = useMemo(() => {
+    const actualTileSize = effectiveTileSize || TILE_SIZE;
+    const tilesX = Math.ceil(canvasSize.width / actualTileSize);
+    const tilesY = Math.ceil(canvasSize.height / actualTileSize);
+    return {
+      x: worldPosition.x - Math.floor(tilesX / 2),
+      y: worldPosition.y - Math.floor(tilesY / 2),
+    };
+  }, [worldPosition, canvasSize, effectiveTileSize]);
 
   return { canvasRef, cameraTilePosition };
 }

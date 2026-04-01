@@ -40,7 +40,8 @@ export function useGameState() {
         lastMoveTime,
         setLastMoveTime,
         isPlayerMoving,
-        setIsPlayerMoving
+        setIsPlayerMoving,
+        applyMove
     } = useGameStateStore();
 
     // Get the current map data centered on the player's world position with full square view
@@ -126,9 +127,6 @@ export function useGameState() {
                 return;
             }
 
-            // Update player direction immediately
-            setPlayerDirection(direction);
-
             const newWorldPosition = { ...worldPosition };
             switch (direction) {
                 case DIRECTION.UP:
@@ -149,22 +147,23 @@ export function useGameState() {
 
             // Village-based collision check
             if (isPositionBlocked(newWorldPosition.x, newWorldPosition.y)) {
+                // 충돌 시 방향만 전환
+                setPlayerDirection(direction);
                 return;
             }
 
             // Save new position to Redis
             savePositionToRedis(newWorldPosition);
 
-            // Position changed - trigger animation
-            setLastMoveTime(Date.now());
-            setIsPlayerMoving(true);
-
-            setWorldPosition(newWorldPosition);
-
-            // Track recent movements
-            setRecentMovements([direction, ...recentMovements.slice(0, 4)]);
+            // Position changed - apply all move state in single set()
+            applyMove({
+                worldPosition: newWorldPosition,
+                playerDirection: direction,
+                lastMoveTime: Date.now(),
+                recentMovements: [direction, ...recentMovements.slice(0, 4)],
+            });
         },
-        [worldPosition, recentMovements, isPositionBlocked, savePositionToRedis, lastMoveTime, setPlayerDirection, setIsPlayerMoving, setLastMoveTime, setRecentMovements, setWorldPosition]
+        [worldPosition, recentMovements, isPositionBlocked, savePositionToRedis, lastMoveTime, setPlayerDirection, applyMove]
     );
 
     const toggleAutonomous = useCallback(() => {
