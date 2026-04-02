@@ -70,7 +70,7 @@ function TileMap({
 
     const tileSize = baseTileSize * (fixedZoom !== undefined ? fixedZoom : zoomLevel);
     
-    const { canvasRef, cameraTilePosition, canvasOffset } = useTiledMap(
+    const { canvasRef, cameraTilePosition } = useTiledMap(
         canvasSize,
         tileSize
     );
@@ -287,13 +287,11 @@ function TileMap({
         >
             <canvas
                 ref={canvasRef}
+                width={canvasSize.width}
+                height={canvasSize.height}
+                className="h-full w-full"
                 style={{
-                    position: 'absolute',
-                    left: 0,
-                    top: 0,
                     background: '#f0f8ff',
-                    transform: `translate(${canvasOffset.x}px, ${canvasOffset.y}px)`,
-                    willChange: 'transform',
                     pointerEvents: 'none',
                 }}
             />

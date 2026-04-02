@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useVillageStore, LoadedVillage } from '@/stores/useVillageStore';
 import { VillageMetadata } from '@/lib/village-redis';
 import { loadVillageMap, loadDefaultVillageMap } from '@/lib/village-map-loader';
+import { getVillageCanvas, removeVillageCanvas } from '@/lib/village-canvas-cache';
 import { worldToGrid, gridToWorldRange, worldToLocalInVillage, findNearestValidPosition } from '@/lib/village-utils';
 import { useGameStateStore } from '@/stores';
 
@@ -60,6 +61,8 @@ export function useVillageLoader(initialVillageSlug: string | null) {
       };
 
       addLoadedVillage(slug, loaded);
+      // 마을 canvas 캐시 사전 생성 (뷰포트 진입 시 즉시 사용 가능)
+      getVillageCanvas(slug, loaded);
       return loaded;
     } catch (err) {
       console.error(`Failed to load village ${slug}:`, err);
@@ -146,6 +149,7 @@ export function useVillageLoader(initialVillageSlug: string | null) {
         // 거리가 UNLOAD_DISTANCE보다 크면 언로드
         if (minDist > UNLOAD_DISTANCE) {
           removeLoadedVillage(slug);
+          removeVillageCanvas(slug);
         }
       }
     } catch (err) {
@@ -180,6 +184,7 @@ export function useVillageLoader(initialVillageSlug: string | null) {
         };
 
         setDefaultVillage(loaded);
+        getVillageCanvas('__default__', loaded);
       } catch (err) {
         console.warn('Failed to load default village map:', err);
       }
