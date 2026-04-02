@@ -24,6 +24,7 @@ import { useVillageStore } from '@/stores/useVillageStore';
 import { worldToGrid } from '@/lib/village-utils';
 import LoadingModal from '@/components/LoadingModal';
 import PlaceAgentModal from '@/components/PlaceAgentModal';
+import { useVillagePresence } from '@/hooks/useVillagePresence';
 
 interface MapTabProps {
     isActive: boolean;
@@ -73,6 +74,7 @@ export default function MapTab({
     } = useGameState();
 
     const villageIsCollisionAt = useVillageStore((s) => s.isCollisionAt);
+    const { players: onlinePlayers } = useVillagePresence();
 
     const [isJoystickVisible, setIsJoystickVisible] = useState(true);
     const { isCopied, handleCopy: handleCopyAddress } = useCopyAddress(address);
@@ -293,6 +295,7 @@ export default function MapTab({
                         selectedItemDimensions={selectedAgentForPlacement ? { width: 1, height: 1 } : null}
                         isPositionValid={selectedAgentForPlacement ? isPositionValid : undefined}
                         selectedPosition={selectedPosition}
+                        onlinePlayers={onlinePlayers}
                     />
                 </div>
 
