@@ -1,7 +1,7 @@
 /**
  * 기본 마을 데이터를 Redis에 등록하는 스크립트
  *
- * 실행 방법:
+ * 실행 방법: 
  *   npx tsx scripts/seed-villages.ts           # 기존 데이터 유지하고 추가
  *   npx tsx scripts/seed-villages.ts --clear   # 기존 데이터 삭제 후 재등록
  */
