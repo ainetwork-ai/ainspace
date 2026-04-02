@@ -139,7 +139,7 @@ export function useTiledMap(
     if (isDev) {
       const renderMarkEnd = `canvas-render-${renderN}-end`;
       performance.mark(renderMarkEnd);
-      const renderDuration = performance.measure(`canvas-render-${renderN}`, renderMarkStart, renderMarkEnd).duration;
+      performance.measure(`canvas-render-${renderN}`, renderMarkStart, renderMarkEnd);
       if (renderN === 1 && performance.getEntriesByName('village-ready').length > 0) {
         performance.measure('⏱ village-ready → first canvas render', 'village-ready', renderMarkEnd);
       }

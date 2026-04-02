@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
       let cleanupInterval: ReturnType<typeof setInterval> | null = null;
       let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
       let closed = false;
-      let currentPlayerData = { ...playerData };
+      const currentPlayerData = { ...playerData };
 
       // Buffer for events arriving between subscribe and snapshot
       const eventBuffer: string[] = [];
