@@ -13,6 +13,7 @@ import {
     INITIAL_PLAYER_POSITION,
     MIN_MOVE_INTERVAL
 } from '@/constants/game';
+import { shortAddress } from '@/lib/utils';
 
 interface Position {
     x: number;
@@ -70,10 +71,21 @@ export function useGameState() {
         const position = pendingPositionRef.current;
         if (position && userId) {
             pendingPositionRef.current = null;
+            const direction = useGameStateStore.getState().playerDirection;
+            const village = useVillageStore.getState().currentVillageSlug;
+            const { address, sessionId } = useUserStore.getState();
+            const displayName = address ? shortAddress(address) : sessionId?.slice(0, 8) || userId.slice(0, 8);
             fetch('/api/position', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId, position })
+                body: JSON.stringify({
+                    userId,
+                    position,
+                    direction,
+                    village,
+                    displayName,
+                    spriteKey: 'sprite_user.png',
+                })
             }).catch((error) => {
                 console.error('Failed to save position:', error);
             });
@@ -326,10 +338,11 @@ export function useGameState() {
     // Flush pending position save on unmount and beforeunload
     useEffect(() => {
         const handleBeforeUnload = () => {
-            const position = pendingPositionRef.current;
-            if (position && userId) {
+            const position = pendingPositionRef.current || useGameStateStore.getState().worldPosition;
+            if (userId) {
+                const village = useVillageStore.getState().currentVillageSlug;
                 const blob = new Blob(
-                    [JSON.stringify({ userId, position })],
+                    [JSON.stringify({ userId, position, action: 'disconnect', village })],
                     { type: 'application/json' }
                 );
                 navigator.sendBeacon('/api/position', blob);

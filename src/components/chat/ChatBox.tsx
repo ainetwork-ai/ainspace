@@ -47,6 +47,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     const { setShowCollisionMap } = useBuildStore();
     const inputRef = useRef<HTMLInputElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const responseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const [displayedMessages, setDisplayedMessages] = useState<ChatMessage[]>([]);
     const activeThread = currentThreadId && currentThreadId !== '0' ? findThreadById(currentThreadId) : undefined;
@@ -153,6 +154,11 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             }
 
             if (event.type === 'message') {
+                // Clear response timeout on first AI message
+                if (responseTimeoutRef.current) {
+                    clearTimeout(responseTimeoutRef.current);
+                    responseTimeoutRef.current = null;
+                }
                 // Message data is in data.data (nested structure from A2A Orchestration)
                 const eventData = event.data as {
                     data?: { speaker?: string; content?: string };
@@ -202,6 +208,10 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 // Block messages are not displayed in chat (used for internal processing only)
                 console.log('Block event (not displayed):', event.data);
                 if (event.data.next?.id === 'user') {
+                    if (responseTimeoutRef.current) {
+                        clearTimeout(responseTimeoutRef.current);
+                        responseTimeoutRef.current = null;
+                    }
                     setIsMessageLoading(false);
                 }
             } else if (event.type === 'error') {
@@ -491,6 +501,25 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                         setHasStartedConversation(true);
                     }, 500);
                 }
+
+                // Start response timeout — if no AI message within 30s, stop loading
+                if (responseTimeoutRef.current) clearTimeout(responseTimeoutRef.current);
+                responseTimeoutRef.current = setTimeout(() => {
+                    setIsMessageLoading((loading) => {
+                        if (!loading) return false;
+                        const timeoutMessage: ChatMessage = {
+                            id: `timeout-${Date.now()}`,
+                            text: 'No response from agents. Please try again.',
+                            timestamp: new Date(),
+                            sender: 'system',
+                            threadId: threadIdToSend
+                        };
+                        setMessages((prev) => [...prev, timeoutMessage], threadIdToSend);
+                        setDisplayedMessages((prev) => [...prev, timeoutMessage]);
+                        return false;
+                    });
+                    responseTimeoutRef.current = null;
+                }, 60000);
             } catch (error) {
                 console.error('Failed to send thread message:', error);
 
@@ -506,7 +535,19 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     sender: 'system',
                     threadId: threadIdToSend
                 };
-                setMessages((prev) => [...prev, errorMessage], threadIdToSend);
+                if (responseTimeoutRef.current) {
+                    clearTimeout(responseTimeoutRef.current);
+                    responseTimeoutRef.current = null;
+                }
+
+                // If this was a new thread (no threadId yet), clear displayed messages
+                // so the error doesn't linger on the default page
+                if (!threadIdToSend || threadIdToSend === '0') {
+                    setDisplayedMessages([]);
+                    setMessages([], '0');
+                } else {
+                    setMessages((prev) => [...prev, errorMessage], threadIdToSend);
+                }
 
                 // Log to Sentry
                 Sentry.captureException(error instanceof Error ? error : new Error('Failed to send thread message'), {
