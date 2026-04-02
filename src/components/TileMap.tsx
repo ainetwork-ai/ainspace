@@ -126,7 +126,7 @@ function TileMap({
         setZoomLevel((prev) => Math.max(MIN_ZOOM, prev - ZOOM_STEP));
     };
 
-    const handleWheel = (event: React.WheelEvent<HTMLCanvasElement>) => {
+    const handleWheel = (event: React.WheelEvent<HTMLElement>) => {
         if (!enableZoom || (zoomControls !== 'wheel' && zoomControls !== 'both')) return;
 
         event.preventDefault();
@@ -140,36 +140,26 @@ function TileMap({
 
     // Shared coordinate calculation for both mouse and touch events
     const getWorldCoordinatesFromClientPos = (clientX: number, clientY: number) => {
-        const canvas = canvasRef.current;
-        if (!canvas) return null;
+        const container = containerRef.current;
+        if (!container) return null;
 
         const { isCurrentVillageLoaded } = useVillageStore.getState();
         if (!isCurrentVillageLoaded) return null;
 
-        const rect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
+        const rect = container.getBoundingClientRect();
+        const viewX = (clientX - rect.left) * (canvasSize.width / rect.width);
+        const viewY = (clientY - rect.top) * (canvasSize.height / rect.height);
 
-        const canvasX = (clientX - rect.left) * scaleX;
-        const canvasY = (clientY - rect.top) * scaleY;
-
-        const screenTileX = Math.floor(canvasX / tileSize);
-        const screenTileY = Math.floor(canvasY / tileSize);
+        const screenTileX = Math.floor(viewX / tileSize);
+        const screenTileY = Math.floor(viewY / tileSize);
 
         // Calculate visible tiles
         const tilesX = Math.ceil(canvasSize.width / tileSize);
         const tilesY = Math.ceil(canvasSize.height / tileSize);
-        const halfTilesX = Math.floor(tilesX / 2);
-        const halfTilesY = Math.floor(tilesY / 2);
-
-        // Camera position (no clamping - village boundaries handle movement limits)
-        const cameraTileX = worldPosition.x - halfTilesX;
-        const cameraTileY = worldPosition.y - halfTilesY;
 
         if (screenTileX >= 0 && screenTileX < tilesX && screenTileY >= 0 && screenTileY < tilesY) {
-            // Calculate world coordinates in center-based system
-            const worldX = cameraTileX + screenTileX;
-            const worldY = cameraTileY + screenTileY;
+            const worldX = cameraTilePosition.x + screenTileX;
+            const worldY = cameraTilePosition.y + screenTileY;
 
             return { worldX, worldY };
         }
@@ -177,7 +167,7 @@ function TileMap({
         return null;
     };
 
-    const getWorldCoordinatesFromEvent = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    const getWorldCoordinatesFromEvent = (event: React.MouseEvent<HTMLElement>) => {
         return getWorldCoordinatesFromClientPos(event.clientX, event.clientY);
     };
 
@@ -192,7 +182,7 @@ function TileMap({
         onTileClick(worldX, worldY);
     };
 
-    const handleMouseDown = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    const handleMouseDown = (event: React.MouseEvent<HTMLElement>) => {
         if (buildMode === 'paint') {
             const coords = getWorldCoordinatesFromEvent(event);
             if (coords) {
@@ -202,7 +192,7 @@ function TileMap({
         }
     };
 
-    const handleMouseMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    const handleMouseMove = (event: React.MouseEvent<HTMLElement>) => {
         const coords = getWorldCoordinatesFromEvent(event);
 
         if (buildMode === 'paint') {
@@ -233,7 +223,7 @@ function TileMap({
         setHoveredWorldCoords(null);
     };
 
-    const handleTouchStart = (event: React.TouchEvent<HTMLCanvasElement>) => {
+    const handleTouchStart = (event: React.TouchEvent<HTMLElement>) => {
         if (event.touches.length === 0) return;
 
         event.preventDefault();
@@ -250,7 +240,7 @@ function TileMap({
         }
     };
 
-    const handleTouchMove = (event: React.TouchEvent<HTMLCanvasElement>) => {
+    const handleTouchMove = (event: React.TouchEvent<HTMLElement>) => {
         if (buildMode !== 'paint' || !isPainting || event.touches.length === 0) return;
 
         const touch = event.touches[0];
@@ -260,7 +250,7 @@ function TileMap({
         }
     };
 
-    const handleTouchEnd = (event: React.TouchEvent<HTMLCanvasElement>) => {
+    const handleTouchEnd = (event: React.TouchEvent<HTMLElement>) => {
         event.preventDefault();
         setIsPainting(false);
         setLastPaintedTile(null);
@@ -277,7 +267,24 @@ function TileMap({
     };
 
     return (
-        <div ref={containerRef} className="relative h-full w-full overflow-hidden">
+        <div
+            ref={containerRef}
+            className="relative h-full w-full overflow-hidden"
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseLeave}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onWheel={handleWheel}
+            style={{
+                cursor: buildMode === 'paint' ? 'crosshair' : 'default',
+                userSelect: 'none',
+                WebkitUserSelect: 'none',
+                touchAction: 'none'
+            }}
+        >
             <canvas
                 ref={canvasRef}
                 width={canvasSize.width}
@@ -285,20 +292,8 @@ function TileMap({
                 className="h-full w-full"
                 style={{
                     background: '#f0f8ff',
-                    cursor: buildMode === 'paint' ? 'crosshair' : 'default',
-                    userSelect: 'none',
-                    WebkitUserSelect: 'none',
-                    MozUserSelect: 'none',
-                    touchAction: 'none'
+                    pointerEvents: 'none',
                 }}
-                onMouseDown={handleMouseDown}
-                onMouseMove={handleMouseMove}
-                onMouseUp={handleMouseUp}
-                onMouseLeave={handleMouseLeave}
-                onTouchStart={handleTouchStart}
-                onTouchMove={handleTouchMove}
-                onTouchEnd={handleTouchEnd}
-                onWheel={handleWheel}
             />
 
             {/* Zoom Controls */}

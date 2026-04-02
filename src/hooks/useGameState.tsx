@@ -40,7 +40,8 @@ export function useGameState() {
         lastMoveTime,
         setLastMoveTime,
         isPlayerMoving,
-        setIsPlayerMoving
+        setIsPlayerMoving,
+        applyMove
     } = useGameStateStore();
 
     // Get the current map data centered on the player's world position with full square view
@@ -119,17 +120,16 @@ export function useGameState() {
 
     const movePlayer = useCallback(
         (direction: DIRECTION) => {
+            // getState로 최신값 읽기 (stale closure 방지)
+            const { worldPosition: currentPos, lastMoveTime: currentLastMoveTime, recentMovements: currentMovements } = useGameStateStore.getState();
+
             // Check if enough time has passed since last move (prevent double movement)
             const now = Date.now();
-            const timeSinceLastMove = now - lastMoveTime;
-            if (timeSinceLastMove < MIN_MOVE_INTERVAL) {
+            if (now - currentLastMoveTime < MIN_MOVE_INTERVAL) {
                 return;
             }
 
-            // Update player direction immediately
-            setPlayerDirection(direction);
-
-            const newWorldPosition = { ...worldPosition };
+            const newWorldPosition = { ...currentPos };
             switch (direction) {
                 case DIRECTION.UP:
                     newWorldPosition.y -= 1;
@@ -149,22 +149,23 @@ export function useGameState() {
 
             // Village-based collision check
             if (isPositionBlocked(newWorldPosition.x, newWorldPosition.y)) {
+                // 충돌 시 방향만 전환
+                setPlayerDirection(direction);
                 return;
             }
 
             // Save new position to Redis
             savePositionToRedis(newWorldPosition);
 
-            // Position changed - trigger animation
-            setLastMoveTime(Date.now());
-            setIsPlayerMoving(true);
-
-            setWorldPosition(newWorldPosition);
-
-            // Track recent movements
-            setRecentMovements([direction, ...recentMovements.slice(0, 4)]);
+            // Position changed - apply all move state in single set()
+            applyMove({
+                worldPosition: newWorldPosition,
+                playerDirection: direction,
+                lastMoveTime: Date.now(),
+                recentMovements: [direction, ...currentMovements.slice(0, 4)],
+            });
         },
-        [worldPosition, recentMovements, isPositionBlocked, savePositionToRedis, lastMoveTime, setPlayerDirection, setIsPlayerMoving, setLastMoveTime, setRecentMovements, setWorldPosition]
+        [isPositionBlocked, savePositionToRedis, setPlayerDirection, applyMove]
     );
 
     const toggleAutonomous = useCallback(() => {

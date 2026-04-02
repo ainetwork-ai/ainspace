@@ -24,6 +24,12 @@ interface GameState {
     setLastCommentary: (commentary: string) => void;
     setLastMoveTime: (time: number) => void;
     setIsPlayerMoving: (isPlayerMoving: boolean) => void;
+    applyMove: (params: {
+        worldPosition: Position;
+        playerDirection: DIRECTION;
+        lastMoveTime: number;
+        recentMovements: string[];
+    }) => void;
 }
 
 export const useGameStateStore = create<GameState>((set, get) => ({
@@ -67,4 +73,13 @@ export const useGameStateStore = create<GameState>((set, get) => ({
     setIsPlayerMoving: (isPlayerMoving: boolean) => {
         set({ isPlayerMoving });
     },
+
+    applyMove: ({ worldPosition, playerDirection, lastMoveTime, recentMovements }) =>
+        set({
+            worldPosition,
+            playerDirection,
+            lastMoveTime,
+            isPlayerMoving: true,
+            recentMovements,
+        }),
 }));
