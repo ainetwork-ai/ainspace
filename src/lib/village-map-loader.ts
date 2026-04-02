@@ -34,16 +34,29 @@ const TODAY_CACHE_KEY = (() => {
   return kst.getTime().toString();
 })();
 
+const tilesetImageCache = new Map<string, Promise<HTMLImageElement>>();
+
 function loadImage(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
+  const cached = tilesetImageCache.get(src);
+  if (cached) return cached;
+
+  const promise = new Promise<HTMLImageElement>((resolve, reject) => {
     const image = new Image();
+    const cleanup = () => { image.onload = null; image.onerror = null; };
     const timer = setTimeout(() => {
+      cleanup();
       reject(new Error(`Image load timeout: ${src}`));
     }, IMAGE_LOAD_TIMEOUT);
-    image.onload = () => { clearTimeout(timer); resolve(image); };
-    image.onerror = () => { clearTimeout(timer); reject(new Error(`Image load failed: ${src}`)); };
+    image.onload = () => { clearTimeout(timer); cleanup(); resolve(image); };
+    image.onerror = () => { clearTimeout(timer); cleanup(); reject(new Error(`Image load failed: ${src}`)); };
     image.src = src;
+  }).catch((err) => {
+    tilesetImageCache.delete(src);
+    throw err;
   });
+
+  tilesetImageCache.set(src, promise);
+  return promise;
 }
 
 export interface LoadedVillageMap {

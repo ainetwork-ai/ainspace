@@ -52,16 +52,16 @@ export default function MapTab({
 }: MapTabProps) {
     const { address } = useAccount();
     const { connect, connectors } = useConnect();
-    const { agents } = useAgentStore();
+    const agents = useAgentStore((s) => s.agents);
     const { clearThreads } = useThreadStore();
     const { selectedAgentForPlacement, setSelectedAgentForPlacement } = useUIStore();
     const [placementError, setPlacementError] = useState<string | null>(null);
     const [selectedPosition, setSelectedPosition] = useState<{ x: number; y: number } | null>(null);
     const [isPlacing, setIsPlacing] = useState(false);
-    const { movePlayer } = useGameState();
     const chatBoxRef = useRef<ChatBoxRef>(null);
 
     const {
+        movePlayer,
         playerPosition,
         mapData,
         worldPosition,
@@ -129,8 +129,35 @@ export default function MapTab({
         }
     }, [selectedAgentForPlacement, onPlaceAgentAtPosition, isPositionValid, setSelectedAgentForPlacement, selectedPosition]);
 
+    const moveCountRef = useRef(0);
     const handleMobileMove = useCallback(
         (direction: DIRECTION) => {
+            const isDev = process.env.NEXT_PUBLIC_ENABLE_PERF_MARKS === 'true';
+            if (isDev) {
+                moveCountRef.current++;
+                const moveId = moveCountRef.current;
+                performance.mark(`move-${moveId}-input`);
+
+                if (moveId === 1) {
+                    if (performance.getEntriesByName('village-init-start').length > 0) {
+                        performance.measure('⏱ TOTAL: village init → first joystick', 'village-init-start', `move-${moveId}-input`);
+                    }
+                    if (performance.getEntriesByName('village-ready').length > 0) {
+                        performance.measure('⏱ village ready → first joystick', 'village-ready', `move-${moveId}-input`);
+                    }
+                    const measures = performance.getEntriesByType('measure');
+                    console.log('\n📊 Performance Timeline:');
+                    measures.forEach(m => console.log(`  ${m.name}: ${m.duration.toFixed(0)}ms`));
+                }
+
+                requestAnimationFrame(() => {
+                    performance.mark(`move-${moveId}-frame`);
+                    performance.measure(`🎮 move #${moveId} input→frame`, `move-${moveId}-input`, `move-${moveId}-frame`);
+                    const m = performance.getEntriesByName(`🎮 move #${moveId} input→frame`)[0];
+                    if (m) console.log(`  ${m.name}: ${m.duration.toFixed(1)}ms`);
+                });
+            }
+
             if (isAutonomous) return;
 
             // Calculate new position

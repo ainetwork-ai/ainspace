@@ -93,7 +93,7 @@ export default function Home() {
             setFrameReady();
         }
 
-        if (process.env.NEXT_PUBLIC_NODE_ENV !== 'production') {
+        if (process.env.NEXT_PUBLIC_ENABLE_PERF_MARKS === 'true') {
             setTimeout(() => {
                 import('eruda').then((eruda) => eruda.default.init());
             }, 100);
