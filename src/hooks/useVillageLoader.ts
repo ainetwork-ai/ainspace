@@ -110,7 +110,7 @@ export function useVillageLoader(initialVillageSlug: string | null) {
         await loadVillage(nsew[i]);
         if (isPerfEnabled) {
           performance.mark(`nearby-nsew-${i}-end`);
-          console.log(`  🏘 NSEW[${i}] ${nsew[i].slug}: ${performance.measure(`nearby-nsew-${i}`, `nearby-nsew-${i}-start`, `nearby-nsew-${i}-end`).duration.toFixed(0)}ms`);
+          performance.measure(`nearby-nsew-${i}`, `nearby-nsew-${i}-start`, `nearby-nsew-${i}-end`);
         }
         await yieldToMain();
       }
@@ -120,7 +120,7 @@ export function useVillageLoader(initialVillageSlug: string | null) {
         await loadVillage(diagonal[i]);
         if (isPerfEnabled) {
           performance.mark(`nearby-diag-${i}-end`);
-          console.log(`  🏘 DIAG[${i}] ${diagonal[i].slug}: ${performance.measure(`nearby-diag-${i}`, `nearby-diag-${i}-start`, `nearby-diag-${i}-end`).duration.toFixed(0)}ms`);
+          performance.measure(`nearby-diag-${i}`, `nearby-diag-${i}-start`, `nearby-diag-${i}-end`);
         }
         await yieldToMain();
       }
