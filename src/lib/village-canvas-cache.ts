@@ -94,9 +94,4 @@ export function removeVillageCanvas(slug: string): void {
   villageCanvasCache.delete(slug);
 }
 
-/** 캐시 무효화 후 재렌더 */
-export function invalidateVillageCanvas(slug: string, village: LoadedVillage): void {
-  villageCanvasCache.delete(slug);
-  const canvas = renderVillageToCanvas(village);
-  villageCanvasCache.set(slug, canvas);
-}
+// __default__ 캐시는 앱 수명 내내 유지 (default village는 언로드되지 않음)

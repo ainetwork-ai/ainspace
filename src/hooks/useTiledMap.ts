@@ -26,6 +26,16 @@ export function useTiledMap(
 
   const canvasRenderCountRef = useRef(0);
 
+  const actualTileSize = effectiveTileSize || TILE_SIZE;
+  const cameraTilePosition = useMemo(() => {
+    const tilesX = Math.ceil(canvasSize.width / actualTileSize);
+    const tilesY = Math.ceil(canvasSize.height / actualTileSize);
+    return {
+      x: worldPosition.x - Math.floor(tilesX / 2),
+      y: worldPosition.y - Math.floor(tilesY / 2),
+    };
+  }, [worldPosition, canvasSize, actualTileSize]);
+
   useEffect(() => {
     if (loadedVillages.size === 0 || !isCurrentVillageLoaded) return;
 
@@ -47,20 +57,14 @@ export function useTiledMap(
     }
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    const actualTileSize = effectiveTileSize || TILE_SIZE;
     const tilesX = Math.ceil(canvas.width / actualTileSize);
     const tilesY = Math.ceil(canvas.height / actualTileSize);
-    const halfTilesX = Math.floor(tilesX / 2);
-    const halfTilesY = Math.floor(tilesY / 2);
-
-    const cameraTilePositionX = worldPosition.x - halfTilesX;
-    const cameraTilePositionY = worldPosition.y - halfTilesY;
 
     // 렌더링 범위 (글로벌 좌표, 버퍼 포함)
-    const renderStartX = cameraTilePositionX - BUFFER_TILES;
-    const renderEndX = cameraTilePositionX + tilesX + BUFFER_TILES;
-    const renderStartY = cameraTilePositionY - BUFFER_TILES;
-    const renderEndY = cameraTilePositionY + tilesY + BUFFER_TILES;
+    const renderStartX = cameraTilePosition.x - BUFFER_TILES;
+    const renderEndX = cameraTilePosition.x + tilesX + BUFFER_TILES;
+    const renderStartY = cameraTilePosition.y - BUFFER_TILES;
+    const renderEndY = cameraTilePosition.y + tilesY + BUFFER_TILES;
 
     // 뷰포트에 겹치는 grid 범위
     const gridStartX = Math.floor((renderStartX + VILLAGE_SIZE / 2) / VILLAGE_SIZE);
@@ -125,8 +129,8 @@ export function useTiledMap(
         const srcH = (overlapEndY - overlapStartY) * TILE_SIZE;
 
         // dest: 뷰포트 canvas 내 픽셀 좌표
-        const dstX = (overlapStartX - cameraTilePositionX) * TILE_SIZE - TILE_SIZE / 4;
-        const dstY = (overlapStartY - cameraTilePositionY) * TILE_SIZE - TILE_SIZE / 4;
+        const dstX = (overlapStartX - cameraTilePosition.x) * TILE_SIZE - TILE_SIZE / 4;
+        const dstY = (overlapStartY - cameraTilePosition.y) * TILE_SIZE - TILE_SIZE / 4;
 
         ctx.drawImage(cachedCanvas, srcX, srcY, srcW, srcH, dstX, dstY, srcW, srcH);
       }
@@ -143,17 +147,7 @@ export function useTiledMap(
         performance.measure('⏱ village-ready → first canvas render', 'village-ready', renderMarkEnd);
       }
     }
-  }, [loadedVillages, isCurrentVillageLoaded, worldPosition, canvasSize, effectiveTileSize, defaultVillage, gridIndex]);
-
-  const cameraTilePosition = useMemo(() => {
-    const actualTileSize = effectiveTileSize || TILE_SIZE;
-    const tilesX = Math.ceil(canvasSize.width / actualTileSize);
-    const tilesY = Math.ceil(canvasSize.height / actualTileSize);
-    return {
-      x: worldPosition.x - Math.floor(tilesX / 2),
-      y: worldPosition.y - Math.floor(tilesY / 2),
-    };
-  }, [worldPosition, canvasSize, effectiveTileSize]);
+  }, [loadedVillages, isCurrentVillageLoaded, cameraTilePosition, canvasSize, actualTileSize, defaultVillage, gridIndex]);
 
   return { canvasRef, cameraTilePosition };
 }
