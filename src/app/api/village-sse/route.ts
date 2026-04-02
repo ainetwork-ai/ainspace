@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import {
+  getRedisClient,
   getRedisSubscriber,
   joinVillage,
   getVillagePlayers,
@@ -34,8 +35,8 @@ export async function GET(request: NextRequest) {
 
   const encoder = new TextEncoder();
   const connectionStart = Date.now();
-  // Random jitter 0-30s for thundering herd mitigation
-  const jitterMs = Math.floor(Math.random() * 30000);
+  // Random jitter 0-10s for thundering herd mitigation (kept small to stay within maxDuration)
+  const jitterMs = Math.floor(Math.random() * 10000);
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -43,11 +44,14 @@ export async function GET(request: NextRequest) {
       let cleanupInterval: ReturnType<typeof setInterval> | null = null;
       let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
       let closed = false;
-      const currentPlayerData = { ...playerData };
 
       // Buffer for events arriving between subscribe and snapshot
       const eventBuffer: string[] = [];
       let snapshotSent = false;
+
+      // Declare listenerFn before cleanup so there's no TDZ issue
+      // eslint-disable-next-line prefer-const
+      let listenerFn: ((message: string) => void) | null = null;
 
       const send = (event: string, data: string) => {
         if (closed) return;
@@ -67,7 +71,7 @@ export async function GET(request: NextRequest) {
         // Unsubscribe listener (don't remove presence — rely on lastUpdated lazy cleanup)
         if (listenerFn) {
           getRedisSubscriber()
-            .then(sub => sub.unsubscribe(`village:${village}:events`, listenerFn))
+            .then(sub => sub.unsubscribe(`village:${village}:events`, listenerFn!))
             .catch(() => {});
         }
         try {
@@ -80,8 +84,8 @@ export async function GET(request: NextRequest) {
       // Listen for client disconnect
       request.signal.addEventListener('abort', cleanup);
 
-      // Listener function for Pub/Sub (unique per handler)
-      const listenerFn = (message: string) => {
+      // Assign listener function (after declaration, before use)
+      listenerFn = (message: string) => {
         if (closed) return;
         try {
           const parsed = JSON.parse(message);
@@ -124,14 +128,23 @@ export async function GET(request: NextRequest) {
         }
         eventBuffer.length = 0;
 
-        // 5. Heartbeat ping every 15s — also refreshes own presence lastUpdated
-        let pingCount = 0;
+        // 5. Heartbeat ping every 15s
+        // Only refreshes lastUpdated (not x/y) to avoid overwriting position POST data
         pingInterval = setInterval(async () => {
           if (closed) return;
           send('ping', '{}');
-          // Refresh own presence lastUpdated
+          // Touch lastUpdated without overwriting position — read current data from Redis first
           try {
-            await savePlayerPresence(village, userId, currentPlayerData);
+            const redis = await getRedisClient();
+            const raw = await redis.hGet(`village:${village}:players`, userId);
+            if (raw) {
+              const current = JSON.parse(raw);
+              current.lastUpdated = Date.now();
+              await redis.hSet(`village:${village}:players`, userId, JSON.stringify(current));
+            } else {
+              // Player not in HASH (possibly cleaned up) — re-save with initial data
+              await savePlayerPresence(village, userId, playerData);
+            }
           } catch {
             // Non-critical
           }
@@ -144,7 +157,6 @@ export async function GET(request: NextRequest) {
           } catch {
             send('error', JSON.stringify({ message: 'subscriber check failed' }));
           }
-          pingCount++;
         }, 15000);
 
         // 6. Stale cleanup every 5 minutes (auxiliary safety net)
@@ -158,14 +170,18 @@ export async function GET(request: NextRequest) {
         }, 300000);
 
         // 7. Graceful reconnect before function duration expires
-        // maxDuration=300s, send reconnect ~10s before, with jitter
-        const reconnectAt = (maxDuration * 1000) - 10000 + jitterMs;
+        // maxDuration=300s, send reconnect ~10s before, plus jitter (0-10s)
+        // Worst case: 300 - 10 + 10 = 300s = exactly at limit, so cap at 280s
+        const reconnectDelay = Math.min(
+          (maxDuration * 1000) - 10000 + jitterMs - (Date.now() - connectionStart),
+          280000
+        );
         reconnectTimeout = setTimeout(() => {
           if (closed) return;
           send('reconnect', '{}');
           // Give client 2s to receive the message before closing
           setTimeout(cleanup, 2000);
-        }, Math.max(reconnectAt - (Date.now() - connectionStart), 60000));
+        }, Math.max(reconnectDelay, 60000));
       } catch (error) {
         console.error('Village SSE setup error:', error);
         // Send empty snapshot in degraded mode
