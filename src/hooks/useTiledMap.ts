@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useGameStateStore } from "@/stores";
 import { TILE_SIZE, VILLAGE_SIZE } from "@/constants/game";
 import { useVillageStore, LoadedVillage } from "@/stores/useVillageStore";
-import { gridToWorldRange, worldToGrid } from "@/lib/village-utils";
+import { gridToWorldRange } from "@/lib/village-utils";
 import {
   getActualGid,
   FLIPPED_HORIZONTALLY_FLAG,
@@ -10,13 +10,14 @@ import {
   FLIPPED_DIAGONALLY_FLAG,
 } from "@/lib/village-map-loader";
 
-const BUFFER_TILES = 2;
+/** 뷰포트 밖으로 미리 렌더하는 타일 수 (각 방향) */
+const RENDER_BUFFER = 6;
 
 /**
  * 멀티 빌리지 타일맵 렌더링 훅.
  *
- * useVillageStore의 loadedVillages로부터 현재 뷰포트에 보이는
- * 모든 마을의 타일을 캔버스에 렌더링한다.
+ * 오버사이즈 canvas에 뷰포트 + 버퍼 영역을 렌더하고,
+ * 이동 시에는 CSS transform만 변경하여 canvas redraw를 최소화한다.
  */
 export function useTiledMap(
   canvasSize: { width: number; height: number },
@@ -31,6 +32,33 @@ export function useTiledMap(
 
   const canvasRenderCountRef = useRef(0);
 
+  // 마지막 full redraw 시점의 worldPosition (canvas 중심)
+  const canvasCenterRef = useRef({ x: 0, y: 0 });
+
+  // redraw 트리거 카운터 (버퍼 소진 시 증가)
+  const [redrawTrigger, setRedrawTrigger] = useState(0);
+
+  const actualTileSize = effectiveTileSize || TILE_SIZE;
+
+  // --- 버퍼 소진 감지: worldPosition 변경 시 redraw 필요 여부 판단 ---
+  useEffect(() => {
+    const dx = Math.abs(worldPosition.x - canvasCenterRef.current.x);
+    const dy = Math.abs(worldPosition.y - canvasCenterRef.current.y);
+    const isInitial = canvasCenterRef.current.x === 0 && canvasCenterRef.current.y === 0
+        && worldPosition.x !== 0 && worldPosition.y !== 0;
+    if (isInitial || dx >= RENDER_BUFFER - 1 || dy >= RENDER_BUFFER - 1) {
+      setRedrawTrigger(n => n + 1);
+    }
+  }, [worldPosition]);
+
+  // --- Canvas offset: 버퍼 오프셋 + worldPosition과 canvasCenter의 차이를 픽셀로 변환 ---
+  const bufferOffsetPx = RENDER_BUFFER * actualTileSize;
+  const canvasOffset = {
+    x: -(worldPosition.x - canvasCenterRef.current.x) * actualTileSize - bufferOffsetPx,
+    y: -(worldPosition.y - canvasCenterRef.current.y) * actualTileSize - bufferOffsetPx,
+  };
+
+  // --- Full redraw useEffect (worldPosition이 의존성에 없음) ---
   useEffect(() => {
     if (loadedVillages.size === 0 || !isCurrentVillageLoaded) return;
 
@@ -39,35 +67,45 @@ export function useTiledMap(
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    // worldPosition은 의존성에 없으므로 getState로 최신값 읽기
+    const currentPos = useGameStateStore.getState().worldPosition;
+    canvasCenterRef.current = { x: currentPos.x, y: currentPos.y };
+
     canvasRenderCountRef.current++;
     const renderN = canvasRenderCountRef.current;
     const isDev = process.env.NEXT_PUBLIC_ENABLE_PERF_MARKS === 'true';
     const renderMarkStart = `canvas-render-${renderN}-start`;
     if (isDev) performance.mark(renderMarkStart);
 
-    // 캔버스 크기 지정
-    canvas.width = canvasSize.width;
-    canvas.height = canvasSize.height;
+    // 오버사이즈 캔버스 크기 (뷰포트 + 양쪽 버퍼)
+    const bufferPx = RENDER_BUFFER * actualTileSize;
+    const totalWidth = canvasSize.width + bufferPx * 2;
+    const totalHeight = canvasSize.height + bufferPx * 2;
+    if (canvas.width !== totalWidth || canvas.height !== totalHeight) {
+      canvas.width = totalWidth;
+      canvas.height = totalHeight;
+    }
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // 화면에 보이는 타일 개수 계산
-    const actualTileSize = effectiveTileSize || TILE_SIZE;
+    // 오버사이즈 canvas 기준 타일 개수
     const tilesX = Math.ceil(canvas.width / actualTileSize);
     const tilesY = Math.ceil(canvas.height / actualTileSize);
-    const halfTilesX = Math.floor(tilesX / 2);
-    const halfTilesY = Math.floor(tilesY / 2);
+    const viewTilesX = Math.ceil(canvasSize.width / actualTileSize);
+    const viewTilesY = Math.ceil(canvasSize.height / actualTileSize);
+    const halfTilesX = Math.floor(viewTilesX / 2);
+    const halfTilesY = Math.floor(viewTilesY / 2);
 
-    // 카메라 위치 계산 (글로벌 좌표계, 경계 클램프 없음 — 마을 존재 여부로 이동이 제한됨)
-    const cameraTilePositionX = worldPosition.x - halfTilesX;
-    const cameraTilePositionY = worldPosition.y - halfTilesY;
+    // 카메라 위치: canvasCenter 기준, 버퍼 포함
+    const cameraTilePositionX = currentPos.x - halfTilesX - RENDER_BUFFER;
+    const cameraTilePositionY = currentPos.y - halfTilesY - RENDER_BUFFER;
 
-    // 렌더링 범위 (글로벌 좌표, 버퍼 포함)
-    const renderStartX = cameraTilePositionX - BUFFER_TILES;
-    const renderEndX = cameraTilePositionX + tilesX + BUFFER_TILES;
-    const renderStartY = cameraTilePositionY - BUFFER_TILES;
-    const renderEndY = cameraTilePositionY + tilesY + BUFFER_TILES;
+    // 렌더링 범위 (글로벌 좌표)
+    const renderStartX = cameraTilePositionX;
+    const renderEndX = cameraTilePositionX + tilesX;
+    const renderStartY = cameraTilePositionY;
+    const renderEndY = cameraTilePositionY + tilesY;
 
-    // 뷰포트에 겹치는 마을들 수집 (로드된 마을 + 빈 grid는 default village)
+    // 뷰포트에 겹치는 마을들 수집
     const visibleVillages: Array<{
       village: LoadedVillage;
       worldStartX: number;
@@ -76,43 +114,26 @@ export function useTiledMap(
       worldEndY: number;
     }> = [];
 
-    // 뷰포트의 grid 범위 계산
-    // worldToGrid 공식: Math.floor((worldX + 10) / 20)
     const gridStartX = Math.floor((renderStartX + VILLAGE_SIZE / 2) / VILLAGE_SIZE);
     const gridEndX = Math.floor((renderEndX + VILLAGE_SIZE / 2) / VILLAGE_SIZE);
     const gridStartY = Math.floor((renderStartY + VILLAGE_SIZE / 2) / VILLAGE_SIZE);
     const gridEndY = Math.floor((renderEndY + VILLAGE_SIZE / 2) / VILLAGE_SIZE);
 
-    // 각 grid 위치에 대해 마을이 있으면 추가, 없으면 defaultVillage 추가
     for (let gy = gridStartY; gy <= gridEndY; gy++) {
       for (let gx = gridStartX; gx <= gridEndX; gx++) {
-        const gridKey = `${gx},${gy}`;
-        const slug = gridIndex.get(gridKey);
+        const gKey = `${gx},${gy}`;
+        const slug = gridIndex.get(gKey);
 
         if (slug) {
-          // 마을이 있는 경우
           const village = loadedVillages.get(slug);
 
           if (!village) {
-            // 아직 로드 안 됨: defaultVillage로 fallback
             if (!defaultVillage) continue;
-
             const range = gridToWorldRange(gx, gy, 1, 1);
-            const virtualVillage: LoadedVillage = {
-              ...defaultVillage,
-              metadata: {
-                ...defaultVillage.metadata,
-                gridX: gx,
-                gridY: gy,
-              },
-            };
-
             visibleVillages.push({
-              village: virtualVillage,
-              worldStartX: range.startX,
-              worldStartY: range.startY,
-              worldEndX: range.endX,
-              worldEndY: range.endY,
+              village: { ...defaultVillage, metadata: { ...defaultVillage.metadata, gridX: gx, gridY: gy } },
+              worldStartX: range.startX, worldStartY: range.startY,
+              worldEndX: range.endX, worldEndY: range.endY,
             });
             continue;
           }
@@ -123,31 +144,15 @@ export function useTiledMap(
           );
           visibleVillages.push({
             village,
-            worldStartX: range.startX,
-            worldStartY: range.startY,
-            worldEndX: range.endX,
-            worldEndY: range.endY,
+            worldStartX: range.startX, worldStartY: range.startY,
+            worldEndX: range.endX, worldEndY: range.endY,
           });
         } else if (defaultVillage) {
-          // 마을이 없는 경우: defaultVillage 사용
           const range = gridToWorldRange(gx, gy, 1, 1);
-
-          // defaultVillage의 가상 인스턴스 생성 (metadata의 grid 위치만 변경)
-          const virtualVillage: LoadedVillage = {
-            ...defaultVillage,
-            metadata: {
-              ...defaultVillage.metadata,
-              gridX: gx,
-              gridY: gy,
-            },
-          };
-
           visibleVillages.push({
-            village: virtualVillage,
-            worldStartX: range.startX,
-            worldStartY: range.startY,
-            worldEndX: range.endX,
-            worldEndY: range.endY,
+            village: { ...defaultVillage, metadata: { ...defaultVillage.metadata, gridX: gx, gridY: gy } },
+            worldStartX: range.startX, worldStartY: range.startY,
+            worldEndX: range.endX, worldEndY: range.endY,
           });
         }
       }
@@ -171,14 +176,12 @@ export function useTiledMap(
         const { mapData, tilesets } = village;
         const { width, height } = mapData;
 
-        // 이 마을의 해당 레이어 가져오기
         const visibleLayers = mapData.layers.filter(
           (l) => l.type === "tilelayer" && l.visible
         );
         if (layerIdx >= visibleLayers.length) continue;
         const layer = visibleLayers[layerIdx];
 
-        // 이 마을 내에서 뷰포트에 보이는 로컬 타일 범위 계산
         const localStartX = Math.max(0, renderStartX - worldStartX);
         const localEndX = Math.min(width, renderEndX - worldStartX + 1);
         const localStartY = Math.max(0, renderStartY - worldStartY);
@@ -193,7 +196,6 @@ export function useTiledMap(
             const gid = getActualGid(rawGid);
             if (gid === 0) continue;
 
-            // gid에 맞는 tileset 찾기
             const ts = [...tilesets].reverse().find((t) => gid >= t.firstgid);
             if (!ts) continue;
 
@@ -206,7 +208,6 @@ export function useTiledMap(
 
             if (ts.tilewidth <= 0 || ts.tileheight <= 0) continue;
 
-            // 글로벌 좌표 → 스크린 좌표
             const worldTileX = worldStartX + localX;
             const worldTileY = worldStartY + localY;
             const screenTileX = worldTileX - cameraTilePositionX;
@@ -214,7 +215,6 @@ export function useTiledMap(
             const dx = screenTileX * TILE_SIZE - TILE_SIZE / 4;
             const dy = screenTileY * TILE_SIZE - TILE_SIZE / 4;
 
-            // Flip 처리
             const flippedH = (rawGid & FLIPPED_HORIZONTALLY_FLAG) !== 0;
             const flippedV = (rawGid & FLIPPED_VERTICALLY_FLAG) !== 0;
             const flippedD = (rawGid & FLIPPED_DIAGONALLY_FLAG) !== 0;
@@ -237,6 +237,7 @@ export function useTiledMap(
         }
       }
     }
+
     if (isDev) {
       const renderMarkEnd = `canvas-render-${renderN}-end`;
       performance.mark(renderMarkEnd);
@@ -248,17 +249,18 @@ export function useTiledMap(
         performance.measure('⏱ village-ready → first canvas render', 'village-ready', renderMarkEnd);
       }
     }
-  }, [loadedVillages, isCurrentVillageLoaded, worldPosition, canvasSize, effectiveTileSize, defaultVillage, gridIndex]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadedVillages, isCurrentVillageLoaded, redrawTrigger, canvasSize, actualTileSize, defaultVillage, gridIndex]);
 
+  // --- cameraTilePosition: 에이전트/플레이어 DOM 위치 계산용 (뷰포트 기준) ---
   const cameraTilePosition = useMemo(() => {
-    const actualTileSize = effectiveTileSize || TILE_SIZE;
-    const tilesX = Math.ceil(canvasSize.width / actualTileSize);
-    const tilesY = Math.ceil(canvasSize.height / actualTileSize);
+    const viewTilesX = Math.ceil(canvasSize.width / actualTileSize);
+    const viewTilesY = Math.ceil(canvasSize.height / actualTileSize);
     return {
-      x: worldPosition.x - Math.floor(tilesX / 2),
-      y: worldPosition.y - Math.floor(tilesY / 2),
+      x: worldPosition.x - Math.floor(viewTilesX / 2),
+      y: worldPosition.y - Math.floor(viewTilesY / 2),
     };
-  }, [worldPosition, canvasSize, effectiveTileSize]);
+  }, [worldPosition, canvasSize, actualTileSize]);
 
-  return { canvasRef, cameraTilePosition };
+  return { canvasRef, cameraTilePosition, canvasOffset };
 }
