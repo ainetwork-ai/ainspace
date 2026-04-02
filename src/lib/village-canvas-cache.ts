@@ -26,6 +26,9 @@ function renderVillageToCanvas(village: LoadedVillage): HTMLCanvasElement {
     (l) => l.type === 'tilelayer' && l.visible
   );
 
+  // tileset을 firstgid 역순으로 정렬 (타일마다 배열 생성 방지)
+  const sortedTilesets = [...tilesets].sort((a, b) => b.firstgid - a.firstgid);
+
   for (const layer of visibleLayers) {
     for (let localY = 0; localY < height; localY++) {
       for (let localX = 0; localX < width; localX++) {
@@ -36,7 +39,7 @@ function renderVillageToCanvas(village: LoadedVillage): HTMLCanvasElement {
         const gid = getActualGid(rawGid);
         if (gid === 0) continue;
 
-        const ts = [...tilesets].reverse().find((t) => gid >= t.firstgid);
+        const ts = sortedTilesets.find((t) => gid >= t.firstgid);
         if (!ts) continue;
 
         const localId = gid - ts.firstgid;

@@ -120,14 +120,16 @@ export function useGameState() {
 
     const movePlayer = useCallback(
         (direction: DIRECTION) => {
+            // getState로 최신값 읽기 (stale closure 방지)
+            const { worldPosition: currentPos, lastMoveTime: currentLastMoveTime, recentMovements: currentMovements } = useGameStateStore.getState();
+
             // Check if enough time has passed since last move (prevent double movement)
             const now = Date.now();
-            const timeSinceLastMove = now - lastMoveTime;
-            if (timeSinceLastMove < MIN_MOVE_INTERVAL) {
+            if (now - currentLastMoveTime < MIN_MOVE_INTERVAL) {
                 return;
             }
 
-            const newWorldPosition = { ...worldPosition };
+            const newWorldPosition = { ...currentPos };
             switch (direction) {
                 case DIRECTION.UP:
                     newWorldPosition.y -= 1;
@@ -160,10 +162,10 @@ export function useGameState() {
                 worldPosition: newWorldPosition,
                 playerDirection: direction,
                 lastMoveTime: Date.now(),
-                recentMovements: [direction, ...recentMovements.slice(0, 4)],
+                recentMovements: [direction, ...currentMovements.slice(0, 4)],
             });
         },
-        [worldPosition, recentMovements, isPositionBlocked, savePositionToRedis, lastMoveTime, setPlayerDirection, applyMove]
+        [isPositionBlocked, savePositionToRedis, setPlayerDirection, applyMove]
     );
 
     const toggleAutonomous = useCallback(() => {
