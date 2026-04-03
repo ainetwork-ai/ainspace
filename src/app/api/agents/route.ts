@@ -92,6 +92,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Auto-set mapName from coordinates if state has x, y
+    if (state?.x !== undefined && state?.y !== undefined && !state.mapName) {
+      const { gridX, gridY } = worldToGrid(state.x, state.y);
+      const village = await getVillageByGrid(gridX, gridY);
+      if (village?.slug) {
+        state.mapName = village.slug;
+      }
+    }
+
     const agentKey = `${AGENTS_KEY}${Buffer.from(url).toString('base64')}`;
     const agentData: StoredAgent = {
       url: url,
