@@ -293,10 +293,24 @@ export async function PUT(request: NextRequest) {
         }
       }
 
+      // Merge state: preserve existing fields, override with provided ones
+      let mergedState = existingData.state;
+      if (state !== undefined) {
+        mergedState = { ...existingData.state, ...state };
+        // Auto-set mapName from coordinates if not explicitly provided
+        if (mergedState.x !== undefined && mergedState.y !== undefined && !state.mapName) {
+          const { gridX, gridY } = worldToGrid(mergedState.x, mergedState.y);
+          const village = await getVillageByGrid(gridX, gridY);
+          if (village?.slug) {
+            mergedState.mapName = village.slug;
+          }
+        }
+      }
+
       agentData = {
         url: existingData.url, // Always preserve original url
         card: card !== undefined ? card : existingData.card,
-        state: state !== undefined ? state : existingData.state,
+        state: mergedState,
         creator: creator !== undefined ? creator : existingData.creator,
         timestamp: existingData.timestamp, // Preserve original timestamp
         isPlaced: isPlaced !== undefined ? isPlaced : existingData.isPlaced,
