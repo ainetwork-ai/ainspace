@@ -1,20 +1,17 @@
 'use client';
 
 import Image from 'next/image';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useAccount, useConnect, useSignMessage } from 'wagmi';
+import { useEffect, useState } from 'react';
+import { useAccount } from 'wagmi';
 import { useRouter } from 'next/navigation';
-import { cn, shortAddress } from '@/lib/utils';
+import { cn } from '@/lib/utils';
+import ConnectWalletModal from '@/components/ConnectWalletModal';
 
 export default function LoginPage() {
-    const { address, isConnected, isConnecting } = useAccount();
-    const { connect, connectors, error: connectError, status: connectStatus } = useConnect();
-    const { signMessageAsync } = useSignMessage();
+    const { isConnected, isConnecting } = useAccount();
     const router = useRouter();
-    const [nonce] = useState(() => Date.now().toString());
-    const message = useMemo(() => `Welcome to the AINSpace MiniApp!\n\nNonce: ${nonce}`, [nonce]);
     const [showButton, setShowButton] = useState(false);
-    const [buttonState, setButtonState] = useState<'idle' | 'signing' | 'success' | 'error'>('idle');
+    const [showWalletModal, setShowWalletModal] = useState(false);
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -25,73 +22,12 @@ export default function LoginPage() {
     }, []);
 
     // Redirect to home page if wallet is already connected
-    // Only redirect after wagmi finishes checking connection status
     useEffect(() => {
-        // Wait for wagmi to finish loading
-        if (isConnecting) {
-            console.log('Wagmi is still connecting, waiting before redirect...');
-            return;
-        }
-
-        // wagmi has finished checking, now redirect if connected
+        if (isConnecting) return;
         if (isConnected) {
-            console.log('Wallet connected (final check), redirecting to home page');
             router.push('/');
         }
     }, [isConnected, isConnecting, router]);
-
-    useEffect(() => {
-        if (connectError) {
-            console.error('[Login] connect error:', connectError.message, connectError);
-        }
-    }, [connectError]);
-
-    useEffect(() => {
-        console.log('[Login] connect status changed:', connectStatus);
-    }, [connectStatus]);
-
-    const handleConnect = useCallback(async () => {
-        console.log('[Login] handleConnect', {
-            buttonState,
-            isConnected,
-            hasEthereum: !!(window as unknown as { ethereum?: unknown }).ethereum,
-            connectors: connectors.map(c => c.id),
-        });
-
-        if (buttonState === 'signing') return;
-
-        if (!isConnected) {
-            // In-app browser (Base App etc.) injects (window as unknown as { ethereum?: unknown }).ethereum → use injected
-            // Otherwise use coinbaseWalletSDK (smart wallet + extension)
-            const preferred = (window as unknown as { ethereum?: unknown }).ethereum
-                ? connectors.find(c => c.id === 'injected') ?? connectors[0]
-                : connectors.find(c => c.id === 'coinbaseWalletSDK') ?? connectors[0];
-            console.log('[Login] connecting with:', preferred.id, preferred.name);
-            connect({ connector: preferred });
-            return;
-        }
-
-        // Already connected, sign message
-        setButtonState('signing');
-        try {
-            const signature = await signMessageAsync({ message });
-            if (signature && address) {
-                console.log('Signature received:', signature);
-                setButtonState('success');
-            }
-        } catch {
-            setButtonState('error');
-        }
-    }, [isConnected, connect, connectors, signMessageAsync, message, address, buttonState]);
-
-    const buttonLabel = useMemo(() => {
-        switch (buttonState) {
-            case 'signing': return 'Signing...';
-            case 'success': return address ? shortAddress(address) : 'Connect Wallet';
-            case 'error': return 'Try Again';
-            default: return 'Connect Wallet';
-        }
-    }, [buttonState, address]);
 
     return (
         <div className="flex h-screen w-full max-w-800 flex-col items-center justify-center gap-6 bg-[#B1E1FF]">
@@ -103,11 +39,10 @@ export default function LoginPage() {
                 )}
             >
                 <button
-                    onClick={handleConnect}
-                    disabled={buttonState === 'signing'}
-                    className="z-10 inline-flex h-14 w-[180px] cursor-pointer items-center justify-center self-center rounded bg-[#7f4fe8] text-white font-medium disabled:opacity-50"
+                    onClick={() => setShowWalletModal(true)}
+                    className="z-10 inline-flex h-14 w-[180px] cursor-pointer items-center justify-center self-center rounded bg-[#7f4fe8] text-white font-medium"
                 >
-                    {buttonLabel}
+                    Connect Wallet
                 </button>
             </div>
             <Image src="/login/ainetwork.svg" alt="ainetwork" className="z-10" width={133} height={22} />
@@ -115,6 +50,7 @@ export default function LoginPage() {
             <div className="fixed bottom-0 flex w-full justify-center">
                 <Image src="/login/login_background.png" alt="Login Background" width={600} height={1000} />
             </div>
+            <ConnectWalletModal open={showWalletModal} onOpenChange={setShowWalletModal} />
         </div>
     );
 }

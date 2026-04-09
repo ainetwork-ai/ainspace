@@ -16,18 +16,23 @@ interface ConnectWalletModalProps {
     onOpenChange: (open: boolean) => void;
 }
 
+const CONNECTOR_LABELS: Record<string, string> = {
+    baseAccount: 'Base Account',
+    coinbaseWalletSDK: 'Coinbase Wallet',
+    injected: 'Browser Wallet',
+};
+
 export default function ConnectWalletModal({
     open,
     onOpenChange,
 }: ConnectWalletModalProps) {
     const { connect, connectors } = useConnect();
 
-    const handleConnect = () => {
+    const handleConnect = (connectorId: string) => {
+        const connector = connectors.find(c => c.id === connectorId);
+        if (!connector) return;
         onOpenChange(false);
-        const preferred = (window as unknown as { ethereum?: unknown }).ethereum
-            ? connectors.find(c => c.id === 'injected') ?? connectors[0]
-            : connectors.find(c => c.id === 'coinbaseWalletSDK') ?? connectors[0];
-        connect({ connector: preferred });
+        connect({ connector });
     };
 
     return (
@@ -38,19 +43,24 @@ export default function ConnectWalletModal({
                         <Wallet className="w-8 h-8 text-[#7C3AED]" />
                     </div>
                     <DialogTitle className="text-xl font-bold text-black text-center">
-                        Wallet Required
+                        Connect Wallet
                     </DialogTitle>
                     <DialogDescription className="text-base text-[#2F333B] text-center">
-                        This feature requires a wallet connection.
+                        Choose a wallet to connect.
                     </DialogDescription>
                 </DialogHeader>
 
-                <button
-                    onClick={handleConnect}
-                    className="w-full py-3 px-4 bg-[#7C3AED] text-white font-bold rounded-lg hover:bg-[#6D28D9] transition-colors"
-                >
-                    Connect Wallet
-                </button>
+                <div className="flex flex-col gap-2">
+                    {connectors.map((connector) => (
+                        <button
+                            key={connector.id}
+                            onClick={() => handleConnect(connector.id)}
+                            className="w-full py-3 px-4 bg-[#F3F0FF] text-[#7C3AED] font-bold rounded-lg hover:bg-[#E8E0FF] transition-colors text-left"
+                        >
+                            {CONNECTOR_LABELS[connector.id] ?? connector.name}
+                        </button>
+                    ))}
+                </div>
 
                 <button
                     onClick={() => onOpenChange(false)}

@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import Image from 'next/image';
-import { useAccount, useConnect } from 'wagmi';
+import { useAccount } from 'wagmi';
+import ConnectWalletModal from '../ConnectWalletModal';
 import { disconnect } from '@wagmi/core';
 import { MapPin, Copy, Check, LogOut } from 'lucide-react';
 import { useCopyAddress } from '@/hooks/useCopyAddress';
@@ -38,7 +39,7 @@ export default function DesktopLayout({
     onPublishTiles,
 }: LayoutProps) {
     const { address } = useAccount();
-    const { connect, connectors } = useConnect();
+    const [showWalletModal, setShowWalletModal] = useState(false);
     const { clearThreads } = useThreadStore();
     const { worldPosition } = useGameStateStore();
     const currentVillageName = useVillageStore((s) => s.currentVillage?.name);
@@ -52,6 +53,8 @@ export default function DesktopLayout({
     }, [clearThreads]);
 
     return (
+        <>
+        <ConnectWalletModal open={showWalletModal} onOpenChange={setShowWalletModal} />
         <div className="flex h-screen w-full bg-gray-100">
             {/* 왼쪽 사이드바 */}
             <div className="relative flex w-[440px] flex-col bg-[#2F333B] overflow-hidden" style={{ zIndex: Z_INDEX_OFFSETS.UI }}>
@@ -131,12 +134,7 @@ export default function DesktopLayout({
                         </div>
                     ) : (
                         <button
-                            onClick={() => {
-                                const preferred = (window as unknown as { ethereum?: unknown }).ethereum
-                                    ? connectors.find(c => c.id === 'injected') ?? connectors[0]
-                                    : connectors.find(c => c.id === 'coinbaseWalletSDK') ?? connectors[0];
-                                connect({ connector: preferred });
-                            }}
+                            onClick={() => setShowWalletModal(true)}
                             className="inline-flex cursor-pointer flex-row items-center gap-2 rounded-lg bg-[#7F4FE8] p-2 px-4"
                         >
                             <p className="text-sm font-bold text-white">Connect Wallet</p>
@@ -157,5 +155,6 @@ export default function DesktopLayout({
                 />
             </div>
         </div>
+        </>
     );
 }

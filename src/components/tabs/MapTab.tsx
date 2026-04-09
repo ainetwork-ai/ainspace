@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useAccount, useConnect } from 'wagmi';
+import { useAccount } from 'wagmi';
+import ConnectWalletModal from '../ConnectWalletModal';
 import Image from 'next/image';
 import { disconnect } from '@wagmi/core';
 import { MapPin, Copy, Check, LogOut } from 'lucide-react';
@@ -51,7 +52,7 @@ export default function MapTab({
     onPlaceAgentAtPosition,
 }: MapTabProps) {
     const { address } = useAccount();
-    const { connect, connectors } = useConnect();
+    const [showWalletModal, setShowWalletModal] = useState(false);
     const agents = useAgentStore((s) => s.agents);
     const { clearThreads } = useThreadStore();
     const { selectedAgentForPlacement, setSelectedAgentForPlacement } = useUIStore();
@@ -252,6 +253,7 @@ export default function MapTab({
 
     return (
         <BaseTabContent isActive={isActive} withPadding={false}>
+            <ConnectWalletModal open={showWalletModal} onOpenChange={setShowWalletModal} />
             {/* Game Area */}
             <div className="relative flex h-full w-full flex-col" style={{ touchAction: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}>
                 {/* Agent Placement Mode UI (모바일만) */}
@@ -320,14 +322,7 @@ export default function MapTab({
                     </div>
                 ) : (
                   <button
-                    onClick={() => {
-                      // In-app browser (Base App etc.) injects (window as unknown as { ethereum?: unknown }).ethereum → use injected
-                      // Otherwise use coinbaseWalletSDK (smart wallet + extension)
-                      const preferred = (window as unknown as { ethereum?: unknown }).ethereum
-                        ? connectors.find(c => c.id === 'injected') ?? connectors[0]
-                        : connectors.find(c => c.id === 'coinbaseWalletSDK') ?? connectors[0];
-                      connect({ connector: preferred });
-                    }}
+                    onClick={() => setShowWalletModal(true)}
                     className="absolute top-4 right-4 inline-flex cursor-pointer flex-row items-center justify-center gap-2 rounded-lg bg-[#7F4FE8] p-2 px-4"
                     style={{ zIndex: Z_INDEX_OFFSETS.UI }}
                   >
