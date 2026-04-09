@@ -18,7 +18,6 @@ interface ConnectWalletModalProps {
 
 const CONNECTOR_LABELS: Record<string, string> = {
     baseAccount: 'Base Account',
-    coinbaseWalletSDK: 'Coinbase Wallet',
     injected: 'Browser Wallet',
 };
 
