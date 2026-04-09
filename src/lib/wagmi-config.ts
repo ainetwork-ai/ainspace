@@ -11,7 +11,7 @@ export const config = createConfig({
         injected(),
         coinbaseWallet({
             appName: process.env.NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME || 'AINSpace',
-            preference: 'all'
+            preference: { options: 'all' }
         })
     ],
     transports: {
