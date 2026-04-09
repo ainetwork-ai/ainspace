@@ -1,18 +1,20 @@
 'use client';
 
 import Image from 'next/image';
-import { Signature, SignatureButton } from '@coinbase/onchainkit/signature';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useAccount } from 'wagmi';
+import { useAccount, useConnect, useSignMessage } from 'wagmi';
 import { useRouter } from 'next/navigation';
 import { cn, shortAddress } from '@/lib/utils';
 
 export default function LoginPage() {
     const { address, isConnected, isConnecting } = useAccount();
+    const { connect, connectors } = useConnect();
+    const { signMessageAsync } = useSignMessage();
     const router = useRouter();
     const [nonce] = useState(() => Date.now().toString());
     const message = useMemo(() => `Welcome to the AINSpace MiniApp!\n\nNonce: ${nonce}`, [nonce]);
     const [showButton, setShowButton] = useState(false);
+    const [buttonState, setButtonState] = useState<'idle' | 'signing' | 'success' | 'error'>('idle');
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -38,43 +40,54 @@ export default function LoginPage() {
         }
     }, [isConnected, isConnecting, router]);
 
-    const handleSignature = useCallback(
-        async (signature: string) => {
-            if (!signature || !address) return;
+    const handleConnect = useCallback(async () => {
+        if (buttonState === 'signing') return;
 
-            console.log('Signature received:', signature);
-            // After successful signature, user will be redirected via the useEffect above
-        },
-        [address]
-    );
+        if (!isConnected) {
+            // Connect wallet first
+            connect({ connector: connectors[0] });
+            return;
+        }
 
-    const ConnectWalletButton = () => {
-        return (
+        // Already connected, sign message
+        setButtonState('signing');
+        try {
+            const signature = await signMessageAsync({ message });
+            if (signature && address) {
+                console.log('Signature received:', signature);
+                setButtonState('success');
+            }
+        } catch {
+            setButtonState('error');
+        }
+    }, [isConnected, connect, connectors, signMessageAsync, message, address, buttonState]);
+
+    const buttonLabel = useMemo(() => {
+        switch (buttonState) {
+            case 'signing': return 'Signing...';
+            case 'success': return address ? shortAddress(address) : 'Connect Wallet';
+            case 'error': return 'Try Again';
+            default: return 'Connect Wallet';
+        }
+    }, [buttonState, address]);
+
+    return (
+        <div className="flex h-screen w-full max-w-800 flex-col items-center justify-center gap-6 bg-[#B1E1FF]">
+            <Image src="/login/logo.svg" alt="Login Background" className="z-10" width={190} height={108} />
             <div
                 className={cn(
                     'z-10 h-14 transition-all duration-700 ease-out',
                     showButton ? 'opacity-100' : 'opacity-0'
                 )}
             >
-                <Signature message={message} onSuccess={handleSignature}>
-                    <SignatureButton
-                        label="Connect Wallet"
-                        errorLabel="Try Again"
-                        successLabel={address ? shortAddress(address) : 'Connect Wallet'}
-                        pendingLabel="Signing..."
-                        className={
-                            'z-10 inline-flex w-[180px] cursor-pointer items-center justify-center self-center rounded bg-[#7f4fe8]'
-                        }
-                    />
-                </Signature>
+                <button
+                    onClick={handleConnect}
+                    disabled={buttonState === 'signing'}
+                    className="z-10 inline-flex h-14 w-[180px] cursor-pointer items-center justify-center self-center rounded bg-[#7f4fe8] text-white font-medium disabled:opacity-50"
+                >
+                    {buttonLabel}
+                </button>
             </div>
-        );
-    };
-
-    return (
-        <div className="flex h-screen w-full max-w-800 flex-col items-center justify-center gap-6 bg-[#B1E1FF]">
-            <Image src="/login/logo.svg" alt="Login Background" className="z-10" width={190} height={108} />
-            <ConnectWalletButton />
             <Image src="/login/ainetwork.svg" alt="ainetwork" className="z-10" width={133} height={22} />
             <div className="h-10" />
             <div className="fixed bottom-0 flex w-full justify-center">

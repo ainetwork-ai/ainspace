@@ -1,13 +1,11 @@
 'use client';
 
 import { useGameState } from '@/hooks/useGameState';
-import { useMiniKit } from '@coinbase/onchainkit/minikit';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { BROADCAST_RADIUS, MOVEMENT_MODE } from '@/constants/game';
 import { useUIStore, useThreadStore, useBuildStore, useAgentStore, useUserStore, useUserAgentStore } from '@/stores';
 import { useAccount } from 'wagmi';
-import sdk from '@farcaster/miniapp-sdk';
 import { StoredAgent } from '@/lib/redis';
 import { useVillageLoader } from '@/hooks/useVillageLoader';
 import { useVillageStore } from '@/stores/useVillageStore';
@@ -53,8 +51,6 @@ export default function Home() {
     } = useBuildStore();
     const { worldPosition, userId, visibleAgents } = useGameState();
     const { spawnAgent } = useAgentStore();
-    const { setFrameReady, isFrameReady } = useMiniKit();
-    const [isSDKLoaded, setIsSDKLoaded] = useState(false);
     const { address } = useAccount();
     const { setAddress, setPermissions, setLastVerifiedAt, initSessionId, resetSessionId, getSessionId, hasMigratedThreads, setMigratedThreads, isPermissionExpired, verifyPermissions } = useUserStore();
     const { updateAgent: updateUserAgent } = useUserAgentStore();
@@ -89,16 +85,12 @@ export default function Home() {
     }, [address, clearThreads, setCurrentThreadId, resetSessionId]);
 
     useEffect(() => {
-        if (!isFrameReady) {
-            setFrameReady();
-        }
-
         if (process.env.NEXT_PUBLIC_ENABLE_PERF_MARKS === 'true') {
             setTimeout(() => {
                 import('eruda').then((eruda) => eruda.default.init());
             }, 100);
         }
-    }, []); // Run only once on mount
+    }, []);
 
     useEffect(() => {
         const initUserAuth = async () => {
@@ -495,15 +487,6 @@ export default function Home() {
         findAvailableSpawnPosition: findAvailableSpawnPositionByRadius,
     });
 
-    useEffect(() => {
-        const load = async () => {
-            sdk.actions.ready({ disableNativeGestures: true });
-        };
-        if (sdk && !isSDKLoaded) {
-            setIsSDKLoaded(true);
-            load();
-        }
-    }, [isSDKLoaded]);
 
     // Tab normalization: desktop uses 'chat' instead of 'map', mobile uses 'map' instead of 'chat'
     useEffect(() => {
