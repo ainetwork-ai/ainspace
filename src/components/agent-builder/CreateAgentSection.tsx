@@ -3,19 +3,14 @@
 import Button from '@/components/ui/Button';
 import { A2A_BUILDER_URL } from '@/constants/agentContract';
 import { cn } from '@/lib/utils';
-import sdk from '@farcaster/miniapp-sdk';
 
 interface CreateAgentSectionProps {
     isDarkMode?: boolean;
 }
 
 export default function CreateAgentSection({ isDarkMode = false }: CreateAgentSectionProps) {
-    const handleCreateAgent = async () => {
-        if (await sdk.isInMiniApp()) {
-            sdk.actions.openUrl({ url: A2A_BUILDER_URL });
-        } else {
-          window.open(A2A_BUILDER_URL, '_blank');
-        }
+    const handleCreateAgent = () => {
+        window.open(A2A_BUILDER_URL, '_blank');
     }
 
     return (

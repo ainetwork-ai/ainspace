@@ -1,6 +1,5 @@
 import { Geist, Geist_Mono, Manrope } from 'next/font/google';
 import './globals.css';
-import '@coinbase/onchainkit/styles.css';
 import { Providers } from '@/providers/Providers';
 import { AuthGuard } from '@/components/AuthGuard';
 import { Analytics } from '@vercel/analytics/next';
@@ -100,22 +99,8 @@ export function generateMetadata(): Metadata {
             }
         },
         other: {
-            'fc:frame': JSON.stringify({
-                version: 'next',
-                imageUrl: process.env.NEXT_PUBLIC_APP_OG_IMAGE,
-                button: {
-                    title: `Launch ${projectName}`,
-                    action: {
-                        type: 'launch_frame',
-                        name: projectName,
-                        url: baseUrl,
-                        splashImageUrl: process.env.NEXT_PUBLIC_SPLASH_IMAGE,
-                        splashBackgroundColor: process.env.NEXT_PUBLIC_SPLASH_BACKGROUND_COLOR
-                    }
-                }
-            })
+          'base:app_id': '69d76201adb751d63e3ce6e2',
         },
-        manifest: '/.well-known/farcaster.json'
     };
 }
 
