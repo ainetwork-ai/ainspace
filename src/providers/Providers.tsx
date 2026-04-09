@@ -2,8 +2,6 @@
 
 import { WagmiProvider } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { base } from 'viem/chains';
-import { OnchainKitProvider } from '@coinbase/onchainkit';
 import { config } from '@/lib/wagmi-config';
 import { MapDataProvider } from './MapDataProvider';
 import { useEffect, useState } from 'react';
@@ -27,8 +25,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
     }, []);
 
     useEffect(() => {
-        if (mounted && window?.ethereum) {
-            window.ethereum.request({
+        const ethereum = (window as unknown as { ethereum?: { request: (args: { method: string; params: unknown[] }) => Promise<unknown> } }).ethereum;
+        if (mounted && ethereum) {
+            ethereum.request({
                 method: 'wallet_switchEthereumChain',
                 params: [{ chainId: BASE_CHAIN_ID }]
             });
@@ -39,27 +38,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <WagmiProvider config={config}>
             <QueryClientProvider client={queryClient}>
                 <MapDataProvider>
-                    <OnchainKitProvider
-                        apiKey={process.env.NEXT_PUBLIC_ONCHAINKIT_API_KEY!}
-                        chain={base}
-                        miniKit={{
-                            enabled: true,
-                            autoConnect: true
-                        }}
-                        config={{
-                            appearance: {
-                                mode: 'auto',
-                                theme: 'mini-app-theme',
-                                name: process.env.NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME,
-                                logo: process.env.NEXT_PUBLIC_APP_ICON
-                            },
-                            wallet: {
-                                display: 'classic'
-                            }
-                        }}
-                    >
-                        {children}
-                    </OnchainKitProvider>
+                    {children}
                 </MapDataProvider>
             </QueryClientProvider>
         </WagmiProvider>
