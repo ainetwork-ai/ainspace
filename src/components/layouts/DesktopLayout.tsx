@@ -131,7 +131,13 @@ export default function DesktopLayout({
                         </div>
                     ) : (
                         <button
-                            onClick={() => connect({ connector: connectors[0] })}
+                            onClick={() => {
+                                const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent);
+                                const preferred = isMobile
+                                    ? connectors.find(c => c.id === 'baseAccount') ?? connectors[0]
+                                    : connectors.find(c => c.id === 'coinbaseWalletSDK') ?? connectors[0];
+                                connect({ connector: preferred });
+                            }}
                             className="inline-flex cursor-pointer flex-row items-center gap-2 rounded-lg bg-[#7F4FE8] p-2 px-4"
                         >
                             <p className="text-sm font-bold text-white">Connect Wallet</p>
