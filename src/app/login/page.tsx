@@ -48,6 +48,7 @@ export default function LoginPage() {
 
     useEffect(() => {
         console.log('[Login] connect status changed:', connectStatus);
+        alert('[Login] status: ' + connectStatus);
     }, [connectStatus]);
 
     const handleConnect = useCallback(async () => {
