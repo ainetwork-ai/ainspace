@@ -40,15 +40,34 @@ export default function LoginPage() {
         }
     }, [isConnected, isConnecting, router]);
 
+    useEffect(() => {
+        if (connectError) {
+            console.error('[Login] connect error:', connectError.message, connectError);
+        }
+    }, [connectError]);
+
+    useEffect(() => {
+        console.log('[Login] connect status changed:', connectStatus);
+    }, [connectStatus]);
+
     const handleConnect = useCallback(async () => {
+        const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent);
+        console.log('[Login] handleConnect', {
+            buttonState,
+            isConnected,
+            isConnecting,
+            isMobile,
+            userAgent: navigator.userAgent,
+            connectors: connectors.map(c => c.id),
+        });
+
         if (buttonState === 'signing') return;
 
         if (!isConnected) {
-            // Base App (mobile) → baseAccount, desktop → coinbaseWalletSDK (smart wallet + extension)
-            const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent);
             const preferred = isMobile
                 ? connectors.find(c => c.id === 'baseAccount') ?? connectors[0]
                 : connectors.find(c => c.id === 'coinbaseWalletSDK') ?? connectors[0];
+            console.log('[Login] connecting with:', preferred.id, preferred.name);
             connect({ connector: preferred });
             return;
         }
