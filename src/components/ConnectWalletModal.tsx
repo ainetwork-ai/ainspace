@@ -24,9 +24,8 @@ export default function ConnectWalletModal({
 
     const handleConnect = () => {
         onOpenChange(false);
-        const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent);
-        const preferred = isMobile
-            ? connectors.find(c => c.id === 'baseAccount') ?? connectors[0]
+        const preferred = (window as unknown as { ethereum?: unknown }).ethereum
+            ? connectors.find(c => c.id === 'injected') ?? connectors[0]
             : connectors.find(c => c.id === 'coinbaseWalletSDK') ?? connectors[0];
         connect({ connector: preferred });
     };

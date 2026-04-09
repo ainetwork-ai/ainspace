@@ -51,21 +51,20 @@ export default function LoginPage() {
     }, [connectStatus]);
 
     const handleConnect = useCallback(async () => {
-        const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent);
         console.log('[Login] handleConnect', {
             buttonState,
             isConnected,
-            isConnecting,
-            isMobile,
-            userAgent: navigator.userAgent,
+            hasEthereum: !!(window as unknown as { ethereum?: unknown }).ethereum,
             connectors: connectors.map(c => c.id),
         });
 
         if (buttonState === 'signing') return;
 
         if (!isConnected) {
-            const preferred = isMobile
-                ? connectors.find(c => c.id === 'baseAccount') ?? connectors[0]
+            // In-app browser (Base App etc.) injects (window as unknown as { ethereum?: unknown }).ethereum → use injected
+            // Otherwise use coinbaseWalletSDK (smart wallet + extension)
+            const preferred = (window as unknown as { ethereum?: unknown }).ethereum
+                ? connectors.find(c => c.id === 'injected') ?? connectors[0]
                 : connectors.find(c => c.id === 'coinbaseWalletSDK') ?? connectors[0];
             console.log('[Login] connecting with:', preferred.id, preferred.name);
             connect({ connector: preferred });
