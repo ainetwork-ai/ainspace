@@ -44,8 +44,8 @@ export default function LoginPage() {
         if (buttonState === 'signing') return;
 
         if (!isConnected) {
-            // Connect wallet first
-            connect({ connector: connectors[0] });
+            const preferred = connectors.find(c => c.id === 'coinbaseWalletSDK') ?? connectors[0];
+            connect({ connector: preferred });
             return;
         }
 
