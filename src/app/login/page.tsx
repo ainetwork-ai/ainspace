@@ -8,7 +8,7 @@ import { cn, shortAddress } from '@/lib/utils';
 
 export default function LoginPage() {
     const { address, isConnected, isConnecting } = useAccount();
-    const { connect, connectors } = useConnect();
+    const { connect, connectors, error: connectError, status: connectStatus } = useConnect();
     const { signMessageAsync } = useSignMessage();
     const router = useRouter();
     const [nonce] = useState(() => Date.now().toString());
