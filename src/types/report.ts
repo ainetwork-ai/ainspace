@@ -35,9 +35,18 @@ export interface Reference {
   messageId: string;
 }
 
+export interface SegmentMessage {
+  id: string;
+  speaker: string;
+  content: string;
+  timestamp: number;
+  isUser: boolean;
+}
+
 export interface Quote {
   id: string;
   text: string;
+  context?: SegmentMessage[];
   reference: Reference;
 }
 
