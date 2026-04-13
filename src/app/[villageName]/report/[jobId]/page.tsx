@@ -6,13 +6,15 @@ import { T3CSynthesisSection } from "@/components/report/t3c/T3CSynthesisSection
 import { T3CTopicCard } from "@/components/report/t3c/T3CTopicCard";
 import { KeyFindingsToggle } from "@/components/report/KeyFindingsToggle";
 
+const REPORT_API_BASE_URL =
+  process.env.DEMO_REPORT_URL || process.env.NEXT_PUBLIC_A2A_ORCHESTRATION_BASE_URL;
+
 async function getReport(jobId: string): Promise<ReportApiResponse> {
-  const baseUrl = process.env.NEXT_PUBLIC_A2A_ORCHESTRATION_BASE_URL;
-  if (!baseUrl) {
+  if (!REPORT_API_BASE_URL) {
     throw new Error("NEXT_PUBLIC_A2A_ORCHESTRATION_BASE_URL is not configured");
   }
 
-  const res = await fetch(`${baseUrl}/reports/${jobId}?format=full`, {
+  const res = await fetch(`${REPORT_API_BASE_URL}/reports/${jobId}?format=full`, {
     cache: "no-store",
   });
 
