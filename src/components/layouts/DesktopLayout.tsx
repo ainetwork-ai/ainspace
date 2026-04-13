@@ -54,7 +54,7 @@ export default function DesktopLayout({
 
     return (
         <>
-        <ConnectWalletModal open={showWalletModal} onOpenChange={setShowWalletModal} />
+        <ConnectWalletModal open={showWalletModal} onOpenChange={setShowWalletModal} isDarkMode={true} />
         <div className="flex h-screen w-full bg-gray-100">
             {/* 왼쪽 사이드바 */}
             <div className="relative flex w-[440px] flex-col bg-[#2F333B] overflow-hidden" style={{ zIndex: Z_INDEX_OFFSETS.UI }}>

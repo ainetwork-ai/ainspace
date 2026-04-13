@@ -31,7 +31,7 @@ export default function DesktopSidebarFooter({ activeTab, onTabChange }: Desktop
 
     return (
         <>
-        <ConnectWalletModal open={showWalletModal} onOpenChange={setShowWalletModal} />
+        <ConnectWalletModal open={showWalletModal} onOpenChange={setShowWalletModal} isDarkMode={true} />
         <div className="bg-[#222529] px-4 py-6">
             <div className="flex h-[72px] w-full gap-2.5 items-center justify-center">
                 <button
