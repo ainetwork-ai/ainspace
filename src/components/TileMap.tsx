@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { TILE_SIZE, DIRECTION, BROADCAST_RADIUS } from '@/constants/game';
+import { useRouter } from 'next/navigation';
+import { TILE_SIZE, DIRECTION, BROADCAST_RADIUS, VILLAGE_SIZE } from '@/constants/game';
 import { worldToGrid } from '@/lib/village-utils';
 import { useBuildStore, useChatStore, useGameStateStore, useUserStore } from '@/stores';
 import type { TileLayers } from '@/stores';
@@ -10,6 +11,7 @@ import { calculateDistance } from '@/lib/utils';
 import { useTiledMap } from '@/hooks/useTiledMap';
 import { Z_INDEX_OFFSETS } from '@/constants/common';
 import { useVillageStore } from '@/stores/useVillageStore';
+import { TEMP_REPORT_JOB_ID } from '@/types/report';
 import { Loader2 } from 'lucide-react';
 import CSSSprite from './CSSSprite';
 import type { OnlinePlayer } from '@/hooks/useVillagePresence';
@@ -63,8 +65,10 @@ function TileMap({
     const [lastPaintedTile, setLastPaintedTile] = useState<{ x: number; y: number } | null>(null);
     const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
 
+    const router = useRouter();
     const { worldPosition } = useGameStateStore();
     const isCurrentVillageLoaded = useVillageStore((s) => s.isCurrentVillageLoaded);
+    const nearbyVillages = useVillageStore((s) => s.nearbyVillages);
     
     const [zoomLevel, setZoomLevel] = useState(fixedZoom !== undefined ? fixedZoom : 1.0);
     const MIN_ZOOM = 0.5;
@@ -335,6 +339,85 @@ function TileMap({
                     <p className="mt-4 text-sm font-medium text-[#C0A9F1]">Loading village...</p>
                 </div>
             )}
+
+            {/* Render Report Icons per Village */}
+            {isCurrentVillageLoaded && (() => {
+                const tilesX = Math.ceil(canvasSize.width / tileSize);
+                const tilesY = Math.ceil(canvasSize.height / tileSize);
+                const half = VILLAGE_SIZE / 2;
+                const REPORT_LOCAL_X = 9;
+                const REPORT_LOCAL_Y = 1;
+
+                return Array.from(nearbyVillages.values()).map((village) => {
+                    const worldX = village.gridX * VILLAGE_SIZE - half + REPORT_LOCAL_X;
+                    const worldY = village.gridY * VILLAGE_SIZE - half + REPORT_LOCAL_Y;
+                    const screenX = worldX - cameraTilePosition.x;
+                    const screenY = worldY - cameraTilePosition.y;
+
+                    if (screenX < -1 || screenX > tilesX + 1 || screenY < -1 || screenY > tilesY + 1) {
+                        return null;
+                    }
+
+                    // Distance from player to report icon center (icon is 2x2, center at +0.5, +0.5)
+                    const dist = calculateDistance(
+                        { x: worldX + 0.5, y: worldY + 0.5 },
+                        worldPosition
+                    );
+                    const isNearby = dist <= BROADCAST_RADIUS;
+                    const isClickable = isTouchDevice ? isNearby : true;
+
+                    return (
+                        <div
+                            key={`report-${village.slug}`}
+                            style={{
+                                position: 'absolute',
+                                left: `${screenX * tileSize - TILE_SIZE / 4}px`,
+                                top: `${screenY * tileSize - TILE_SIZE / 4}px`,
+                                width: `${tileSize * 2}px`,
+                                height: `${tileSize * 2}px`,
+                                pointerEvents: buildMode === 'paint' ? 'none' : isClickable ? 'auto' : 'none',
+                                cursor: isClickable ? 'pointer' : 'default',
+                                zIndex: Z_INDEX_OFFSETS.GAME + (worldY + 2) * 2,
+                            }}
+                            onClick={(e) => {
+                                if (buildMode === 'paint' || !isClickable) return;
+                                e.stopPropagation();
+                                router.push(`/${village.slug}/report/${TEMP_REPORT_JOB_ID}`);
+                            }}
+                        >
+                            {/* Tooltip - only when nearby */}
+                            {isNearby && (
+                                <div
+                                    style={{
+                                        position: 'absolute',
+                                        top: '-28px',
+                                        left: '50%',
+                                        transform: 'translateX(-50%)',
+                                        fontSize: '11px',
+                                        fontWeight: 'bold',
+                                        color: '#fff',
+                                        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                                        padding: '2px 8px',
+                                        borderRadius: '4px',
+                                        whiteSpace: 'nowrap',
+                                        zIndex: -1,
+                                        pointerEvents: 'none',
+                                        border: '1.5px solid #00E5FF',
+                                    }}
+                                >
+                                    Click for Village Report
+                                </div>
+                            )}
+                            <img
+                                src="/map/report.png"
+                                alt="Report"
+                                style={{ width: 80, height: 80, imageRendering: 'pixelated' }}
+                                draggable={false}
+                            />
+                        </div>
+                    );
+                });
+            })()}
 
             {/* Render Agents using SpriteAnimator */}
             {isCurrentVillageLoaded && (() => {
