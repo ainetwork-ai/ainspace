@@ -60,7 +60,6 @@ export function useSSEConnection({
 
   const connect = useCallback((targetUrl: string) => {
     cleanup();
-    reconnectAttemptsRef.current = 0;
 
     const es = new EventSource(targetUrl);
     eventSourceRef.current = es;
@@ -101,6 +100,7 @@ export function useSSEConnection({
 
   useEffect(() => {
     if (url) {
+      reconnectAttemptsRef.current = 0;
       connect(url);
     } else {
       cleanup();

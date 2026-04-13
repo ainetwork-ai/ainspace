@@ -172,11 +172,11 @@ export async function GET(request: NextRequest) {
         }, Math.max(reconnectDelay, 60000));
       } catch (error) {
         console.error('Village SSE setup error:', error);
-        // Send empty snapshot in degraded mode
         if (!snapshotSent) {
           send('snapshot', JSON.stringify({ players: [] }));
           snapshotSent = true;
         }
+        cleanup();
       }
     },
   });
