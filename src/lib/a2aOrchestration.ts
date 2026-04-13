@@ -222,37 +222,3 @@ export async function removeAgentFromThread(threadId: string, agentName: string)
   }
 }
 
-/**
- * Connect to a thread's real-time stream using SSE via our proxy
- * @param threadId - The thread ID
- * @param onMessage - Callback for incoming events
- * @returns EventSource instance (call .close() to disconnect)
- */
-export function connectToThreadStream(
-  threadId: string,
-  onMessage: (event: StreamEvent) => void
-): EventSource {
-  // Use our proxy API to avoid CORS issues
-  const eventSource = new EventSource(`/api/thread-stream/${threadId}`);
-
-  eventSource.onmessage = (event) => {
-    try {
-      console.log('Raw SSE event.data:', event.data);
-      const data = JSON.parse(event.data);
-      console.log('Parsed SSE data:', data);
-      onMessage(data);
-    } catch (error) {
-      console.error('Failed to parse SSE message:', error, 'Raw data:', event.data);
-    }
-  };
-
-  eventSource.onerror = (error) => {
-    console.error('SSE connection error:', error);
-    onMessage({
-      type: 'error',
-      data: { error: 'Connection error' },
-    });
-  };
-
-  return eventSource;
-}

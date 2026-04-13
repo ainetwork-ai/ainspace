@@ -55,61 +55,150 @@ export async function scanKeys(pattern: string, count: number = 100): Promise<st
     }
 }
 
-export interface PlayerPosition {
+// --- Presence types & functions (EPIC23) ---
+
+import { DIRECTION } from '@/constants/game';
+
+export interface PlayerPresence {
+    userId: string;
     x: number;
     y: number;
-    lastUpdated: string;
+    direction: DIRECTION;
+    displayName: string;
+    spriteKey: string;
 }
 
-export async function savePlayerPosition(userId: string, position: { x: number; y: number }): Promise<void> {
-    try {
-        const redis = await getRedisClient();
-        const playerData: PlayerPosition = {
-            x: position.x,
-            y: position.y,
-            lastUpdated: new Date().toISOString()
-        };
+// Subscriber client for Pub/Sub (separate from command client)
+let subscriber: ReturnType<typeof createClient> | null = null;
 
-        await redis.hSet(`player:${userId}`, {
-            x: playerData.x.toString(),
-            y: playerData.y.toString(),
-            lastUpdated: playerData.lastUpdated
-        });
-        await redis.expire(`player:${userId}`, 86400); // Expire after 24 hours
-    } catch (error) {
-        console.error('Error saving player position:', error);
+export async function getRedisSubscriber() {
+    try {
+        if (!subscriber) {
+            const commandClient = await getRedisClient();
+            subscriber = commandClient.duplicate();
+            subscriber.on('error', (err) => {
+                console.error('Redis Subscriber Error', err);
+            });
+        }
+        if (!subscriber.isOpen) {
+            await subscriber.connect();
+        }
+        return subscriber;
+    } catch (error: unknown) {
+        if (
+            error instanceof Error &&
+            (error.message?.includes('Socket already opened') || error.message?.includes('already connected'))
+        ) {
+            return subscriber!;
+        }
         throw error;
     }
 }
 
-export async function getPlayerPosition(userId: string): Promise<PlayerPosition | null> {
+export async function savePlayerPresence(
+    villageSlug: string | null | undefined,
+    userId: string,
+    data: Omit<PlayerPresence, 'userId'>
+): Promise<void> {
+    if (!villageSlug) return;
     try {
         const redis = await getRedisClient();
-        const playerData = await redis.hGetAll(`player:${userId}`);
+        const presence: PlayerPresence = {
+            ...data,
+            userId,
+        };
+        await redis.hSet(`village:${villageSlug}:players`, userId, JSON.stringify(presence));
+    } catch (error) {
+        console.error('Error saving player presence:', error);
+    }
+}
 
-        if (!playerData || Object.keys(playerData).length === 0) {
-            return null;
+export async function removePlayerPresence(villageSlug: string, userId: string): Promise<void> {
+    try {
+        const redis = await getRedisClient();
+        await redis.hDel(`village:${villageSlug}:players`, userId);
+        await publishVillageEvent(villageSlug, { type: 'PLAYER_LEFT', userId });
+    } catch (error) {
+        console.error('Error removing player presence:', error);
+    }
+}
+
+export async function publishVillageEvent(
+    villageSlug: string,
+    event: Record<string, unknown>
+): Promise<void> {
+    try {
+        const redis = await getRedisClient();
+        await redis.publish(`village:${villageSlug}:events`, JSON.stringify(event));
+    } catch (error) {
+        console.error('Error publishing village event:', error);
+    }
+}
+
+export async function joinVillage(
+    userId: string,
+    villageSlug: string,
+    playerData: Omit<PlayerPresence, 'userId'>,
+    prevVillageSlug?: string | null
+): Promise<void> {
+    try {
+        // Clean up previous village if different
+        if (prevVillageSlug && prevVillageSlug !== villageSlug) {
+            const redis = await getRedisClient();
+            await redis.hDel(`village:${prevVillageSlug}:players`, userId);
+            await publishVillageEvent(prevVillageSlug, { type: 'PLAYER_LEFT', userId });
+        }
+        await savePlayerPresence(villageSlug, userId, playerData);
+        const redis = await getRedisClient();
+        await redis.expire(`village:${villageSlug}:players`, 3600);
+        await publishVillageEvent(villageSlug, { type: 'PLAYER_JOINED', userId, ...playerData });
+    } catch (error) {
+        console.error('Error joining village:', error);
+    }
+}
+
+export async function getVillagePlayers(villageSlug: string): Promise<PlayerPresence[]> {
+    try {
+        const redis = await getRedisClient();
+        const raw = await redis.hGetAll(`village:${villageSlug}:players`);
+        if (!raw || Object.keys(raw).length === 0) return [];
+
+        // Stale detection based on heartbeat hash (60s threshold)
+        const heartbeats = await redis.hGetAll(`village:${villageSlug}:heartbeat`);
+        const now = Date.now();
+        const staleThreshold = now - 60000;
+        const players: PlayerPresence[] = [];
+        const staleIds: string[] = [];
+
+        for (const [uid, json] of Object.entries(raw)) {
+            try {
+                const lastHeartbeat = Number(heartbeats[uid] || 0);
+                if (lastHeartbeat < staleThreshold) {
+                    staleIds.push(uid);
+                    continue;
+                }
+                const p: PlayerPresence = JSON.parse(json);
+                players.push(p);
+            } catch {
+                staleIds.push(uid);
+            }
         }
 
-        return {
-            x: parseInt(playerData.x) || 0,
-            y: parseInt(playerData.y) || 0,
-            lastUpdated: playerData.lastUpdated || new Date().toISOString()
-        };
+        if (staleIds.length > 0) {
+            staleIds.forEach(uid => publishVillageEvent(villageSlug, { type: 'PLAYER_LEFT', userId: uid }));
+            redis.hDel(`village:${villageSlug}:players`, staleIds).catch(() => {});
+            redis.hDel(`village:${villageSlug}:heartbeat`, staleIds).catch(() => {});
+        }
+
+        return players;
     } catch (error) {
-        console.error('Error getting player position:', error);
-        return null;
+        console.error('Error getting village players:', error);
+        return [];
     }
 }
 
-export async function deletePlayerPosition(userId: string): Promise<void> {
-    try {
-        const redis = await getRedisClient();
-        await redis.del(`player:${userId}`);
-    } catch (error) {
-        console.error('Error deleting player position:', error);
-        throw error;
-    }
+export async function cleanupStale(villageSlug: string): Promise<void> {
+    await getVillagePlayers(villageSlug);
 }
 
 export type TileLayers = {

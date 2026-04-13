@@ -32,6 +32,12 @@ export function isValidEthAddress(value: string): boolean {
     return ETH_ADDRESS_REGEX.test(value);
 }
 
+export function getDisplayName(address?: string | null, sessionId?: string | null, fallbackId?: string): string {
+    if (address) return shortAddress(address);
+    if (sessionId) return sessionId.slice(0, 8);
+    return fallbackId?.slice(0, 8) || 'unknown';
+}
+
 // Calculate Euclidean distance between two points
 export function calculateDistance(pos1: { x: number; y: number }, pos2: { x: number; y: number }): number {
   return Math.sqrt(Math.pow(pos1.x - pos2.x, 2) + Math.pow(pos1.y - pos2.y, 2));

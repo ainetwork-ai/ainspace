@@ -12,6 +12,7 @@ import { Z_INDEX_OFFSETS } from '@/constants/common';
 import { useVillageStore } from '@/stores/useVillageStore';
 import { Loader2 } from 'lucide-react';
 import CSSSprite from './CSSSprite';
+import type { OnlinePlayer } from '@/hooks/useVillagePresence';
 
 interface TileMapProps {
     mapData: number[][];
@@ -34,6 +35,7 @@ interface TileMapProps {
     onAgentClick?: (agentId: string, agentName: string) => void;
     isPositionValid?: (x: number, y: number) => boolean;
     selectedPosition?: { x: number; y: number } | null;
+    onlinePlayers?: OnlinePlayer[];
 }
 
 function TileMap({
@@ -52,7 +54,8 @@ function TileMap({
     hideCoordinates = false,
     onAgentClick,
     isPositionValid,
-    selectedPosition = null
+    selectedPosition = null,
+    onlinePlayers,
 }: TileMapProps) {
     const containerRef = useRef<HTMLDivElement>(null);
 
@@ -353,7 +356,7 @@ function TileMap({
                 const agentSpriteHeight = agent.spriteHeight || TILE_SIZE;
 
                 const topOffset = agentSpriteHeight === TILE_SIZE ? agentSpriteHeight / 4 : agentSpriteHeight / 1.5;
-                const agentZIndex = Z_INDEX_OFFSETS.GAME + (agent.y || 0);
+                const agentZIndex = Z_INDEX_OFFSETS.GAME + (agent.y || 0) * 2;
                 const isNearby = calculateDistance(agent, worldPosition) <= BROADCAST_RADIUS;
 
                 return (
@@ -419,12 +422,80 @@ function TileMap({
             });
             })()}
 
+            {/* Render Online Players */}
+            {isCurrentVillageLoaded && (() => {
+            const tilesX = Math.ceil(canvasSize.width / tileSize);
+            const tilesY = Math.ceil(canvasSize.height / tileSize);
+            return (onlinePlayers ?? []).map((player) => {
+                const screenX = player.x - cameraTilePosition.x;
+                const screenY = player.y - cameraTilePosition.y;
+
+                if (screenX < -1 || screenX > tilesX + 1 || screenY < -1 || screenY > tilesY + 1) {
+                    return null;
+                }
+
+                const startFrame = getStartFrame(player.direction || DIRECTION.DOWN);
+                const spriteUrl = player.spriteKey ? `/sprite/${player.spriteKey}` : '/sprite/sprite_user.png';
+                const zIndex = Z_INDEX_OFFSETS.GAME + player.y * 2;
+                const displayName = player.displayName.length > 10
+                    ? player.displayName.slice(0, 10) + '...'
+                    : player.displayName;
+
+                return (
+                    <div
+                        key={`online-${player.userId}`}
+                        style={{
+                            position: 'absolute',
+                            left: `${screenX * tileSize - TILE_SIZE / 4}px`,
+                            top: `${screenY * tileSize - 30}px`,
+                            width: `${tileSize}px`,
+                            height: `${tileSize}px`,
+                            pointerEvents: 'none',
+                            zIndex,
+                            opacity: player.isLeaving ? 0 : 1,
+                            transition: player.isLeaving ? 'opacity 1.5s ease-out' : 'none',
+                        }}
+                    >
+                        <CSSSprite
+                            sprite={spriteUrl}
+                            width={TILE_SIZE}
+                            height={50}
+                            scale={1}
+                            fps={6}
+                            direction={'horizontal'}
+                            shouldAnimate={false}
+                            startFrame={startFrame}
+                        />
+                        <div
+                            style={{
+                                position: 'absolute',
+                                top: '-20px',
+                                left: '50%',
+                                transform: 'translateX(-50%)',
+                                fontSize: '11px',
+                                fontWeight: 'bold',
+                                color: '#fff',
+                                backgroundColor: 'rgba(30, 60, 120, 0.8)',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                whiteSpace: 'nowrap',
+                                zIndex: 20,
+                                pointerEvents: 'none',
+                            }}
+                        >
+                            {displayName}
+                        </div>
+                    </div>
+                );
+            });
+            })()}
+
             {/* Render Player using SpriteAnimator */}
             {isCurrentVillageLoaded && (() => {
                 const playerScreenTileX = worldPosition.x - cameraTilePosition.x;
                 const playerScreenTileY = worldPosition.y - cameraTilePosition.y;
                 const playerStartFrame = getStartFrame(playerDirection);
-                const playerZIndex = Z_INDEX_OFFSETS.GAME + worldPosition.y;
+                const playerZIndex = Z_INDEX_OFFSETS.GAME + worldPosition.y * 2 + 1;
 
                 return (
                     <div
@@ -448,6 +519,25 @@ function TileMap({
                             shouldAnimate={playerIsMoving}
                             startFrame={playerStartFrame}
                         />
+                        <div
+                            style={{
+                                position: 'absolute',
+                                top: '-20px',
+                                left: '50%',
+                                transform: 'translateX(-50%)',
+                                fontSize: '11px',
+                                fontWeight: 'bold',
+                                color: '#000',
+                                backgroundColor: 'rgba(255, 255, 255, 0.7)',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                whiteSpace: 'nowrap',
+                                zIndex: 20,
+                                pointerEvents: 'none',
+                            }}
+                        >
+                            Me
+                        </div>
                         {showCollisionMap && !hideCoordinates && (
                             <div
                                 style={{
