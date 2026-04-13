@@ -6,6 +6,15 @@ import { TOPIC_COLORS } from "@/types/report";
 import { DotGrid } from "../shared/DotGrid";
 import { ClaimItem } from "./ClaimItem";
 
+const stanceToSentiment = (
+  stance: string
+): "positive" | "negative" | "neutral" =>
+  stance === "support"
+    ? "positive"
+    : stance === "oppose"
+      ? "negative"
+      : "neutral";
+
 interface T3CTopicCardProps {
   topic: Topic;
   topicIndex: number;
@@ -21,19 +30,11 @@ export function T3CTopicCard({ topic, topicIndex }: T3CTopicCardProps) {
   const topicColor = TOPIC_COLORS[topicIndex % TOPIC_COLORS.length];
   const claims = topic.claims || [];
 
-  const stanceToSentiment = (
-    stance: string
-  ): "positive" | "negative" | "neutral" =>
-    stance === "support"
-      ? "positive"
-      : stance === "oppose"
-        ? "negative"
-        : "neutral";
-
   const dotMessages: ReportMessage[] = useMemo(() => {
     if (topic.messages && topic.messages.length > 0) return topic.messages;
+    const topicClaims = topic.claims || [];
     const seen = new Set<string>();
-    return claims.flatMap((claim) =>
+    return topicClaims.flatMap((claim) =>
       claim.quotes
         .filter((q) => {
           if (seen.has(q.reference.messageId)) return false;
@@ -51,7 +52,7 @@ export function T3CTopicCard({ topic, topicIndex }: T3CTopicCardProps) {
           isSubstantive: true,
         }))
     );
-  }, [topic.messages, claims]);
+  }, [topic.messages, topic.claims]);
 
   const summaryText =
     topic.summary?.consensus?.join(" ") || topic.description || "";

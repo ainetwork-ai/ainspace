@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { Quote as QuoteIcon } from "lucide-react";
 import type { Claim, Quote } from "@/types/report";
 
@@ -111,7 +111,10 @@ export function ClaimItem({
   color: string;
   onHover: (messageIds: string[] | null) => void;
 }) {
-  const messageIds = claim.quotes.map((q) => q.reference.messageId);
+  const messageIds = useMemo(
+    () => claim.quotes.map((q) => q.reference.messageId),
+    [claim.quotes]
+  );
 
   return (
     <div
