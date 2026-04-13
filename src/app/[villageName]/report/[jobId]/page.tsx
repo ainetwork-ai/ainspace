@@ -2,17 +2,13 @@ import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import type { ReportApiResponse } from "@/types/report";
+import { REPORT_API_BASE_URL } from "@/lib/report";
+import { isValidUUID } from "@/lib/utils";
 import { T3CSynthesisSection } from "@/components/report/t3c/T3CSynthesisSection";
 import { T3CTopicCard } from "@/components/report/t3c/T3CTopicCard";
 
-// FIXME: DEMO_REPORT_URL은 임시. 프로덕션 리포트 서버 확정 후 제거
-const REPORT_API_BASE_URL =
-  process.env.DEMO_REPORT_URL || process.env.NEXT_PUBLIC_A2A_ORCHESTRATION_BASE_URL;
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 async function getReport(jobId: string): Promise<ReportApiResponse> {
-  if (!UUID_REGEX.test(jobId)) {
+  if (!isValidUUID(jobId)) {
     throw new Error("Invalid job ID format");
   }
 
@@ -70,6 +66,11 @@ export default async function ReportPage({
     ? new Date(report.date).getTime()
     : (report.createdAt ?? data.createdAt);
 
+  // Sort topics by claims count descending
+  const sortedTopics = report.topics
+    ? [...report.topics].sort((a, b) => (b.claims?.length ?? 0) - (a.claims?.length ?? 0))
+    : undefined;
+
   return (
     <>
       {/* Header */}
@@ -78,12 +79,12 @@ export default async function ReportPage({
           {displayTitle}
         </h1>
         <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-          {report.topics && (
+          {sortedTopics && (
             <>
-              <span>{report.topics.length} topics</span>
+              <span>{sortedTopics.length} topics</span>
               <span className="text-muted-foreground/50">·</span>
               <span>
-                {report.topics.reduce(
+                {sortedTopics.reduce(
                   (s, t) => s + (t.claims?.length ?? 0),
                   0
                 )}{" "}
@@ -115,18 +116,18 @@ export default async function ReportPage({
       </header>
 
       {/* Synthesis */}
-      {report.synthesis && report.topics && (
+      {report.synthesis && sortedTopics && (
         <T3CSynthesisSection
           synthesis={report.synthesis}
           statistics={statistics}
-          topics={report.topics}
+          topics={sortedTopics}
         />
       )}
 
       {/* Topic Cards */}
-      {report.topics && (
+      {sortedTopics && (
         <section className="mt-8 space-y-6">
-          {report.topics.map((topic, index) => (
+          {sortedTopics.map((topic, index) => (
             <T3CTopicCard
               key={topic.id}
               topic={topic}

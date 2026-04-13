@@ -15,10 +15,7 @@ export function T3CSynthesisSection({
   statistics: ReportStatistics;
   topics: Topic[];
 }) {
-  const totalClaims = topics.reduce(
-    (sum, t) => sum + (t.claims?.length ?? 0),
-    0
-  );
+  const maxClaims = Math.max(...topics.map((t) => t.claims?.length ?? 0), 1);
 
   return (
     <>
@@ -51,8 +48,7 @@ export function T3CSynthesisSection({
         <div className="space-y-0">
           {topics.map((topic, index) => {
             const claimCount = topic.claims?.length ?? 0;
-            const pct =
-              totalClaims > 0 ? (claimCount / totalClaims) * 100 : 0;
+            const pct = (claimCount / maxClaims) * 100;
             const color = TOPIC_COLORS[index % TOPIC_COLORS.length];
 
             return (

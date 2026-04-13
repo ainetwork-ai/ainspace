@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { TILE_SIZE, DIRECTION, BROADCAST_RADIUS, VILLAGE_SIZE } from '@/constants/game';
 import { worldToGrid } from '@/lib/village-utils';
@@ -68,7 +68,8 @@ function TileMap({
     const router = useRouter();
     const { worldPosition } = useGameStateStore();
     const isCurrentVillageLoaded = useVillageStore((s) => s.isCurrentVillageLoaded);
-    const nearbyVillages = useVillageStore((s) => s.nearbyVillages);
+    const nearbyVillagesMap = useVillageStore((s) => s.nearbyVillages);
+    const nearbyVillagesArr = useMemo(() => Array.from(nearbyVillagesMap.values()), [nearbyVillagesMap]);
     
     const [zoomLevel, setZoomLevel] = useState(fixedZoom !== undefined ? fixedZoom : 1.0);
     const MIN_ZOOM = 0.5;
@@ -348,7 +349,7 @@ function TileMap({
                 const REPORT_LOCAL_X = 9;
                 const REPORT_LOCAL_Y = 1;
 
-                return Array.from(nearbyVillages.values()).map((village) => {
+                return nearbyVillagesArr.map((village) => {
                     const worldX = village.gridX * VILLAGE_SIZE - half + REPORT_LOCAL_X;
                     const worldY = village.gridY * VILLAGE_SIZE - half + REPORT_LOCAL_Y;
                     const screenX = worldX - cameraTilePosition.x;

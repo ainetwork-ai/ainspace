@@ -35,9 +35,18 @@ export interface Reference {
   messageId: string;
 }
 
+export interface SegmentMessage {
+  id: string;
+  speaker: string;
+  content: string;
+  timestamp: number;
+  isUser: boolean;
+}
+
 export interface Quote {
   id: string;
   text: string;
+  context?: SegmentMessage[];
   reference: Reference;
 }
 
@@ -181,29 +190,3 @@ export const TOPIC_COLORS = [
   "#d946ef",
 ];
 
-export const STANCE_COLORS: Record<string, { bg: string; text: string }> = {
-  support: {
-    bg: "bg-emerald-100 dark:bg-emerald-900/30",
-    text: "text-emerald-700 dark:text-emerald-400",
-  },
-  oppose: {
-    bg: "bg-red-100 dark:bg-red-900/30",
-    text: "text-red-700 dark:text-red-400",
-  },
-  neutral: {
-    bg: "bg-gray-100 dark:bg-gray-800",
-    text: "text-gray-700 dark:text-gray-400",
-  },
-  request: {
-    bg: "bg-blue-100 dark:bg-blue-900/30",
-    text: "text-blue-700 dark:text-blue-400",
-  },
-  question: {
-    bg: "bg-purple-100 dark:bg-purple-900/30",
-    text: "text-purple-700 dark:text-purple-400",
-  },
-};
-
-export function formatNumber(num: number) {
-  return num.toLocaleString("ko-KR");
-}
