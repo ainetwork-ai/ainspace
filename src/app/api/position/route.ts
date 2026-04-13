@@ -6,6 +6,7 @@ import {
   getRedisClient,
 } from '@/lib/redis';
 import { worldToGrid } from '@/lib/village-utils';
+import { DIRECTION } from '@/constants/game';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -66,7 +67,7 @@ export async function POST(request: NextRequest) {
     // Save presence + publish PLAYER_MOVED (only if in a village)
     if (slug) {
       try {
-        const dir = direction || 'down';
+        const dir = direction || DIRECTION.DOWN;
         await Promise.all([
           savePlayerPresence(slug, userId, {
             x: position.x,

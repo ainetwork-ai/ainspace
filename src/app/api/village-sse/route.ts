@@ -4,10 +4,11 @@ import {
   getRedisSubscriber,
   joinVillage,
   getVillagePlayers,
-  savePlayerPresence,
+  removePlayerPresence,
   cleanupStale,
   PlayerPresence,
 } from '@/lib/redis';
+import { DIRECTION } from '@/constants/game';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -28,7 +29,7 @@ export async function GET(request: NextRequest) {
   const playerData = {
     x: Number(searchParams.get('x') || 0),
     y: Number(searchParams.get('y') || 0),
-    direction: searchParams.get('direction') || 'down',
+    direction: (searchParams.get('direction') as DIRECTION) || DIRECTION.DOWN,
     spriteKey: searchParams.get('spriteKey') || 'sprite_user.png',
     displayName: searchParams.get('displayName') || userId.slice(0, 8),
   };
@@ -67,12 +68,16 @@ export async function GET(request: NextRequest) {
         if (pingInterval) clearInterval(pingInterval);
         if (cleanupInterval) clearInterval(cleanupInterval);
         if (reconnectTimeout) clearTimeout(reconnectTimeout);
-        // Unsubscribe listener (don't remove presence — rely on lastUpdated lazy cleanup)
         if (listenerFn) {
           getRedisSubscriber()
             .then(sub => sub.unsubscribe(`village:${village}:events`, listenerFn!))
             .catch(() => {});
         }
+        // Explicitly remove presence + heartbeat on disconnect
+        removePlayerPresence(village, userId).catch(() => {});
+        getRedisClient()
+          .then(redis => redis.hDel(`village:${village}:heartbeat`, userId))
+          .catch(() => {});
         try {
           controller.close();
         } catch {
@@ -105,8 +110,10 @@ export async function GET(request: NextRequest) {
         const sub = await getRedisSubscriber();
         await sub.subscribe(`village:${village}:events`, listenerFn);
 
-        // 2. Join village (saves presence + publishes PLAYER_JOINED)
+        // 2. Join village (saves presence + publishes PLAYER_JOINED) + set initial heartbeat
         await joinVillage(userId, village, playerData, prevVillage);
+        const redis = await getRedisClient();
+        await redis.hSet(`village:${village}:heartbeat`, userId, String(Date.now()));
 
         // 3. Send initial snapshot
         let players: PlayerPresence[] = [];
@@ -126,34 +133,15 @@ export async function GET(request: NextRequest) {
         }
         eventBuffer.length = 0;
 
-        // 5. Heartbeat ping every 15s
-        // Only refreshes lastUpdated (not x/y) to avoid overwriting position POST data
+        // 5. Heartbeat ping every 15s — write to separate heartbeat hash (1 call, no race)
         pingInterval = setInterval(async () => {
           if (closed) return;
           send('ping', '{}');
-          // Touch lastUpdated without overwriting position — read current data from Redis first
           try {
             const redis = await getRedisClient();
-            const raw = await redis.hGet(`village:${village}:players`, userId);
-            if (raw) {
-              const current = JSON.parse(raw);
-              current.lastUpdated = Date.now();
-              await redis.hSet(`village:${village}:players`, userId, JSON.stringify(current));
-            } else {
-              // Player not in HASH (possibly cleaned up) — re-save with initial data
-              await savePlayerPresence(village, userId, playerData);
-            }
+            await redis.hSet(`village:${village}:heartbeat`, userId, String(Date.now()));
           } catch {
             // Non-critical
-          }
-          // Check subscriber health
-          try {
-            const sub = await getRedisSubscriber();
-            if (!sub.isOpen) {
-              send('error', JSON.stringify({ message: 'subscriber disconnected' }));
-            }
-          } catch {
-            send('error', JSON.stringify({ message: 'subscriber check failed' }));
           }
         }, 15000);
 

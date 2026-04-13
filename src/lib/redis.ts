@@ -57,14 +57,15 @@ export async function scanKeys(pattern: string, count: number = 100): Promise<st
 
 // --- Presence types & functions (EPIC23) ---
 
+import { DIRECTION } from '@/constants/game';
+
 export interface PlayerPresence {
     userId: string;
     x: number;
     y: number;
-    direction: string;      // 'up' | 'down' | 'left' | 'right'
+    direction: DIRECTION;
     displayName: string;
     spriteKey: string;
-    lastUpdated: number;    // Date.now() millisecond timestamp
 }
 
 // Subscriber client for Pub/Sub (separate from command client)
@@ -97,7 +98,7 @@ export async function getRedisSubscriber() {
 export async function savePlayerPresence(
     villageSlug: string | null | undefined,
     userId: string,
-    data: Omit<PlayerPresence, 'userId' | 'lastUpdated'>
+    data: Omit<PlayerPresence, 'userId'>
 ): Promise<void> {
     if (!villageSlug) return;
     try {
@@ -105,7 +106,6 @@ export async function savePlayerPresence(
         const presence: PlayerPresence = {
             ...data,
             userId,
-            lastUpdated: Date.now(),
         };
         await redis.hSet(`village:${villageSlug}:players`, userId, JSON.stringify(presence));
     } catch (error) {
@@ -138,7 +138,7 @@ export async function publishVillageEvent(
 export async function joinVillage(
     userId: string,
     villageSlug: string,
-    playerData: Omit<PlayerPresence, 'userId' | 'lastUpdated'>,
+    playerData: Omit<PlayerPresence, 'userId'>,
     prevVillageSlug?: string | null
 ): Promise<void> {
     try {
@@ -161,18 +161,21 @@ export async function getVillagePlayers(villageSlug: string): Promise<PlayerPres
         const raw = await redis.hGetAll(`village:${villageSlug}:players`);
         if (!raw || Object.keys(raw).length === 0) return [];
 
+        // Stale detection based on heartbeat hash (60s threshold)
+        const heartbeats = await redis.hGetAll(`village:${villageSlug}:heartbeat`);
         const now = Date.now();
-        const staleThreshold = now - 30000;
+        const staleThreshold = now - 60000;
         const players: PlayerPresence[] = [];
         const staleIds: string[] = [];
 
         for (const [uid, json] of Object.entries(raw)) {
             try {
-                const p: PlayerPresence = JSON.parse(json);
-                if (p.lastUpdated < staleThreshold) {
+                const lastHeartbeat = Number(heartbeats[uid] || 0);
+                if (lastHeartbeat < staleThreshold) {
                     staleIds.push(uid);
                     continue;
                 }
+                const p: PlayerPresence = JSON.parse(json);
                 players.push(p);
             } catch {
                 staleIds.push(uid);
@@ -181,6 +184,7 @@ export async function getVillagePlayers(villageSlug: string): Promise<PlayerPres
 
         if (staleIds.length > 0) {
             redis.hDel(`village:${villageSlug}:players`, staleIds).catch(() => {});
+            redis.hDel(`village:${villageSlug}:heartbeat`, staleIds).catch(() => {});
         }
 
         return players;

@@ -453,11 +453,7 @@ function TileMap({
                             pointerEvents: 'none',
                             zIndex,
                             opacity: player.isLeaving ? 0 : 1,
-                            transition: player.isLeaving
-                                ? 'opacity 1.5s ease-out'
-                                : player.isNew
-                                    ? 'opacity 0.5s ease-in'
-                                    : 'none',
+                            transition: player.isLeaving ? 'opacity 1.5s ease-out' : 'none',
                         }}
                     >
                         <CSSSprite
