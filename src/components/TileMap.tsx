@@ -382,6 +382,7 @@ function TileMap({
                             onClick={(e) => {
                                 if (buildMode === 'paint' || !isClickable) return;
                                 e.stopPropagation();
+                                // FIXME: 리포트 목록 페이지 구현 후 /${village.slug}/report 로 변경
                                 router.push(`/${village.slug}/report/${TEMP_REPORT_JOB_ID}`);
                             }}
                         >

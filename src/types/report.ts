@@ -163,6 +163,7 @@ export interface ReportApiResponse {
 
 // Constants
 
+// FIXME: 리포트 목록 페이지 구현 후 제거. /{village-slug}/report 로 변경 필요
 export const TEMP_REPORT_JOB_ID = "09221912-ceae-42f1-9525-e7f50c77a390";
 
 export const TOPIC_COLORS = [
