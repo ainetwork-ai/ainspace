@@ -32,7 +32,7 @@ export default function ConnectWalletModal({
 
     // Base App injects its own connector (name: "Base") — auto-connect when detected
     const baseAppConnector = connectors.find(
-        (c) => !CONFIGURED_CONNECTOR_IDS.has(c.id) && c.type === 'injected'
+        (c) => c.name === 'Base' && c.type === 'injected'
     );
 
     useEffect(() => {
