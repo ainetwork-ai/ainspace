@@ -13,7 +13,7 @@ import {
     INITIAL_PLAYER_POSITION,
     MIN_MOVE_INTERVAL
 } from '@/constants/game';
-import { shortAddress } from '@/lib/utils';
+import { getDisplayName } from '@/lib/utils';
 
 interface Position {
     x: number;
@@ -74,7 +74,7 @@ export function useGameState() {
             const direction = useGameStateStore.getState().playerDirection;
             const village = useVillageStore.getState().currentVillageSlug;
             const { address, sessionId } = useUserStore.getState();
-            const displayName = address ? shortAddress(address) : sessionId?.slice(0, 8) || userId.slice(0, 8);
+            const displayName = getDisplayName(address, sessionId, userId);
             fetch('/api/position', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

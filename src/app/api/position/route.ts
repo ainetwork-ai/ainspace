@@ -66,21 +66,23 @@ export async function POST(request: NextRequest) {
     // Save presence + publish PLAYER_MOVED (only if in a village)
     if (slug) {
       try {
-        await savePlayerPresence(slug, userId, {
-          x: position.x,
-          y: position.y,
-          direction: direction || 'down',
-          displayName: displayName || userId.slice(0, 8),
-          spriteKey: spriteKey || 'sprite_user.png',
-        });
-        // PLAYER_MOVED is lightweight — no displayName/spriteKey
-        await publishVillageEvent(slug, {
-          type: 'PLAYER_MOVED',
-          userId,
-          x: position.x,
-          y: position.y,
-          direction: direction || 'down',
-        });
+        const dir = direction || 'down';
+        await Promise.all([
+          savePlayerPresence(slug, userId, {
+            x: position.x,
+            y: position.y,
+            direction: dir,
+            displayName: displayName || userId.slice(0, 8),
+            spriteKey: spriteKey || 'sprite_user.png',
+          }),
+          publishVillageEvent(slug, {
+            type: 'PLAYER_MOVED',
+            userId,
+            x: position.x,
+            y: position.y,
+            direction: dir,
+          }),
+        ]);
       } catch (error) {
         console.error('Error saving presence / publishing event:', error);
         // Don't fail the request — game should continue

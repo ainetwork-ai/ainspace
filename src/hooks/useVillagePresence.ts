@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { DIRECTION } from '@/constants/game';
 import { useUserStore, useGameStateStore } from '@/stores';
 import { useVillageStore } from '@/stores/useVillageStore';
-import { shortAddress } from '@/lib/utils';
+import { getDisplayName } from '@/lib/utils';
 
 export interface OnlinePlayer {
   userId: string;
@@ -67,7 +67,7 @@ export function useVillagePresence(): { players: OnlinePlayer[] } {
 
     const { worldPosition, playerDirection } = useGameStateStore.getState();
     const { address, sessionId } = useUserStore.getState();
-    const displayName = address ? shortAddress(address) : sessionId?.slice(0, 8) || uid.slice(0, 8);
+    const displayName = getDisplayName(address, sessionId, uid);
 
     const params = new URLSearchParams({
       village: slug,
@@ -110,7 +110,6 @@ export function useVillagePresence(): { players: OnlinePlayer[] } {
     es.addEventListener('presence', (e) => {
       try {
         const event = JSON.parse(e.data);
-        // Double-check: skip own events
         if (event.userId === uid) return;
 
         switch (event.type) {
@@ -177,15 +176,12 @@ export function useVillagePresence(): { players: OnlinePlayer[] } {
           case 'PLAYER_MOVED':
             setPlayers((prev) => {
               const exists = prev.find((p) => p.userId === event.userId);
-              if (!exists) return prev; // Ignore if not in list
+              if (!exists) return prev;
+              const newDir = toDirection(event.direction);
+              if (exists.x === event.x && exists.y === event.y && exists.direction === newDir) return prev;
               return prev.map((p) =>
                 p.userId === event.userId
-                  ? {
-                      ...p,
-                      x: event.x,
-                      y: event.y,
-                      direction: toDirection(event.direction),
-                    }
+                  ? { ...p, x: event.x, y: event.y, direction: newDir }
                   : p
               );
             });

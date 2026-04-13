@@ -423,9 +423,10 @@ function TileMap({
             })()}
 
             {/* Render Online Players */}
-            {isCurrentVillageLoaded && (onlinePlayers ?? []).map((player) => {
-                const tilesX = Math.ceil(canvasSize.width / tileSize);
-                const tilesY = Math.ceil(canvasSize.height / tileSize);
+            {isCurrentVillageLoaded && (() => {
+            const tilesX = Math.ceil(canvasSize.width / tileSize);
+            const tilesY = Math.ceil(canvasSize.height / tileSize);
+            return (onlinePlayers ?? []).map((player) => {
                 const screenX = player.x - cameraTilePosition.x;
                 const screenY = player.y - cameraTilePosition.y;
 
@@ -490,7 +491,8 @@ function TileMap({
                         </div>
                     </div>
                 );
-            })}
+            });
+            })()}
 
             {/* Render Player using SpriteAnimator */}
             {isCurrentVillageLoaded && (() => {

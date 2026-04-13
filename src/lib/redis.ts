@@ -162,22 +162,25 @@ export async function getVillagePlayers(villageSlug: string): Promise<PlayerPres
         if (!raw || Object.keys(raw).length === 0) return [];
 
         const now = Date.now();
-        const staleThreshold = now - 30000; // 30 seconds
+        const staleThreshold = now - 30000;
         const players: PlayerPresence[] = [];
+        const staleIds: string[] = [];
 
         for (const [uid, json] of Object.entries(raw)) {
             try {
                 const p: PlayerPresence = JSON.parse(json);
                 if (p.lastUpdated < staleThreshold) {
-                    // Lazy cleanup: remove stale entry
-                    redis.hDel(`village:${villageSlug}:players`, uid).catch(() => {});
+                    staleIds.push(uid);
                     continue;
                 }
                 players.push(p);
             } catch {
-                // Corrupted data — remove
-                redis.hDel(`village:${villageSlug}:players`, uid).catch(() => {});
+                staleIds.push(uid);
             }
+        }
+
+        if (staleIds.length > 0) {
+            redis.hDel(`village:${villageSlug}:players`, staleIds).catch(() => {});
         }
 
         return players;
@@ -187,8 +190,8 @@ export async function getVillagePlayers(villageSlug: string): Promise<PlayerPres
     }
 }
 
-export async function cleanupStale(villageSlug: string): Promise<PlayerPresence[]> {
-    return getVillagePlayers(villageSlug);
+export async function cleanupStale(villageSlug: string): Promise<void> {
+    await getVillagePlayers(villageSlug);
 }
 
 export type TileLayers = {

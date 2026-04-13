@@ -49,7 +49,6 @@ export async function GET(request: NextRequest) {
       const eventBuffer: string[] = [];
       let snapshotSent = false;
 
-      // Declare listenerFn before cleanup so there's no TDZ issue
       // eslint-disable-next-line prefer-const
       let listenerFn: ((message: string) => void) | null = null;
 
@@ -84,7 +83,6 @@ export async function GET(request: NextRequest) {
       // Listen for client disconnect
       request.signal.addEventListener('abort', cleanup);
 
-      // Assign listener function (after declaration, before use)
       listenerFn = (message: string) => {
         if (closed) return;
         try {
