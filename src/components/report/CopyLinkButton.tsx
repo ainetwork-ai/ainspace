@@ -18,11 +18,15 @@ export function CopyLinkButton({
   const [copied, setCopied] = useState(false);
   const { showToast } = useToast();
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(url);
-    setCopied(true);
-    showToast("Link copied to clipboard");
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      showToast("Link copied to clipboard");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      showToast("Failed to copy link", "error");
+    }
   };
 
   const iconSize = size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4";

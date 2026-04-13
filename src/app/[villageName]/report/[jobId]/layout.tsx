@@ -19,7 +19,7 @@ export default async function ReportLayout({
         <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur">
           <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
             <Link
-              href="/"
+              href={`/?village=${villageName}`}
               className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
               <ArrowLeft className="h-4 w-4" />

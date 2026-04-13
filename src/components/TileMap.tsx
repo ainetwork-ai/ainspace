@@ -401,7 +401,7 @@ function TileMap({
                                         padding: '2px 8px',
                                         borderRadius: '4px',
                                         whiteSpace: 'nowrap',
-                                        zIndex: -1,
+                                        zIndex: 10,
                                         pointerEvents: 'none',
                                         border: '1.5px solid #00E5FF',
                                     }}

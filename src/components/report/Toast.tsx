@@ -68,12 +68,16 @@ function ToastItem({
   useEffect(() => {
     requestAnimationFrame(() => setIsVisible(true));
 
-    const timer = setTimeout(() => {
+    let fadeTimer: ReturnType<typeof setTimeout>;
+    const dismissTimer = setTimeout(() => {
       setIsVisible(false);
-      setTimeout(() => onRemove(toast.id), 200);
+      fadeTimer = setTimeout(() => onRemove(toast.id), 200);
     }, 2000);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(dismissTimer);
+      clearTimeout(fadeTimer);
+    };
   }, [toast.id, onRemove]);
 
   const bgColor = {

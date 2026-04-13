@@ -4,15 +4,20 @@ import remarkGfm from "remark-gfm";
 import type { ReportApiResponse } from "@/types/report";
 import { T3CSynthesisSection } from "@/components/report/t3c/T3CSynthesisSection";
 import { T3CTopicCard } from "@/components/report/t3c/T3CTopicCard";
-import { KeyFindingsToggle } from "@/components/report/KeyFindingsToggle";
 
-// FIXME: NEXT_PUBLIC_DEMO_REPORT_URL은 임시. 프로덕션 리포트 서버 확정 후 제거
+// FIXME: DEMO_REPORT_URL은 임시. 프로덕션 리포트 서버 확정 후 제거
 const REPORT_API_BASE_URL =
-  process.env.NEXT_PUBLIC_DEMO_REPORT_URL || process.env.NEXT_PUBLIC_A2A_ORCHESTRATION_BASE_URL;
+  process.env.DEMO_REPORT_URL || process.env.NEXT_PUBLIC_A2A_ORCHESTRATION_BASE_URL;
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 async function getReport(jobId: string): Promise<ReportApiResponse> {
+  if (!UUID_REGEX.test(jobId)) {
+    throw new Error("Invalid job ID format");
+  }
+
   if (!REPORT_API_BASE_URL) {
-    throw new Error("NEXT_PUBLIC_A2A_ORCHESTRATION_BASE_URL is not configured");
+    throw new Error("Report server is not configured");
   }
 
   const res = await fetch(`${REPORT_API_BASE_URL}/reports/${jobId}?format=full`, {
@@ -46,7 +51,8 @@ export default async function ReportPage({
   let data: ReportApiResponse;
   try {
     data = await getReport(jobId);
-  } catch {
+  } catch (error) {
+    console.error("Failed to load report:", error);
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
         <p className="text-muted-foreground">
@@ -115,11 +121,6 @@ export default async function ReportPage({
           statistics={statistics}
           topics={report.topics}
         />
-      )}
-
-      {/* Key Findings */}
-      {report.synthesis?.keyFindings && (
-        <KeyFindingsToggle findings={report.synthesis.keyFindings} />
       )}
 
       {/* Topic Cards */}
