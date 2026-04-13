@@ -114,6 +114,7 @@ export async function GET(request: NextRequest) {
         await joinVillage(userId, village, playerData, prevVillage);
         const redis = await getRedisClient();
         await redis.hSet(`village:${village}:heartbeat`, userId, String(Date.now()));
+        await redis.expire(`village:${village}:heartbeat`, 3600);
 
         // 3. Send initial snapshot
         let players: PlayerPresence[] = [];
@@ -140,6 +141,7 @@ export async function GET(request: NextRequest) {
           try {
             const redis = await getRedisClient();
             await redis.hSet(`village:${village}:heartbeat`, userId, String(Date.now()));
+            await redis.expire(`village:${village}:heartbeat`, 3600);
           } catch {
             // Non-critical
           }

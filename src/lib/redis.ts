@@ -149,6 +149,8 @@ export async function joinVillage(
             await publishVillageEvent(prevVillageSlug, { type: 'PLAYER_LEFT', userId });
         }
         await savePlayerPresence(villageSlug, userId, playerData);
+        const redis = await getRedisClient();
+        await redis.expire(`village:${villageSlug}:players`, 3600);
         await publishVillageEvent(villageSlug, { type: 'PLAYER_JOINED', userId, ...playerData });
     } catch (error) {
         console.error('Error joining village:', error);
@@ -183,6 +185,7 @@ export async function getVillagePlayers(villageSlug: string): Promise<PlayerPres
         }
 
         if (staleIds.length > 0) {
+            staleIds.forEach(uid => publishVillageEvent(villageSlug, { type: 'PLAYER_LEFT', userId: uid }));
             redis.hDel(`village:${villageSlug}:players`, staleIds).catch(() => {});
             redis.hDel(`village:${villageSlug}:heartbeat`, staleIds).catch(() => {});
         }

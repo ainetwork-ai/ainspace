@@ -141,25 +141,21 @@ export function useVillagePresence(): { players: OnlinePlayer[] } {
   }, []);
 
   const handleReconnect = useCallback(() => {
-    // Server function expiring — trigger reconnect by rebuilding URL
     if (villageSlug && userId) {
-      setSseUrl(null);
-      // Briefly set null then rebuild to trigger useSSEConnection reconnect
-      setTimeout(() => {
-        const { worldPosition, playerDirection } = useGameStateStore.getState();
-        const { address, sessionId } = useUserStore.getState();
-        const displayName = getDisplayName(address, sessionId, userId);
-        const params = new URLSearchParams({
-          village: villageSlug,
-          userId,
-          x: String(worldPosition.x),
-          y: String(worldPosition.y),
-          direction: playerDirection,
-          spriteKey: 'sprite_user.png',
-          displayName,
-        });
-        setSseUrl(`/api/village-sse?${params.toString()}`);
-      }, 0);
+      const { worldPosition, playerDirection } = useGameStateStore.getState();
+      const { address, sessionId } = useUserStore.getState();
+      const displayName = getDisplayName(address, sessionId, userId);
+      const params = new URLSearchParams({
+        village: villageSlug,
+        userId,
+        x: String(worldPosition.x),
+        y: String(worldPosition.y),
+        direction: playerDirection,
+        spriteKey: 'sprite_user.png',
+        displayName,
+        _t: String(Date.now()),
+      });
+      setSseUrl(`/api/village-sse?${params.toString()}`);
     }
   }, [villageSlug, userId]);
 

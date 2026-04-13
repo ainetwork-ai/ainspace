@@ -64,6 +64,16 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     const { updateThread } = useThreadStore();
     const { isDesktop } = useIsDesktop();
 
+    // Cleanup timeout refs on unmount
+    useEffect(() => {
+        return () => {
+            if (responseTimeoutRef.current) {
+                clearTimeout(responseTimeoutRef.current);
+            }
+            sseConnectedResolverRef.current = null;
+        };
+    }, []);
+
     // Notify parent when loading state changes
     useEffect(() => {
         onLoadingChange?.(isMessageLoading);
