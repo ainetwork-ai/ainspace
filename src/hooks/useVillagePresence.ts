@@ -22,6 +22,7 @@ export function useVillagePresence(): { players: OnlinePlayer[] } {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const leavingTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const prevVillageRef = useRef<string | null>(null);
+  const prevUserIdRef = useRef<string | null>(null);
   const [sseUrl, setSseUrl] = useState<string | null>(null);
 
   const userId = useUserStore((s) => s.getUserId());
@@ -189,6 +190,21 @@ export function useVillagePresence(): { players: OnlinePlayer[] } {
       setPlayers([]);
       return;
     }
+
+    // userId changed (e.g., wallet connected) — remove previous presence
+    if (prevUserIdRef.current && prevUserIdRef.current !== userId && prevVillageRef.current) {
+      fetch('/api/position', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: prevUserIdRef.current,
+          position: { x: 0, y: 0 },
+          action: 'disconnect',
+          village: prevVillageRef.current,
+        }),
+      }).catch(() => {});
+    }
+    prevUserIdRef.current = userId;
 
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
