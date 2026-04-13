@@ -70,6 +70,11 @@ export default async function ReportPage({
     ? new Date(report.date).getTime()
     : (report.createdAt ?? data.createdAt);
 
+  // Sort topics by claims count descending
+  const sortedTopics = report.topics
+    ? [...report.topics].sort((a, b) => (b.claims?.length ?? 0) - (a.claims?.length ?? 0))
+    : undefined;
+
   return (
     <>
       {/* Header */}
@@ -78,12 +83,12 @@ export default async function ReportPage({
           {displayTitle}
         </h1>
         <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-          {report.topics && (
+          {sortedTopics && (
             <>
-              <span>{report.topics.length} topics</span>
+              <span>{sortedTopics.length} topics</span>
               <span className="text-muted-foreground/50">·</span>
               <span>
-                {report.topics.reduce(
+                {sortedTopics.reduce(
                   (s, t) => s + (t.claims?.length ?? 0),
                   0
                 )}{" "}
@@ -115,18 +120,18 @@ export default async function ReportPage({
       </header>
 
       {/* Synthesis */}
-      {report.synthesis && report.topics && (
+      {report.synthesis && sortedTopics && (
         <T3CSynthesisSection
           synthesis={report.synthesis}
           statistics={statistics}
-          topics={report.topics}
+          topics={sortedTopics}
         />
       )}
 
       {/* Topic Cards */}
-      {report.topics && (
+      {sortedTopics && (
         <section className="mt-8 space-y-6">
-          {report.topics.map((topic, index) => (
+          {sortedTopics.map((topic, index) => (
             <T3CTopicCard
               key={topic.id}
               topic={topic}
