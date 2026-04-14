@@ -11,7 +11,6 @@ import { calculateDistance } from '@/lib/utils';
 import { useTiledMap } from '@/hooks/useTiledMap';
 import { Z_INDEX_OFFSETS } from '@/constants/common';
 import { useVillageStore } from '@/stores/useVillageStore';
-import { TEMP_REPORT_JOB_ID } from '@/types/report';
 import { Loader2 } from 'lucide-react';
 import CSSSprite from './CSSSprite';
 import type { OnlinePlayer } from '@/hooks/useVillagePresence';
@@ -383,8 +382,7 @@ function TileMap({
                             onClick={(e) => {
                                 if (buildMode === 'paint' || !isClickable) return;
                                 e.stopPropagation();
-                                // FIXME: 리포트 목록 페이지 구현 후 /${village.slug}/report 로 변경
-                                router.push(`/${village.slug}/report/${TEMP_REPORT_JOB_ID}`);
+                                router.push(`/${village.slug}/report`);
                             }}
                         >
                             {/* Tooltip - only when nearby */}
