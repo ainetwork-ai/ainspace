@@ -226,6 +226,25 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                         responseTimeoutRef.current = null;
                     }
                     setIsMessageLoading(false);
+                } else if (event.data.next?.id) {
+                    // Next agent in chain — reset timeout for the next agent's response
+                    if (responseTimeoutRef.current) clearTimeout(responseTimeoutRef.current);
+                    responseTimeoutRef.current = setTimeout(() => {
+                        setIsMessageLoading((loading) => {
+                            if (!loading) return false;
+                            const timeoutMessage: ChatMessage = {
+                                id: `timeout-${Date.now()}`,
+                                text: `No response from ${event.data.next?.name || 'agent'}. Please try again.`,
+                                timestamp: new Date(),
+                                sender: 'system',
+                                threadId: currentThreadId || undefined
+                            };
+                            setMessages((prev) => [...prev, timeoutMessage], currentThreadId);
+                            setDisplayedMessages((prev) => [...prev, timeoutMessage]);
+                            return false;
+                        });
+                        responseTimeoutRef.current = null;
+                    }, 60000);
                 }
             } else if (event.type === 'error') {
                 // Error message
