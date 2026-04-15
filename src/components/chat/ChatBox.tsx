@@ -234,7 +234,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                             if (!loading) return false;
                             const timeoutMessage: ChatMessage = {
                                 id: `timeout-${Date.now()}`,
-                                text: `No response from ${event.data.next.name || 'agent'}. Please try again.`,
+                                text: `No response from ${event.data.next?.name || 'agent'}. Please try again.`,
                                 timestamp: new Date(),
                                 sender: 'system',
                                 threadId: currentThreadId || undefined
