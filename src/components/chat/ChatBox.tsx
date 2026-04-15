@@ -4,7 +4,6 @@ import { useState, useRef, useEffect, useCallback, forwardRef } from 'react';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { ChatMessage, useBuildStore, useChatStore, useGameStateStore, useThreadStore, useUserStore } from '@/stores';
-import { BROADCAST_RADIUS, INITIAL_PLAYER_POSITION } from '@/constants/game';
 import * as Sentry from '@sentry/nextjs';
 import { useThreadStream } from '@/hooks/useThreadStream';
 import { StreamEvent } from '@/lib/a2aOrchestration';
@@ -47,6 +46,8 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     const { setShowCollisionMap } = useBuildStore();
     const inputRef = useRef<HTMLInputElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const responseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const sseConnectedResolverRef = useRef<(() => void) | null>(null);
 
     const [displayedMessages, setDisplayedMessages] = useState<ChatMessage[]>([]);
     const activeThread = currentThreadId && currentThreadId !== '0' ? findThreadById(currentThreadId) : undefined;
@@ -60,9 +61,18 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     const [hasStartedConversation, setHasStartedConversation] = useState(false);
 
     const userId = useUserStore((state) => state.getUserId());
-    const { worldPosition: playerPosition } = useGameStateStore();
     const { updateThread } = useThreadStore();
     const { isDesktop } = useIsDesktop();
+
+    // Cleanup timeout refs on unmount
+    useEffect(() => {
+        return () => {
+            if (responseTimeoutRef.current) {
+                clearTimeout(responseTimeoutRef.current);
+            }
+            sseConnectedResolverRef.current = null;
+        };
+    }, []);
 
     // Notify parent when loading state changes
     useEffect(() => {
@@ -149,10 +159,19 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
 
             if (event.type === 'connected') {
                 console.log('Connected to thread stream');
+                if (sseConnectedResolverRef.current) {
+                    sseConnectedResolverRef.current();
+                    sseConnectedResolverRef.current = null;
+                }
                 return;
             }
 
             if (event.type === 'message') {
+                // Clear response timeout on first AI message
+                if (responseTimeoutRef.current) {
+                    clearTimeout(responseTimeoutRef.current);
+                    responseTimeoutRef.current = null;
+                }
                 // Message data is in data.data (nested structure from A2A Orchestration)
                 const eventData = event.data as {
                     data?: { speaker?: string; content?: string };
@@ -202,6 +221,10 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 // Block messages are not displayed in chat (used for internal processing only)
                 console.log('Block event (not displayed):', event.data);
                 if (event.data.next?.id === 'user') {
+                    if (responseTimeoutRef.current) {
+                        clearTimeout(responseTimeoutRef.current);
+                        responseTimeoutRef.current = null;
+                    }
                     setIsMessageLoading(false);
                 }
             } else if (event.type === 'error') {
@@ -329,8 +352,6 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             if (!selectedThread && nearbyAgents.length === 0) return;
 
             const userMessageText = inputValue.trim();
-            const currentPlayerPosition = playerPosition || INITIAL_PLAYER_POSITION;
-
             setInputValue('');
             setIsMessageLoading(true);
 
@@ -391,27 +412,82 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 return newDPMessages;
             }, threadIdToSend);
 
-            // Extract mentioned agents from message
-            const mentionMatches = userMessageText.match(/@(\w+)/g);
-            const mentionedAgents = mentionMatches?.map((m) => m.substring(1)) || [];
-
             try {
-                // Send message through A2A Orchestration API with timeout
+                // Step 1: For new threads, create thread first and wait for SSE
+                const isNewThread = !threadIdToSend;
+                if (isNewThread) {
+                    const createResponse = await fetch('/api/thread-create', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ agentNames, userId }),
+                    });
+                    const createResult = await createResponse.json();
+                    if (!createResponse.ok) {
+                        throw new Error(createResult.details || createResult.error || createResponse.statusText);
+                    }
+
+                    threadIdToSend = createResult.threadId;
+
+                    // Save thread mapping
+                    const agentComboId = await generateAgentComboId(agentNames);
+                    addThread({
+                        threadName,
+                        id: threadIdToSend!,
+                        agentNames,
+                        agentComboId,
+                        createdAt: new Date().toISOString(),
+                        lastMessageAt: new Date().toISOString()
+                    });
+
+                    setMessages((prev) => {
+                        if (!prev) return [newMessage];
+                        return [...prev, newMessage];
+                    }, threadIdToSend!);
+                    setMessages([], '0');
+
+                    setCurrentThreadId(threadIdToSend!);
+
+                    // Save to backend (async, don't wait)
+                    if (userId) {
+                        fetch('/api/threads', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                userId, threadName,
+                                id: threadIdToSend,
+                                agentNames,
+                            })
+                        }).catch((err) => console.error('Failed to save thread mapping:', err));
+                    }
+
+                    // Enable SSE and wait for connection
+                    setHasStartedConversation(true);
+
+                    // Wait for SSE 'connected' event (max 10s timeout)
+                    let sseTimeoutId: ReturnType<typeof setTimeout> | null = null;
+                    await Promise.race([
+                        new Promise<void>((resolve) => { sseConnectedResolverRef.current = resolve; }),
+                        new Promise<void>((_, reject) => {
+                            sseTimeoutId = setTimeout(() => {
+                                sseConnectedResolverRef.current = null;
+                                reject(new Error('SSE connection timeout'));
+                            }, 10000);
+                        }),
+                    ]);
+                    if (sseTimeoutId) clearTimeout(sseTimeoutId);
+                    sseConnectedResolverRef.current = null;
+                }
+
+                // Step 2: Send message (SSE is now connected)
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+                const timeoutId = setTimeout(() => controller.abort(), 30000);
                 const response = await fetch('/api/thread-message', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         message: userMessageText,
-                        playerPosition: currentPlayerPosition,
-                        broadcastRadius: BROADCAST_RADIUS,
                         threadId: threadIdToSend,
-                        agentNames: agentNames, // Explicitly pass the agent list calculated on frontend
-                        mentionedAgents: mentionedAgents.length > 0 ? mentionedAgents : undefined,
-                        userId: userId
+                        userId,
                     }),
                     signal: controller.signal
                 });
@@ -419,78 +495,35 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 clearTimeout(timeoutId);
 
                 const result = await response.json();
-
                 if (!response.ok) {
                     throw new Error(result.details || result.error || response.statusText);
                 }
 
-                console.log('Thread message sent:', result);
-
-                // Store the mapping between thread name and backend thread ID
-                if (result.threadId) {
+                if (!isNewThread && result.threadId) {
                     updateThread(result.threadId, {
                         lastMessageAt: new Date().toISOString()
                     });
-                    console.log('Backend thread ID:', result.threadId);
-                    const resultThread = findThreadById(result.threadId);
-
-                    // Save the mapping if it's new
-                    if (!resultThread) {
-                        console.log('Saving mapping:', threadName, '→', result.threadId);
-                        const agentComboId = await generateAgentComboId(agentNames);
-                        addThread({
-                            threadName,
-                            id: result.threadId,
-                            agentNames: agentNames,
-                            agentComboId,
-                            createdAt: new Date().toISOString(),
-                            lastMessageAt: new Date().toISOString()
-                        });
-
-                        setMessages((prev) => {
-                            if (!prev) return [newMessage];
-                            return [...prev, newMessage];
-                        }, result.threadId);
-
-                        setMessages([], '0');
-
-                        // Save to backend (async, don't wait)
-                        console.log('Saving thread mapping:', {
-                            userId: userId,
-                            threadName,
-                            id: result.threadId,
-                            agentNames: agentNames
-                        });
-
-                        setCurrentThreadId(result.threadId);
-
-                        if (userId) {
-                            fetch('/api/threads', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    userId: userId,
-                                    threadName,
-                                    id: result.threadId,
-                                    agentNames: agentNames
-                                })
-                            }).catch((err) => console.error('Failed to save thread mapping:', err));
-                        }
-                    }
-
-                    // For new threads, wait a bit for backend to fully process
-                    // For existing threads, connect immediately
-                    const delay = result.isNewThread ? 1000 : 100;
-                    setTimeout(() => {
-                        setHasStartedConversation(true);
-                    }, delay);
-                } else {
-                    console.warn('Backend did not return thread ID');
-                    // Still enable SSE with short delay
-                    setTimeout(() => {
-                        setHasStartedConversation(true);
-                    }, 500);
+                    setHasStartedConversation(true);
                 }
+
+                // Start response timeout — if no AI message within 60s, stop loading
+                if (responseTimeoutRef.current) clearTimeout(responseTimeoutRef.current);
+                responseTimeoutRef.current = setTimeout(() => {
+                    setIsMessageLoading((loading) => {
+                        if (!loading) return false;
+                        const timeoutMessage: ChatMessage = {
+                            id: `timeout-${Date.now()}`,
+                            text: 'No response from agents. Please try again.',
+                            timestamp: new Date(),
+                            sender: 'system',
+                            threadId: threadIdToSend
+                        };
+                        setMessages((prev) => [...prev, timeoutMessage], threadIdToSend);
+                        setDisplayedMessages((prev) => [...prev, timeoutMessage]);
+                        return false;
+                    });
+                    responseTimeoutRef.current = null;
+                }, 60000);
             } catch (error) {
                 console.error('Failed to send thread message:', error);
 
@@ -506,20 +539,21 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     sender: 'system',
                     threadId: threadIdToSend
                 };
-                setMessages((prev) => [...prev, errorMessage], threadIdToSend);
+                if (responseTimeoutRef.current) {
+                    clearTimeout(responseTimeoutRef.current);
+                    responseTimeoutRef.current = null;
+                }
 
-                // Log to Sentry
+                if (!threadIdToSend || threadIdToSend === '0') {
+                    setDisplayedMessages([]);
+                    setMessages([], '0');
+                } else {
+                    setMessages((prev) => [...prev, errorMessage], threadIdToSend);
+                }
+
                 Sentry.captureException(error instanceof Error ? error : new Error('Failed to send thread message'), {
-                    tags: {
-                        component: 'ChatBox',
-                        action: 'sendMessage'
-                    },
-                    extra: {
-                        threadName,
-                        threadId: threadIdToSend,
-                        agentNames: agentNames,
-                        isTimeout
-                    }
+                    tags: { component: 'ChatBox', action: 'sendMessage' },
+                    extra: { threadName, threadId: threadIdToSend, agentNames, isTimeout }
                 });
                 setIsMessageLoading(false);
             }

@@ -342,7 +342,7 @@ export default function AgentTab({
                 />
             </div>
             <LoadingModal open={isLoading} isDarkMode={isDarkMode} />
-            <HolderModal open={isHolderModalOpen} onOpenChange={setIsHolderModalOpen}/>
+            <HolderModal open={isHolderModalOpen} onOpenChange={setIsHolderModalOpen} isDarkMode={isDarkMode}/>
 
             {/* Movement Style Modal */}
             {pendingPlacementAgent && (
