@@ -61,8 +61,10 @@ function QuoteBubble({ claim }: { claim: Claim }) {
     left: 0,
   });
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout>>(null);
 
-  const handleMouseEnter = () => {
+  const open = () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
       setPosition({
@@ -73,12 +75,20 @@ function QuoteBubble({ claim }: { claim: Claim }) {
     setIsOpen(true);
   };
 
+  const scheduleClose = () => {
+    closeTimer.current = setTimeout(() => setIsOpen(false), 150);
+  };
+
+  const cancelClose = () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+  };
+
   return (
     <>
       <button
         ref={buttonRef}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={() => setIsOpen(false)}
+        onMouseEnter={open}
+        onMouseLeave={scheduleClose}
         className="inline-flex h-7 items-center gap-1 rounded-sm border border-border px-2 text-xs text-muted-foreground transition-colors hover:bg-muted"
       >
         <QuoteIcon className="h-4 w-4 text-muted-foreground/70" />
@@ -86,14 +96,12 @@ function QuoteBubble({ claim }: { claim: Claim }) {
       </button>
       {isOpen && (
         <div
-          className="pointer-events-none fixed z-[9999]"
+          className="fixed z-[9999]"
           style={{ top: position.top, left: position.left }}
-          onMouseEnter={() => setIsOpen(true)}
-          onMouseLeave={() => setIsOpen(false)}
+          onMouseEnter={cancelClose}
+          onMouseLeave={scheduleClose}
         >
-          <div className="pointer-events-auto">
-            <QuotePopover claim={claim} quotes={claim.quotes} />
-          </div>
+          <QuotePopover claim={claim} quotes={claim.quotes} />
         </div>
       )}
     </>
