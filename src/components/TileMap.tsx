@@ -11,7 +11,6 @@ import { calculateDistance } from '@/lib/utils';
 import { useTiledMap } from '@/hooks/useTiledMap';
 import { Z_INDEX_OFFSETS } from '@/constants/common';
 import { useVillageStore } from '@/stores/useVillageStore';
-import { TEMP_REPORT_JOB_ID } from '@/types/report';
 import { Loader2 } from 'lucide-react';
 import CSSSprite from './CSSSprite';
 import type { OnlinePlayer } from '@/hooks/useVillagePresence';
@@ -68,8 +67,8 @@ function TileMap({
     const router = useRouter();
     const { worldPosition } = useGameStateStore();
     const isCurrentVillageLoaded = useVillageStore((s) => s.isCurrentVillageLoaded);
-    const nearbyVillagesMap = useVillageStore((s) => s.nearbyVillages);
-    const nearbyVillagesArr = useMemo(() => Array.from(nearbyVillagesMap.values()), [nearbyVillagesMap]);
+    const loadedVillagesMap = useVillageStore((s) => s.loadedVillages);
+    const loadedVillagesArr = useMemo(() => Array.from(loadedVillagesMap.values()).map((v) => v.metadata), [loadedVillagesMap]);
     
     const [zoomLevel, setZoomLevel] = useState(fixedZoom !== undefined ? fixedZoom : 1.0);
     const MIN_ZOOM = 0.5;
@@ -349,7 +348,7 @@ function TileMap({
                 const REPORT_LOCAL_X = 9;
                 const REPORT_LOCAL_Y = 1;
 
-                return nearbyVillagesArr.map((village) => {
+                return loadedVillagesArr.map((village) => {
                     const worldX = village.gridX * VILLAGE_SIZE - half + REPORT_LOCAL_X;
                     const worldY = village.gridY * VILLAGE_SIZE - half + REPORT_LOCAL_Y;
                     const screenX = worldX - cameraTilePosition.x;
@@ -383,8 +382,7 @@ function TileMap({
                             onClick={(e) => {
                                 if (buildMode === 'paint' || !isClickable) return;
                                 e.stopPropagation();
-                                // FIXME: 리포트 목록 페이지 구현 후 /${village.slug}/report 로 변경
-                                router.push(`/${village.slug}/report/${TEMP_REPORT_JOB_ID}`);
+                                router.push(`/${village.slug}/report`);
                             }}
                         >
                             {/* Tooltip - only when nearby */}

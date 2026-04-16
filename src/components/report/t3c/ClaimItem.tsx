@@ -2,53 +2,60 @@
 
 import { useState, useRef, useMemo } from "react";
 import { Quote as QuoteIcon } from "lucide-react";
-import type { Claim, Quote } from "@/types/report";
+import type { Claim } from "@/types/report";
 
-function QuotePopover({ claim, quotes }: { claim: Claim; quotes: Quote[] }) {
+function QuotePopover({ claim }: { claim: Claim }) {
   return (
     <div className="w-[420px] max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-card p-4 text-sm shadow-lg">
       <p className="mb-3">
         <span className="font-medium">#{claim.id.split("-").pop()}</span>{" "}
         <span className="text-muted-foreground">{claim.title}</span>
       </p>
-      <div className="max-h-[400px] space-y-4 overflow-y-auto">
-        {quotes.map((quote) => (
-          <div key={quote.id}>
-            {/* Conversation context */}
-            {quote.context && quote.context.length > 0 ? (
-              <div className="space-y-1.5 rounded-md bg-muted/50 p-3">
-                {quote.context.map((msg) => (
-                  <div key={msg.id} className="flex gap-2">
-                    <span
-                      className={`shrink-0 text-xs font-medium ${
-                        msg.isUser
-                          ? "text-blue-600 dark:text-blue-400"
-                          : "text-purple-600 dark:text-purple-400"
-                      }`}
-                    >
-                      {msg.isUser ? "User" : msg.speaker}
-                    </span>
-                    <p
-                      className={`text-xs leading-relaxed ${
-                        msg.content === quote.text
-                          ? "font-medium text-foreground"
-                          : "text-muted-foreground"
-                      }`}
-                    >
-                      {msg.content}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              /* Fallback: quote text only */
-              <div className="flex gap-2">
+      <div className="max-h-[400px] overflow-y-auto">
+        {/* Conversation context (claim-level) */}
+        {claim.context && claim.context.length > 0 ? (
+          <div className="space-y-1.5 rounded-md bg-muted/50 p-3">
+            {claim.context.map((msg) => {
+              const stripped = (s: string) => s.replace(/^\[|\]$/g, "");
+              const isQuoted = claim.quotes.some((q) => {
+                const qt = stripped(q.text);
+                return msg.content === qt || msg.content.includes(qt) || qt.includes(msg.content);
+              });
+              return (
+                <div key={msg.id} className="flex gap-2">
+                  <span
+                    className={`shrink-0 text-xs font-medium ${
+                      msg.isUser
+                        ? "text-blue-600 dark:text-blue-400"
+                        : "text-purple-600 dark:text-purple-400"
+                    }`}
+                  >
+                    {msg.isUser ? "User" : msg.speaker}
+                  </span>
+                  <p
+                    className={`text-xs leading-relaxed ${
+                      isQuoted
+                        ? "font-medium text-foreground"
+                        : "text-muted-foreground"
+                    }`}
+                  >
+                    {msg.content}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          /* Fallback: quote texts only */
+          <div className="space-y-2">
+            {claim.quotes.map((quote) => (
+              <div key={quote.id} className="flex gap-2">
                 <QuoteIcon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/70" />
                 <p className="text-muted-foreground">{quote.text}</p>
               </div>
-            )}
+            ))}
           </div>
-        ))}
+        )}
       </div>
     </div>
   );
@@ -61,8 +68,10 @@ function QuoteBubble({ claim }: { claim: Claim }) {
     left: 0,
   });
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout>>(null);
 
-  const handleMouseEnter = () => {
+  const open = () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
       setPosition({
@@ -73,12 +82,20 @@ function QuoteBubble({ claim }: { claim: Claim }) {
     setIsOpen(true);
   };
 
+  const scheduleClose = () => {
+    closeTimer.current = setTimeout(() => setIsOpen(false), 150);
+  };
+
+  const cancelClose = () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+  };
+
   return (
     <>
       <button
         ref={buttonRef}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={() => setIsOpen(false)}
+        onMouseEnter={open}
+        onMouseLeave={scheduleClose}
         className="inline-flex h-7 items-center gap-1 rounded-sm border border-border px-2 text-xs text-muted-foreground transition-colors hover:bg-muted"
       >
         <QuoteIcon className="h-4 w-4 text-muted-foreground/70" />
@@ -86,14 +103,12 @@ function QuoteBubble({ claim }: { claim: Claim }) {
       </button>
       {isOpen && (
         <div
-          className="pointer-events-none fixed z-[9999]"
+          className="fixed z-[9999]"
           style={{ top: position.top, left: position.left }}
-          onMouseEnter={() => setIsOpen(true)}
-          onMouseLeave={() => setIsOpen(false)}
+          onMouseEnter={cancelClose}
+          onMouseLeave={scheduleClose}
         >
-          <div className="pointer-events-auto">
-            <QuotePopover claim={claim} quotes={claim.quotes} />
-          </div>
+          <QuotePopover claim={claim} />
         </div>
       )}
     </>

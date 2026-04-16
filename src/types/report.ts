@@ -46,14 +46,15 @@ export interface SegmentMessage {
 export interface Quote {
   id: string;
   text: string;
-  context?: SegmentMessage[];
   reference: Reference;
 }
 
 export interface Claim {
   id: string;
+  speaker: string;
   title: string;
   quotes: Quote[];
+  context: SegmentMessage[];
   number: number;
   similarClaims: Claim[];
   stance: "support" | "oppose" | "neutral" | "request" | "question";
@@ -170,10 +171,26 @@ export interface ReportApiResponse {
   tags?: string[];
 }
 
-// Constants
+export interface ReportJobSummary {
+  jobId: string;
+  status: string;
+  createdAt: number;
+  updatedAt: number;
+  title?: string;
+  description?: string;
+  tags?: string[];
+}
 
-// FIXME: 리포트 목록 페이지 구현 후 제거. /{village-slug}/report 로 변경 필요
-export const TEMP_REPORT_JOB_ID = "09221912-ceae-42f1-9525-e7f50c77a390";
+export interface ReportListResponse {
+  success: boolean;
+  items: ReportJobSummary[];
+  total: number;
+  page: number;
+  limit: number;
+  hasMore: boolean;
+}
+
+// Constants
 
 export const TOPIC_COLORS = [
   "#6366f1",
