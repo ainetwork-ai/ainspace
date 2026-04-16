@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { REPORT_API_BASE_URL } from "@/lib/report";
 import type { ReportListResponse, ReportJobSummary } from "@/types/report";
 import { ReportListActions } from "@/components/report/ReportListActions";
@@ -64,6 +65,18 @@ export default async function ReportListPage({
 
   return (
     <>
+      <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur -mx-4 -mt-8 mb-6 px-4 py-3">
+        <div className="mx-auto flex max-w-6xl items-center gap-3">
+          <Link
+            href={`/?village=${villageName}`}
+            className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span>{decodeURIComponent(villageName)}</span>
+          </Link>
+        </div>
+      </header>
+
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-xl font-bold text-foreground">Reports</h1>
       </div>

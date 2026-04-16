@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
@@ -42,7 +44,7 @@ export default async function ReportPage({
 }: {
   params: Promise<{ villageName: string; jobId: string }>;
 }) {
-  const { jobId } = await params;
+  const { villageName, jobId } = await params;
 
   let data: ReportApiResponse;
   try {
@@ -73,6 +75,19 @@ export default async function ReportPage({
 
   return (
     <>
+      {/* Back Navigation */}
+      <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur -mx-4 -mt-8 mb-8 px-4 py-3">
+        <div className="mx-auto flex max-w-6xl items-center gap-3">
+          <Link
+            href={`/${villageName}/report`}
+            className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span>Reports</span>
+          </Link>
+        </div>
+      </header>
+
       {/* Header */}
       <header className="mb-8">
         <h1 className="mb-2 text-2xl font-bold text-foreground">
