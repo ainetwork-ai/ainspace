@@ -46,14 +46,15 @@ export interface SegmentMessage {
 export interface Quote {
   id: string;
   text: string;
-  context?: SegmentMessage[];
   reference: Reference;
 }
 
 export interface Claim {
   id: string;
+  speaker: string;
   title: string;
   quotes: Quote[];
+  context: SegmentMessage[];
   number: number;
   similarClaims: Claim[];
   stance: "support" | "oppose" | "neutral" | "request" | "question";

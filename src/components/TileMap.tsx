@@ -67,8 +67,8 @@ function TileMap({
     const router = useRouter();
     const { worldPosition } = useGameStateStore();
     const isCurrentVillageLoaded = useVillageStore((s) => s.isCurrentVillageLoaded);
-    const nearbyVillagesMap = useVillageStore((s) => s.nearbyVillages);
-    const nearbyVillagesArr = useMemo(() => Array.from(nearbyVillagesMap.values()), [nearbyVillagesMap]);
+    const loadedVillagesMap = useVillageStore((s) => s.loadedVillages);
+    const loadedVillagesArr = useMemo(() => Array.from(loadedVillagesMap.values()).map((v) => v.metadata), [loadedVillagesMap]);
     
     const [zoomLevel, setZoomLevel] = useState(fixedZoom !== undefined ? fixedZoom : 1.0);
     const MIN_ZOOM = 0.5;
@@ -348,7 +348,7 @@ function TileMap({
                 const REPORT_LOCAL_X = 9;
                 const REPORT_LOCAL_Y = 1;
 
-                return nearbyVillagesArr.map((village) => {
+                return loadedVillagesArr.map((village) => {
                     const worldX = village.gridX * VILLAGE_SIZE - half + REPORT_LOCAL_X;
                     const worldY = village.gridY * VILLAGE_SIZE - half + REPORT_LOCAL_Y;
                     const screenX = worldX - cameraTilePosition.x;
