@@ -4,7 +4,7 @@ import type {
   ReportStatistics,
   Topic,
 } from "@/types/report";
-import { TOPIC_COLORS } from "@/types/report";
+import { TOPIC_COLORS, getTopicClaims } from "@/types/report";
 
 export function T3CSynthesisSection({
   synthesis,
@@ -15,7 +15,7 @@ export function T3CSynthesisSection({
   statistics: ReportStatistics;
   topics: Topic[];
 }) {
-  const maxClaims = Math.max(...topics.map((t) => t.claims?.length ?? 0), 1);
+  const maxClaims = Math.max(...topics.map((t) => getTopicClaims(t).length), 1);
 
   return (
     <>
@@ -47,7 +47,7 @@ export function T3CSynthesisSection({
         </h2>
         <div className="space-y-0">
           {topics.map((topic, index) => {
-            const claimCount = topic.claims?.length ?? 0;
+            const claimCount = getTopicClaims(topic).length;
             const pct = (claimCount / maxClaims) * 100;
             const color = TOPIC_COLORS[index % TOPIC_COLORS.length];
 

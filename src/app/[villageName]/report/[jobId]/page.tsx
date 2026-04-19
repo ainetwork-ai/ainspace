@@ -4,6 +4,7 @@ import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import type { ReportApiResponse } from "@/types/report";
+import { getTopicClaims } from "@/types/report";
 import { REPORT_API_BASE_URL } from "@/lib/report";
 import { isValidUUID } from "@/lib/utils";
 import { T3CSynthesisSection } from "@/components/report/t3c/T3CSynthesisSection";
@@ -68,10 +69,17 @@ export default async function ReportPage({
     ? new Date(report.date).getTime()
     : (report.createdAt ?? data.createdAt);
 
-  // Sort topics by claims count descending
+  const claimCounts = new Map(
+    (report.topics ?? []).map((t) => [t.id, getTopicClaims(t).length])
+  );
   const sortedTopics = report.topics
-    ? [...report.topics].sort((a, b) => (b.claims?.length ?? 0) - (a.claims?.length ?? 0))
+    ? [...report.topics].sort(
+        (a, b) => (claimCounts.get(b.id) ?? 0) - (claimCounts.get(a.id) ?? 0)
+      )
     : undefined;
+  const totalClaims = sortedTopics
+    ? sortedTopics.reduce((s, t) => s + (claimCounts.get(t.id) ?? 0), 0)
+    : 0;
 
   return (
     <>
@@ -99,11 +107,7 @@ export default async function ReportPage({
               <span>{sortedTopics.length} topics</span>
               <span className="text-muted-foreground/50">·</span>
               <span>
-                {sortedTopics.reduce(
-                  (s, t) => s + (t.claims?.length ?? 0),
-                  0
-                )}{" "}
-                claims
+                {totalClaims} claims
               </span>
             </>
           )}

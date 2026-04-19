@@ -63,9 +63,17 @@ export interface Claim {
 }
 
 export interface TopicSummary {
-  consensus: string[];
-  conflicting: string[];
-  sentiment: string;
+  text?: string;
+  consensus?: string[];
+  conflicting?: string[];
+  sentiment?: string;
+}
+
+export interface Subtopic {
+  id: string;
+  title: string;
+  description?: string;
+  claims: Claim[];
 }
 
 export interface Topic {
@@ -77,11 +85,19 @@ export interface Topic {
   percentage: number;
   sentiment: TopicSentiment;
   opinions: TopicOpinion[];
+  subtopics?: Subtopic[];
   claims?: Claim[];
   messages: ReportMessage[];
   summary: TopicSummary;
   position: { x: number; y: number };
   color: string;
+}
+
+export function getTopicClaims(topic: Topic): Claim[] {
+  if (topic.subtopics && topic.subtopics.length > 0) {
+    return topic.subtopics.flatMap((s) => s.claims);
+  }
+  return topic.claims || [];
 }
 
 export interface TopTopic {
@@ -117,10 +133,10 @@ export interface ReportStatistics {
 }
 
 export interface ReportSynthesis {
-  overallSentiment: string;
-  keyFindings: string[];
-  topPriorities: { action: string; priority: string; rationale: string }[];
   executiveSummary: string;
+  keyFindings?: string[];
+  overallSentiment?: string;
+  topPriorities?: { action: string; priority: string; rationale: string }[];
 }
 
 export interface Source {
