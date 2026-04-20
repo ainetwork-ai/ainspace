@@ -9,6 +9,7 @@ import { REPORT_API_BASE_URL } from "@/lib/report";
 import { isValidUUID } from "@/lib/utils";
 import { T3CSynthesisSection } from "@/components/report/t3c/T3CSynthesisSection";
 import { T3CTopicCard } from "@/components/report/t3c/T3CTopicCard";
+import { DownloadReportJson } from "@/components/report/DownloadReportJson";
 
 async function getReport(jobId: string): Promise<ReportApiResponse> {
   if (!isValidUUID(jobId)) {
@@ -173,12 +174,10 @@ export default async function ReportPage({
         </section>
       )}
 
-      {/* Footer */}
-      <footer className="mt-8 border-t border-border pt-6 text-center text-sm text-muted-foreground">
-        <p>
-          Report ID: {report.id} · Job ID: {data.jobId}
-        </p>
-      </footer>
+      <section className="mt-12">
+        <h2 className="mb-2 text-lg font-semibold text-foreground">Appendix</h2>
+        <DownloadReportJson data={data} />
+      </section>
     </>
   );
 }
