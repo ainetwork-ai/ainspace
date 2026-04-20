@@ -32,7 +32,7 @@ export default function DeleteConfirmModal({ onConfirm, onCancel, children, isDa
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>{children}</DialogTrigger>
-            <DialogContent className={cn("max-w-md p-0 rounded-2xl", isDarkMode ? 'bg-[#2F333B]' : 'bg-white')} showCloseButton={false}>
+            <DialogContent className={cn("max-w-md p-0 rounded-2xl", isDarkMode ? 'dark bg-[#2F333B]' : 'bg-white')} showCloseButton={false}>
                 <DialogHeader className="px-6 pt-6 pb-4">
                     <DialogTitle className={cn("text-xl font-bold text-center", isDarkMode ? 'text-white' : 'text-black')}>
                         Delete Agent
@@ -52,7 +52,6 @@ export default function DeleteConfirmModal({ onConfirm, onCancel, children, isDa
                         onClick={handleCancel}
                         type="large"
                         variant="secondary"
-                        isDarkMode={isDarkMode}
                         className={cn(
                             "flex-1 border border-[#7F4FE8]",
                             isDarkMode
@@ -67,7 +66,6 @@ export default function DeleteConfirmModal({ onConfirm, onCancel, children, isDa
                         onClick={handleConfirm}
                         type="large"
                         variant="primary"
-                        isDarkMode={isDarkMode}
                         className="flex-1"
                     >
                         Delete

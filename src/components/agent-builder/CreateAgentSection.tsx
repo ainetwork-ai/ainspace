@@ -28,7 +28,6 @@ export default function CreateAgentSection({ isDarkMode = false }: CreateAgentSe
                 onClick={handleCreateAgent}
                 className="w-full"
                 type="large"
-                isDarkMode={isDarkMode}
             >
                 A2A Builder
             </Button>

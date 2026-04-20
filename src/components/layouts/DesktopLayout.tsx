@@ -1,23 +1,19 @@
 'use client';
 
-import React, { useCallback, useState } from 'react';
-import Image from 'next/image';
+import React, { useState } from 'react';
 import { useAccount } from 'wagmi';
 import ConnectWalletModal from '../ConnectWalletModal';
-import { disconnect } from '@wagmi/core';
-import { MapPin, Copy, Check, LogOut } from 'lucide-react';
-import { useCopyAddress } from '@/hooks/useCopyAddress';
+import { MapPin } from 'lucide-react';
 import MapTab from '@/components/tabs/MapTab';
 import TempBuildTab from '@/components/tabs/TempBuildTab';
 import AgentTab from '@/components/tabs/AgentTab';
 import ChatSidebarPanel from '@/components/chat/ChatSidebarPanel';
 import PlaceAgentModal from '@/components/PlaceAgentModal';
 import DesktopSidebarFooter from '@/components/DesktopSidebarFooter';
+import WalletInfo from '@/components/WalletInfo';
 import { Z_INDEX_OFFSETS } from '@/constants/common';
 import { LayoutProps } from './MobileLayout';
-import { shortAddress } from '@/lib/utils';
-import { config } from '@/lib/wagmi-config';
-import { useGameStateStore, useThreadStore, useUIStore } from '@/stores';
+import { useGameStateStore, useUIStore } from '@/stores';
 import { useVillageStore } from '@/stores/useVillageStore';
 
 export default function DesktopLayout({
@@ -40,17 +36,9 @@ export default function DesktopLayout({
 }: LayoutProps) {
     const { address } = useAccount();
     const [showWalletModal, setShowWalletModal] = useState(false);
-    const { clearThreads } = useThreadStore();
     const { worldPosition } = useGameStateStore();
     const currentVillageName = useVillageStore((s) => s.currentVillage?.name);
     const { selectedAgentForPlacement, setSelectedAgentForPlacement } = useUIStore();
-
-    const { isCopied, handleCopy: handleCopyAddress } = useCopyAddress(address);
-
-    const handleWalletDisconnect = useCallback(() => {
-        disconnect(config);
-        clearThreads();
-    }, [clearThreads]);
 
     return (
         <>
@@ -114,24 +102,7 @@ export default function DesktopLayout({
                     </div>
                     {/* 지갑 상태 */}
                     {address ? (
-                        <div className="inline-flex flex-row items-center gap-1">
-                            <div className="inline-flex flex-row items-center gap-2 rounded-lg bg-white p-2">
-                                <Image src="/agent/defaultAvatar.svg" alt="agent" width={20} height={20} />
-                                <p className="text-sm font-bold text-black">{shortAddress(address)}</p>
-                                <button
-                                    onClick={handleCopyAddress}
-                                    className="cursor-pointer rounded p-0.5 hover:bg-gray-100"
-                                >
-                                    {isCopied ? <Check size={14} className="text-green-500" /> : <Copy size={14} className="text-gray-400" />}
-                                </button>
-                            </div>
-                            <button
-                                onClick={handleWalletDisconnect}
-                                className="cursor-pointer rounded-lg bg-white p-2 hover:bg-gray-100"
-                            >
-                                <LogOut size={16} className="text-gray-500" />
-                            </button>
-                        </div>
+                        <WalletInfo />
                     ) : (
                         <button
                             onClick={() => setShowWalletModal(true)}
