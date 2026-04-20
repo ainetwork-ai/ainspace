@@ -1,17 +1,19 @@
 import { ToastProvider } from "@/components/report/Toast";
+import { ReportThemeProvider } from "@/components/report/ReportThemeProvider";
+import { ReportThemeContainer } from "@/components/report/ReportThemeContainer";
 
 export default async function ReportLayout({
   children,
 }: {
   children: React.ReactNode;
-  params: Promise<{ villageName: string }>;
 }) {
   return (
     <ToastProvider>
-      <div className="min-h-screen bg-background text-foreground">
-        {/* Content */}
-        <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
-      </div>
+      <ReportThemeProvider>
+        <ReportThemeContainer>
+          <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
+        </ReportThemeContainer>
+      </ReportThemeProvider>
     </ToastProvider>
   );
 }
