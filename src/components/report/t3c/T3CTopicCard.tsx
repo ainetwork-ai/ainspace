@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import type { Topic, ReportMessage, Claim, Subtopic } from "@/types/report";
 import { TOPIC_COLORS, getTopicClaims } from "@/types/report";
+import Button from "@/components/ui/Button";
+import { useReportIsDark } from "../ReportThemeProvider";
 import { DotGrid } from "../shared/DotGrid";
 import { TruncatedText } from "../shared/TruncatedText";
 import { ClaimItem } from "./ClaimItem";
@@ -45,13 +47,22 @@ function claimsToDotMessages(claims: Claim[]): ReportMessage[] {
 interface T3CTopicCardProps {
   topic: Topic;
   topicIndex: number;
+  isExpanded: boolean;
+  onToggleExpanded: (expanded: boolean) => void;
 }
 
-export function T3CTopicCard({ topic, topicIndex }: T3CTopicCardProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+export function T3CTopicCard({
+  topic,
+  topicIndex,
+  isExpanded,
+  onToggleExpanded,
+}: T3CTopicCardProps) {
   const [highlightedMessageIds, setHighlightedMessageIds] = useState<
     Set<string>
   >(new Set());
+  const [scrollTargetId, setScrollTargetId] = useState<string | null>(null);
+  const clearScrollTarget = useCallback(() => setScrollTargetId(null), []);
+  const isDark = useReportIsDark();
 
   const topicColor = TOPIC_COLORS[topicIndex % TOPIC_COLORS.length];
   const allClaims = useMemo(() => getTopicClaims(topic), [topic]);
@@ -76,7 +87,7 @@ export function T3CTopicCard({ topic, topicIndex }: T3CTopicCardProps) {
   return (
     <div
       id={topic.id}
-      className="overflow-hidden rounded-xl border border-border bg-card shadow-sm"
+      className="scroll-mt-20 overflow-hidden rounded-xl border border-border bg-card shadow-sm"
     >
       <div className="px-6 pt-5 pb-0">
         <div className="mb-1 flex items-start justify-between gap-4">
@@ -115,16 +126,9 @@ export function T3CTopicCard({ topic, topicIndex }: T3CTopicCardProps) {
                 <a
                   href={`#${s.id}`}
                   onClick={(e) => {
-                    if (!isExpanded) {
-                      e.preventDefault();
-                      setIsExpanded(true);
-                      requestAnimationFrame(() => {
-                        document
-                          .getElementById(s.id)
-                          ?.scrollIntoView({ behavior: "smooth", block: "start" });
-                        history.replaceState(null, "", `#${s.id}`);
-                      });
-                    }
+                    e.preventDefault();
+                    setScrollTargetId(s.id);
+                    if (!isExpanded) onToggleExpanded(true);
                   }}
                   className="underline-offset-2 hover:text-foreground hover:underline"
                 >
@@ -139,16 +143,15 @@ export function T3CTopicCard({ topic, topicIndex }: T3CTopicCardProps) {
             {allClaims.length} claims
           </span>
         )}
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          className={`shrink-0 rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
-            isExpanded
-              ? "bg-muted text-foreground hover:bg-muted/80"
-              : "bg-blue-600 text-white hover:bg-blue-700"
-          }`}
+        <Button
+          type="small"
+          variant={isExpanded ? "ghost" : "primary"}
+          onClick={() => onToggleExpanded(!isExpanded)}
+          isDarkMode={isDark}
+          className="shrink-0 py-1.5"
         >
           {isExpanded ? "Collapse Topic" : "Expand Topic"}
-        </button>
+        </Button>
       </div>
 
       {isExpanded && (
@@ -159,6 +162,8 @@ export function T3CTopicCard({ topic, topicIndex }: T3CTopicCardProps) {
               topicColor={topicColor}
               onClaimHover={handleClaimHover}
               highlightedMessageIds={highlightedMessageIds}
+              scrollTargetId={scrollTargetId}
+              onScrollComplete={clearScrollTarget}
             />
           ) : (
             <>
@@ -187,12 +192,17 @@ function SubtopicSections({
   topicColor,
   onClaimHover,
   highlightedMessageIds,
+  scrollTargetId,
+  onScrollComplete,
 }: {
   topic: Topic;
   topicColor: string;
   onClaimHover: (messageIds: string[] | null) => void;
   highlightedMessageIds: Set<string>;
+  scrollTargetId: string | null;
+  onScrollComplete: () => void;
 }) {
+  const isDark = useReportIsDark();
   const [showAll, setShowAll] = useState(false);
 
   const indexedSubtopics = useMemo(() => {
@@ -203,6 +213,27 @@ function SubtopicSections({
       return { subtopic, startIndex };
     });
   }, [topic.subtopics]);
+
+  const targetIndex = scrollTargetId
+    ? indexedSubtopics.findIndex((s) => s.subtopic.id === scrollTargetId)
+    : -1;
+  const targetHidden =
+    targetIndex >= DEFAULT_SUBTOPICS_SHOWN && !showAll;
+
+  useEffect(() => {
+    if (!scrollTargetId) return;
+    if (targetHidden) {
+      setShowAll(true);
+      return;
+    }
+    requestAnimationFrame(() => {
+      document
+        .getElementById(scrollTargetId)
+        ?.scrollIntoView({ block: "start" });
+      history.replaceState(null, "", `#${scrollTargetId}`);
+      onScrollComplete();
+    });
+  }, [scrollTargetId, targetHidden, onScrollComplete]);
 
   const visible = showAll
     ? indexedSubtopics
@@ -222,12 +253,15 @@ function SubtopicSections({
         />
       ))}
       {!showAll && hiddenCount > 0 && (
-        <button
+        <Button
+          type="small"
+          variant="ghost"
           onClick={() => setShowAll(true)}
-          className="rounded-md border border-border bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+          isDarkMode={isDark}
+          className="py-2"
         >
           {hiddenCount} more {hiddenCount === 1 ? "subtopic" : "subtopics"}
-        </button>
+        </Button>
       )}
     </div>
   );
@@ -246,6 +280,7 @@ function SubtopicSection({
   onClaimHover: (messageIds: string[] | null) => void;
   highlightedMessageIds: Set<string>;
 }) {
+  const isDark = useReportIsDark();
   const [claimsShown, setClaimsShown] = useState(DEFAULT_CLAIMS_SHOWN);
 
   const dotMessages = useMemo(
@@ -298,12 +333,15 @@ function SubtopicSection({
         />
       ))}
       {hiddenClaimCount > 0 && (
-        <button
+        <Button
+          type="small"
+          variant="ghost"
           onClick={() => setClaimsShown((n) => n + CLAIMS_STEP)}
-          className="mt-3 rounded-md border border-border bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+          isDarkMode={isDark}
+          className="mt-3 py-2"
         >
           {hiddenClaimCount} more {hiddenClaimCount === 1 ? "claim" : "claims"}
-        </button>
+        </Button>
       )}
     </section>
   );
