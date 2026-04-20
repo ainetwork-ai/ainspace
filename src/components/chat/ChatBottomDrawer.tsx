@@ -28,7 +28,7 @@ export default function ChatBottomDrawer({
             <DrawerContent
                 className={
                     cn(
-                        "max-h-[calc(100lvh-73px)]",
+                        "h-[calc(100vh-73px)]",
                         isKeyboardOpen ? "pb-0" : "pb-[73px]",
                         "bg-black/50",
                     )
