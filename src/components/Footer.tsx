@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { Z_INDEX_OFFSETS } from '@/constants/common';
 import { useUIStore, useUserStore } from '@/stores';
 import { TabType } from '@/stores/useUIStore';
+import { useKeyboardOpen } from '@/hooks/useKeyboardOpen';
 import ConnectWalletModal from './ConnectWalletModal';
 
 interface FooterProps {
@@ -18,6 +19,7 @@ const WALLET_REQUIRED_TABS = ['agent', 'build'] as const;
 export default function Footer({ activeTab, onTabChange }: FooterProps) {
     const isWalletConnected = useUserStore((state) => state.isWalletConnected());
     const selectedAgentForPlacement = useUIStore((state) => state.selectedAgentForPlacement);
+    const { offsetTop } = useKeyboardOpen();
     const [showWalletModal, setShowWalletModal] = useState(false);
 
     const handleTabChange = (tab: TabType) => {
@@ -34,7 +36,10 @@ export default function Footer({ activeTab, onTabChange }: FooterProps) {
     return (
         <>
         <ConnectWalletModal open={showWalletModal} onOpenChange={setShowWalletModal} />
-        <div className="fixed right-0 bottom-0 left-0" style={{ zIndex: Z_INDEX_OFFSETS.UI }}>
+        <div
+            className="fixed right-0 bottom-0 left-0"
+            style={{ zIndex: Z_INDEX_OFFSETS.UI, transform: `translateY(${offsetTop}px)` }}
+        >
             <div className="border-t border-black bg-black">
                 <div className="flex h-[72px] w-full">
                     <button

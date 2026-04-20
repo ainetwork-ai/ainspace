@@ -21,19 +21,27 @@ export default function ChatBottomDrawer({
     lastCommentary,
     onThreadSelect,
   }: ChatBottomDrawerProps) {
-    const { isKeyboardOpen } = useKeyboardOpen();
+    const { isKeyboardOpen, keyboardGap, visibleHeight } = useKeyboardOpen();
+
+    const style: React.CSSProperties = isKeyboardOpen
+        ? {
+            zIndex: Z_INDEX_OFFSETS.UI + 1,
+            bottom: `${keyboardGap}px`,
+            height: `${visibleHeight}px`,
+          }
+        : { zIndex: Z_INDEX_OFFSETS.UI + 1 };
 
     return (
         <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" >
             <DrawerContent
                 className={
                     cn(
-                        "h-[calc(100vh-73px)]",
+                        !isKeyboardOpen && "h-[calc(100vh-73px)]",
                         isKeyboardOpen ? "pb-0" : "pb-[73px]",
                         "bg-black/50",
                     )
                 }
-                style={{ zIndex: Z_INDEX_OFFSETS.UI + 1 }}
+                style={style}
             >
                 <DrawerHeader hidden>
                     <DrawerTitle />
