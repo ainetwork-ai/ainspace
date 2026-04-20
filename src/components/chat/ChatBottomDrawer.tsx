@@ -1,7 +1,6 @@
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import ChatBox, { ChatBoxRef } from './ChatBox';
 import { cn } from '@/lib/utils';
-import { useKeyboardOpen } from '@/hooks/useKeyboardOpen';
 import { Z_INDEX_OFFSETS } from '@/constants/common';
 import { useEffect, useState } from 'react';
 
@@ -22,7 +21,6 @@ export default function ChatBottomDrawer({
     lastCommentary,
     onThreadSelect,
   }: ChatBottomDrawerProps) {
-    const { isKeyboardOpen } = useKeyboardOpen();
     const [viewportHeight, setViewportHeight] = useState(800);
 
     useEffect(() => {
@@ -48,7 +46,7 @@ export default function ChatBottomDrawer({
                 className={
                     cn(
                         "max-h-[calc(100dvh-73px)]",
-                        isKeyboardOpen ? "pb-0" : "pb-[73px]",
+                        "pb-[73px]",
                         "bg-black/50",
                     )
                 }

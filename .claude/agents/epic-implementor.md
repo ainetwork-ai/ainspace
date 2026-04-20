@@ -66,7 +66,7 @@ AINSpace는 React/Next.js App Router 기반 2D 타일맵 게임이다.
 - `src/stores/useUserStore.ts` — 사용자/지갑 상태 (`isWalletConnected()`)
 
 ### 훅
-- `src/hooks/useKeyboardOpen.ts` — `useState + useEffect + event listener + cleanup` 패턴 참고
+- `src/hooks/useIsDesktop.ts` — `useState + useEffect + event listener + cleanup` 패턴 참고
 
 ### TileMap
 - TileMap 캔버스는 `getBoundingClientRect()` 기반으로 자동 사이징됨
