@@ -8,8 +8,10 @@ import { getTopicClaims } from "@/types/report";
 import { REPORT_API_BASE_URL } from "@/lib/report";
 import { isValidUUID } from "@/lib/utils";
 import { T3CSynthesisSection } from "@/components/report/t3c/T3CSynthesisSection";
-import { T3CTopicCard } from "@/components/report/t3c/T3CTopicCard";
+import { TopicList } from "@/components/report/TopicList";
 import { DownloadReportJson } from "@/components/report/DownloadReportJson";
+import { ReportExpandedProvider } from "@/components/report/ReportExpandedProvider";
+import { ReportHeaderControls } from "@/components/report/ReportHeaderControls";
 
 async function getReport(jobId: string): Promise<ReportApiResponse> {
   if (!isValidUUID(jobId)) {
@@ -82,11 +84,13 @@ export default async function ReportPage({
     ? sortedTopics.reduce((s, t) => s + (claimCounts.get(t.id) ?? 0), 0)
     : 0;
 
+  const topicIds = sortedTopics?.map((t) => t.id) ?? [];
+
   return (
-    <>
+    <ReportExpandedProvider>
       {/* Back Navigation */}
       <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur -mx-4 -mt-8 mb-8 px-4 py-3">
-        <div className="mx-auto flex max-w-6xl items-center gap-3">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
           <Link
             href={`/${villageName}/report`}
             className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
@@ -94,6 +98,7 @@ export default async function ReportPage({
             <ArrowLeft className="h-4 w-4" />
             <span>Reports</span>
           </Link>
+          <ReportHeaderControls topicIds={topicIds} />
         </div>
       </header>
 
@@ -144,17 +149,8 @@ export default async function ReportPage({
         />
       )}
 
-      {/* Topic Cards */}
-      {sortedTopics && (
-        <section className="mt-8 space-y-6">
-          {sortedTopics.map((topic, index) => (
-            <T3CTopicCard
-              key={topic.id}
-              topic={topic}
-              topicIndex={index}
-            />
-          ))}
-        </section>
+      {sortedTopics && sortedTopics.length > 0 && (
+        <TopicList topics={sortedTopics} />
       )}
 
       {/* Markdown Report */}
@@ -178,6 +174,6 @@ export default async function ReportPage({
         <h2 className="mb-2 text-lg font-semibold text-foreground">Appendix</h2>
         <DownloadReportJson data={data} />
       </section>
-    </>
+    </ReportExpandedProvider>
   );
 }

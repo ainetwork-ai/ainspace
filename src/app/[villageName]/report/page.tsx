@@ -1,18 +1,8 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { REPORT_API_BASE_URL } from "@/lib/report";
-import type { ReportListResponse, ReportJobSummary } from "@/types/report";
+import type { ReportListResponse } from "@/types/report";
 import { ReportListActions } from "@/components/report/ReportListActions";
-
-// FIXME: 데모용 하드코딩 리포트. 리포트 데이터 쌓이면 제거
-const DEMO_REPORT: ReportJobSummary = {
-  jobId: "09221912-ceae-42f1-9525-e7f50c77a390",
-  status: "completed",
-  createdAt: Date.now(),
-  updatedAt: Date.now(),
-  title: "데모 리포트",
-  description: "데모용 리포트입니다.",
-};
 
 const STATUS_BADGE: Record<string, string> = {
   completed:
@@ -60,8 +50,7 @@ export default async function ReportListPage({
 }) {
   const { villageName } = await params;
   const data = await getReports(villageName);
-  // FIXME: 데모 리포트 항상 포함. 리포트 데이터 쌓이면 제거
-  const items = [DEMO_REPORT, ...(data?.items ?? [])];
+  const items = data?.items ?? [];
 
   return (
     <>

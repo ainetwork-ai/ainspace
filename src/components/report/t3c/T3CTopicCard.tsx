@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import type { Topic, ReportMessage, Claim, Subtopic } from "@/types/report";
 import { TOPIC_COLORS, getTopicClaims } from "@/types/report";
 import { DotGrid } from "../shared/DotGrid";
@@ -45,13 +45,21 @@ function claimsToDotMessages(claims: Claim[]): ReportMessage[] {
 interface T3CTopicCardProps {
   topic: Topic;
   topicIndex: number;
+  isExpanded: boolean;
+  onToggleExpanded: (expanded: boolean) => void;
 }
 
-export function T3CTopicCard({ topic, topicIndex }: T3CTopicCardProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+export function T3CTopicCard({
+  topic,
+  topicIndex,
+  isExpanded,
+  onToggleExpanded,
+}: T3CTopicCardProps) {
   const [highlightedMessageIds, setHighlightedMessageIds] = useState<
     Set<string>
   >(new Set());
+  const [scrollTargetId, setScrollTargetId] = useState<string | null>(null);
+  const clearScrollTarget = useCallback(() => setScrollTargetId(null), []);
 
   const topicColor = TOPIC_COLORS[topicIndex % TOPIC_COLORS.length];
   const allClaims = useMemo(() => getTopicClaims(topic), [topic]);
@@ -76,7 +84,7 @@ export function T3CTopicCard({ topic, topicIndex }: T3CTopicCardProps) {
   return (
     <div
       id={topic.id}
-      className="overflow-hidden rounded-xl border border-border bg-card shadow-sm"
+      className="scroll-mt-20 overflow-hidden rounded-xl border border-border bg-card shadow-sm"
     >
       <div className="px-6 pt-5 pb-0">
         <div className="mb-1 flex items-start justify-between gap-4">
@@ -115,16 +123,9 @@ export function T3CTopicCard({ topic, topicIndex }: T3CTopicCardProps) {
                 <a
                   href={`#${s.id}`}
                   onClick={(e) => {
-                    if (!isExpanded) {
-                      e.preventDefault();
-                      setIsExpanded(true);
-                      requestAnimationFrame(() => {
-                        document
-                          .getElementById(s.id)
-                          ?.scrollIntoView({ behavior: "smooth", block: "start" });
-                        history.replaceState(null, "", `#${s.id}`);
-                      });
-                    }
+                    e.preventDefault();
+                    setScrollTargetId(s.id);
+                    if (!isExpanded) onToggleExpanded(true);
                   }}
                   className="underline-offset-2 hover:text-foreground hover:underline"
                 >
@@ -140,7 +141,7 @@ export function T3CTopicCard({ topic, topicIndex }: T3CTopicCardProps) {
           </span>
         )}
         <button
-          onClick={() => setIsExpanded(!isExpanded)}
+          onClick={() => onToggleExpanded(!isExpanded)}
           className={`shrink-0 rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
             isExpanded
               ? "bg-muted text-foreground hover:bg-muted/80"
@@ -159,6 +160,8 @@ export function T3CTopicCard({ topic, topicIndex }: T3CTopicCardProps) {
               topicColor={topicColor}
               onClaimHover={handleClaimHover}
               highlightedMessageIds={highlightedMessageIds}
+              scrollTargetId={scrollTargetId}
+              onScrollComplete={clearScrollTarget}
             />
           ) : (
             <>
@@ -187,11 +190,15 @@ function SubtopicSections({
   topicColor,
   onClaimHover,
   highlightedMessageIds,
+  scrollTargetId,
+  onScrollComplete,
 }: {
   topic: Topic;
   topicColor: string;
   onClaimHover: (messageIds: string[] | null) => void;
   highlightedMessageIds: Set<string>;
+  scrollTargetId: string | null;
+  onScrollComplete: () => void;
 }) {
   const [showAll, setShowAll] = useState(false);
 
@@ -203,6 +210,27 @@ function SubtopicSections({
       return { subtopic, startIndex };
     });
   }, [topic.subtopics]);
+
+  const targetIndex = scrollTargetId
+    ? indexedSubtopics.findIndex((s) => s.subtopic.id === scrollTargetId)
+    : -1;
+  const targetHidden =
+    targetIndex >= DEFAULT_SUBTOPICS_SHOWN && !showAll;
+
+  useEffect(() => {
+    if (!scrollTargetId) return;
+    if (targetHidden) {
+      setShowAll(true);
+      return;
+    }
+    requestAnimationFrame(() => {
+      document
+        .getElementById(scrollTargetId)
+        ?.scrollIntoView({ block: "start" });
+      history.replaceState(null, "", `#${scrollTargetId}`);
+      onScrollComplete();
+    });
+  }, [scrollTargetId, targetHidden, onScrollComplete]);
 
   const visible = showAll
     ? indexedSubtopics
