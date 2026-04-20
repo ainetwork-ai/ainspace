@@ -324,7 +324,7 @@ export default function AgentTab({
     }
 
     return (
-        <BaseTabContent isActive={isActive} className={isDarkMode ? 'bg-[#2F333B]' : 'bg-white'}>
+        <BaseTabContent isActive={isActive} className={isDarkMode ? 'dark bg-[#2F333B]' : 'bg-white'}>
             <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-[30px] overflow-y-auto scrollbar-hide overflow-x-hidden font-manrope min-h-0">
                 <div className="flex flex-col gap-4 px-5">
                     <p className={cn("text-xl font-bold text-center", isDarkMode ? 'text-white' : 'text-black')}>Place your Agent to AINSpace</p>

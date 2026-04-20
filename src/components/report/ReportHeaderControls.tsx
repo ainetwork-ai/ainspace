@@ -2,11 +2,9 @@
 
 import Button from "@/components/ui/Button";
 import { useReportExpanded } from "./ReportExpandedProvider";
-import { useReportIsDark } from "./ReportThemeProvider";
 
 export function ReportHeaderControls({ topicIds }: { topicIds: string[] }) {
   const { expandedCount, expandAll, collapseAll } = useReportExpanded();
-  const isDark = useReportIsDark();
 
   if (topicIds.length === 0) return null;
 
@@ -16,19 +14,19 @@ export function ReportHeaderControls({ topicIds }: { topicIds: string[] }) {
     <div className="flex gap-2">
       <Button
         type="small"
-        variant="ghost"
+        variant="line"
         onClick={collapseAll}
         disabled={expandedCount === 0}
-        isDarkMode={isDark}
+        className="py-1.5"
       >
         Collapse all
       </Button>
       <Button
         type="small"
-        variant="primary"
+        variant="line"
         onClick={() => expandAll(topicIds)}
         disabled={allExpanded}
-        isDarkMode={isDark}
+        className="py-1.5"
       >
         Expand all
       </Button>

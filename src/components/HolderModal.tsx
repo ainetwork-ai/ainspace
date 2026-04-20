@@ -64,7 +64,7 @@ export default function HolderModal({
         className={cn(
           'w-[328px] rounded-2xl py-6 px-4 shadow-lg border-none',
           'flex flex-col gap-4',
-          isDarkMode ? 'bg-[#2F333B] [&_[data-slot=dialog-close]]:text-white' : 'bg-white',
+          isDarkMode ? 'dark bg-[#2F333B] [&_[data-slot=dialog-close]]:text-white' : 'bg-white',
         )}
       >
         <DialogHeader className="flex flex-col items-center gap-1 pt-6">

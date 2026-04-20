@@ -4,7 +4,6 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import type { Topic, ReportMessage, Claim, Subtopic } from "@/types/report";
 import { TOPIC_COLORS, getTopicClaims } from "@/types/report";
 import Button from "@/components/ui/Button";
-import { useReportIsDark } from "../ReportThemeProvider";
 import { DotGrid } from "../shared/DotGrid";
 import { TruncatedText } from "../shared/TruncatedText";
 import { ClaimItem } from "./ClaimItem";
@@ -62,7 +61,6 @@ export function T3CTopicCard({
   >(new Set());
   const [scrollTargetId, setScrollTargetId] = useState<string | null>(null);
   const clearScrollTarget = useCallback(() => setScrollTargetId(null), []);
-  const isDark = useReportIsDark();
 
   const topicColor = TOPIC_COLORS[topicIndex % TOPIC_COLORS.length];
   const allClaims = useMemo(() => getTopicClaims(topic), [topic]);
@@ -147,7 +145,6 @@ export function T3CTopicCard({
           type="small"
           variant={isExpanded ? "ghost" : "primary"}
           onClick={() => onToggleExpanded(!isExpanded)}
-          isDarkMode={isDark}
           className="shrink-0 py-1.5"
         >
           {isExpanded ? "Collapse Topic" : "Expand Topic"}
@@ -202,7 +199,6 @@ function SubtopicSections({
   scrollTargetId: string | null;
   onScrollComplete: () => void;
 }) {
-  const isDark = useReportIsDark();
   const [showAll, setShowAll] = useState(false);
 
   const indexedSubtopics = useMemo(() => {
@@ -257,7 +253,6 @@ function SubtopicSections({
           type="small"
           variant="ghost"
           onClick={() => setShowAll(true)}
-          isDarkMode={isDark}
           className="py-2"
         >
           {hiddenCount} more {hiddenCount === 1 ? "subtopic" : "subtopics"}
@@ -280,7 +275,6 @@ function SubtopicSection({
   onClaimHover: (messageIds: string[] | null) => void;
   highlightedMessageIds: Set<string>;
 }) {
-  const isDark = useReportIsDark();
   const [claimsShown, setClaimsShown] = useState(DEFAULT_CLAIMS_SHOWN);
 
   const dotMessages = useMemo(
@@ -337,7 +331,6 @@ function SubtopicSection({
           type="small"
           variant="ghost"
           onClick={() => setClaimsShown((n) => n + CLAIMS_STEP)}
-          isDarkMode={isDark}
           className="mt-3 py-2"
         >
           {hiddenClaimCount} more {hiddenClaimCount === 1 ? "claim" : "claims"}

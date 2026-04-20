@@ -67,7 +67,7 @@ export default function MovementStyleModal({
     return (
         <div className={cn(
             "relative flex flex-col items-center gap-4 max-w-[328px] p-6 shadow-lg w-full rounded-2xl",
-            isDarkMode ? 'bg-[#2F333B]' : 'bg-white'
+            isDarkMode ? 'dark bg-[#2F333B]' : 'bg-white'
         )}>
             <div className="flex flex-col items-center gap-1">
                 <h2 className={cn("text-xl font-bold", isDarkMode ? 'text-white' : 'text-black')}>Select Movement Style</h2>
@@ -128,7 +128,7 @@ export default function MovementStyleModal({
             <p className={cn("text-center text-sm", isDarkMode ? 'text-[#CAD0D7]' : 'text-gray-500')}>{selectedOption.description}</p>
 
             {/* Action Button */}
-            <Button onClick={handleConfirm} type="large" variant="primary" isDarkMode={isDarkMode}>
+            <Button onClick={handleConfirm} type="large" variant="primary">
                 Continue
             </Button>
         </div>

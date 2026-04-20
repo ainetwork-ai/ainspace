@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 
 type ButtonType = 'large' | 'small';
-type ButtonVariant = 'primary' | 'secondary' | 'ghost';
+type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'line';
 
 interface ButtonProps {
   children: React.ReactNode;
@@ -10,8 +10,8 @@ interface ButtonProps {
   disabled?: boolean;
   type?: ButtonType;
   variant?: ButtonVariant;
-  isDarkMode?: boolean;
 }
+
 export default function Button({
   children,
   onClick = () => {},
@@ -19,7 +19,6 @@ export default function Button({
   disabled = false,
   type = 'large',
   variant = 'primary',
-  isDarkMode = false,
 }: ButtonProps) {
     const buttonClassMap = {
       large: 'rounded-sm px-[18px] py-4 font-bold leading-[120%]',
@@ -27,15 +26,14 @@ export default function Button({
     }
 
     const variantClassMap = {
-      primary: isDarkMode
-        ? 'bg-[#7F4FE8] hover:bg-[#642CD8] disabled:bg-[#5F666F] text-white'
-        : 'bg-[#7F4FE8] hover:bg-[#642CD8] disabled:bg-[#99A1AE] text-white',
-      secondary: isDarkMode
-        ? 'bg-[#3A3050] hover:bg-[#4A3E60] disabled:bg-[#5F666F] text-[#C0A9F1]'
-        : 'bg-[#EAE0FF] hover:bg-[#C0A9F1] disabled:bg-[#99A1AE] text-[#7F4FE8]',
-      ghost: isDarkMode
-        ? 'bg-[#3A3E46] disabled:bg-[#5F666F] text-[#CAD0D7]'
-        : 'bg-[#F3F3F3] disabled:bg-[#99A1AE] text-gray-500',
+      primary:
+        'bg-[#7F4FE8] hover:bg-[#642CD8] disabled:bg-[#99A1AE] dark:disabled:bg-[#5F666F] text-white',
+      secondary:
+        'bg-[#EAE0FF] hover:bg-[#C0A9F1] text-[#7F4FE8] disabled:bg-[#99A1AE] dark:bg-[#3A3050] dark:hover:bg-[#4A3E60] dark:text-[#C0A9F1] dark:disabled:bg-[#5F666F]',
+      ghost:
+        'bg-[#F3F3F3] text-gray-500 disabled:bg-[#99A1AE] dark:bg-[#3A3E46] dark:text-[#CAD0D7] dark:disabled:bg-[#5F666F]',
+      line:
+        'border border-[#7F4FE8] text-[#7F4FE8] bg-transparent hover:bg-[#EAE0FF] disabled:border-[#969EAA] disabled:text-[#969EAA] disabled:bg-transparent dark:border-[#C0A9F1] dark:text-[#C0A9F1] dark:hover:bg-[#7F4FE866] dark:disabled:border-[#969EAA] dark:disabled:text-[#969EAA] dark:disabled:bg-transparent',
     }
 
     return (
@@ -45,7 +43,6 @@ export default function Button({
           className={
               cn(
                   'transition-colors disabled:cursor-not-allowed mx-auto w-fit text-center',
-                  isDarkMode ? 'disabled:bg-[#5F666F]' : 'disabled:bg-[#99A1AE]',
                   buttonClassMap[type],
                   variantClassMap[variant],
                   className,
