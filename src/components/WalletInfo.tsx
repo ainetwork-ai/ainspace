@@ -12,7 +12,7 @@ import { useThreadStore } from '@/stores';
 export default function WalletInfo() {
     const { address } = useAccount();
     const { isCopied, handleCopy } = useCopyAddress(address);
-    const { clearThreads } = useThreadStore();
+    const clearThreads = useThreadStore((s) => s.clearThreads);
 
     if (!address) return null;
 
