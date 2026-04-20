@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { X } from "lucide-react";
+import { useAccount } from "wagmi";
 import { useToast } from "./Toast";
 import { useUserStore } from "@/stores/useUserStore";
 
@@ -25,7 +26,14 @@ export function CreateReportForm({
   onCancel,
 }: CreateReportFormProps) {
   const { showToast } = useToast();
+  const { address } = useAccount();
   const getUserId = useUserStore((s) => s.getUserId);
+  const sessionId = useUserStore((s) => s.sessionId);
+  const initSessionId = useUserStore((s) => s.initSessionId);
+
+  useEffect(() => {
+    if (!sessionId) initSessionId();
+  }, [sessionId, initSessionId]);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -83,10 +91,16 @@ export function CreateReportForm({
       return;
     }
 
+    const userId = address || getUserId();
+    if (!userId) {
+      showToast("사용자 인증이 필요합니다", "error");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const body: Record<string, unknown> = {
-        userId: getUserId(),
+        userId,
         title: title.trim(),
         agentNames,
         language,
