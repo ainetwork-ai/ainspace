@@ -86,8 +86,13 @@ html {
     -webkit-overflow-scrolling: touch;
 }
 
-/* Prevent pull-to-refresh on mobile */
+/* Lock body/html to viewport so iOS Safari does not auto-scroll the page when
+   an input is focused (prevents the keyboard from pushing layout up). */
+html,
 body {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
     overscroll-behavior-y: contain;
 }
 
