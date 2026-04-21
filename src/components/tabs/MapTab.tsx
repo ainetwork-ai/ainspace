@@ -303,7 +303,7 @@ export default function MapTab({
                     className="absolute top-4 right-4 inline-flex cursor-pointer flex-row items-center justify-center gap-2 rounded-lg bg-[#7F4FE8] p-2 px-4"
                     style={{ zIndex: Z_INDEX_OFFSETS.UI }}
                   >
-                    <p className="text-sm font-bold text-white">Wallet Login</p>
+                    <p className="text-sm font-bold text-white">Login</p>
                   </button>
                 ))}
 
