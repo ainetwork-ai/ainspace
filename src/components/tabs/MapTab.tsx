@@ -321,22 +321,22 @@ export default function MapTab({
                     </p>
                 </div>
                 )}
-                {!isDesktop && isJoystickVisible && (
-                    <div
-                        className="absolute bottom-4 left-1/2 -translate-x-1/2 transform"
-                        style={{ zIndex: Z_INDEX_OFFSETS.UI - 1 }}
-                        hidden={HUDOff}
-                    >
-                        <PlayerJoystick
-                            onMove={handleMobileMove}
-                            disabled={isAutonomous}
-                            baseColor="#00000050"
-                            stickColor="#FFF"
-                            size={160}
-                        />
-                    </div>
-                )}
             </div>
+            {!isDesktop && isJoystickVisible && (
+                <div
+                    className="fixed bottom-[60px] left-1/2 -translate-x-1/2 transform"
+                    style={{ zIndex: Z_INDEX_OFFSETS.UI - 1 }}
+                    hidden={HUDOff}
+                >
+                    <PlayerJoystick
+                        onMove={handleMobileMove}
+                        disabled={isAutonomous}
+                        baseColor="#00000050"
+                        stickColor="#FFF"
+                        size={160}
+                    />
+                </div>
+            )}
             {!isDesktop && (
                 <ChatBoxOverlay
                     chatBoxRef={chatBoxRef}
