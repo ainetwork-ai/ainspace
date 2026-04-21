@@ -21,7 +21,8 @@ export default function ChatBottomDrawer({
     lastCommentary,
     onThreadSelect,
   }: ChatBottomDrawerProps) {
-    const { isKeyboardOpen, keyboardGap, visibleHeight } = useKeyboardOpen();
+    const { isKeyboardOpen, keyboardHeight, offsetTop, visibleHeight } = useKeyboardOpen();
+    const keyboardGap = Math.max(0, keyboardHeight - offsetTop);
 
     const style: React.CSSProperties = isKeyboardOpen
         ? {
@@ -32,7 +33,7 @@ export default function ChatBottomDrawer({
         : { zIndex: Z_INDEX_OFFSETS.UI + 1 };
 
     return (
-        <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" >
+        <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
             <DrawerContent
                 className={
                     cn(

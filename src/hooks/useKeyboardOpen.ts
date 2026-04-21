@@ -3,28 +3,29 @@
 import { useState, useEffect } from 'react';
 
 const KEYBOARD_MIN_DELTA_PX = 150;
-const KEYBOARD_MIN_OFFSET_PX = 10;
+const KEYBOARD_MIN_OFFSET_PX = 50;
 
 export interface KeyboardState {
     isKeyboardOpen: boolean;
+    keyboardHeight: number;
     offsetTop: number;
     visibleHeight: number;
-    keyboardGap: number;
 }
 
 /**
- * visualViewport API로 키보드 상태와 viewport 지표를 추적한다.
- * iOS Safari가 visualViewport를 위로 pan하는 경우 offsetTop이 > 0이 되고,
- * position:fixed 요소가 시각적으로 밀려 보인다. keyboardGap / offsetTop 값으로
- * 역보정(translate)해 Android와 동일한 오버레이 동작을 만들 수 있다.
- * viewport 메타에 interactive-widget=resizes-visual 이 필요하다.
+ * visualViewport API로 키보드 상태, 높이, pan offset을 추적한다.
+ * viewport 메타에 interactive-widget=overlays-content 설정 시 layout viewport는
+ * 리사이즈되지 않지만, iOS Safari는 input focus 시 visualViewport를 pan하고
+ * position:fixed 요소를 visualViewport 기준으로 재배치한다. fixed 요소에
+ * translateY(offsetTop)로 역보정하면 원위치(layout viewport 기준)로 돌려놓을 수 있다.
+ * Android는 offsetTop이 항상 0에 가까워 영향 없다.
  */
 export function useKeyboardOpen(): KeyboardState {
     const [state, setState] = useState<KeyboardState>({
         isKeyboardOpen: false,
+        keyboardHeight: 0,
         offsetTop: 0,
         visibleHeight: 0,
-        keyboardGap: 0,
     });
 
     useEffect(() => {
@@ -37,17 +38,17 @@ export function useKeyboardOpen(): KeyboardState {
             if (rafId) return;
             rafId = requestAnimationFrame(() => {
                 rafId = 0;
-                const diff = window.innerHeight - viewport.height;
-                // iOS Safari는 pan만 하고 vv.height는 안 줄어드는 경우가 있어
-                // offsetTop도 함께 검사한다
+                const keyboardHeight = Math.max(0, window.innerHeight - viewport.height);
+                // iOS Safari(overlays-content)는 vv.height가 줄지 않고 offsetTop만 증가.
+                // Android는 vv.height가 줄고 offsetTop은 0. 두 시그널 모두로 판정.
                 const isKeyboardOpen =
-                    diff > KEYBOARD_MIN_DELTA_PX ||
+                    keyboardHeight > KEYBOARD_MIN_DELTA_PX ||
                     viewport.offsetTop > KEYBOARD_MIN_OFFSET_PX;
                 setState({
                     isKeyboardOpen,
+                    keyboardHeight,
                     offsetTop: viewport.offsetTop,
                     visibleHeight: viewport.height,
-                    keyboardGap: diff - viewport.offsetTop,
                 });
             });
         };
