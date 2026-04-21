@@ -97,6 +97,9 @@ body {
 }
 
 :root {
+    /* iOS Safari/Chrome의 키보드(suggestions bar 포함) UI를 앱 다크 테마에 맞춘다.
+       미지정 시 기본 light로 렌더되어 다크 본문과 흰 키보드가 대비되는 현상 발생. */
+    color-scheme: dark;
     --radius: 0.625rem;
     --background: oklch(1 0 0);
     --foreground: oklch(0.145 0 0);
