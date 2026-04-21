@@ -108,7 +108,7 @@ export default function DesktopLayout({
                             onClick={() => setShowWalletModal(true)}
                             className="inline-flex cursor-pointer flex-row items-center gap-2 rounded-lg bg-[#7F4FE8] p-2 px-4"
                         >
-                            <p className="text-sm font-bold text-white">Connect Wallet</p>
+                            <p className="text-sm font-bold text-white">Login</p>
                         </button>
                     )}
                 </div>
