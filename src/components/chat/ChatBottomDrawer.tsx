@@ -21,8 +21,7 @@ export default function ChatBottomDrawer({
     lastCommentary,
     onThreadSelect,
   }: ChatBottomDrawerProps) {
-    const { isKeyboardOpen, keyboardHeight, offsetTop, visibleHeight } = useKeyboardOpen();
-    const keyboardGap = Math.max(0, keyboardHeight - offsetTop);
+    const { isKeyboardOpen, visibleHeight, keyboardGap } = useKeyboardOpen();
 
     const style: React.CSSProperties = isKeyboardOpen
         ? {

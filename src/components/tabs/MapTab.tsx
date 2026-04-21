@@ -323,6 +323,8 @@ export default function MapTab({
                 )}
             </div>
             {!isDesktop && isJoystickVisible && (
+                // bottom 60px = PlayerJoystick 내부 mb-20(80px) 감안 시 이미지 바닥이
+                // viewport 바닥 140px 지점 → ChatBoxOverlay top(129px) 위로 11px 여유.
                 <div
                     className="fixed bottom-[60px] left-1/2 -translate-x-1/2 transform"
                     style={{ zIndex: Z_INDEX_OFFSETS.UI - 1 }}

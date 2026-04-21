@@ -10,6 +10,7 @@ export interface KeyboardState {
     keyboardHeight: number;
     offsetTop: number;
     visibleHeight: number;
+    keyboardGap: number;
 }
 
 /**
@@ -26,6 +27,7 @@ export function useKeyboardOpen(): KeyboardState {
         keyboardHeight: 0,
         offsetTop: 0,
         visibleHeight: 0,
+        keyboardGap: 0,
     });
 
     useEffect(() => {
@@ -39,16 +41,25 @@ export function useKeyboardOpen(): KeyboardState {
             rafId = requestAnimationFrame(() => {
                 rafId = 0;
                 const keyboardHeight = Math.max(0, window.innerHeight - viewport.height);
+                const offsetTop = viewport.offsetTop;
+                const visibleHeight = viewport.height;
                 // iOS Safari(overlays-content)는 vv.height가 줄지 않고 offsetTop만 증가.
                 // Android는 vv.height가 줄고 offsetTop은 0. 두 시그널 모두로 판정.
                 const isKeyboardOpen =
                     keyboardHeight > KEYBOARD_MIN_DELTA_PX ||
-                    viewport.offsetTop > KEYBOARD_MIN_OFFSET_PX;
-                setState({
-                    isKeyboardOpen,
-                    keyboardHeight,
-                    offsetTop: viewport.offsetTop,
-                    visibleHeight: viewport.height,
+                    offsetTop > KEYBOARD_MIN_OFFSET_PX;
+                const keyboardGap = Math.max(0, keyboardHeight - offsetTop);
+                setState((prev) => {
+                    if (
+                        prev.isKeyboardOpen === isKeyboardOpen &&
+                        prev.keyboardHeight === keyboardHeight &&
+                        prev.offsetTop === offsetTop &&
+                        prev.visibleHeight === visibleHeight &&
+                        prev.keyboardGap === keyboardGap
+                    ) {
+                        return prev;
+                    }
+                    return { isKeyboardOpen, keyboardHeight, offsetTop, visibleHeight, keyboardGap };
                 });
             });
         };
