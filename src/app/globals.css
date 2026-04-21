@@ -86,14 +86,18 @@ html {
     -webkit-overflow-scrolling: touch;
 }
 
-/* Lock body/html to viewport so iOS Safari does not auto-scroll the page when
-   an input is focused (prevents the keyboard from pushing layout up). */
-html,
 body {
+    overscroll-behavior-y: contain;
+}
+
+/* Lock html/body to viewport so iOS Safari does not auto-scroll the page when
+   an input is focused. Applied only on pages that opt in (main game page);
+   scrollable pages (reports etc.) must not have this class. */
+html.viewport-locked,
+body.viewport-locked {
     position: fixed;
     inset: 0;
     overflow: hidden;
-    overscroll-behavior-y: contain;
 }
 
 :root {
