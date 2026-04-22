@@ -1,8 +1,8 @@
 import { useThreadStore } from '@/stores/useThreadStore';
+import { useUserStore } from '@/stores/useUserStore';
 import { Thread } from '@/types/thread';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '../ui/context-menu';
 import { AlertTriangle, Trash2Icon } from 'lucide-react';
-import { useAccount } from 'wagmi';
 import { Z_INDEX_OFFSETS } from '@/constants/common';
 
 interface ThreadCardProps {
@@ -11,16 +11,17 @@ interface ThreadCardProps {
 }
 
 export default function ThreadCard({ thread, onThreadSelect }: ThreadCardProps) {
-    const { address } = useAccount();
     const { removeThread } = useThreadStore();
+    const getUserId = useUserStore((state) => state.getUserId);
 
     const deleteThread = async (e: React.MouseEvent) => {
         e.stopPropagation(); // Prevent thread selection when clicking delete
 
-        if (!address) return;
+        const userId = getUserId();
+        if (!userId) return;
 
         try {
-            const response = await fetch(`/api/threads/${thread.id}?userId=${address}`, {
+            const response = await fetch(`/api/threads/${thread.id}?userId=${userId}`, {
                 method: 'DELETE'
             });
 

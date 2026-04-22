@@ -6,12 +6,12 @@ import type { Claim } from "@/types/report";
 
 function QuotePopover({ claim }: { claim: Claim }) {
   return (
-    <div className="w-[420px] max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-card p-4 text-sm shadow-lg">
-      <p className="mb-3">
+    <div className="flex max-h-[calc(100vh-2rem)] w-[420px] max-w-[calc(100vw-2rem)] flex-col rounded-lg border border-border bg-card p-4 text-sm shadow-lg">
+      <p className="mb-3 shrink-0">
         <span className="font-medium">#{claim.id.split("-").pop()}</span>{" "}
         <span className="text-muted-foreground">{claim.title}</span>
       </p>
-      <div className="max-h-[400px] overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         {/* Conversation context (claim-level) */}
         {claim.context && claim.context.length > 0 ? (
           <div className="space-y-1.5 rounded-md bg-muted/50 p-3">
@@ -74,10 +74,21 @@ function QuoteBubble({ claim }: { claim: Claim }) {
     if (closeTimer.current) clearTimeout(closeTimer.current);
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
-      setPosition({
-        top: rect.bottom + 8,
-        left: Math.min(rect.left, window.innerWidth - 420),
-      });
+      const margin = 16;
+      const popupWidth = Math.min(420, window.innerWidth - margin * 2);
+      const maxLeft = window.innerWidth - popupWidth - margin;
+      const left = Math.max(margin, Math.min(rect.left, maxLeft));
+
+      // Flip vertically when space below is insufficient. Popup itself is
+      // capped at max-h-[calc(100vh-2rem)] so the final clamp ensures it never
+      // extends past viewport edges.
+      const popupHeightEstimate = 470;
+      const spaceBelow = window.innerHeight - rect.bottom - margin;
+      const top = spaceBelow >= popupHeightEstimate
+        ? rect.bottom + 8
+        : Math.max(margin, rect.top - popupHeightEstimate - 8);
+
+      setPosition({ top, left });
     }
     setIsOpen(true);
   };
