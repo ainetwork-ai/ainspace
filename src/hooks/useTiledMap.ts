@@ -37,7 +37,8 @@ export function useTiledMap(
   }, [worldPosition, canvasSize, actualTileSize]);
 
   useEffect(() => {
-    if (loadedVillages.size === 0 || !isCurrentVillageLoaded) return;
+    const hasRenderable = loadedVillages.size > 0 || defaultVillage;
+    if (!hasRenderable || !isCurrentVillageLoaded) return;
 
     const canvas = canvasRef.current;
     if (!canvas) return;
