@@ -233,12 +233,12 @@ function TileMap({
     const handleTouchStart = (event: React.TouchEvent<HTMLElement>) => {
         if (event.touches.length === 0) return;
 
-        event.preventDefault();
         setIsTouchDevice(true);
 
         const touch = event.touches[0];
 
         if (buildMode === 'paint') {
+            event.preventDefault();
             const coords = getWorldCoordinatesFromClientPos(touch.clientX, touch.clientY);
             if (coords) {
                 setIsPainting(true);
@@ -258,7 +258,7 @@ function TileMap({
     };
 
     const handleTouchEnd = (event: React.TouchEvent<HTMLElement>) => {
-        event.preventDefault();
+        if (buildMode === 'paint') event.preventDefault();
         setIsPainting(false);
         setLastPaintedTile(null);
     };
