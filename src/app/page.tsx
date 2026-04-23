@@ -78,7 +78,7 @@ export default function Home() {
     // Guest session reset: Ctrl+K
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.ctrlKey && e.key.toLowerCase() === 'k') {
+            if (e.ctrlKey && e.code === 'KeyK') {
                 e.preventDefault();
 
                 // Only allow when wallet is not connected (guest mode)
