@@ -5,7 +5,7 @@ const A2A_ORCHESTRATION_BASE_URL = process.env.NEXT_PUBLIC_A2A_ORCHESTRATION_BAS
 // Configure route to handle long-lived streaming connections
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-export const maxDuration = 300; // 5 minutes max duration
+export const maxDuration = 800; // Vercel Pro streaming limit
 
 export async function GET(
   request: NextRequest,
