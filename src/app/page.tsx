@@ -64,6 +64,17 @@ export default function Home() {
         initSessionId();
     }, [initSessionId]);
 
+    // Lock html/body to viewport on the game page only (iOS keyboard fix).
+    // Scrollable pages like reports must remain scrollable.
+    useEffect(() => {
+        document.documentElement.classList.add('viewport-locked');
+        document.body.classList.add('viewport-locked');
+        return () => {
+            document.documentElement.classList.remove('viewport-locked');
+            document.body.classList.remove('viewport-locked');
+        };
+    }, []);
+
     // Guest session reset: Ctrl+K
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {

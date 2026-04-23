@@ -35,6 +35,7 @@ export function useVillageLoader(initialVillageSlug: string | null) {
   const loadingRef = useRef<Set<string>>(new Set());
   const initializedRef = useRef(false);
   const initializedSlugRef = useRef<string | null>(null);
+  const prevLoadedSizeRef = useRef(0);
 
   // 마을 TMJ/타일셋을 로드하는 함수
   const loadVillage = useCallback(async (metadata: VillageMetadata): Promise<LoadedVillage | null> => {
@@ -370,6 +371,23 @@ export function useVillageLoader(initialVillageSlug: string | null) {
       });
     }
   }, [worldPosition, currentVillage, getVillageSlugAtGrid, loadedVillages, loadVillage]);
+
+  // 빠른 이동 중 gridIndex가 뒤늦게 갱신되어 플레이어가 충돌 타일 위에 갇히는 경우 복구.
+  // worldPosition을 deps에 넣지 않는 이유: 이동마다 재실행되면 의미 없음 — 마을 로드 이벤트에만 반응해야 함.
+  useEffect(() => {
+    if (loadedVillages.size <= prevLoadedSizeRef.current) {
+      prevLoadedSizeRef.current = loadedVillages.size;
+      return;
+    }
+    prevLoadedSizeRef.current = loadedVillages.size;
+
+    const pos = useGameStateStore.getState().worldPosition;
+    const isCollisionAt = useVillageStore.getState().isCollisionAt;
+    if (!isCollisionAt(pos.x, pos.y)) return;
+
+    const validPos = findNearestValidPosition(pos.x, pos.y, isCollisionAt);
+    if (validPos) setWorldPosition(validPos);
+  }, [loadedVillages, setWorldPosition]);
 
   return {
     isLoading: useVillageStore((s) => s.isLoading),

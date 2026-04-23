@@ -3,7 +3,6 @@ import ChatBox, { ChatBoxRef } from './ChatBox';
 import { cn } from '@/lib/utils';
 import { useKeyboardOpen } from '@/hooks/useKeyboardOpen';
 import { Z_INDEX_OFFSETS } from '@/constants/common';
-import { useEffect, useState } from 'react';
 
 interface ChatBottomDrawerProps {
     open: boolean;
@@ -22,40 +21,27 @@ export default function ChatBottomDrawer({
     lastCommentary,
     onThreadSelect,
   }: ChatBottomDrawerProps) {
-    const { isKeyboardOpen } = useKeyboardOpen();
-    const [viewportHeight, setViewportHeight] = useState(800);
+    const { isKeyboardOpen, visibleHeight, keyboardGap } = useKeyboardOpen();
 
-    useEffect(() => {
-        if (typeof window === 'undefined') return;
+    const style: React.CSSProperties = isKeyboardOpen
+        ? {
+            zIndex: Z_INDEX_OFFSETS.UI + 1,
+            bottom: `${keyboardGap}px`,
+            height: `${visibleHeight}px`,
+          }
+        : { zIndex: Z_INDEX_OFFSETS.UI + 1 };
 
-        const updateHeight = () => setTimeout(() => {
-            setViewportHeight(window.innerHeight);
-        }, 300);
-
-        // 초기 높이 설정
-        updateHeight();
-
-        // resize 이벤트로 높이 추적
-        window.addEventListener('resize', updateHeight);
-
-        return () => {
-            window.removeEventListener('resize', updateHeight);
-        };
-    }, []);
     return (
-        <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" >
+        <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
             <DrawerContent
                 className={
                     cn(
-                        "max-h-[calc(100dvh-73px)]",
+                        !isKeyboardOpen && "h-[calc(100vh-73px)]",
                         isKeyboardOpen ? "pb-0" : "pb-[73px]",
                         "bg-black/50",
                     )
                 }
-                style={{
-                  zIndex: Z_INDEX_OFFSETS.UI + 1,
-                  height: viewportHeight < 500 ? `${viewportHeight}px` : '100%',
-                }}
+                style={style}
             >
                 <DrawerHeader hidden>
                     <DrawerTitle />

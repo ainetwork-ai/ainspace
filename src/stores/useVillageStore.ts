@@ -85,8 +85,8 @@ export const useVillageStore = create<VillageState>((set, get) => ({
     }),
 
   setNearbyVillages: (villages) =>
-    set(() => {
-      const newMap = new Map<string, VillageMetadata>();
+    set((state) => {
+      const newMap = new Map(state.nearbyVillages);
       for (const v of villages) {
         newMap.set(v.slug, v);
       }

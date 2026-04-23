@@ -1,0 +1,160 @@
+"use client";
+
+import { useState, useRef, useMemo } from "react";
+import { Quote as QuoteIcon } from "lucide-react";
+import type { Claim } from "@/types/report";
+
+function QuotePopover({ claim }: { claim: Claim }) {
+  return (
+    <div className="flex max-h-[calc(100vh-2rem)] w-[420px] max-w-[calc(100vw-2rem)] flex-col rounded-lg border border-border bg-card p-4 text-sm shadow-lg">
+      <p className="mb-3 shrink-0">
+        <span className="font-medium">#{claim.id.split("-").pop()}</span>{" "}
+        <span className="text-muted-foreground">{claim.title}</span>
+      </p>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {/* Conversation context (claim-level) */}
+        {claim.context && claim.context.length > 0 ? (
+          <div className="space-y-1.5 rounded-md bg-muted/50 p-3">
+            {claim.context.map((msg) => {
+              const stripped = (s: string) => s.replace(/^\[|\]$/g, "");
+              const isQuoted = claim.quotes.some((q) => {
+                const qt = stripped(q.text);
+                return msg.content === qt || msg.content.includes(qt) || qt.includes(msg.content);
+              });
+              return (
+                <div key={msg.id} className="flex gap-2">
+                  <span
+                    className={`shrink-0 text-xs font-medium ${
+                      msg.isUser
+                        ? "text-blue-600 dark:text-blue-400"
+                        : "text-purple-600 dark:text-purple-400"
+                    }`}
+                  >
+                    {msg.isUser ? "User" : msg.speaker}
+                  </span>
+                  <p
+                    className={`text-xs leading-relaxed ${
+                      isQuoted
+                        ? "font-medium text-foreground"
+                        : "text-muted-foreground"
+                    }`}
+                  >
+                    {msg.content}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          /* Fallback: quote texts only */
+          <div className="space-y-2">
+            {claim.quotes.map((quote) => (
+              <div key={quote.id} className="flex gap-2">
+                <QuoteIcon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/70" />
+                <p className="text-muted-foreground">{quote.text}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function QuoteBubble({ claim }: { claim: Claim }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [position, setPosition] = useState<{ top: number; left: number }>({
+    top: 0,
+    left: 0,
+  });
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout>>(null);
+
+  const open = () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const margin = 16;
+      const popupWidth = Math.min(420, window.innerWidth - margin * 2);
+      const maxLeft = window.innerWidth - popupWidth - margin;
+      const left = Math.max(margin, Math.min(rect.left, maxLeft));
+
+      // Flip vertically when space below is insufficient. Popup itself is
+      // capped at max-h-[calc(100vh-2rem)] so the final clamp ensures it never
+      // extends past viewport edges.
+      const popupHeightEstimate = 470;
+      const spaceBelow = window.innerHeight - rect.bottom - margin;
+      const top = spaceBelow >= popupHeightEstimate
+        ? rect.bottom + 8
+        : Math.max(margin, rect.top - popupHeightEstimate - 8);
+
+      setPosition({ top, left });
+    }
+    setIsOpen(true);
+  };
+
+  const scheduleClose = () => {
+    closeTimer.current = setTimeout(() => setIsOpen(false), 150);
+  };
+
+  const cancelClose = () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+  };
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        onMouseEnter={open}
+        onMouseLeave={scheduleClose}
+        className="inline-flex h-7 items-center gap-1 rounded-sm border border-border px-2 text-xs text-muted-foreground transition-colors hover:bg-muted"
+      >
+        <QuoteIcon className="h-4 w-4 text-muted-foreground/70" />
+        {claim.number}
+      </button>
+      {isOpen && (
+        <div
+          className="fixed z-[9999]"
+          style={{ top: position.top, left: position.left }}
+          onMouseEnter={cancelClose}
+          onMouseLeave={scheduleClose}
+        >
+          <QuotePopover claim={claim} />
+        </div>
+      )}
+    </>
+  );
+}
+
+export function ClaimItem({
+  claim,
+  index,
+  color,
+  onHover,
+}: {
+  claim: Claim;
+  index: number;
+  color: string;
+  onHover: (messageIds: string[] | null) => void;
+}) {
+  const messageIds = useMemo(
+    () => claim.quotes.map((q) => q.reference.messageId),
+    [claim.quotes]
+  );
+
+  return (
+    <div
+      id={claim.id}
+      className="flex items-start gap-3 border-b border-border py-2.5 last:border-0"
+      onMouseEnter={() => onHover(messageIds)}
+      onMouseLeave={() => onHover(null)}
+    >
+      <p className="min-w-0 flex-1 text-sm text-foreground/70">
+        <span className="font-medium text-foreground">#{index + 1}</span>{" "}
+        {claim.title}
+      </p>
+
+      {claim.quotes.length > 0 && <QuoteBubble claim={claim} />}
+    </div>
+  );
+}

@@ -42,7 +42,6 @@ export default function ImportedAgentCard({
                                 onClick={() => onUnplaceAgent(agent)}
                                 type="small"
                                 variant="secondary"
-                                isDarkMode={isDarkMode}
                                 className="h-fit p-[9px] flex flex-row gap-1 items-center justify-center"
                             >
                                 <MapPinOffIcon className="w-4 h-4" type="icon" strokeWidth={1.3} />
@@ -53,7 +52,6 @@ export default function ImportedAgentCard({
                                 onClick={() => onPlaceAgent(agent)}
                                 type="small"
                                 variant="primary"
-                                isDarkMode={isDarkMode}
                                 className="h-fit p-[9px] flex flex-row gap-1 items-center justify-center"
                             >
                                 <MapPinIcon className="w-4 h-4" type="icon" strokeWidth={1.3} />
@@ -66,7 +64,6 @@ export default function ImportedAgentCard({
                         <Button
                             type="small"
                             variant={`${spriteUrl ? 'secondary' : 'primary'}`}
-                            isDarkMode={isDarkMode}
                             className="h-fit p-[9px] flex flex-row gap-1 items-center justify-center"
                         >
                             <CameraIcon className="w-4 h-4" type="icon" strokeWidth={1.3} />
@@ -77,7 +74,6 @@ export default function ImportedAgentCard({
                         <Button
                             type="small"
                             variant="ghost"
-                            isDarkMode={isDarkMode}
                             className="h-fit p-[9px]"
                         >
                             <Trash2Icon className={cn("w-4 h-4", isDarkMode ? 'text-[#838D9D]' : 'text-[#969EAA]')} type="icon" strokeWidth={1.3} />

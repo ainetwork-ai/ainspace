@@ -48,7 +48,6 @@ export default function ImportAgentSection({
                     onClick={handleImportAgentClick}
                     disabled={isLoading || !agentUrl.trim()}
                     type="large"
-                    isDarkMode={isDarkMode}
                 >
                     {isLoading ? 'Importing...' : 'Import'}
                 </Button>

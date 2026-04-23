@@ -3,21 +3,17 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAccount } from 'wagmi';
 import ConnectWalletModal from '../ConnectWalletModal';
-import Image from 'next/image';
-import { disconnect } from '@wagmi/core';
-import { MapPin, Copy, Check, LogOut } from 'lucide-react';
+import { MapPin } from 'lucide-react';
 
 import BaseTabContent from './BaseTabContent';
-import { useCopyAddress } from '@/hooks/useCopyAddress';
 import PlayerJoystick from '@/components/controls/PlayerJoystick';
+import WalletInfo from '@/components/WalletInfo';
 import { DIRECTION, TILE_SIZE, MOVEMENT_MODE } from '@/constants/game';
 import { useGameState } from '@/hooks/useGameState';
 import { TileLayers } from '@/stores/useBuildStore';
-import { shortAddress } from '@/lib/utils';
-import { config } from '@/lib/wagmi-config';
 import ChatBoxOverlay from '@/components/chat/ChatBoxOverlay';
 import { ChatBoxRef } from '@/components/chat/ChatBox';
-import { useAgentStore, useThreadStore, useUIStore } from '@/stores';
+import { useAgentStore, useUIStore } from '@/stores';
 import TileMap from '@/components/TileMap';
 import { Z_INDEX_OFFSETS } from '@/constants/common';
 import { StoredAgent } from '@/lib/redis';
@@ -55,7 +51,6 @@ export default function MapTab({
     const { address } = useAccount();
     const [showWalletModal, setShowWalletModal] = useState(false);
     const agents = useAgentStore((s) => s.agents);
-    const { clearThreads } = useThreadStore();
     const { selectedAgentForPlacement, setSelectedAgentForPlacement } = useUIStore();
     const [placementError, setPlacementError] = useState<string | null>(null);
     const [selectedPosition, setSelectedPosition] = useState<{ x: number; y: number } | null>(null);
@@ -78,7 +73,6 @@ export default function MapTab({
     const { players: onlinePlayers } = useVillagePresence();
 
     const [isJoystickVisible, setIsJoystickVisible] = useState(true);
-    const { isCopied, handleCopy: handleCopyAddress } = useCopyAddress(address);
 
     // Handle agent placement click (two-tap: first tap selects, second tap confirms)
     const handleAgentPlacementClick = useCallback(async (worldX: number, worldY: number) => {
@@ -205,11 +199,6 @@ export default function MapTab({
         [isAutonomous, worldPosition, agents, movePlayer, villageIsCollisionAt]
     );
 
-    const handleWalletDisconnect = useCallback(() => {
-        disconnect(config);
-        clearThreads();
-    }, [clearThreads]);
-
     // Keyboard handling for player movement (works alongside joystick)
     useEffect(() => {
         const handleKeyPress = (event: KeyboardEvent) => {
@@ -303,25 +292,10 @@ export default function MapTab({
 
                 {!isDesktop && (address ? (
                     <div
-                        className="absolute top-4 right-4 inline-flex flex-row items-center gap-1"
+                        className="absolute top-4 right-4"
                         style={{ zIndex: Z_INDEX_OFFSETS.UI }}
                     >
-                        <div className="inline-flex flex-row items-center gap-2 rounded-lg bg-white p-2">
-                            <Image src="/agent/defaultAvatar.svg" alt="agent" width={20} height={20} />
-                            <p className="text-sm font-bold text-black">{shortAddress(address)}</p>
-                            <button
-                                onClick={handleCopyAddress}
-                                className="cursor-pointer rounded p-0.5 hover:bg-gray-100"
-                            >
-                                {isCopied ? <Check size={14} className="text-green-500" /> : <Copy size={14} className="text-gray-400" />}
-                            </button>
-                        </div>
-                        <button
-                            onClick={handleWalletDisconnect}
-                            className="cursor-pointer rounded-lg bg-white p-2 hover:bg-gray-100"
-                        >
-                            <LogOut size={16} className="text-gray-500" />
-                        </button>
+                        <WalletInfo />
                     </div>
                 ) : (
                   <button
@@ -329,7 +303,7 @@ export default function MapTab({
                     className="absolute top-4 right-4 inline-flex cursor-pointer flex-row items-center justify-center gap-2 rounded-lg bg-[#7F4FE8] p-2 px-4"
                     style={{ zIndex: Z_INDEX_OFFSETS.UI }}
                   >
-                    <p className="text-sm font-bold text-white">Wallet Login</p>
+                    <p className="text-sm font-bold text-white">Login</p>
                   </button>
                 ))}
 
@@ -347,22 +321,24 @@ export default function MapTab({
                     </p>
                 </div>
                 )}
-                {!isDesktop && isJoystickVisible && (
-                    <div
-                        className="absolute bottom-4 left-1/2 -translate-x-1/2 transform"
-                        style={{ zIndex: Z_INDEX_OFFSETS.UI - 1 }}
-                        hidden={HUDOff}
-                    >
-                        <PlayerJoystick
-                            onMove={handleMobileMove}
-                            disabled={isAutonomous}
-                            baseColor="#00000050"
-                            stickColor="#FFF"
-                            size={160}
-                        />
-                    </div>
-                )}
             </div>
+            {!isDesktop && isJoystickVisible && (
+                // bottom 60px = PlayerJoystick 내부 mb-20(80px) 감안 시 이미지 바닥이
+                // viewport 바닥 140px 지점 → ChatBoxOverlay top(129px) 위로 11px 여유.
+                <div
+                    className="fixed bottom-[60px] left-1/2 -translate-x-1/2 transform"
+                    style={{ zIndex: Z_INDEX_OFFSETS.UI - 1 }}
+                    hidden={HUDOff}
+                >
+                    <PlayerJoystick
+                        onMove={handleMobileMove}
+                        disabled={isAutonomous}
+                        baseColor="#00000050"
+                        stickColor="#FFF"
+                        size={160}
+                    />
+                </div>
+            )}
             {!isDesktop && (
                 <ChatBoxOverlay
                     chatBoxRef={chatBoxRef}

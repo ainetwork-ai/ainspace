@@ -98,7 +98,6 @@ export default function UploadImageModal({ onConfirm, agent, children, isDarkMod
                     onClick={handleConfirm}
                     type="large"
                     variant="primary"
-                    isDarkMode={isDarkMode}
                     className="px-4 py-[18px]"
                 >
                     Confirm
@@ -149,7 +148,6 @@ export default function UploadImageModal({ onConfirm, agent, children, isDarkMod
                                 onClick={handleConfirm}
                                 type="small"
                                 variant="primary"
-                                isDarkMode={isDarkMode}
                                 className="px-6 py-2"
                                 disabled={!selectedFile}
                             >
@@ -188,7 +186,7 @@ export default function UploadImageModal({ onConfirm, agent, children, isDarkMod
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>{children}</DialogTrigger>
-            <DialogContent className={cn("max-w-md px-4 py-6", isDarkMode && 'bg-[#2F333B]')}>
+            <DialogContent className={cn("max-w-md px-4 py-6", isDarkMode && 'dark bg-[#2F333B]')}>
                 <DialogHeader className="flex flex-col gap-3">
                     <DialogTitle className={cn("text-xl font-bold text-center", isDarkMode ? 'text-white' : 'text-black')}>
                         Set Agent Appearance

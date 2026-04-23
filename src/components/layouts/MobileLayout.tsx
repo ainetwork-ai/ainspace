@@ -51,7 +51,7 @@ export default function MobileLayout({
     onPublishTiles,
 }: LayoutProps) {
     return (
-        <div className="flex h-dvh w-full flex-col bg-gray-100">
+        <div className="flex h-screen w-full flex-col bg-gray-100">
             <div className="relative flex-1 overflow-hidden">
                 <div className={cn("absolute inset-0 pb-[73px]")}>
                     <MapTab

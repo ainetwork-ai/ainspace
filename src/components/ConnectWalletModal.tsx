@@ -48,7 +48,7 @@ export default function ConnectWalletModal({
     // Otherwise show configured connectors for user to pick
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className={`w-[300px] rounded-2xl py-6 px-4 shadow-lg flex flex-col gap-4 border-none ${isDarkMode ? 'bg-[#2F333B] [&_[data-slot=dialog-close]]:text-white' : 'bg-white'}`}>
+            <DialogContent className={`w-[300px] rounded-2xl py-6 px-4 shadow-lg flex flex-col gap-4 border-none ${isDarkMode ? 'dark bg-[#2F333B] [&_[data-slot=dialog-close]]:text-white' : 'bg-white'}`}>
                 <DialogHeader className="flex flex-col items-center gap-1 pt-2">
                     <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-2 ${isDarkMode ? 'bg-[#3A3050]' : 'bg-[#f7f0ff]'}`}>
                         <Wallet className={`w-8 h-8 ${isDarkMode ? 'text-[#C0A9F1]' : 'text-[#7C3AED]'}`} />
