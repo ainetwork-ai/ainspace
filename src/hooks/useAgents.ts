@@ -37,12 +37,6 @@ export function useAgents({ playerWorldPosition }: UseAgentsProps) {
     const setAgents = useAgentStore((s) => s.setAgents);
     const updateStoredAgent = useAgentStore((s) => s.updateAgent);
 
-    // Log initialization on mount only
-    useEffect(() => {
-        console.log('🔄 World agents initialized');
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []); // Only run once on mount
-
     const isWalkable = useCallback(
         (x: number, y: number, currentAgents: AgentState[], checkingAgentId?: string): boolean => {
             // Check player collision

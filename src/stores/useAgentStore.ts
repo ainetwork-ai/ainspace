@@ -33,13 +33,9 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     },
 
     removeAgent: (agentUrl) =>
-        set((state) => {
-            const removed = state.agents.find((agent) => agent.agentUrl === agentUrl);
-            if (removed) {
-                console.log(`🔄 A2A Agent removed: ${removed.name}`);
-            }
-            return { agents: state.agents.filter((agent) => agent.agentUrl !== agentUrl) };
-        }),
+        set((state) => ({
+            agents: state.agents.filter((agent) => agent.agentUrl !== agentUrl),
+        })),
 
     updateAgentPosition: (agentUrl, x, y) =>
         set((state) => {
