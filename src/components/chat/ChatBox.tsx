@@ -12,6 +12,7 @@ import ChatMessageCard from '@/components/chat/ChatMessageCard';
 import { AgentState } from '@/lib/agent';
 import MentionSuggestionDropdown from '@/components/chat/MentionSuggestionDropdown';
 import { generateAgentComboId } from '@/lib/hash';
+import { bffAuthFetch } from '@/lib/backend/bff-fetch';
 import { Spinner } from '@/components/ui/spinner';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { useNearbyAgents } from '@/hooks/useNearbyAgents';
@@ -61,6 +62,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     const [hasStartedConversation, setHasStartedConversation] = useState(false);
 
     const userId = useUserStore((state) => state.getUserId());
+    const isBackendAuthed = useUserStore((state) => state.isBackendAuthed);
     const { updateThread } = useThreadStore();
     const { isDesktop } = useIsDesktop();
 
@@ -107,7 +109,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
 
     const fetchThreadMessages = useCallback(
         async (threadId: string) => {
-            const response = await fetch(`/api/threads/${threadId}`);
+            const response = await bffAuthFetch(`/api/threads/${threadId}`);
             const data = await response.json();
 
             if (data.success && data.messages) {
@@ -280,7 +282,13 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     }, [aiCommentary, currentThreadId]);
 
     const handleSendMessage = async () => {
-        if (!userId) return;
+        // EPIC14: sending now requires a backend session (token), not just a
+        // connected wallet/guest sessionId — the message path proxies the
+        // browser-held Bearer to the backend DM. Guests (no token) can't send.
+        // (userId is still used for local message attribution below, so it must
+        // also be non-null — isBackendAuthed implies an address, but narrow it
+        // explicitly for the type checker.)
+        if (!isBackendAuthed || !userId) return;
 
         if (inputValue.trim() === 'show me grid') {
             setShowCollisionMap(true);
@@ -481,13 +489,12 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 // Step 2: Send message (SSE is now connected)
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 30000);
-                const response = await fetch('/api/thread-message', {
+                const response = await bffAuthFetch('/api/thread-message', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         message: userMessageText,
                         threadId: threadIdToSend,
-                        userId,
                     }),
                     signal: controller.signal
                 });

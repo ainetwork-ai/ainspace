@@ -1,100 +1,52 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAgents, getThreads, saveThread } from '@/lib/redis';
+import { saveThread } from '@/lib/redis';
 import { generateAgentComboId } from '@/lib/hash';
 import { Thread } from '@/stores';
-import { Thread as A2AThread } from '@/lib/a2aOrchestration';
-
-const A2A_ORCHESTRATION_BASE_URL = process.env.NEXT_PUBLIC_A2A_ORCHESTRATION_BASE_URL;
-
-interface ThreadResponse {
-    success: boolean;
-    thread: A2AThread;
-}
+import { backendFetch, decodeWorkspaceId, getBearer } from '@/lib/backend/server-client';
+import { BackendDmListItem, mapDmToThread } from '@/lib/backend/dm-mapping';
 
 /**
- * GET /api/threads?userId={address}
- * Get all threads for a user
+ * GET /api/threads
+ * EPIC14: list the user's backend DMs (architecture C — BFF forwards the
+ * browser-held Bearer to the new backend server-to-server). Response shape
+ * matches the legacy orchestration response so chat UI is unchanged:
+ *   { success: true, threads: { [id]: Thread } }
+ * Guests (no Bearer) get an empty list — chat now requires wallet login since
+ * the orchestration server is being decommissioned.
  */
 export async function GET(request: NextRequest) {
+    const token = getBearer(request);
+    if (!token) {
+        return NextResponse.json({ success: true, threads: {} });
+    }
+
+    const workspaceId = decodeWorkspaceId(token);
+    if (!workspaceId) {
+        return NextResponse.json({ error: 'workspaceId missing in token' }, { status: 400 });
+    }
+
     try {
-        const { searchParams } = new URL(request.url);
-        const userId = searchParams.get('userId');
-
-        if (!userId) {
-            return NextResponse.json({ error: 'userId is required' }, { status: 400 });
-        }
-
-        const threads = await getThreads(userId);
-        const threadEntries = Object.entries(threads);
-
-        if (threadEntries.length === 0) {
-            return NextResponse.json({
-                success: true,
-                threads
+        const res = await backendFetch(
+            token,
+            `/dm?workspaceId=${encodeURIComponent(workspaceId)}`,
+        );
+        if (!res.ok) {
+            const body = await res.text();
+            return new NextResponse(body, {
+                status: res.status,
+                headers: { 'Content-Type': res.headers.get('content-type') ?? 'application/json' },
             });
         }
-
-        const allAgents = await getAgents();
-
-        const allAgentUrls = new Set<string>();
-        const unplacedUrls = new Set<string>();
-        const unplacedNameByUrl = new Map<string, string>();
-
-        for (const agent of allAgents) {
-            if (agent.url) {
-                allAgentUrls.add(agent.url);
-            }
-
-            if (agent.isPlaced === false && agent.url) {
-                unplacedUrls.add(agent.url);
-                unplacedNameByUrl.set(agent.url, agent.card.name);
-            }
-        }
-
-        const results = await Promise.all(
-            threadEntries.map(async ([id, thread]) => {
-                let hasUnplacedAgents = false;
-                const unplacedAgentNameSet = new Set<string>();
-
-                try {
-                    const res = await fetch(`${A2A_ORCHESTRATION_BASE_URL}/threads/${thread.id}?userId=${userId}`);
-
-                    if (res.ok) {
-                        const data = (await res.json()) as ThreadResponse;
-                        const agents = data.thread?.agents || [];
-
-                        for (const agent of agents) {
-                            const url = agent.a2aUrl;
-                            if (url && (unplacedUrls.has(url) || !allAgentUrls.has(url))) {
-                                hasUnplacedAgents = true;
-                                const name = agent.name || unplacedNameByUrl.get(url) || url;
-                                unplacedAgentNameSet.add(name);
-                            }
-                        }
-                    } else {
-                        console.warn(`Failed to fetch orchestration thread ${thread.id}: ${res.status}`);
-                    }
-                } catch (error) {
-                    console.error(`Error fetching orchestration thread ${thread.id}:`, error);
-                }
-
-                return {
-                    id,
-                    thread: {
-                        ...thread,
-                        hasUnplacedAgents,
-                        unplacedAgentNames: Array.from(unplacedAgentNameSet)
-                    } as Thread
-                };
-            })
+        const list = (await res.json()) as BackendDmListItem[];
+        const entries = await Promise.all(
+            list.map(async (dm) => [dm.id, await mapDmToThread(dm)] as const),
         );
-
         return NextResponse.json({
             success: true,
-            threads: Object.fromEntries(results.map(({ id, thread }) => [id, thread]))
+            threads: Object.fromEntries(entries),
         });
     } catch (error) {
-        console.error('Error getting threads:', error);
+        console.error('Error listing backend DMs:', error);
         return NextResponse.json({ error: 'Failed to get threads' }, { status: 500 });
     }
 }

@@ -1,12 +1,24 @@
 import { NextRequest } from 'next/server';
-
-const A2A_ORCHESTRATION_BASE_URL = process.env.NEXT_PUBLIC_A2A_ORCHESTRATION_BASE_URL;
+import { BACKEND_BASE_URL } from '@/lib/backend/config';
+import { getBearer } from '@/lib/backend/server-client';
 
 // Configure route to handle long-lived streaming connections
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 800; // Vercel Pro streaming limit
 
+/**
+ * GET /api/thread-stream/{conversationId}?token=<accessToken>
+ * EPIC14: proxy the new backend orchestration SSE
+ * (`GET /orchestration/dm/:id/stream`). EventSource can't send the
+ * Authorization header, so the browser passes the access token via `?token=`
+ * and the BFF forwards it as a Bearer header server-to-server.
+ *
+ * Backend (`@Sse`) emits only `{type:"message"|"block", data:{...}}` — no
+ * `connected` event and no `[DONE]` sentinel. ChatBox.handleStreamEvent waits
+ * for a `connected` event (line 160-167) for the new-thread flow; we emit one
+ * synthetically as soon as the upstream stream opens so the handler resolves.
+ */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ threadId: string }> }
@@ -17,18 +29,20 @@ export async function GET(
     return new Response('Thread ID is required', { status: 400 });
   }
 
-  // Create SSE connection to A2A Orchestration
-  const url = `${A2A_ORCHESTRATION_BASE_URL}/threads/${threadId}/stream`;
+  const token = getBearer(request);
+  if (!token) {
+    return new Response('Unauthorized', { status: 401 });
+  }
 
-  console.log('Proxying SSE connection to:', url);
+  const url = `${BACKEND_BASE_URL}/orchestration/dm/${threadId}/stream`;
 
   try {
-    // Create AbortController to handle connection cleanup
     const controller = new AbortController();
 
     const response = await fetch(url, {
       headers: {
-        'Accept': 'text/event-stream',
+        Authorization: `Bearer ${token}`,
+        Accept: 'text/event-stream',
       },
       signal: controller.signal,
       // @ts-expect-error - undici specific options to prevent body timeout
@@ -37,15 +51,19 @@ export async function GET(
     });
 
     if (!response.ok) {
-      console.error('Failed to connect to A2A stream:', response.status);
+      console.error('Failed to connect to backend stream:', response.status);
       return new Response(`Failed to connect: ${response.statusText}`, {
-        status: response.status
+        status: response.status,
       });
     }
 
-    // Create a readable stream from the response
+    const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(streamController) {
+        // Synthetic `connected` event (backend @Sse doesn't emit one) so the
+        // chat's sseConnectedResolverRef resolves on the new-thread send path.
+        streamController.enqueue(encoder.encode('data: {"type":"connected"}\n\n'));
+
         const reader = response.body?.getReader();
         if (!reader) {
           streamController.close();
@@ -62,41 +80,38 @@ export async function GET(
             streamController.enqueue(value);
           }
         } catch (error) {
-          // Only log if it's not an expected AbortError from cleanup
           if (error instanceof Error && error.name === 'AbortError') {
             console.log('Stream aborted for thread:', threadId);
           } else {
             console.error('Stream error:', error);
           }
-          // Only close if not already closed
           try {
             streamController.error(error);
-          } catch (e) {
+          } catch {
             // Stream already closed
           }
         } finally {
           try {
             streamController.close();
-          } catch (e) {
+          } catch {
             // Stream already closed
           }
-          controller.abort(); // Clean up fetch
+          controller.abort();
         }
       },
       cancel() {
         console.log('Stream cancelled for thread:', threadId);
-        controller.abort(); // Clean up fetch when client disconnects
+        controller.abort();
       }
     });
 
-    // Return SSE response with proper headers
     return new Response(stream, {
       headers: {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache, no-transform',
         'Connection': 'keep-alive',
         'Access-Control-Allow-Origin': '*',
-        'X-Accel-Buffering': 'no', // Disable nginx buffering
+        'X-Accel-Buffering': 'no',
       },
     });
   } catch (error) {

@@ -11,6 +11,7 @@ import { ChatBoxRef } from './ChatBox';
 import ThreadListLeftDrawer from '@/components/chat/ThreadListLeftDrawer';
 import { Thread } from '@/stores';
 import { generateAgentComboId } from '@/lib/hash';
+import { bffAuthFetch } from '@/lib/backend/bff-fetch';
 import { Z_INDEX_OFFSETS } from '@/constants/common';
 
 interface ChatBoxOverlayProps {
@@ -33,17 +34,20 @@ export default function ChatBoxOverlay({
     const [isThreadListSheetOpen, setIsThreadListSheetOpen] = useState(false);
     const [isThreadListLoading, setIsThreadListLoading] = useState(false);
     const { setThreads, setCurrentThreadId } = useThreadStore();
-    const { address, sessionId } = useUserStore();
+    const { address, sessionId, isBackendAuthed } = useUserStore();
     const selectedAgentForPlacement = useUIStore((state) => state.selectedAgentForPlacement);
     const userId = address || sessionId;
 
     useEffect(() => {
-        if (!userId) return;
+        // EPIC14: gate on backend auth (token issuance is async after wallet
+        // connect). Without this gate, the fetch fires before the JWT lands in
+        // localStorage and the BFF returns an empty list.
+        if (!isBackendAuthed) return;
 
         const loadThreadMappings = async () => {
             setIsThreadListLoading(true);
             try {
-                const response = await fetch(`/api/threads?userId=${userId}`);
+                const response = await bffAuthFetch('/api/threads');
                 if (!response.ok) {
                     console.error('Failed to load threads');
                     return;
@@ -81,7 +85,7 @@ export default function ChatBoxOverlay({
         };
 
         loadThreadMappings();
-    }, [userId, setThreads]);
+    }, [isBackendAuthed, userId, setThreads]);
 
     const handleChatSheetOpen = (open: boolean) => {
         setIsChatSheetOpen(open);
