@@ -5,7 +5,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { BROADCAST_RADIUS, MOVEMENT_MODE } from '@/constants/game';
 import { useUIStore, useThreadStore, useBuildStore, useAgentStore, useUserStore, useUserAgentStore } from '@/stores';
-import { useAccount } from 'wagmi';
+import { useAccount, useSignMessage } from 'wagmi';
+import { ensureBackendAuth } from '@/lib/backend/auth';
+import { getAccessToken, isAccessExpired } from '@/lib/backend/token-store';
 import { StoredAgent } from '@/lib/redis';
 import { useVillageLoader } from '@/hooks/useVillageLoader';
 import { useVillageStore } from '@/stores/useVillageStore';
@@ -52,7 +54,8 @@ export default function Home() {
     const { worldPosition, userId, visibleAgents } = useGameState();
     const { spawnAgent } = useAgentStore();
     const { address } = useAccount();
-    const { setAddress, setPermissions, setLastVerifiedAt, initSessionId, resetSessionId, getSessionId, hasMigratedThreads, setMigratedThreads, isPermissionExpired, verifyPermissions } = useUserStore();
+    const { signMessageAsync } = useSignMessage();
+    const { setAddress, setPermissions, setLastVerifiedAt, initSessionId, resetSessionId, getSessionId, hasMigratedThreads, setMigratedThreads, isPermissionExpired, verifyPermissions, hydrateBackendAuth, setBackendAuth, clearBackendAuth } = useUserStore();
     const { updateAgent: updateUserAgent } = useUserAgentStore();
 
     const [HUDOff, setHUDOff] = useState<boolean>(false);
@@ -63,6 +66,15 @@ export default function Home() {
     useEffect(() => {
         initSessionId();
     }, [initSessionId]);
+
+    // Restore backend JWT session from localStorage on mount (no network/signature)
+    useEffect(() => {
+        hydrateBackendAuth();
+        const token = getAccessToken();
+        console.log('[AINSpace] backend token on load:', token
+            ? `present (expired=${isAccessExpired()})`
+            : 'none (guest)');
+    }, [hydrateBackendAuth]);
 
     // Lock html/body to viewport on the game page only (iOS keyboard fix).
     // Scrollable pages like reports must remain scrollable.
@@ -108,6 +120,7 @@ export default function Home() {
             if (!address) {
                 setAddress(null);
                 setPermissions(null);
+                clearBackendAuth();
                 hasInitializedAuth.current = false;
                 prevAddressRef.current = null;
                 return;
@@ -126,6 +139,21 @@ export default function Home() {
             hasInitializedAuth.current = true;
 
             setAddress(address);
+
+            // Obtain a backend JWT (challenge -> wallet sign -> verify), independent of
+            // the holder-permission flow below. Non-blocking: failure/decline/undeployed
+            // backend must not break existing (BFF-backed) features.
+            (async () => {
+                try {
+                    const user = await ensureBackendAuth({
+                        address,
+                        signMessage: (message: string) => signMessageAsync({ message }),
+                    });
+                    if (user) setBackendAuth(user);
+                } catch (error) {
+                    console.error('Backend auth failed (non-blocking):', error);
+                }
+            })();
 
             // Migrate threads from sessionId to wallet address on first login
             const sessionId = getSessionId();
@@ -217,7 +245,7 @@ export default function Home() {
         }
 
         initUserAuth();
-    }, [address, setAddress, setPermissions, setLastVerifiedAt, getSessionId, hasMigratedThreads, setMigratedThreads])
+    }, [address, setAddress, setPermissions, setLastVerifiedAt, getSessionId, hasMigratedThreads, setMigratedThreads, clearBackendAuth, setBackendAuth, signMessageAsync])
 
     // Periodic permission refresh
     useEffect(() => {
