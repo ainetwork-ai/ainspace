@@ -5,6 +5,7 @@ import { useMemo } from 'react';
 import { AgentProfile } from '@/components/AgentProfile';
 import { calculateDistance } from '@/lib/utils';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import rehypeSanitize from 'rehype-sanitize';
 
 const PROFILE_SIZE = 30;
@@ -44,6 +45,7 @@ export default function ChatMessageCard({ message }: { message: ChatMessage }) {
             </div>
             <div className='justify-start font-semibold leading-[25px] text-white prose prose-invert prose-sm max-w-none'>
                 <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
                     rehypePlugins={[rehypeSanitize]}
                     components={{
                         a: ({ node, ...props }) => (
