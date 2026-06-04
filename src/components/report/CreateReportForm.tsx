@@ -204,14 +204,14 @@ export function CreateReportForm({
           />
         </div>
 
-        {/* Date Range */}
+        {/* Date/Time Range */}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="mb-1 block text-sm font-medium text-foreground">
-              시작일
+              시작 일시
             </label>
             <input
-              type="date"
+              type="datetime-local"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
               className={inputCls}
@@ -219,10 +219,10 @@ export function CreateReportForm({
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-foreground">
-              종료일
+              종료 일시
             </label>
             <input
-              type="date"
+              type="datetime-local"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
               className={inputCls}
