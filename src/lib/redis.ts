@@ -346,6 +346,9 @@ export interface StoredAgent {
     isPlaced: boolean;
     creator: string;
     timestamp: number;
+    // EPIC15: cached backend user UUID resolved from `GET /agents` (a2aUrl match).
+    // Populated lazily so DM creation can skip the backend lookup next time.
+    backendUuid?: string;
 }
 
 const AGENTS_KEY = 'agents:';
@@ -372,6 +375,27 @@ export async function getAgents(): Promise<StoredAgent[]> {
     } catch (error) {
         console.error('Error getting agents from Redis:', error);
         return [];
+    }
+}
+
+/**
+ * EPIC15: cache the backend user UUID onto a stored agent so future DM
+ * creation can skip the `GET /agents` lookup. Best-effort — never throws;
+ * a missing agent record is a no-op. Agent key format matches the PUT
+ * /api/agents route: `agents:<base64(url)>`.
+ */
+export async function setAgentBackendUuid(agentUrl: string, backendUuid: string): Promise<void> {
+    try {
+        const redis = await getRedisClient();
+        const agentKey = `${AGENTS_KEY}${Buffer.from(agentUrl).toString('base64')}`;
+        const value = await redis.get(agentKey);
+        if (!value) return;
+        const agent = JSON.parse(value) as StoredAgent;
+        if (agent.backendUuid === backendUuid) return;
+        agent.backendUuid = backendUuid;
+        await redis.set(agentKey, JSON.stringify(agent));
+    } catch (error) {
+        console.error('Error caching agent backendUuid:', error);
     }
 }
 
