@@ -4,8 +4,9 @@ import { BACKEND_BASE_URL } from './config';
 // Server-only helpers for BFF routes that proxy to the new backend.
 // Architecture C: browser holds the JWT and sends it to same-origin BFF routes
 // via Authorization header (fetch) or `?token=` query (EventSource for SSE).
-// This module extracts that token, decodes the workspaceId claim, and forwards
-// authenticated requests to the backend server-to-server.
+// This module extracts that token and forwards authenticated requests to the
+// backend server-to-server. (workspaceId is no longer read from the token — the
+// BFF injects BACKEND_WORKSPACE_ID from config instead.)
 
 export function getBearer(req: NextRequest): string | null {
   const header = req.headers.get('authorization') ?? req.headers.get('Authorization');
@@ -16,27 +17,6 @@ export function getBearer(req: NextRequest): string | null {
   const tokenParam = req.nextUrl.searchParams.get('token');
   if (tokenParam) return tokenParam;
   return null;
-}
-
-interface AccessTokenClaims {
-  sub?: string;
-  scope?: string[];
-  workspaceId?: string;
-}
-
-export function decodeAccessTokenClaims(token: string): AccessTokenClaims | null {
-  try {
-    const parts = token.split('.');
-    if (parts.length < 2) return null;
-    const json = Buffer.from(parts[1], 'base64url').toString('utf8');
-    return JSON.parse(json) as AccessTokenClaims;
-  } catch {
-    return null;
-  }
-}
-
-export function decodeWorkspaceId(token: string): string | null {
-  return decodeAccessTokenClaims(token)?.workspaceId ?? null;
 }
 
 export function backendFetch(

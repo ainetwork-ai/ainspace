@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAgents, setAgentBackendUuid } from '@/lib/redis';
 import { generateAgentComboId } from '@/lib/hash';
 import { Thread } from '@/stores';
-import { backendFetch, decodeWorkspaceId, getBearer } from '@/lib/backend/server-client';
+import { backendFetch, getBearer } from '@/lib/backend/server-client';
+import { BACKEND_WORKSPACE_ID, isBackendWorkspaceConfigured } from '@/lib/backend/config';
 import { BackendDmListItem, mapDmToThread } from '@/lib/backend/dm-mapping';
 import { resolveAgentUuids } from '@/lib/backend/agent-mapping';
 
@@ -21,10 +22,10 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ success: true, threads: {} });
     }
 
-    const workspaceId = decodeWorkspaceId(token);
-    if (!workspaceId) {
-        return NextResponse.json({ error: 'workspaceId missing in token' }, { status: 400 });
+    if (!isBackendWorkspaceConfigured()) {
+        return NextResponse.json({ error: 'BACKEND_WORKSPACE_ID is not configured' }, { status: 500 });
     }
+    const workspaceId = BACKEND_WORKSPACE_ID;
 
     try {
         const res = await backendFetch(
@@ -68,10 +69,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
     }
 
-    const workspaceId = decodeWorkspaceId(token);
-    if (!workspaceId) {
-        return NextResponse.json({ error: 'workspaceId missing in token' }, { status: 400 });
+    if (!isBackendWorkspaceConfigured()) {
+        return NextResponse.json({ error: 'BACKEND_WORKSPACE_ID is not configured' }, { status: 500 });
     }
+    const workspaceId = BACKEND_WORKSPACE_ID;
 
     try {
         const body = await request.json();
