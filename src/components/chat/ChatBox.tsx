@@ -153,11 +153,9 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         return agentString;
     }, []);
 
-    // Handle SSE stream messages from A2A Orchestration
+    // Handle SSE stream messages from the backend orchestration stream
     const handleStreamEvent = useCallback(
         (event: StreamEvent) => {
-            console.log('SSE Event received:', JSON.stringify(event, null, 2));
-
             if (event.type === 'connected') {
                 console.log('Connected to thread stream');
                 if (sseConnectedResolverRef.current) {
@@ -173,37 +171,22 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     clearTimeout(responseTimeoutRef.current);
                     responseTimeoutRef.current = null;
                 }
-                // Message data is in data.data (nested structure from A2A Orchestration)
-                const eventData = event.data as {
-                    data?: { speaker?: string; content?: string };
-                    sender?: string;
-                    agentName?: string;
-                    agent?: { name?: string };
-                    name?: string;
-                    content?: string;
-                    message?: string;
-                };
-                const messageData = (eventData.data || eventData) as {
+                // Backend SSE message event (EPIC14): payload is
+                //   { type:'message', data:{ id, conversationId, speaker, userId, content, parentId?, createdAt } }
+                // so speaker/content/id live directly on event.data.
+                const messageData = event.data as {
+                    id?: string;
                     speaker?: string;
                     content?: string;
-                    id?: string;
                 };
 
-                // Extract agent name from speaker field (A2A Orchestration format)
-                const agentName =
-                    messageData.speaker ||
-                    eventData.sender ||
-                    eventData.agentName ||
-                    eventData.agent?.name ||
-                    eventData.name ||
-                    'agent';
-
-                // Extract message content
-                const messageContent =
-                    messageData.content || eventData.content || eventData.message || JSON.stringify(eventData);
-
-                console.log('Extracted agent name:', agentName);
-                console.log('Extracted message content:', messageContent);
+                const messageContent = messageData.content ?? '';
+                if (!messageContent) {
+                    // Nothing renderable (malformed/empty payload) — skip rather than
+                    // dumping the raw event object into a chat bubble.
+                    return;
+                }
+                const agentName = messageData.speaker || 'agent';
 
                 // Add agent message to chat
                 const agentMessage: ChatMessage = {
