@@ -4,8 +4,6 @@ import { BACKEND_WORKSPACE_ID, isBackendWorkspaceConfigured } from '@/lib/backen
 import { fetchWorkspaceAgents } from '@/lib/backend/agent-mapping';
 import { getAgents, getAgentsSyncedAt, setAgentsSyncedAt, syncAgentsFromRoster } from '@/lib/redis';
 
-const SYNC_TTL_MS = 30 * 60 * 1000;
-
 /**
  * GET /api/agents/sync?address=<wallet>&refresh=<0|1>
  * EPIC16: read-through sync of the backend workspace agent roster into Redis.
@@ -34,8 +32,9 @@ export async function GET(request: NextRequest) {
 
     if (isBackendWorkspaceConfigured()) {
         const myUserId = decodeUserId(token);
-        const lastSyncedAt = await getAgentsSyncedAt(wallet);
-        const stale = Date.now() - lastSyncedAt >= SYNC_TTL_MS;
+        // Freshness is driven by the marker's TTL (set in setAgentsSyncedAt):
+        // 0 means it expired / was never set, so a pull is due.
+        const stale = (await getAgentsSyncedAt(wallet)) === 0;
 
         if (myUserId && (forceRefresh || stale)) {
             try {

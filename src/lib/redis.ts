@@ -403,9 +403,14 @@ export async function setAgentBackendUuid(agentUrl: string, backendUuid: string)
     }
 }
 
-// EPIC16: per-user last-sync timestamp gating the 30-min roster pull.
+// EPIC16: per-user roster-sync freshness marker. The key itself expires after
+// AGENTS_SYNC_TTL_SEC, so its presence == "synced within the window". When it's
+// gone (expired or never set), the caller pulls the roster again and re-sets it.
 const AGENTS_SYNC_KEY = 'agents_sync:';
+const AGENTS_SYNC_TTL_SEC = 30 * 60;
 
+// Returns the last-sync timestamp, or 0 if the marker has expired / never set
+// (i.e. a roster pull is due).
 export async function getAgentsSyncedAt(wallet: string): Promise<number> {
     try {
         const redis = await getRedisClient();
@@ -420,7 +425,7 @@ export async function getAgentsSyncedAt(wallet: string): Promise<number> {
 export async function setAgentsSyncedAt(wallet: string, ts: number): Promise<void> {
     try {
         const redis = await getRedisClient();
-        await redis.set(`${AGENTS_SYNC_KEY}${wallet}`, String(ts));
+        await redis.set(`${AGENTS_SYNC_KEY}${wallet}`, String(ts), { EX: AGENTS_SYNC_TTL_SEC });
     } catch (error) {
         console.error('Error writing agents sync timestamp:', error);
     }
