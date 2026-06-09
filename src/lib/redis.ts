@@ -3,6 +3,7 @@ import { AgentStateForDB } from './agent';
 import { AgentCard } from '@a2a-js/sdk';
 import { Thread } from '@/types/thread';
 import { generateAgentComboId } from './hash';
+import { BackendAgentListItem, itemA2aUrl, normalizeA2aUrl } from './backend/agent-mapping';
 
 const client = createClient({
     url: process.env.AINSPACE_STORAGE_REDIS_URL || 'redis://localhost:6379'
@@ -349,6 +350,9 @@ export interface StoredAgent {
     // EPIC15: cached backend user UUID resolved from `GET /agents` (a2aUrl match).
     // Populated lazily so DM creation can skip the backend lookup next time.
     backendUuid?: string;
+    // EPIC16: backend roster availability. 'inactive' = left/deleted/unavailable
+    // in the workspace -> shown disabled in AgentTab. Set by syncAgentsFromRoster.
+    backendStatus?: 'active' | 'inactive';
 }
 
 const AGENTS_KEY = 'agents:';
@@ -396,6 +400,104 @@ export async function setAgentBackendUuid(agentUrl: string, backendUuid: string)
         await redis.set(agentKey, JSON.stringify(agent));
     } catch (error) {
         console.error('Error caching agent backendUuid:', error);
+    }
+}
+
+// EPIC16: per-user roster-sync freshness marker. The key itself expires after
+// AGENTS_SYNC_TTL_SEC, so its presence == "synced within the window". When it's
+// gone (expired or never set), the caller pulls the roster again and re-sets it.
+const AGENTS_SYNC_KEY = 'agents_sync:';
+const AGENTS_SYNC_TTL_SEC = 30 * 60;
+
+// Returns the last-sync timestamp, or 0 if the marker has expired / never set
+// (i.e. a roster pull is due).
+export async function getAgentsSyncedAt(wallet: string): Promise<number> {
+    try {
+        const redis = await getRedisClient();
+        const v = await redis.get(`${AGENTS_SYNC_KEY}${wallet}`);
+        return v ? (parseInt(v, 10) || 0) : 0;
+    } catch (error) {
+        console.error('Error reading agents sync timestamp:', error);
+        return 0;
+    }
+}
+
+export async function setAgentsSyncedAt(wallet: string, ts: number): Promise<void> {
+    try {
+        const redis = await getRedisClient();
+        await redis.set(`${AGENTS_SYNC_KEY}${wallet}`, String(ts), { EX: AGENTS_SYNC_TTL_SEC });
+    } catch (error) {
+        console.error('Error writing agents sync timestamp:', error);
+    }
+}
+
+const agentKeyFor = (url: string) => `${AGENTS_KEY}${Buffer.from(url).toString('base64')}`;
+
+/**
+ * EPIC16: reconcile a user's StoredAgents against the backend workspace roster.
+ * - roster item matched to a local agent -> refresh backendUuid + backendStatus
+ * - roster item with no local agent      -> create a default (unplaced) StoredAgent
+ * - local agent missing from roster      -> mark backendStatus 'inactive' (disabled)
+ *
+ * Placement/coords/full card and any existing sprite are NEVER overwritten — only
+ * backendUuid/backendStatus are touched on existing agents. `roster` must already
+ * be filtered to this user's owned agents (agentInvitedBy === caller).
+ */
+export async function syncAgentsFromRoster(
+    wallet: string,
+    roster: BackendAgentListItem[],
+): Promise<void> {
+    try {
+        const redis = await getRedisClient();
+        const mine = (await getAgents()).filter((a) => a.creator === wallet);
+        const byNormUrl = new Map<string, StoredAgent>();
+        for (const a of mine) byNormUrl.set(normalizeA2aUrl(a.url), a);
+
+        const seen = new Set<string>();
+
+        for (const b of roster) {
+            const key = itemA2aUrl(b);
+            if (!key || !b.id) continue;
+            const norm = normalizeA2aUrl(key);
+            seen.add(norm);
+            // Roster items are already active workspace members; only an explicit
+            // unavailable marker downgrades them. (Exact status tokens unconfirmed.)
+            const backendStatus: 'active' | 'inactive' =
+                b.status === 'unavailable' || b.status === 'agentCardUnavailable'
+                    ? 'inactive'
+                    : 'active';
+
+            const existing = byNormUrl.get(norm);
+            if (existing) {
+                if (existing.backendUuid === b.id && existing.backendStatus === backendStatus) continue;
+                existing.backendUuid = b.id;
+                existing.backendStatus = backendStatus;
+                await redis.set(agentKeyFor(existing.url), JSON.stringify(existing));
+            } else {
+                const created: StoredAgent = {
+                    url: key,
+                    card: { name: b.displayName ?? '', url: key } as unknown as AgentCard,
+                    state: { x: 0, y: 0, behavior: 'random', color: '#ffffff', moveInterval: 600 + Math.random() * 400 },
+                    spriteUrl: b.avatarUrl ?? undefined,
+                    isPlaced: false,
+                    creator: wallet,
+                    timestamp: Date.now(),
+                    backendUuid: b.id,
+                    backendStatus,
+                };
+                await redis.set(agentKeyFor(key), JSON.stringify(created));
+            }
+        }
+
+        // Local agents absent from the roster -> disabled (left/deleted in teams).
+        for (const a of mine) {
+            if (seen.has(normalizeA2aUrl(a.url))) continue;
+            if (a.backendStatus === 'inactive') continue;
+            a.backendStatus = 'inactive';
+            await redis.set(agentKeyFor(a.url), JSON.stringify(a));
+        }
+    } catch (error) {
+        console.error('Error syncing agents from roster:', error);
     }
 }
 

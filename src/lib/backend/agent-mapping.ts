@@ -3,8 +3,8 @@ import { backendFetch } from './server-client';
 // EPIC15: resolve ainspace agent a2aUrls to backend user UUIDs.
 // `POST /dm` expects member UUIDs (backend `users.id`), but ainspace only knows
 // agents by their a2aUrl. We look them up in `GET /agents?workspaceId=` and
-// match by a2a url. Field name / URL normalization is unverified against a live
-// backend yet (see EPIC15 background) so matching is defensive.
+// match by a2a url. Field name / URL normalization is defensive.
+// EPIC16: the same roster fetch backs agent list sync (see fetchWorkspaceAgents).
 
 export interface BackendAgentListItem {
   id: string;
@@ -13,6 +13,10 @@ export interface BackendAgentListItem {
   a2aUrl?: string | null;
   a2aId?: string | null;
   agentCardJson?: { url?: string } | null;
+  // EPIC16 (agent list sync): ownership / availability / avatar.
+  agentInvitedBy?: string | null; // canonical owner (backend user id)
+  status?: string; // availability; non-active => disabled in ainspace
+  avatarUrl?: string | null;
 }
 
 export interface ResolveAgentUuidsResult {
@@ -30,8 +34,36 @@ export function normalizeA2aUrl(url: string): string {
 }
 
 // Pick whichever field carries the agent's a2a url (field name unverified).
-function itemA2aUrl(item: BackendAgentListItem): string | null {
+export function itemA2aUrl(item: BackendAgentListItem): string | null {
   return item.a2aUrl ?? item.a2aId ?? item.agentCardJson?.url ?? null;
+}
+
+// EPIC16: fetch the workspace agent roster. Accepts either a bare array or a
+// wrapped envelope ({agents|data|items: [...]}). Throws on non-2xx so callers
+// can degrade (keep showing cached/local agents).
+export async function fetchWorkspaceAgents(
+  token: string,
+  workspaceId: string,
+): Promise<BackendAgentListItem[]> {
+  const path = `/agents?workspaceId=${encodeURIComponent(workspaceId)}`;
+  const res = await backendFetch(token, path);
+  const raw = await res.text().catch(() => '');
+  if (!res.ok) {
+    throw new Error(`GET /agents failed: ${res.status} ${raw}`);
+  }
+
+  let parsed: unknown = [];
+  try {
+    parsed = raw ? JSON.parse(raw) : [];
+  } catch {
+    parsed = [];
+  }
+  return Array.isArray(parsed)
+    ? (parsed as BackendAgentListItem[])
+    : ((parsed as { agents?: BackendAgentListItem[] })?.agents
+      ?? (parsed as { data?: BackendAgentListItem[] })?.data
+      ?? (parsed as { items?: BackendAgentListItem[] })?.items
+      ?? []);
 }
 
 export async function resolveAgentUuids(
@@ -39,35 +71,7 @@ export async function resolveAgentUuids(
   workspaceId: string,
   agentUrls: string[],
 ): Promise<ResolveAgentUuidsResult> {
-  const path = `/agents?workspaceId=${encodeURIComponent(workspaceId)}`;
-  const res = await backendFetch(token, path);
-  const raw = await res.text().catch(() => '');
-
-  // TEMP diagnostic (EPIC15 ①): full backend response (status + raw body).
-  console.log(`[resolveAgentUuids] GET ${path} -> ${res.status}`);
-  console.log('[resolveAgentUuids] raw response body:', raw);
-
-  if (!res.ok) {
-    throw new Error(`GET /agents failed: ${res.status} ${raw}`);
-  }
-
-  // Accept either a bare array or a wrapped envelope ({agents|data|items: [...]}).
-  let parsed: unknown = [];
-  try {
-    parsed = raw ? JSON.parse(raw) : [];
-  } catch {
-    parsed = [];
-  }
-  const list: BackendAgentListItem[] = Array.isArray(parsed)
-    ? (parsed as BackendAgentListItem[])
-    : ((parsed as { agents?: BackendAgentListItem[]; data?: BackendAgentListItem[]; items?: BackendAgentListItem[] })?.agents
-      ?? (parsed as { data?: BackendAgentListItem[] })?.data
-      ?? (parsed as { items?: BackendAgentListItem[] })?.items
-      ?? []);
-
-  console.log('[resolveAgentUuids] parsed item count:', list.length);
-  console.log('[resolveAgentUuids] requested (normalized):',
-    agentUrls.map((u) => normalizeA2aUrl(u)));
+  const list = await fetchWorkspaceAgents(token, workspaceId);
 
   // Map normalized backend a2a url -> uuid for O(1) lookup.
   const byNormUrl = new Map<string, string>();
@@ -82,10 +86,6 @@ export async function resolveAgentUuids(
     const uuid = byNormUrl.get(normalizeA2aUrl(url));
     if (uuid) resolved.push({ url, uuid });
     else unresolved.push(url);
-  }
-
-  if (unresolved.length > 0) {
-    console.warn('[resolveAgentUuids] unresolved agent urls:', unresolved);
   }
 
   return { resolved, unresolved };

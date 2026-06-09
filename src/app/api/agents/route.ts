@@ -308,11 +308,10 @@ export async function PUT(request: NextRequest) {
       }
 
       agentData = {
-        url: existingData.url, // Always preserve original url
+        ...existingData, // Preserve untouched fields (backendUuid/backendStatus, url, timestamp)
         card: card !== undefined ? card : existingData.card,
         state: mergedState,
         creator: creator !== undefined ? creator : existingData.creator,
-        timestamp: existingData.timestamp, // Preserve original timestamp
         isPlaced: isPlaced !== undefined ? isPlaced : existingData.isPlaced,
         spriteUrl: spriteUrl !== undefined ? spriteUrl : existingData.spriteUrl,
         spriteHeight: spriteHeight !== undefined ? spriteHeight : existingData.spriteHeight
@@ -348,11 +347,10 @@ export async function PUT(request: NextRequest) {
       // Update agent in fallback storage (partial update)
       const existingData = agentStore.get(url)!;
       agentData = {
-        url: existingData.url, // Always preserve original url
+        ...existingData, // Preserve untouched fields (backendUuid/backendStatus, url, timestamp)
         card: card !== undefined ? card : existingData.card,
         state: state !== undefined ? state : existingData.state,
         creator: creator !== undefined ? creator : existingData.creator,
-        timestamp: existingData.timestamp, // Preserve original timestamp
         isPlaced: isPlaced !== undefined ? isPlaced : existingData.isPlaced,
         spriteUrl: spriteUrl !== undefined ? spriteUrl : existingData.spriteUrl,
         spriteHeight: spriteHeight !== undefined ? spriteHeight : existingData.spriteHeight
