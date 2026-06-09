@@ -58,7 +58,6 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     );
 
     // Track if a message has been sent (to enable SSE connection)
-    const [hasStartedConversation, setHasStartedConversation] = useState(false);
 
     const userId = useUserStore((state) => state.getUserId());
     const isBackendAuthed = useUserStore((state) => state.isBackendAuthed);
@@ -133,7 +132,6 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             }
         } else {
             setDisplayedMessages([]);
-            setHasStartedConversation(false);
         }
     }, [currentThreadId, setMessages, getMessagesByThreadId, fetchThreadMessages]);
 
@@ -229,7 +227,10 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     useThreadStream({
         threadId: currentThreadId && currentThreadId !== '0' ? currentThreadId : null,
         onMessage: handleStreamEvent,
-        enabled: hasStartedConversation && !!currentThreadId && currentThreadId !== '0'
+        // Subscribe whenever a real thread is open (not only after sending), so
+        // agent/orchestration activity in the active thread streams in live —
+        // e.g. replies to messages triggered from another client (ainteams).
+        enabled: !!currentThreadId && currentThreadId !== '0'
     });
 
     const moveToBottom = () => {
@@ -381,7 +382,6 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     setMessages(existingThreadMessages, existingThread.id);
                     setDisplayedMessages(existingThreadMessages);
                     setCurrentThreadId(existingThread.id);
-                    setHasStartedConversation(true);
                     threadIdToSend = existingThread.id;
                 }
             }
@@ -435,10 +435,8 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
 
                     setCurrentThreadId(threadIdToSend!);
 
-                    // Enable SSE and wait for connection
-                    setHasStartedConversation(true);
-
-                    // Wait for SSE 'connected' event (max 10s timeout)
+                    // SSE connects on the currentThreadId change above; wait for
+                    // its synthetic 'connected' before sending (max 10s timeout)
                     let sseTimeoutId: ReturnType<typeof setTimeout> | null = null;
                     await Promise.race([
                         new Promise<void>((resolve) => { sseConnectedResolverRef.current = resolve; }),
@@ -477,7 +475,6 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     updateThread(result.threadId, {
                         lastMessageAt: new Date().toISOString()
                     });
-                    setHasStartedConversation(true);
                 }
 
                 // Start response timeout — if no AI message within 60s, stop loading
@@ -681,7 +678,6 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         setMessages([], '0');
         setDisplayedMessages([]);
         setCurrentThreadId('0');
-        setHasStartedConversation(false);
     };
 
     const inputPlaceholder = showUnplacedNotice
