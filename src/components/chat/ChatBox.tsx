@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback, forwardRef } from 'react';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
-import { ChatMessage, useBuildStore, useChatStore, useGameStateStore, useThreadStore, useUserStore } from '@/stores';
+import { ChatMessage, Thread, useBuildStore, useChatStore, useGameStateStore, useThreadStore, useUserStore } from '@/stores';
 import * as Sentry from '@sentry/nextjs';
 import { useThreadStream } from '@/hooks/useThreadStream';
 import { StreamEvent } from '@/lib/a2aOrchestration';
@@ -11,7 +11,7 @@ import { AlertTriangle, Triangle, X } from 'lucide-react';
 import ChatMessageCard from '@/components/chat/ChatMessageCard';
 import { AgentState } from '@/lib/agent';
 import MentionSuggestionDropdown from '@/components/chat/MentionSuggestionDropdown';
-import { generateAgentComboId } from '@/lib/hash';
+import { bffAuthFetch } from '@/lib/backend/bff-fetch';
 import { Spinner } from '@/components/ui/spinner';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { useNearbyAgents } from '@/hooks/useNearbyAgents';
@@ -61,6 +61,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     const [hasStartedConversation, setHasStartedConversation] = useState(false);
 
     const userId = useUserStore((state) => state.getUserId());
+    const isBackendAuthed = useUserStore((state) => state.isBackendAuthed);
     const { updateThread } = useThreadStore();
     const { isDesktop } = useIsDesktop();
 
@@ -107,7 +108,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
 
     const fetchThreadMessages = useCallback(
         async (threadId: string) => {
-            const response = await fetch(`/api/threads/${threadId}`);
+            const response = await bffAuthFetch(`/api/threads/${threadId}`);
             const data = await response.json();
 
             if (data.success && data.messages) {
@@ -280,7 +281,13 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     }, [aiCommentary, currentThreadId]);
 
     const handleSendMessage = async () => {
-        if (!userId) return;
+        // EPIC14: sending now requires a backend session (token), not just a
+        // connected wallet/guest sessionId — the message path proxies the
+        // browser-held Bearer to the backend DM. Guests (no token) can't send.
+        // (userId is still used for local message attribution below, so it must
+        // also be non-null — isBackendAuthed implies an address, but narrow it
+        // explicitly for the type checker.)
+        if (!isBackendAuthed || !userId) return;
 
         if (inputValue.trim() === 'show me grid') {
             setShowCollisionMap(true);
@@ -416,28 +423,26 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 // Step 1: For new threads, create thread first and wait for SSE
                 const isNewThread = !threadIdToSend;
                 if (isNewThread) {
-                    const createResponse = await fetch('/api/thread-create', {
+                    // EPIC15: create (or reuse) the backend DM. The server owns
+                    // the thread id; agent a2aUrls are resolved to backend user
+                    // UUIDs inside the BFF, which returns the assembled Thread.
+                    const agentUrls = nearbyAgents.map((a: AgentState) => a.agentUrl);
+                    const createResponse = await bffAuthFetch('/api/threads', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ agentNames, userId }),
+                        body: JSON.stringify({ agentUrls }),
                     });
+                    if (createResponse.status === 422) {
+                        throw new Error('NO_RESOLVABLE_AGENTS');
+                    }
                     const createResult = await createResponse.json();
                     if (!createResponse.ok) {
                         throw new Error(createResult.details || createResult.error || createResponse.statusText);
                     }
 
-                    threadIdToSend = createResult.threadId;
-
-                    // Save thread mapping
-                    const agentComboId = await generateAgentComboId(agentNames);
-                    addThread({
-                        threadName,
-                        id: threadIdToSend!,
-                        agentNames,
-                        agentComboId,
-                        createdAt: new Date().toISOString(),
-                        lastMessageAt: new Date().toISOString()
-                    });
+                    const createdThread = createResult.thread as Thread;
+                    threadIdToSend = createdThread.id;
+                    addThread(createdThread);
 
                     setMessages((prev) => {
                         if (!prev) return [newMessage];
@@ -446,19 +451,6 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     setMessages([], '0');
 
                     setCurrentThreadId(threadIdToSend!);
-
-                    // Save to backend (async, don't wait)
-                    if (userId) {
-                        fetch('/api/threads', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                userId, threadName,
-                                id: threadIdToSend,
-                                agentNames,
-                            })
-                        }).catch((err) => console.error('Failed to save thread mapping:', err));
-                    }
 
                     // Enable SSE and wait for connection
                     setHasStartedConversation(true);
@@ -481,13 +473,12 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 // Step 2: Send message (SSE is now connected)
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 30000);
-                const response = await fetch('/api/thread-message', {
+                const response = await bffAuthFetch('/api/thread-message', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         message: userMessageText,
                         threadId: threadIdToSend,
-                        userId,
                     }),
                     signal: controller.signal
                 });
@@ -528,7 +519,12 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 console.error('Failed to send thread message:', error);
 
                 const isTimeout = error instanceof Error && error.name === 'AbortError';
-                const errorText = isTimeout
+                // EPIC15: none of the nearby agents are registered in the backend
+                // workspace, so a DM can't be created — expected, not an error.
+                const isNoAgents = error instanceof Error && error.message === 'NO_RESOLVABLE_AGENTS';
+                const errorText = isNoAgents
+                    ? '참여 가능한 에이전트가 없어 대화를 시작할 수 없습니다.'
+                    : isTimeout
                     ? 'Message timeout - the conversation is taking longer than expected. Please try again.'
                     : `Failed to send message: ${error instanceof Error ? error.message : 'Unknown error'}`;
 
@@ -551,10 +547,12 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     setMessages((prev) => [...prev, errorMessage], threadIdToSend);
                 }
 
-                Sentry.captureException(error instanceof Error ? error : new Error('Failed to send thread message'), {
-                    tags: { component: 'ChatBox', action: 'sendMessage' },
-                    extra: { threadName, threadId: threadIdToSend, agentNames, isTimeout }
-                });
+                if (!isNoAgents) {
+                    Sentry.captureException(error instanceof Error ? error : new Error('Failed to send thread message'), {
+                        tags: { component: 'ChatBox', action: 'sendMessage' },
+                        extra: { threadName, threadId: threadIdToSend, agentNames, isTimeout }
+                    });
+                }
                 setIsMessageLoading(false);
             }
         }

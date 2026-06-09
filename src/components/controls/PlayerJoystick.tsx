@@ -30,17 +30,10 @@ export default function PlayerJoystick({ onMove, disabled = false, size = 100 }:
         }
     };
 
-    const tapCountRef = useRef(0);
-
     const handleTap = (clientX: number, clientY: number) => {
         if (disabled) return;
         const direction = getDirection(clientX, clientY);
         if (!direction) return;
-
-        tapCountRef.current++;
-        if (process.env.NEXT_PUBLIC_ENABLE_PERF_MARKS === 'true') {
-            console.log(`🕹 joystick tap #${tapCountRef.current}: ${direction}`);
-        }
 
         setActiveDirection(direction);
         onMove(direction);

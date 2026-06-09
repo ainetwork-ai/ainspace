@@ -1,19 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deleteThread } from "@/lib/redis";
+import { backendFetch, getBearer } from "@/lib/backend/server-client";
+import { BackendDmMessage, mapBackendMessageToAinspace } from "@/lib/backend/dm-mapping";
 
-const A2A_ORCHESTRATION_BASE_URL = process.env.NEXT_PUBLIC_A2A_ORCHESTRATION_BASE_URL;
-
+/**
+ * GET /api/threads/{conversationId}
+ * EPIC14: fetch DM messages from the new backend, translated to the existing
+ * ainspace shape consumed by ChatBox.fetchThreadMessages (line 108-120):
+ *   { success: true, messages: [{ id, content, timestamp, speaker }] }
+ * Backend returns messages in createdAt DESC; ainspace renders chronological,
+ * so we reverse before mapping.
+ */
 export async function GET(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
     const { id } = await params;
-    const endpoint = `${A2A_ORCHESTRATION_BASE_URL}/threads/${id}/messages`;
+
+    const token = getBearer(request);
+    if (!token) {
+        return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+    }
 
     try {
-        const response = await fetch(endpoint);
-        const data = await response.json();
-        return NextResponse.json(data);
+        const res = await backendFetch(token, `/dm/${id}/messages`);
+        if (!res.ok) {
+            const body = await res.text();
+            return new NextResponse(body, {
+                status: res.status,
+                headers: { 'Content-Type': res.headers.get('content-type') ?? 'application/json' },
+            });
+        }
+        const data = (await res.json()) as { messages: BackendDmMessage[] };
+        const messages = [...data.messages].reverse().map(mapBackendMessageToAinspace);
+        return NextResponse.json({ success: true, messages });
     } catch (error) {
         console.error('Error getting thread messages:', error);
         return NextResponse.json({ error: 'Failed to get thread messages' }, { status: 500 });

@@ -100,7 +100,6 @@ export default function TempBuildTab({
 
             // Check if tile is blocked by collision map
             if (isBlocked(newX, newY)) {
-                console.log(`Movement blocked: tile (${newX}, ${newY}) is blocked by collision`);
                 return;
             }
 

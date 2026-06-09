@@ -1,6 +1,7 @@
 import { useCallback, useState, useRef } from 'react';
 import { StreamEvent } from '@/lib/a2aOrchestration';
 import { useSSEConnection } from './useSSEConnection';
+import { getAccessToken } from '@/lib/backend/token-store';
 import * as Sentry from '@sentry/nextjs';
 
 interface UseThreadStreamOptions {
@@ -21,7 +22,13 @@ export function useThreadStream({ threadId, onMessage, enabled = true }: UseThre
   const onMessageRef = useRef(onMessage);
   onMessageRef.current = onMessage;
 
-  const url = threadId && enabled ? `/api/thread-stream/${threadId}` : null;
+  // EPIC14: EventSource can't send the Authorization header, so the access
+  // token is passed via ?token= and the BFF forwards it as a Bearer to the
+  // backend. No token (guest) -> no stream.
+  const token = threadId && enabled ? getAccessToken() : null;
+  const url = token
+    ? `/api/thread-stream/${threadId}?token=${encodeURIComponent(token)}`
+    : null;
 
   const handleMessage = useCallback((event: MessageEvent) => {
     try {
