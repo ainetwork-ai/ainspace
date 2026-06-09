@@ -58,7 +58,6 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     );
 
     // Track if a message has been sent (to enable SSE connection)
-    const [hasStartedConversation, setHasStartedConversation] = useState(false);
 
     const userId = useUserStore((state) => state.getUserId());
     const isBackendAuthed = useUserStore((state) => state.isBackendAuthed);
@@ -122,20 +121,22 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
 
     useEffect(() => {
         if (currentThreadId && currentThreadId !== '0') {
-            const currnetThreadMessages = getMessagesByThreadId(currentThreadId);
-            if (currnetThreadMessages.length > 0) {
-                setDisplayedMessages(currnetThreadMessages);
-            } else {
-                console.log('Fetching thread messages for thread ID:', currentThreadId);
-                fetchThreadMessages(currentThreadId).then((messages) => {
+            // Always refetch from the backend on open. The DM is a shared source of
+            // truth (e.g. ainteams may have added messages since this thread was
+            // last cached), so the in-memory cache alone goes stale — and SSE only
+            // delivers messages that arrive *after* opening, not past history.
+            // Cached messages are shown immediately by the sync effect below; we
+            // skip overwriting with an empty result so a just-created thread's
+            // optimistic message isn't wiped before its send is persisted.
+            fetchThreadMessages(currentThreadId).then((messages) => {
+                if (messages.length > 0) {
                     setMessages(messages, currentThreadId);
-                });
-            }
+                }
+            });
         } else {
             setDisplayedMessages([]);
-            setHasStartedConversation(false);
         }
-    }, [currentThreadId, setMessages, getMessagesByThreadId, fetchThreadMessages]);
+    }, [currentThreadId, setMessages, fetchThreadMessages]);
 
     useEffect(() => {
         if (currentThreadId && currentThreadId !== '0') {
@@ -153,11 +154,9 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         return agentString;
     }, []);
 
-    // Handle SSE stream messages from A2A Orchestration
+    // Handle SSE stream messages from the backend orchestration stream
     const handleStreamEvent = useCallback(
         (event: StreamEvent) => {
-            console.log('SSE Event received:', JSON.stringify(event, null, 2));
-
             if (event.type === 'connected') {
                 console.log('Connected to thread stream');
                 if (sseConnectedResolverRef.current) {
@@ -173,37 +172,22 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     clearTimeout(responseTimeoutRef.current);
                     responseTimeoutRef.current = null;
                 }
-                // Message data is in data.data (nested structure from A2A Orchestration)
-                const eventData = event.data as {
-                    data?: { speaker?: string; content?: string };
-                    sender?: string;
-                    agentName?: string;
-                    agent?: { name?: string };
-                    name?: string;
-                    content?: string;
-                    message?: string;
-                };
-                const messageData = (eventData.data || eventData) as {
+                // Backend SSE message event (EPIC14): payload is
+                //   { type:'message', data:{ id, conversationId, speaker, userId, content, parentId?, createdAt } }
+                // so speaker/content/id live directly on event.data.
+                const messageData = event.data as {
+                    id?: string;
                     speaker?: string;
                     content?: string;
-                    id?: string;
                 };
 
-                // Extract agent name from speaker field (A2A Orchestration format)
-                const agentName =
-                    messageData.speaker ||
-                    eventData.sender ||
-                    eventData.agentName ||
-                    eventData.agent?.name ||
-                    eventData.name ||
-                    'agent';
-
-                // Extract message content
-                const messageContent =
-                    messageData.content || eventData.content || eventData.message || JSON.stringify(eventData);
-
-                console.log('Extracted agent name:', agentName);
-                console.log('Extracted message content:', messageContent);
+                const messageContent = messageData.content ?? '';
+                if (!messageContent) {
+                    // Nothing renderable (malformed/empty payload) — skip rather than
+                    // dumping the raw event object into a chat bubble.
+                    return;
+                }
+                const agentName = messageData.speaker || 'agent';
 
                 // Add agent message to chat
                 const agentMessage: ChatMessage = {
@@ -246,7 +230,10 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     useThreadStream({
         threadId: currentThreadId && currentThreadId !== '0' ? currentThreadId : null,
         onMessage: handleStreamEvent,
-        enabled: hasStartedConversation && !!currentThreadId && currentThreadId !== '0'
+        // Subscribe whenever a real thread is open (not only after sending), so
+        // agent/orchestration activity in the active thread streams in live —
+        // e.g. replies to messages triggered from another client (ainteams).
+        enabled: !!currentThreadId && currentThreadId !== '0'
     });
 
     const moveToBottom = () => {
@@ -398,7 +385,6 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     setMessages(existingThreadMessages, existingThread.id);
                     setDisplayedMessages(existingThreadMessages);
                     setCurrentThreadId(existingThread.id);
-                    setHasStartedConversation(true);
                     threadIdToSend = existingThread.id;
                 }
             }
@@ -452,10 +438,8 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
 
                     setCurrentThreadId(threadIdToSend!);
 
-                    // Enable SSE and wait for connection
-                    setHasStartedConversation(true);
-
-                    // Wait for SSE 'connected' event (max 10s timeout)
+                    // SSE connects on the currentThreadId change above; wait for
+                    // its synthetic 'connected' before sending (max 10s timeout)
                     let sseTimeoutId: ReturnType<typeof setTimeout> | null = null;
                     await Promise.race([
                         new Promise<void>((resolve) => { sseConnectedResolverRef.current = resolve; }),
@@ -494,7 +478,6 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     updateThread(result.threadId, {
                         lastMessageAt: new Date().toISOString()
                     });
-                    setHasStartedConversation(true);
                 }
 
                 // Start response timeout — if no AI message within 60s, stop loading
@@ -698,7 +681,6 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         setMessages([], '0');
         setDisplayedMessages([]);
         setCurrentThreadId('0');
-        setHasStartedConversation(false);
     };
 
     const inputPlaceholder = showUnplacedNotice
