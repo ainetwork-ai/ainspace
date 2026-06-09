@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import BaseTabContent from './BaseTabContent';
 import { useAccount } from 'wagmi';
 import ImportAgentSection from '@/components/agent-builder/ImportAgentSection';
 import { StoredAgent } from '@/lib/redis';
+import { bffAuthFetch } from '@/lib/backend/bff-fetch';
 import CreateAgentSection from '@/components/agent-builder/CreateAgentSection';
 import ImportedAgentList from '@/components/agent-builder/ImportedAgentList';
 import { useAgentStore, useUIStore, useUserStore, useUserAgentStore } from '@/stores';
@@ -24,6 +25,7 @@ export default function AgentTab({
     isDarkMode = false,
 }: AgentTabProps) {
     const [isLoading, setIsLoading] = useState<boolean>(false);
+    const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
     const [isHolderModalOpen, setIsHolderModalOpen] = useState<boolean>(false);
     const [pendingPlacementAgent, setPendingPlacementAgent] = useState<{
@@ -43,23 +45,33 @@ export default function AgentTab({
         removeAgent: removeStoredAgent,
     } = useUserAgentStore();
 
-    useEffect(() => {
-        const fetchAgent = async () => {
-            try {
-                const result = await fetch(`/api/agents?address=${address}`, {
-                    method: 'GET',
-                    headers: { 'Content-Type': 'application/json' }
-                })
-                if (result.ok) {
-                    const agentsData = await result.json();
-                    setAgents(agentsData.agents);
-                }
-            } catch (error) {
-                console.log(error);
+    // EPIC16: load via the sync endpoint (read-through; pulls the backend roster
+    // when stale). Uses bffAuthFetch — the sync route calls the backend so it
+    // needs the Bearer token (the old `?address=` route was an unauthed Redis read).
+    const loadAgents = useCallback(async (refresh = false) => {
+        if (!address) return;
+        try {
+            const result = await bffAuthFetch(
+                `/api/agents/sync?address=${address}${refresh ? '&refresh=1' : ''}`,
+            );
+            if (result.ok) {
+                const agentsData = await result.json();
+                setAgents(agentsData.agents);
             }
+        } catch (error) {
+            console.log(error);
         }
-        fetchAgent();
-    }, [address, setAgents])
+    }, [address, setAgents]);
+
+    useEffect(() => {
+        loadAgents();
+    }, [loadAgents]);
+
+    const handleRefreshAgents = async () => {
+        setIsRefreshing(true);
+        await loadAgents(true);
+        setIsRefreshing(false);
+    };
 
     const handleImportAgent = async (agentUrl: string) => {
         if (!address) {
@@ -223,9 +235,35 @@ export default function AgentTab({
                 return;
             }
 
+            // Step 3.5 (EPIC16): backend-only agents are materialized with a
+            // partial card (name only). Fetch the full A2A card before placing so
+            // the placed StoredAgent carries skills/description. Best-effort.
+            let agentToPlace = agent;
+            if (!agent.card?.capabilities) {
+                try {
+                    const proxyResponse = await fetch('/api/agent-proxy', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ agentUrl: agent.url }),
+                    });
+                    if (proxyResponse.ok) {
+                        const { agentCard } = await proxyResponse.json();
+                        await fetch('/api/agents', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ url: agent.url, card: agentCard }),
+                        });
+                        agentToPlace = { ...agent, card: agentCard };
+                        updateStoredAgent(agent.url, { card: agentCard });
+                    }
+                } catch (e) {
+                    console.warn('Full card fetch failed; placing with partial card', e);
+                }
+            }
+
             // Step 4: Show movement style modal before placement
             setPendingPlacementAgent({
-                agent: agent,
+                agent: agentToPlace,
                 allowedMaps: allowedMaps
             });
         } catch (err) {
@@ -331,6 +369,19 @@ export default function AgentTab({
                     <CreateAgentSection isDarkMode={isDarkMode} />
                     <ImportAgentSection handleImportAgent={handleImportAgent} isLoading={isLoading} isDarkMode={isDarkMode} />
                     {error && <div className="mt-2 text-sm text-red-600">⚠️ {error}</div>}
+                </div>
+                <div className="flex justify-end px-5 -mb-2">
+                    <button
+                        onClick={handleRefreshAgents}
+                        disabled={isRefreshing}
+                        className={cn(
+                            "text-sm font-medium",
+                            isDarkMode ? 'text-[#CAD0D7]' : 'text-[#838d9d]',
+                            isRefreshing && 'opacity-50 pointer-events-none'
+                        )}
+                    >
+                        {isRefreshing ? 'Refreshing…' : '↻ Refresh'}
+                    </button>
                 </div>
                 <ImportedAgentList
                     agents={agents}

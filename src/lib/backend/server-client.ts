@@ -19,6 +19,20 @@ export function getBearer(req: NextRequest): string | null {
   return null;
 }
 
+// EPIC16: decode the caller's backend user id (`sub`) from the JWT payload.
+// No signature check — the backend re-verifies the Bearer; the BFF only reads
+// the claim to scope the agent roster to the caller's owned agents.
+export function decodeUserId(token: string): string | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length < 2) return null;
+    const json = Buffer.from(parts[1], 'base64url').toString('utf8');
+    return (JSON.parse(json) as { sub?: string }).sub ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function backendFetch(
   token: string,
   path: string,
