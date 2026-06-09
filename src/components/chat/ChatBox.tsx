@@ -121,19 +121,22 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
 
     useEffect(() => {
         if (currentThreadId && currentThreadId !== '0') {
-            const currnetThreadMessages = getMessagesByThreadId(currentThreadId);
-            if (currnetThreadMessages.length > 0) {
-                setDisplayedMessages(currnetThreadMessages);
-            } else {
-                console.log('Fetching thread messages for thread ID:', currentThreadId);
-                fetchThreadMessages(currentThreadId).then((messages) => {
+            // Always refetch from the backend on open. The DM is a shared source of
+            // truth (e.g. ainteams may have added messages since this thread was
+            // last cached), so the in-memory cache alone goes stale — and SSE only
+            // delivers messages that arrive *after* opening, not past history.
+            // Cached messages are shown immediately by the sync effect below; we
+            // skip overwriting with an empty result so a just-created thread's
+            // optimistic message isn't wiped before its send is persisted.
+            fetchThreadMessages(currentThreadId).then((messages) => {
+                if (messages.length > 0) {
                     setMessages(messages, currentThreadId);
-                });
-            }
+                }
+            });
         } else {
             setDisplayedMessages([]);
         }
-    }, [currentThreadId, setMessages, getMessagesByThreadId, fetchThreadMessages]);
+    }, [currentThreadId, setMessages, fetchThreadMessages]);
 
     useEffect(() => {
         if (currentThreadId && currentThreadId !== '0') {
