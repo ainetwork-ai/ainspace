@@ -1,3 +1,4 @@
+import type { AgentCard } from '@a2a-js/sdk';
 import { backendFetch } from './server-client';
 
 // EPIC15: resolve ainspace agent a2aUrls to backend user UUIDs.
@@ -12,7 +13,9 @@ export interface BackendAgentListItem {
   isAgent?: boolean;
   a2aUrl?: string | null;
   a2aId?: string | null;
-  agentCardJson?: { url?: string } | null;
+  // Backend ships the serialized A2A card here (not just a url). Typed loosely
+  // so we can use it directly as the agent card and still read `.url` for matching.
+  agentCardJson?: (Partial<AgentCard> & { url?: string }) | null;
   // EPIC16 (agent list sync): ownership / availability / avatar.
   agentInvitedBy?: string | null; // canonical owner (backend user id)
   status?: string; // availability; non-active => disabled in ainspace

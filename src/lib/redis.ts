@@ -474,9 +474,16 @@ export async function syncAgentsFromRoster(
                 existing.backendStatus = backendStatus;
                 await redis.set(agentKeyFor(existing.url), JSON.stringify(existing));
             } else {
+                // Prefer the backend's serialized card (full A2A card); fall back to a
+                // minimal card when it's absent/partial. Avoids re-fetching from the
+                // agent URL (which 404s for builder-hosted agents).
+                const acj = b.agentCardJson;
+                const card: AgentCard = acj && acj.name
+                    ? (acj as AgentCard)
+                    : ({ name: b.displayName ?? '', url: key } as unknown as AgentCard);
                 const created: StoredAgent = {
                     url: key,
-                    card: { name: b.displayName ?? '', url: key } as unknown as AgentCard,
+                    card,
                     state: { x: 0, y: 0, behavior: 'random', color: '#ffffff', moveInterval: 600 + Math.random() * 400 },
                     spriteUrl: b.avatarUrl ?? undefined,
                     isPlaced: false,
