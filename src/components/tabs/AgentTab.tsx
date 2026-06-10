@@ -6,6 +6,7 @@ import { useAccount } from 'wagmi';
 import ImportAgentSection from '@/components/agent-builder/ImportAgentSection';
 import { StoredAgent } from '@/lib/redis';
 import { bffAuthFetch } from '@/lib/backend/bff-fetch';
+import Button from '@/components/ui/Button';
 import CreateAgentSection from '@/components/agent-builder/CreateAgentSection';
 import ImportedAgentList from '@/components/agent-builder/ImportedAgentList';
 import { useAgentStore, useUIStore, useUserStore, useUserAgentStore } from '@/stores';
@@ -348,17 +349,15 @@ export default function AgentTab({
                     {error && <div className="mt-2 text-sm text-red-600">⚠️ {error}</div>}
                 </div>
                 <div className="flex justify-end px-5 -mb-2">
-                    <button
+                    <Button
+                        type="small"
+                        variant="ghost"
                         onClick={handleRefreshAgents}
                         disabled={isRefreshing}
-                        className={cn(
-                            "text-sm font-medium",
-                            isDarkMode ? 'text-[#CAD0D7]' : 'text-[#838d9d]',
-                            isRefreshing && 'opacity-50 pointer-events-none'
-                        )}
+                        className="mx-0 h-fit py-1"
                     >
                         {isRefreshing ? 'Refreshing…' : '↻ Refresh'}
-                    </button>
+                    </Button>
                 </div>
                 <ImportedAgentList
                     agents={agents}

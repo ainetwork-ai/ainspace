@@ -446,66 +446,65 @@ const agentKeyFor = (url: string) => `${AGENTS_KEY}${Buffer.from(url).toString('
 export async function syncAgentsFromRoster(
     wallet: string,
     roster: BackendAgentListItem[],
-): Promise<void> {
-    try {
-        const redis = await getRedisClient();
-        const mine = (await getAgents()).filter((a) => a.creator === wallet);
-        const byNormUrl = new Map<string, StoredAgent>();
-        for (const a of mine) byNormUrl.set(normalizeA2aUrl(a.url), a);
+): Promise<StoredAgent[]> {
+    const redis = await getRedisClient();
+    const mine = (await getAgents()).filter((a) => a.creator === wallet);
+    const byNormUrl = new Map<string, StoredAgent>();
+    for (const a of mine) byNormUrl.set(normalizeA2aUrl(a.url), a);
 
-        const seen = new Set<string>();
+    const seen = new Set<string>();
+    const writes: Promise<unknown>[] = [];
+    const save = (a: StoredAgent) => writes.push(redis.set(agentKeyFor(a.url), JSON.stringify(a)));
 
-        for (const b of roster) {
-            const key = itemA2aUrl(b);
-            if (!key || !b.id) continue;
-            const norm = normalizeA2aUrl(key);
-            seen.add(norm);
-            // Roster items are already active workspace members; only an explicit
-            // unavailable marker downgrades them. (Exact status tokens unconfirmed.)
-            const backendStatus: 'active' | 'inactive' =
-                b.status === 'unavailable' || b.status === 'agentCardUnavailable'
-                    ? 'inactive'
-                    : 'active';
+    for (const b of roster) {
+        const key = itemA2aUrl(b);
+        if (!key || !b.id) continue;
+        const norm = normalizeA2aUrl(key);
+        seen.add(norm);
+        // Roster items are already active workspace members; only an explicit
+        // unavailable marker downgrades them. (Exact status tokens unconfirmed.)
+        const backendStatus: 'active' | 'inactive' =
+            b.status === 'unavailable' || b.status === 'agentCardUnavailable' ? 'inactive' : 'active';
 
-            const existing = byNormUrl.get(norm);
-            if (existing) {
-                if (existing.backendUuid === b.id && existing.backendStatus === backendStatus) continue;
-                existing.backendUuid = b.id;
-                existing.backendStatus = backendStatus;
-                await redis.set(agentKeyFor(existing.url), JSON.stringify(existing));
-            } else {
-                // Prefer the backend's serialized card (full A2A card); fall back to a
-                // minimal card when it's absent/partial. Avoids re-fetching from the
-                // agent URL (which 404s for builder-hosted agents).
-                const acj = b.agentCardJson;
-                const card: AgentCard = acj && acj.name
-                    ? (acj as AgentCard)
-                    : ({ name: b.displayName ?? '', url: key } as unknown as AgentCard);
-                const created: StoredAgent = {
-                    url: key,
-                    card,
-                    state: { x: 0, y: 0, behavior: 'random', color: '#ffffff', moveInterval: 600 + Math.random() * 400 },
-                    spriteUrl: b.avatarUrl ?? undefined,
-                    isPlaced: false,
-                    creator: wallet,
-                    timestamp: Date.now(),
-                    backendUuid: b.id,
-                    backendStatus,
-                };
-                await redis.set(agentKeyFor(key), JSON.stringify(created));
-            }
+        const existing = byNormUrl.get(norm);
+        if (existing) {
+            if (existing.backendUuid === b.id && existing.backendStatus === backendStatus) continue;
+            existing.backendUuid = b.id;
+            existing.backendStatus = backendStatus;
+            save(existing);
+        } else {
+            // Prefer the backend's serialized card (full A2A card); fall back to a
+            // minimal card when it's absent/partial. Avoids re-fetching from the
+            // agent URL (which 404s for builder-hosted agents).
+            const acj = b.agentCardJson;
+            const card: AgentCard = acj && acj.name
+                ? (acj as AgentCard)
+                : ({ name: b.displayName ?? '', url: key } as unknown as AgentCard);
+            const created: StoredAgent = {
+                url: key,
+                card,
+                state: { x: 0, y: 0, behavior: 'random', color: '#ffffff', moveInterval: 600 + Math.random() * 400 },
+                spriteUrl: b.avatarUrl ?? undefined,
+                isPlaced: false,
+                creator: wallet,
+                timestamp: Date.now(),
+                backendUuid: b.id,
+                backendStatus,
+            };
+            mine.push(created);
+            save(created);
         }
-
-        // Local agents absent from the roster -> disabled (left/deleted in teams).
-        for (const a of mine) {
-            if (seen.has(normalizeA2aUrl(a.url))) continue;
-            if (a.backendStatus === 'inactive') continue;
-            a.backendStatus = 'inactive';
-            await redis.set(agentKeyFor(a.url), JSON.stringify(a));
-        }
-    } catch (error) {
-        console.error('Error syncing agents from roster:', error);
     }
+
+    // Local agents absent from the roster -> disabled (left/deleted in teams).
+    for (const a of mine) {
+        if (seen.has(normalizeA2aUrl(a.url)) || a.backendStatus === 'inactive') continue;
+        a.backendStatus = 'inactive';
+        save(a);
+    }
+
+    await Promise.all(writes);
+    return mine;
 }
 
 
