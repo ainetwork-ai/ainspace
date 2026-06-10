@@ -29,25 +29,23 @@ export async function GET(request: NextRequest) {
     }
 
     const forceRefresh = request.nextUrl.searchParams.get('refresh') === '1';
+    const myUserId = decodeUserId(token);
+    // Freshness is driven by the marker's TTL: absent (0) => a pull is due.
+    const stale = (await getAgentsSyncedAt(wallet)) === 0;
 
-    if (isBackendWorkspaceConfigured()) {
-        const myUserId = decodeUserId(token);
-        // Freshness is driven by the marker's TTL (set in setAgentsSyncedAt):
-        // 0 means it expired / was never set, so a pull is due.
-        const stale = (await getAgentsSyncedAt(wallet)) === 0;
-
-        if (myUserId && (forceRefresh || stale)) {
-            try {
-                const roster = await fetchWorkspaceAgents(token, BACKEND_WORKSPACE_ID);
-                // Scope to agents this user owns (canonical owner = agentInvitedBy).
-                const mine = roster.filter((a) => a.agentInvitedBy && a.agentInvitedBy === myUserId);
-                await syncAgentsFromRoster(wallet, mine);
-                await setAgentsSyncedAt(wallet, Date.now());
-            } catch (error) {
-                // Degrade: serve existing Redis agents and don't bump the timestamp
-                // so the next call retries.
-                console.error('Agent roster sync failed:', error);
-            }
+    // Pull + reconcile only when configured, identified, and due. On any failure
+    // we fall through to serving the existing Redis agents (degrade) without
+    // bumping the marker, so the next call retries.
+    if (isBackendWorkspaceConfigured() && myUserId && (forceRefresh || stale)) {
+        try {
+            const roster = await fetchWorkspaceAgents(token, BACKEND_WORKSPACE_ID);
+            // Scope to agents this user owns (canonical owner = agentInvitedBy).
+            const mine = roster.filter((a) => a.agentInvitedBy === myUserId);
+            const synced = await syncAgentsFromRoster(wallet, mine);
+            await setAgentsSyncedAt(wallet, Date.now());
+            return NextResponse.json({ success: true, agents: synced });
+        } catch (error) {
+            console.error('Agent roster sync failed:', error);
         }
     }
 
