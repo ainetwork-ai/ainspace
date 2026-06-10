@@ -107,8 +107,8 @@ export async function POST(request: NextRequest) {
     // forwarded verbatim so the client can show the backend's `message`.
     const res = await backendFetch(
       token,
-      `/agents?workspaceId=${encodeURIComponent(BACKEND_WORKSPACE_ID)}`,
-      { method: 'POST', body: JSON.stringify({ a2aUrl: agentUrl }) },
+      '/agents',
+      { method: 'POST', body: JSON.stringify({ workspaceId: BACKEND_WORKSPACE_ID, a2aUrl: agentUrl }) },
     );
     if (!res.ok) {
       const body = await res.text();
