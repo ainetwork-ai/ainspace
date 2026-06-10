@@ -105,75 +105,36 @@ export default function AgentTab({
                 console.log('Permission verified successfully');
             }
 
-            // Step 3: Proceed with import
-            const proxyResponse = await fetch('/api/agent-proxy', {
+            // Step 3: Invite the agent into the backend workspace. The backend
+            // fetches the card + dedups by canonical a2aUrl (no /api/agent-proxy),
+            // and the BFF materializes the returned agent into Redis. bffAuthFetch
+            // attaches the Bearer the invite requires.
+            const response = await bffAuthFetch('/api/agents', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ agentUrl })
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ agentUrl, creator: address }),
             });
 
-            if (!proxyResponse.ok) {
-                const errorData = await proxyResponse.json();
-                throw new Error(errorData.error || 'Failed to fetch agent card');
-            }
-
-            const { agentCard } = await proxyResponse.json();
-
-            if (agents.some((agent) => agent.url === agentUrl)) {
-                setError('This agent has already been imported');
-                setIsLoading(false);
-                return;
-            }
-
-            const newAgent: StoredAgent = {
-                url: agentUrl,
-                card: agentCard,
-                isPlaced: false,
-                creator: address!,
-                timestamp: Date.now(),
-                state: {
-                    x: 0,
-                    y: 0,
-                    behavior: 'random',
-                    color: '#ffffff',
-                    moveInterval: 600 + Math.random() * 400
-                }
-            };
-
-            // Step 4: Call API (server-side validation)
-            const response = await fetch('/api/agents', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(newAgent)
-            });
-
-            // If API returns 403, force re-verify (no cooldown)
-            if (response.status === 403) {
-                const errorData = await response.json();
-                console.error('API permission denied:', errorData);
-
-                // Force re-verify by calling API directly
-                const forceVerifyResult = await verifyPermissions(address);
-
-                if (!forceVerifyResult.success || !forceVerifyResult.permissions?.permissions.importAgent) {
-                    setIsHolderModalOpen(true);
-                } else {
-                    setError('Permission verification updated. Please try again.');
-                }
-                setIsLoading(false);
-                return;
-            }
+            const result = await response.json();
 
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to import agent');
+                // ainspace holder gate (marked with `code`) -> re-verify / holder modal.
+                if (response.status === 403 && result.code === 'NO_IMPORT_PERMISSION') {
+                    const forceVerifyResult = await verifyPermissions(address);
+                    if (!forceVerifyResult.success || !forceVerifyResult.permissions?.permissions.importAgent) {
+                        setIsHolderModalOpen(true);
+                    } else {
+                        setError('Permission verification updated. Please try again.');
+                    }
+                    setIsLoading(false);
+                    return;
+                }
+                // Backend rejection (e.g. 403 for someone else's private agent) ->
+                // show the backend's reason verbatim.
+                throw new Error(result.message || result.error || 'Failed to import agent');
             }
 
-            addAgent(newAgent);
+            addAgent(result.agent);
         } catch (err) {
             setError(`Failed to import agent: ${err instanceof Error ? err.message : 'Unknown error'}`);
         } finally {
