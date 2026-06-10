@@ -52,13 +52,11 @@ export default function ImportedAgentCard({
                             </Button>
                         ) : (
                             <Button
-                                onClick={() => { if (!isDisabled) onPlaceAgent(agent); }}
+                                onClick={() => onPlaceAgent(agent)}
+                                disabled={isDisabled}
                                 type="small"
                                 variant="primary"
-                                className={cn(
-                                    "h-fit p-[9px] flex flex-row gap-1 items-center justify-center",
-                                    isDisabled && 'pointer-events-none opacity-60'
-                                )}
+                                className="h-fit p-[9px] flex flex-row gap-1 items-center justify-center"
                             >
                                 <MapPinIcon className="w-4 h-4" type="icon" strokeWidth={1.3} />
                                 <p className="text-sm font-medium leading-none">Place</p>

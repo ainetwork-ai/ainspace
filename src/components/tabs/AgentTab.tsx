@@ -6,6 +6,7 @@ import { useAccount } from 'wagmi';
 import ImportAgentSection from '@/components/agent-builder/ImportAgentSection';
 import { StoredAgent } from '@/lib/redis';
 import { bffAuthFetch } from '@/lib/backend/bff-fetch';
+import Button from '@/components/ui/Button';
 import CreateAgentSection from '@/components/agent-builder/CreateAgentSection';
 import ImportedAgentList from '@/components/agent-builder/ImportedAgentList';
 import { useAgentStore, useUIStore, useUserStore, useUserAgentStore } from '@/stores';
@@ -235,35 +236,12 @@ export default function AgentTab({
                 return;
             }
 
-            // Step 3.5 (EPIC16): backend-only agents are materialized with a
-            // partial card (name only). Fetch the full A2A card before placing so
-            // the placed StoredAgent carries skills/description. Best-effort.
-            let agentToPlace = agent;
-            if (!agent.card?.capabilities) {
-                try {
-                    const proxyResponse = await fetch('/api/agent-proxy', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ agentUrl: agent.url }),
-                    });
-                    if (proxyResponse.ok) {
-                        const { agentCard } = await proxyResponse.json();
-                        await fetch('/api/agents', {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ url: agent.url, card: agentCard }),
-                        });
-                        agentToPlace = { ...agent, card: agentCard };
-                        updateStoredAgent(agent.url, { card: agentCard });
-                    }
-                } catch (e) {
-                    console.warn('Full card fetch failed; placing with partial card', e);
-                }
-            }
-
-            // Step 4: Show movement style modal before placement
+            // Step 4: Show movement style modal before placement.
+            // (EPIC16: the card already comes from the backend roster's
+            // agentCardJson at sync time, so no agent-proxy re-fetch is needed —
+            // that fetch 404s for builder-hosted agent URLs anyway.)
             setPendingPlacementAgent({
-                agent: agentToPlace,
+                agent: agent,
                 allowedMaps: allowedMaps
             });
         } catch (err) {
@@ -371,17 +349,15 @@ export default function AgentTab({
                     {error && <div className="mt-2 text-sm text-red-600">⚠️ {error}</div>}
                 </div>
                 <div className="flex justify-end px-5 -mb-2">
-                    <button
+                    <Button
+                        type="small"
+                        variant="ghost"
                         onClick={handleRefreshAgents}
                         disabled={isRefreshing}
-                        className={cn(
-                            "text-sm font-medium",
-                            isDarkMode ? 'text-[#CAD0D7]' : 'text-[#838d9d]',
-                            isRefreshing && 'opacity-50 pointer-events-none'
-                        )}
+                        className="mx-0 h-fit py-1"
                     >
                         {isRefreshing ? 'Refreshing…' : '↻ Refresh'}
-                    </button>
+                    </Button>
                 </div>
                 <ImportedAgentList
                     agents={agents}
