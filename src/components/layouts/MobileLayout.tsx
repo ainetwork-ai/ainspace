@@ -5,11 +5,12 @@ import { cn } from '@/lib/utils';
 import { StoredAgent } from '@/lib/redis';
 import { MOVEMENT_MODE } from '@/constants/game';
 import { TileLayers } from '@/stores/useBuildStore';
-import { TabType } from '@/stores/useUIStore';
+import { TabType, useUIStore } from '@/stores/useUIStore';
 import MapTab from '@/components/tabs/MapTab';
 import TempBuildTab from '@/components/tabs/TempBuildTab';
 import AgentTab from '@/components/tabs/AgentTab';
 import Footer from '@/components/Footer';
+import ConnectWalletModal from '@/components/ConnectWalletModal';
 
 export interface LayoutProps {
     activeTab: TabType;
@@ -50,7 +51,11 @@ export default function MobileLayout({
     userId,
     onPublishTiles,
 }: LayoutProps) {
+    const isWalletModalOpen = useUIStore((s) => s.isWalletModalOpen);
+    const setWalletModalOpen = useUIStore((s) => s.setWalletModalOpen);
     return (
+        <>
+        <ConnectWalletModal open={isWalletModalOpen} onOpenChange={setWalletModalOpen} />
         <div className="flex h-screen w-full flex-col bg-gray-100">
             <div className="relative flex-1 overflow-hidden">
                 <div className={cn("absolute inset-0 pb-[73px]")}>
@@ -88,5 +93,6 @@ export default function MobileLayout({
                 />
             )}
         </div>
+        </>
     );
 }
