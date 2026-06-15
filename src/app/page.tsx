@@ -6,7 +6,8 @@ import { useSearchParams } from 'next/navigation';
 import { BROADCAST_RADIUS, MOVEMENT_MODE } from '@/constants/game';
 import { useUIStore, useThreadStore, useBuildStore, useAgentStore, useUserStore, useUserAgentStore } from '@/stores';
 import { useAccount, useSignMessage } from 'wagmi';
-import { ensureBackendAuth } from '@/lib/backend/auth';
+import { ensureBackendAuth, ensureKioskAuth } from '@/lib/backend/auth';
+import { isKioskMode } from '@/lib/kiosk';
 import { getAccessToken, isAccessExpired } from '@/lib/backend/token-store';
 import { StoredAgent } from '@/lib/redis';
 import { useVillageLoader } from '@/hooks/useVillageLoader';
@@ -35,6 +36,7 @@ export default function Home() {
         threads,
         setCurrentThreadId,
         clearThreads,
+        setForceNewPending,
     } = useThreadStore();
     const {
         customTiles,
@@ -76,6 +78,22 @@ export default function Home() {
             : 'none (guest)');
     }, [hydrateBackendAuth]);
 
+    // EPIC18: kiosk build auto-logs into the shared service account on mount
+    // (no wallet, no signature). Non-blocking — failure must not break the page.
+    // The hydrate effect above already restored any stored session by now.
+    useEffect(() => {
+        if (!isKioskMode) return;
+        (async () => {
+            try {
+                const user = await ensureKioskAuth();
+                if (user) setBackendAuth(user);
+                console.log('[AINSpace] kiosk auto-login:', user ? 'ok' : 'no user');
+            } catch (error) {
+                console.error('Kiosk auto-login failed (non-blocking):', error);
+            }
+        })();
+    }, [setBackendAuth]);
+
     // Lock html/body to viewport on the game page only (iOS keyboard fix).
     // Scrollable pages like reports must remain scrollable.
     useEffect(() => {
@@ -93,19 +111,23 @@ export default function Home() {
             if (e.ctrlKey && e.code === 'KeyK') {
                 e.preventDefault();
 
-                // Only allow when wallet is not connected (guest mode)
+                // Only allow when wallet is not connected (guest/kiosk mode)
                 if (address) return;
                 console.log('resetting session');
                 clearThreads();
                 setCurrentThreadId('0');
                 resetSessionId();
+                // EPIC18: kiosk — make the next DM creation fork a fresh
+                // conversation so the new visitor never sees prior chats. The
+                // backend session (token) is intentionally kept alive.
+                if (isKioskMode) setForceNewPending(true);
                 console.log('[AINSpace] Guest session reset: threads cleared, new session ID issued.');
             }
         };
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [address, clearThreads, setCurrentThreadId, resetSessionId]);
+    }, [address, clearThreads, setCurrentThreadId, resetSessionId, setForceNewPending]);
 
     useEffect(() => {
         if (process.env.NEXT_PUBLIC_ENABLE_PERF_MARKS === 'true') {

@@ -128,3 +128,38 @@ export async function ensureBackendAuth(params: AuthParams): Promise<BackendUser
 export function logoutBackend(): void {
   clearSession();
 }
+
+// --- Kiosk (EPIC18) -------------------------------------------------------
+// Exhibition kiosk: a shared, wallet-less service account. No signature step —
+// the BFF holds the private key and logs in via /auth/key-login. Token storage
+// (token-store) and refresh are reused unchanged.
+
+/** Log in the shared kiosk service account via the BFF. No signature prompt. */
+export async function loginAsKiosk(): Promise<BackendUser> {
+  const res = await fetch('/api/backend-auth/kiosk-login', { method: 'POST' });
+  if (!res.ok) {
+    throw new BackendAuthError(res.status, 'kiosk login failed');
+  }
+  const { user, tokens } = (await res.json()) as VerifyResponse;
+  setSession(user, tokens);
+  return user;
+}
+
+/**
+ * Ensure a valid kiosk session, mirroring ensureBackendAuth but with the
+ * key-login fallback instead of a wallet signature:
+ * - valid access token -> reuse (no network)
+ * - expired but refresh present -> silent refresh
+ * - no session / refresh failed -> key-login fallback
+ */
+export async function ensureKioskAuth(): Promise<BackendUser | null> {
+  const expired = isAccessExpired();
+  if (hasSession() && !expired) return getUser();
+
+  if (expired && getRefreshToken()) {
+    const ok = await refreshTokens();
+    if (ok) return getUser();
+  }
+
+  return loginAsKiosk();
+}
