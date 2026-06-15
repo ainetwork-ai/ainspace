@@ -13,7 +13,7 @@ import DesktopSidebarFooter from '@/components/DesktopSidebarFooter';
 import WalletInfo from '@/components/WalletInfo';
 import { Z_INDEX_OFFSETS } from '@/constants/common';
 import { LayoutProps } from './MobileLayout';
-import { useGameStateStore, useUIStore } from '@/stores';
+import { useGameStateStore, useUIStore, useUserStore } from '@/stores';
 import { useVillageStore } from '@/stores/useVillageStore';
 
 export default function DesktopLayout({
@@ -35,6 +35,9 @@ export default function DesktopLayout({
     onPublishTiles,
 }: LayoutProps) {
     const { address } = useAccount();
+    // EPIC18: kiosk has a backend session but no wallet — treat it as logged in.
+    const isBackendAuthed = useUserStore((s) => s.isBackendAuthed);
+    const isLoggedIn = !!address || isBackendAuthed;
     const [showWalletModal, setShowWalletModal] = useState(false);
     const { worldPosition } = useGameStateStore();
     const currentVillageName = useVillageStore((s) => s.currentVillage?.name);
@@ -101,7 +104,7 @@ export default function DesktopLayout({
                         </p>
                     </div>
                     {/* 지갑 상태 */}
-                    {address ? (
+                    {isLoggedIn ? (
                         <WalletInfo />
                     ) : (
                         <button
