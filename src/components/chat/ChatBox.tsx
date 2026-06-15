@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback, forwardRef } from 'react';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
-import { ChatMessage, Thread, useBuildStore, useChatStore, useGameStateStore, useThreadStore, useUserStore } from '@/stores';
+import { ChatMessage, Thread, useBuildStore, useChatStore, useGameStateStore, useThreadStore, useUIStore, useUserStore } from '@/stores';
 import * as Sentry from '@sentry/nextjs';
 import { useThreadStream } from '@/hooks/useThreadStream';
 import { StreamEvent } from '@/lib/a2aOrchestration';
@@ -275,13 +275,14 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     }, [aiCommentary, currentThreadId]);
 
     const handleSendMessage = async () => {
-        // EPIC14: sending now requires a backend session (token), not just a
+        // EPIC14: sending requires a backend session (token), not just a
         // connected wallet/guest sessionId — the message path proxies the
-        // browser-held Bearer to the backend DM. Guests (no token) can't send.
-        // (userId is still used for local message attribution below, so it must
-        // also be non-null — isBackendAuthed implies an address, but narrow it
-        // explicitly for the type checker.)
-        if (!isBackendAuthed || !userId) return;
+        // browser-held Bearer to the backend DM. A non-logged-in user can't send;
+        // prompt the wallet-connect modal instead of failing silently.
+        if (!isBackendAuthed || !userId) {
+            useUIStore.getState().setWalletModalOpen(true);
+            return;
+        }
 
         if (inputValue.trim() === 'show me grid') {
             setShowCollisionMap(true);
