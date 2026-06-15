@@ -4,10 +4,10 @@ import { useGameState } from '@/hooks/useGameState';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { BROADCAST_RADIUS, MOVEMENT_MODE } from '@/constants/game';
-import { useUIStore, useThreadStore, useBuildStore, useAgentStore, useUserStore, useUserAgentStore } from '@/stores';
+import { useUIStore, useThreadStore, useBuildStore, useAgentStore, useUserStore, useUserAgentStore, useChatStore } from '@/stores';
 import { useAccount, useSignMessage } from 'wagmi';
 import { ensureBackendAuth, ensureKioskSession } from '@/lib/backend/auth';
-import { getAccessToken, getKioskFlag, hasSession, isAccessExpired } from '@/lib/backend/token-store';
+import { getAccessToken, getKioskFlag, isAccessExpired } from '@/lib/backend/token-store';
 import { StoredAgent } from '@/lib/redis';
 import { useVillageLoader } from '@/hooks/useVillageLoader';
 import { useVillageStore } from '@/stores/useVillageStore';
@@ -35,7 +35,6 @@ export default function Home() {
         threads,
         setCurrentThreadId,
         clearThreads,
-        setForceNewPending,
     } = useThreadStore();
     const {
         customTiles,
@@ -56,7 +55,7 @@ export default function Home() {
     const { spawnAgent } = useAgentStore();
     const { address } = useAccount();
     const { signMessageAsync } = useSignMessage();
-    const { setAddress, setPermissions, setLastVerifiedAt, initSessionId, resetSessionId, getSessionId, hasMigratedThreads, setMigratedThreads, isPermissionExpired, verifyPermissions, hydrateBackendAuth, setBackendAuth, setKioskSession, clearBackendAuth } = useUserStore();
+    const { setAddress, setPermissions, setLastVerifiedAt, initSessionId, resetSessionId, getSessionId, hasMigratedThreads, setMigratedThreads, isPermissionExpired, verifyPermissions, hydrateBackendAuth, setBackendAuth, clearBackendAuth } = useUserStore();
     const { updateAgent: updateUserAgent } = useUserAgentStore();
 
     const [HUDOff, setHUDOff] = useState<boolean>(false);
@@ -85,21 +84,17 @@ export default function Home() {
     useEffect(() => {
         (async () => {
             try {
-                const hadSession = hasSession();
                 const user = await ensureKioskSession();
                 console.log('[kiosk] ensureKioskSession ->', user ? `user ${user.id}` : 'none',
                     '| kioskFlag =', getKioskFlag());
-                if (user) {
-                    setBackendAuth(user);
-                    if (getKioskFlag()) setKioskSession(true);
-                } else if (!hadSession) {
-                    // public web (404) — nothing to do
-                }
+                // Atomically mark auth + kiosk so the thread-list fetch never runs
+                // for a kiosk before the skip-guard sees isKioskSession.
+                if (user) setBackendAuth(user, getKioskFlag());
             } catch (error) {
                 console.error('[kiosk] bootstrap failed (non-blocking):', error);
             }
         })();
-    }, [setBackendAuth, setKioskSession]);
+    }, [setBackendAuth]);
 
     // Lock html/body to viewport on the game page only (iOS keyboard fix).
     // Scrollable pages like reports must remain scrollable.
@@ -121,21 +116,21 @@ export default function Home() {
                 // Only allow when wallet is not connected (guest/kiosk mode)
                 if (address) return;
                 console.log('resetting session');
+                // EPIC18: new visitor. Clear the local thread list + the on-screen
+                // conversation, and reset to the empty thread. The kiosk's local-only
+                // list means the next chat creates a fresh forceNew conversation
+                // (handled in ChatBox); the backend session/token stays alive.
                 clearThreads();
                 setCurrentThreadId('0');
+                useChatStore.getState().clearMessages();
                 resetSessionId();
-                // EPIC18: kiosk — make the next DM creation fork a fresh
-                // conversation so the new visitor never sees prior chats. The
-                // backend session (token) is intentionally kept alive. Keyed off
-                // the server-asserted kiosk flag, not a client env var.
-                if (useUserStore.getState().isKioskSession) setForceNewPending(true);
-                console.log('[AINSpace] Guest session reset: threads cleared, new session ID issued.');
+                console.log('[AINSpace] Guest session reset: threads + messages cleared, new session ID issued.');
             }
         };
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [address, clearThreads, setCurrentThreadId, resetSessionId, setForceNewPending]);
+    }, [address, clearThreads, setCurrentThreadId, resetSessionId]);
 
     useEffect(() => {
         if (process.env.NEXT_PUBLIC_ENABLE_PERF_MARKS === 'true') {

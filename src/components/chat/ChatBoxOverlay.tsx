@@ -34,7 +34,7 @@ export default function ChatBoxOverlay({
     const [isThreadListSheetOpen, setIsThreadListSheetOpen] = useState(false);
     const [isThreadListLoading, setIsThreadListLoading] = useState(false);
     const { setThreads, setCurrentThreadId } = useThreadStore();
-    const { address, sessionId, isBackendAuthed } = useUserStore();
+    const { address, sessionId, isBackendAuthed, isKioskSession } = useUserStore();
     const selectedAgentForPlacement = useUIStore((state) => state.selectedAgentForPlacement);
     const userId = address || sessionId;
 
@@ -43,6 +43,10 @@ export default function ChatBoxOverlay({
         // connect). Without this gate, the fetch fires before the JWT lands in
         // localStorage and the BFF returns an empty list.
         if (!isBackendAuthed) return;
+        // EPIC18: the kiosk shares one backend account, so GET /api/threads would
+        // return every past visitor's conversations. Keep the kiosk thread list
+        // local-only (built from in-session addThread); don't repopulate from it.
+        if (isKioskSession) return;
 
         const loadThreadMappings = async () => {
             setIsThreadListLoading(true);
@@ -85,7 +89,7 @@ export default function ChatBoxOverlay({
         };
 
         loadThreadMappings();
-    }, [isBackendAuthed, userId, setThreads]);
+    }, [isBackendAuthed, isKioskSession, userId, setThreads]);
 
     const handleChatSheetOpen = (open: boolean) => {
         setIsChatSheetOpen(open);

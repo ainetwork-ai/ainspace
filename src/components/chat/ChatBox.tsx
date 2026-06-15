@@ -35,7 +35,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     ref
 ) {
     const { messages, setMessages, getMessagesByThreadId } = useChatStore();
-    const { currentThreadId, setCurrentThreadId, findThreadByName, findThreadById, addThread, forceNewPending, setForceNewPending } = useThreadStore();
+    const { currentThreadId, setCurrentThreadId, findThreadByName, findThreadById, addThread } = useThreadStore();
     const nearbyAgents = useNearbyAgents();
     const [inputValue, setInputValue] = useState('');
     const [showSuggestions, setShowSuggestions] = useState(false);
@@ -61,6 +61,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
 
     const userId = useUserStore((state) => state.getUserId());
     const isBackendAuthed = useUserStore((state) => state.isBackendAuthed);
+    const isKioskSession = useUserStore((state) => state.isKioskSession);
     const { updateThread } = useThreadStore();
     const { isDesktop } = useIsDesktop();
 
@@ -105,6 +106,12 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         [userId]
     );
 
+    // EPIC18 kiosk invariant: this reads conversation content from the shared
+    // kiosk account and is NOT guarded. The skip-fetch kiosk design holds only
+    // because kiosk thread ids originate solely from in-session addThread and
+    // Ctrl+K resets currentThreadId to '0'. Never set currentThreadId on a kiosk
+    // to a backend id not in the local thread list (e.g. deep links / notifications)
+    // or it would load a prior visitor's messages.
     const fetchThreadMessages = useCallback(
         async (threadId: string) => {
             const response = await bffAuthFetch(`/api/threads/${threadId}`);
@@ -413,11 +420,14 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     // the thread id; agent a2aUrls are resolved to backend user
                     // UUIDs inside the BFF, which returns the assembled Thread.
                     const agentUrls = nearbyAgents.map((a: AgentState) => a.agentUrl);
-                    // EPIC18: after a kiosk Ctrl+K reset, fork a fresh backend
-                    // conversation for this first creation, then clear the flag so
-                    // same-session re-chats with the same agents reuse it.
-                    const useForceNew = forceNewPending;
-                    if (useForceNew) setForceNewPending(false);
+                    // EPIC18: kiosk shares one backend account, so a plain create
+                    // would dedupe onto a prior visitor's conversation. The kiosk
+                    // thread list is local-only, so reaching this isNewThread path
+                    // means "first time this agent-combo this session" -> always
+                    // forceNew a fresh conversation. Within-session re-chats hit the
+                    // local thread (findThreadByName) and never reach here. Wallet
+                    // sessions (isKioskSession=false) keep backend dedup unchanged.
+                    const useForceNew = isKioskSession;
                     const createResponse = await bffAuthFetch('/api/threads', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },

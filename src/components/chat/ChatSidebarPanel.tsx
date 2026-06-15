@@ -14,7 +14,7 @@ export default function ChatSidebarPanel() {
     const [isThreadListLoading, setIsThreadListLoading] = useState(false);
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const { setThreads, setCurrentThreadId, currentThreadId } = useThreadStore();
-    const { address, sessionId, isBackendAuthed } = useUserStore();
+    const { address, sessionId, isBackendAuthed, isKioskSession } = useUserStore();
     const chatBoxRef = useRef<ChatBoxRef>(null);
     const userId = address || sessionId;
 
@@ -24,6 +24,9 @@ export default function ChatSidebarPanel() {
         // connect). Without this gate, the fetch fires before the JWT lands in
         // localStorage and the BFF returns an empty list.
         if (!isBackendAuthed) return;
+        // EPIC18: kiosk shares one backend account — keep the thread list
+        // local-only so prior visitors' conversations never repopulate it.
+        if (isKioskSession) return;
 
         const loadThreadMappings = async () => {
             setIsThreadListLoading(true);
@@ -65,7 +68,7 @@ export default function ChatSidebarPanel() {
         };
 
         loadThreadMappings();
-    }, [isBackendAuthed, userId, setThreads]);
+    }, [isBackendAuthed, isKioskSession, userId, setThreads]);
 
     const nearbyAgents = useNearbyAgents();
     const [isChatLoading, setIsChatLoading] = useState(false);

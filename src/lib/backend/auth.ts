@@ -60,6 +60,10 @@ export async function loginWithWallet({ address, signMessage }: AuthParams): Pro
 
   const { user, tokens } = (await verifyRes.json()) as VerifyResponse;
   setSession(user, tokens);
+  // EPIC18: a wallet login is never a kiosk session — clear any stale kiosk flag
+  // (e.g. left on a device that was previously a kiosk) so the wallet user isn't
+  // mistaken for kiosk on the next hydrate (which would hide their own threads).
+  setKioskFlag(false);
   return user;
 }
 
