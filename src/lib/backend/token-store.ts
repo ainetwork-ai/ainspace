@@ -5,6 +5,11 @@ const ACCESS_TOKEN_KEY = 'ainspace-backend-access-token';
 const REFRESH_TOKEN_KEY = 'ainspace-backend-refresh-token';
 const EXPIRES_AT_KEY = 'ainspace-backend-expires-at';
 const USER_KEY = 'ainspace-backend-user';
+// EPIC18: marks the current session as a kiosk (wallet-less, server-bootstrapped)
+// session. Server-originated — set only after a successful kiosk bootstrap, tied
+// to the token lifecycle. Read to keep the kiosk session alive despite the wallet
+// being absent, and to drive Ctrl+K forceNew.
+const KIOSK_KEY = 'ainspace-backend-kiosk';
 
 const isBrowser = (): boolean => typeof window !== 'undefined';
 
@@ -58,6 +63,18 @@ export function clearSession(): void {
   localStorage.removeItem(REFRESH_TOKEN_KEY);
   localStorage.removeItem(EXPIRES_AT_KEY);
   localStorage.removeItem(USER_KEY);
+  localStorage.removeItem(KIOSK_KEY);
+}
+
+export function setKioskFlag(on: boolean): void {
+  if (!isBrowser()) return;
+  if (on) localStorage.setItem(KIOSK_KEY, '1');
+  else localStorage.removeItem(KIOSK_KEY);
+}
+
+export function getKioskFlag(): boolean {
+  if (!isBrowser()) return false;
+  return localStorage.getItem(KIOSK_KEY) === '1';
 }
 
 export function hasSession(): boolean {

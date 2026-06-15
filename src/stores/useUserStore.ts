@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { UserPermissions } from '@/types/auth';
 import { BackendUser } from '@/types/backend';
-import { getUser as getBackendUser, hasSession } from '@/lib/backend/token-store';
+import { getUser as getBackendUser, getKioskFlag, hasSession } from '@/lib/backend/token-store';
 import { logoutBackend } from '@/lib/backend/auth';
 
 const SESSION_STORAGE_KEY = 'ainspace-session-id';
@@ -15,6 +15,7 @@ interface UserStore {
   lastVerifiedAt: number | null;
   backendUser: BackendUser | null;
   isBackendAuthed: boolean;
+  isKioskSession: boolean;
 
   getUserId: () => string | null;
   isWalletConnected: () => boolean;
@@ -30,6 +31,7 @@ interface UserStore {
   clearUser: () => void;
   hydrateBackendAuth: () => void;
   setBackendAuth: (user: BackendUser) => void;
+  setKioskSession: (on: boolean) => void;
   clearBackendAuth: () => void;
   verifyPermissions: (address: string) => Promise<{ success: boolean; permissions?: UserPermissions }>;
   checkPermission: (permissionKey: keyof UserPermissions['permissions']) => boolean;
@@ -46,6 +48,7 @@ export const useUserStore = create<UserStore>((set, get) => ({
   lastVerifiedAt: null,
   backendUser: null,
   isBackendAuthed: false,
+  isKioskSession: false,
 
   getUserId: () => {
     const state = get();
@@ -107,21 +110,23 @@ export const useUserStore = create<UserStore>((set, get) => ({
     get().initSessionId();
   },
 
-  clearUser: () => set({ address: null, permissions: null, lastVerifiedAt: null, backendUser: null, isBackendAuthed: false }),
+  clearUser: () => set({ address: null, permissions: null, lastVerifiedAt: null, backendUser: null, isBackendAuthed: false, isKioskSession: false }),
 
   // Restore backend session from localStorage on mount (no network/signature).
   hydrateBackendAuth: () => {
     if (typeof window === 'undefined') return;
     if (hasSession()) {
-      set({ backendUser: getBackendUser(), isBackendAuthed: true });
+      set({ backendUser: getBackendUser(), isBackendAuthed: true, isKioskSession: getKioskFlag() });
     }
   },
 
   setBackendAuth: (user) => set({ backendUser: user, isBackendAuthed: true }),
 
+  setKioskSession: (on) => set({ isKioskSession: on }),
+
   clearBackendAuth: () => {
     logoutBackend();
-    set({ backendUser: null, isBackendAuthed: false });
+    set({ backendUser: null, isBackendAuthed: false, isKioskSession: false });
   },
 
   // Verify permissions with cooldown

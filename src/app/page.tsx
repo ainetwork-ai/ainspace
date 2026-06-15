@@ -6,9 +6,8 @@ import { useSearchParams } from 'next/navigation';
 import { BROADCAST_RADIUS, MOVEMENT_MODE } from '@/constants/game';
 import { useUIStore, useThreadStore, useBuildStore, useAgentStore, useUserStore, useUserAgentStore } from '@/stores';
 import { useAccount, useSignMessage } from 'wagmi';
-import { ensureBackendAuth, ensureKioskAuth } from '@/lib/backend/auth';
-import { isKioskMode } from '@/lib/kiosk';
-import { getAccessToken, isAccessExpired } from '@/lib/backend/token-store';
+import { ensureBackendAuth, ensureKioskSession } from '@/lib/backend/auth';
+import { getAccessToken, getKioskFlag, hasSession, isAccessExpired } from '@/lib/backend/token-store';
 import { StoredAgent } from '@/lib/redis';
 import { useVillageLoader } from '@/hooks/useVillageLoader';
 import { useVillageStore } from '@/stores/useVillageStore';
@@ -57,7 +56,7 @@ export default function Home() {
     const { spawnAgent } = useAgentStore();
     const { address } = useAccount();
     const { signMessageAsync } = useSignMessage();
-    const { setAddress, setPermissions, setLastVerifiedAt, initSessionId, resetSessionId, getSessionId, hasMigratedThreads, setMigratedThreads, isPermissionExpired, verifyPermissions, hydrateBackendAuth, setBackendAuth, clearBackendAuth } = useUserStore();
+    const { setAddress, setPermissions, setLastVerifiedAt, initSessionId, resetSessionId, getSessionId, hasMigratedThreads, setMigratedThreads, isPermissionExpired, verifyPermissions, hydrateBackendAuth, setBackendAuth, setKioskSession, clearBackendAuth } = useUserStore();
     const { updateAgent: updateUserAgent } = useUserAgentStore();
 
     const [HUDOff, setHUDOff] = useState<boolean>(false);
@@ -78,21 +77,29 @@ export default function Home() {
             : 'none (guest)');
     }, [hydrateBackendAuth]);
 
-    // EPIC18: kiosk build auto-logs into the shared service account on mount
-    // (no wallet, no signature). Non-blocking — failure must not break the page.
-    // The hydrate effect above already restored any stored session by now.
+    // EPIC18: try to bootstrap a wallet-less session on mount. Kiosk-agnostic —
+    // on a kiosk deployment the BFF returns a session (and we mark it kiosk); on
+    // the public web it 404s and this is a no-op. Non-blocking. The hydrate effect
+    // above already restored any stored session, so this only runs when there's
+    // no usable one.
     useEffect(() => {
-        if (!isKioskMode) return;
         (async () => {
             try {
-                const user = await ensureKioskAuth();
-                if (user) setBackendAuth(user);
-                console.log('[AINSpace] kiosk auto-login:', user ? 'ok' : 'no user');
+                const hadSession = hasSession();
+                const user = await ensureKioskSession();
+                console.log('[kiosk] ensureKioskSession ->', user ? `user ${user.id}` : 'none',
+                    '| kioskFlag =', getKioskFlag());
+                if (user) {
+                    setBackendAuth(user);
+                    if (getKioskFlag()) setKioskSession(true);
+                } else if (!hadSession) {
+                    // public web (404) — nothing to do
+                }
             } catch (error) {
-                console.error('Kiosk auto-login failed (non-blocking):', error);
+                console.error('[kiosk] bootstrap failed (non-blocking):', error);
             }
         })();
-    }, [setBackendAuth]);
+    }, [setBackendAuth, setKioskSession]);
 
     // Lock html/body to viewport on the game page only (iOS keyboard fix).
     // Scrollable pages like reports must remain scrollable.
@@ -119,8 +126,9 @@ export default function Home() {
                 resetSessionId();
                 // EPIC18: kiosk — make the next DM creation fork a fresh
                 // conversation so the new visitor never sees prior chats. The
-                // backend session (token) is intentionally kept alive.
-                if (isKioskMode) setForceNewPending(true);
+                // backend session (token) is intentionally kept alive. Keyed off
+                // the server-asserted kiosk flag, not a client env var.
+                if (useUserStore.getState().isKioskSession) setForceNewPending(true);
                 console.log('[AINSpace] Guest session reset: threads cleared, new session ID issued.');
             }
         };
@@ -142,7 +150,14 @@ export default function Home() {
             if (!address) {
                 setAddress(null);
                 setPermissions(null);
-                clearBackendAuth();
+                // A kiosk session is wallet-less by design, so "no address" is its
+                // normal state — clearing here would tear down (or race) it. Only
+                // clear for wallet sessions (wallet disconnected = logged out).
+                if (useUserStore.getState().isKioskSession || getKioskFlag()) {
+                    console.log('[kiosk] initUserAuth: no address (kiosk) -> keep session');
+                } else {
+                    clearBackendAuth();
+                }
                 hasInitializedAuth.current = false;
                 prevAddressRef.current = null;
                 return;
