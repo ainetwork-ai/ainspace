@@ -10,6 +10,7 @@ import {
   getUser,
   hasSession,
   isAccessExpired,
+  setKioskFlag,
   setSession,
   setTokens,
 } from './token-store';
@@ -130,36 +131,46 @@ export function logoutBackend(): void {
 }
 
 // --- Kiosk (EPIC18) -------------------------------------------------------
-// Exhibition kiosk: a shared, wallet-less service account. No signature step —
-// the BFF holds the private key and logs in via /auth/key-login. Token storage
-// (token-store) and refresh are reused unchanged.
+// Exhibition kiosk: a shared, wallet-less service account. Kiosk-ness is decided
+// by the BFF (it holds the private key): /api/backend-auth/kiosk-login signs the
+// challenge server-side and returns a session, or 404 when no key is configured.
+// The client is kiosk-agnostic — it just tries to bootstrap; a 404 means "not a
+// kiosk deployment" and is a no-op. Token storage/refresh are reused unchanged.
 
-/** Log in the shared kiosk service account via the BFF. No signature prompt. */
-export async function loginAsKiosk(): Promise<BackendUser> {
+/**
+ * Try to bootstrap a kiosk session via the BFF.
+ * - 200 -> store the session, mark it kiosk, return the user.
+ * - 404 -> not a kiosk deployment (public web) -> null, no-op.
+ * - other -> non-blocking failure (e.g. backend rejected EOA) -> null + log.
+ */
+export async function bootstrapKioskSession(): Promise<BackendUser | null> {
   const res = await fetch('/api/backend-auth/kiosk-login', { method: 'POST' });
+  console.log('[kiosk] bootstrap status:', res.status);
+  if (res.status === 404) return null; // not a kiosk deployment
   if (!res.ok) {
-    throw new BackendAuthError(res.status, 'kiosk login failed');
+    const body = await res.text().catch(() => '');
+    console.error('[kiosk] bootstrap failed:', res.status, body.slice(0, 300));
+    return null;
   }
   const { user, tokens } = (await res.json()) as VerifyResponse;
+  console.log('[kiosk] bootstrap ok | hasUser =', !!user, '| userId =', user?.id);
   setSession(user, tokens);
+  setKioskFlag(true);
   return user;
 }
 
 /**
- * Ensure a valid kiosk session, mirroring ensureBackendAuth but with the
- * key-login fallback instead of a wallet signature:
- * - valid access token -> reuse (no network)
- * - expired but refresh present -> silent refresh
- * - no session / refresh failed -> key-login fallback
+ * Mount-time session resolution shared by kiosk and public builds:
+ * - valid stored session -> reuse (no network)
+ * - expired but refreshable -> silent refresh (works for wallet or kiosk session)
+ * - otherwise -> try a kiosk bootstrap (null/no-op on public web)
  */
-export async function ensureKioskAuth(): Promise<BackendUser | null> {
-  const expired = isAccessExpired();
-  if (hasSession() && !expired) return getUser();
+export async function ensureKioskSession(): Promise<BackendUser | null> {
+  if (hasSession() && !isAccessExpired()) return getUser();
 
-  if (expired && getRefreshToken()) {
-    const ok = await refreshTokens();
-    if (ok) return getUser();
+  if (isAccessExpired() && getRefreshToken()) {
+    if (await refreshTokens()) return getUser();
   }
 
-  return loginAsKiosk();
+  return bootstrapKioskSession();
 }

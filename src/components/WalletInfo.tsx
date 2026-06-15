@@ -7,14 +7,19 @@ import { disconnect } from '@wagmi/core';
 import { config } from '@/lib/wagmi-config';
 import { shortAddress } from '@/lib/utils';
 import { useCopyAddress } from '@/hooks/useCopyAddress';
-import { useThreadStore } from '@/stores';
+import { useThreadStore, useUserStore } from '@/stores';
 
 export default function WalletInfo() {
     const { address } = useAccount();
-    const { isCopied, handleCopy } = useCopyAddress(address);
+    // EPIC18: a kiosk session has no wallet address — fall back to the backend
+    // user's address so the kiosk shows as a normal logged-in user. Wallet path
+    // is unchanged (address takes precedence).
+    const backendAddress = useUserStore((s) => s.backendUser?.ainAddress);
+    const displayAddress = address ?? backendAddress;
+    const { isCopied, handleCopy } = useCopyAddress(displayAddress);
     const clearThreads = useThreadStore((s) => s.clearThreads);
 
-    if (!address) return null;
+    if (!displayAddress) return null;
 
     const handleDisconnect = () => {
         disconnect(config);
@@ -24,7 +29,7 @@ export default function WalletInfo() {
     return (
         <div className="inline-flex flex-row items-center gap-2 rounded-lg bg-white p-2">
             <Image src="/agent/defaultAvatar.svg" alt="agent" width={20} height={20} />
-            <p className="text-sm font-bold text-black">{shortAddress(address)}</p>
+            <p className="text-sm font-bold text-black">{shortAddress(displayAddress)}</p>
             <button
                 onClick={handleCopy}
                 className="group cursor-pointer rounded p-0.5"
@@ -39,16 +44,19 @@ export default function WalletInfo() {
                     />
                 )}
             </button>
-            <button
-                onClick={handleDisconnect}
-                className="group cursor-pointer rounded p-0.5"
-                aria-label="Disconnect wallet"
-            >
-                <LogOut
-                    size={14}
-                    className="text-gray-400 transition-colors group-hover:text-[#FE7474]"
-                />
-            </button>
+            {/* Disconnect only applies to a real wallet connection (kiosk has none). */}
+            {address && (
+                <button
+                    onClick={handleDisconnect}
+                    className="group cursor-pointer rounded p-0.5"
+                    aria-label="Disconnect wallet"
+                >
+                    <LogOut
+                        size={14}
+                        className="text-gray-400 transition-colors group-hover:text-[#FE7474]"
+                    />
+                </button>
+            )}
         </div>
     );
 }
