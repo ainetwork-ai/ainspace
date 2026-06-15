@@ -13,7 +13,7 @@ import { useGameState } from '@/hooks/useGameState';
 import { TileLayers } from '@/stores/useBuildStore';
 import ChatBoxOverlay from '@/components/chat/ChatBoxOverlay';
 import { ChatBoxRef } from '@/components/chat/ChatBox';
-import { useAgentStore, useUIStore } from '@/stores';
+import { useAgentStore, useUIStore, useUserStore } from '@/stores';
 import TileMap from '@/components/TileMap';
 import { Z_INDEX_OFFSETS } from '@/constants/common';
 import { StoredAgent } from '@/lib/redis';
@@ -49,6 +49,9 @@ export default function MapTab({
     onPlaceAgentAtPosition,
 }: MapTabProps) {
     const { address } = useAccount();
+    // EPIC18: kiosk has a backend session but no wallet — treat it as logged in.
+    const isBackendAuthed = useUserStore((s) => s.isBackendAuthed);
+    const isLoggedIn = !!address || isBackendAuthed;
     const [showWalletModal, setShowWalletModal] = useState(false);
     const agents = useAgentStore((s) => s.agents);
     const { selectedAgentForPlacement, setSelectedAgentForPlacement } = useUIStore();
@@ -257,7 +260,7 @@ export default function MapTab({
                     />
                 </div>
 
-                {!isDesktop && (address ? (
+                {!isDesktop && (isLoggedIn ? (
                     <div
                         className="absolute top-4 right-4"
                         style={{ zIndex: Z_INDEX_OFFSETS.UI }}
