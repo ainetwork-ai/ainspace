@@ -35,7 +35,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     ref
 ) {
     const { messages, setMessages, getMessagesByThreadId } = useChatStore();
-    const { currentThreadId, setCurrentThreadId, findThreadByName, findThreadById, addThread } = useThreadStore();
+    const { currentThreadId, setCurrentThreadId, findThreadByName, findThreadById, addThread, forceNewPending, setForceNewPending } = useThreadStore();
     const nearbyAgents = useNearbyAgents();
     const [inputValue, setInputValue] = useState('');
     const [showSuggestions, setShowSuggestions] = useState(false);
@@ -413,10 +413,15 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     // the thread id; agent a2aUrls are resolved to backend user
                     // UUIDs inside the BFF, which returns the assembled Thread.
                     const agentUrls = nearbyAgents.map((a: AgentState) => a.agentUrl);
+                    // EPIC18: after a kiosk Ctrl+K reset, fork a fresh backend
+                    // conversation for this first creation, then clear the flag so
+                    // same-session re-chats with the same agents reuse it.
+                    const useForceNew = forceNewPending;
+                    if (useForceNew) setForceNewPending(false);
                     const createResponse = await bffAuthFetch('/api/threads', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ agentUrls }),
+                        body: JSON.stringify({ agentUrls, ...(useForceNew ? { forceNew: true } : {}) }),
                     });
                     if (createResponse.status === 422) {
                         throw new Error('NO_RESOLVABLE_AGENTS');

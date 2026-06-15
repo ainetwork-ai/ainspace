@@ -77,6 +77,9 @@ export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
         const agentUrls: string[] = Array.isArray(body?.agentUrls) ? body.agentUrls : [];
+        // EPIC18: kiosk opt-in — bypass backend member-set dedup so each new
+        // visitor session gets a fresh conversation. Web UI omits this flag.
+        const forceNew: boolean = body?.forceNew === true;
         if (agentUrls.length === 0) {
             return NextResponse.json({ error: 'agentUrls is required' }, { status: 400 });
         }
@@ -119,7 +122,7 @@ export async function POST(request: NextRequest) {
         // Create (or reuse — backend idempotent on member set) the DM.
         const dmRes = await backendFetch(token, '/dm', {
             method: 'POST',
-            body: JSON.stringify({ workspaceId, userIds: uuids }),
+            body: JSON.stringify({ workspaceId, userIds: uuids, ...(forceNew ? { forceNew: true } : {}) }),
         });
         if (!dmRes.ok) {
             const errBody = await dmRes.text();

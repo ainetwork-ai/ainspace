@@ -9,6 +9,15 @@ export const BACKEND_CLIENT_ID = process.env.BACKEND_CLIENT_ID ?? 'ainspace';
 // on refresh). No default: it MUST be set explicitly or backend calls fail fast.
 export const BACKEND_WORKSPACE_ID = process.env.BACKEND_WORKSPACE_ID ?? '';
 
+// EPIC18: shared service-account private key (a plain EOA) for the exhibition
+// kiosk. Server-only (NOT NEXT_PUBLIC) — the browser never sees it, and it is
+// never transmitted: the BFF uses it ONLY to sign the auth challenge locally
+// (challenge -> sign -> verify), sending just the signature. Set ONLY on the
+// kiosk Vercel project, so its mere presence gates kiosk mode (public web empty).
+export const BACKEND_KIOSK_PRIVATE_KEY = process.env.BACKEND_KIOSK_PRIVATE_KEY ?? '';
+
 export const isBackendConfigured = (): boolean => BACKEND_BASE_URL.trim().length > 0;
 export const isBackendWorkspaceConfigured = (): boolean =>
   BACKEND_WORKSPACE_ID.trim().length > 0;
+export const isKioskConfigured = (): boolean =>
+  BACKEND_KIOSK_PRIVATE_KEY.trim().length > 0;

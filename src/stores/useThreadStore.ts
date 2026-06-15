@@ -12,6 +12,10 @@ interface ThreadState {
     currentThreadId: string | undefined;
     broadcastMessage: string;
     broadcastStatus: BroadcastStatus | null;
+    // EPIC18: when true, the next backend DM creation forks a fresh conversation
+    // (forceNew) instead of reusing the deduped one. Set on kiosk Ctrl+K reset,
+    // consumed (and cleared) by the first thread creation after it.
+    forceNewPending: boolean;
 
     // Actions
     setThreads: (threads: Thread[]) => void;
@@ -22,6 +26,7 @@ interface ThreadState {
     removeThread: (threadId: string) => void;
     clearThreads: () => void;
     setCurrentThreadId: (threadId: string | undefined) => void;
+    setForceNewPending: (pending: boolean) => void;
     setBroadcastMessage: (message: string) => void;
     setBroadcastStatus: (status: BroadcastStatus | null) => void;
     clearBroadcastMessage: () => void;
@@ -33,6 +38,7 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
     currentThreadId: '0',
     broadcastMessage: '',
     broadcastStatus: null,
+    forceNewPending: false,
 
     setThreads: (threads) => set({ threads }),
     // EPIC15: upsert by id — backend returns the existing DM for a repeated
@@ -54,6 +60,7 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
     }),
     clearThreads: () => set({ threads: [] }),
     setCurrentThreadId: (threadId) => set({ currentThreadId: threadId }),
+    setForceNewPending: (pending) => set({ forceNewPending: pending }),
     setBroadcastMessage: (message) => set({ broadcastMessage: message }),
     setBroadcastStatus: (status) => set({ broadcastStatus: status }),
     clearBroadcastMessage: () => set({ broadcastMessage: '' }),
