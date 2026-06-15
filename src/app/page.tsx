@@ -85,13 +85,11 @@ export default function Home() {
         (async () => {
             try {
                 const user = await ensureKioskSession();
-                console.log('[kiosk] ensureKioskSession ->', user ? `user ${user.id}` : 'none',
-                    '| kioskFlag =', getKioskFlag());
                 // Atomically mark auth + kiosk so the thread-list fetch never runs
                 // for a kiosk before the skip-guard sees isKioskSession.
                 if (user) setBackendAuth(user, getKioskFlag());
             } catch (error) {
-                console.error('[kiosk] bootstrap failed (non-blocking):', error);
+                console.error('Kiosk bootstrap failed (non-blocking):', error);
             }
         })();
     }, [setBackendAuth]);
@@ -115,7 +113,6 @@ export default function Home() {
 
                 // Only allow when wallet is not connected (guest/kiosk mode)
                 if (address) return;
-                console.log('resetting session');
                 // EPIC18: new visitor. Clear the local thread list + the on-screen
                 // conversation, and reset to the empty thread. The kiosk's local-only
                 // list means the next chat creates a fresh forceNew conversation
@@ -124,7 +121,6 @@ export default function Home() {
                 setCurrentThreadId('0');
                 useChatStore.getState().clearMessages();
                 resetSessionId();
-                console.log('[AINSpace] Guest session reset: threads + messages cleared, new session ID issued.');
             }
         };
 
@@ -149,7 +145,7 @@ export default function Home() {
                 // normal state — clearing here would tear down (or race) it. Only
                 // clear for wallet sessions (wallet disconnected = logged out).
                 if (useUserStore.getState().isKioskSession || getKioskFlag()) {
-                    console.log('[kiosk] initUserAuth: no address (kiosk) -> keep session');
+                    // kiosk: wallet-less by design — keep the session
                 } else {
                     clearBackendAuth();
                 }
