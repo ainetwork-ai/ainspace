@@ -30,8 +30,7 @@ interface UserStore {
   resetSessionId: () => void;
   clearUser: () => void;
   hydrateBackendAuth: () => void;
-  setBackendAuth: (user: BackendUser) => void;
-  setKioskSession: (on: boolean) => void;
+  setBackendAuth: (user: BackendUser, isKiosk?: boolean) => void;
   clearBackendAuth: () => void;
   verifyPermissions: (address: string) => Promise<{ success: boolean; permissions?: UserPermissions }>;
   checkPermission: (permissionKey: keyof UserPermissions['permissions']) => boolean;
@@ -120,9 +119,10 @@ export const useUserStore = create<UserStore>((set, get) => ({
     }
   },
 
-  setBackendAuth: (user) => set({ backendUser: user, isBackendAuthed: true }),
-
-  setKioskSession: (on) => set({ isKioskSession: on }),
+  // EPIC18: set auth + kiosk flag atomically so a kiosk never has a render where
+  // isBackendAuthed=true but isKioskSession=false (which would let the thread-list
+  // fetch run before the kiosk skip-guard applies). Wallet path omits isKiosk -> false.
+  setBackendAuth: (user, isKiosk = false) => set({ backendUser: user, isBackendAuthed: true, isKioskSession: isKiosk }),
 
   clearBackendAuth: () => {
     logoutBackend();
