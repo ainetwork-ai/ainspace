@@ -202,6 +202,29 @@ export async function bootstrapKioskSession(): Promise<BackendUser | null> {
   return user;
 }
 
+// EPIC19: shared single-flight + circuit breaker for kiosk re-bootstrap, used by
+// the reactive 401 recovery in both the API (bffAuthFetch) and SSE paths. Collapses
+// concurrent recoveries into one /kiosk-login and bounds churn when the backend is
+// down (so an unattended kiosk doesn't retry-storm).
+let bootstrapInFlight: Promise<BackendUser | null> | null = null;
+let bootstrapBlockedUntil = 0;
+const BOOTSTRAP_COOLDOWN_MS = 30000;
+
+export function bootstrapKioskSessionShared(): Promise<BackendUser | null> {
+  if (Date.now() < bootstrapBlockedUntil) return Promise.resolve(null);
+  if (bootstrapInFlight) return bootstrapInFlight;
+
+  bootstrapInFlight = (async () => {
+    const user = await bootstrapKioskSession();
+    if (!user) bootstrapBlockedUntil = Date.now() + BOOTSTRAP_COOLDOWN_MS;
+    return user;
+  })().finally(() => {
+    bootstrapInFlight = null;
+  });
+
+  return bootstrapInFlight;
+}
+
 /**
  * Mount-time session resolution shared by kiosk and public builds:
  * - valid stored session -> reuse (no network)

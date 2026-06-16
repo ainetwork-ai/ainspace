@@ -8,6 +8,7 @@ import { Thread } from '@/types/thread';
 import { generateAgentComboId } from '@/lib/hash';
 import { bffAuthFetch } from '@/lib/backend/bff-fetch';
 import ChatBox, { ChatBoxRef } from './ChatBox';
+import { ChatStreamErrorBoundary } from './ChatStreamErrorBoundary';
 import ThreadListLeftDrawer from './ThreadListLeftDrawer';
 
 export default function ChatSidebarPanel() {
@@ -116,11 +117,13 @@ export default function ChatSidebarPanel() {
                     )}
                 </div>
                 <div className={shouldShowEmptyState ? '' : 'flex-1 min-h-0'}>
-                    <ChatBox
-                        ref={chatBoxRef}
-                        openThreadList={openDrawer}
-                        onLoadingChange={setIsChatLoading}
-                    />
+                    <ChatStreamErrorBoundary resetKey={currentThreadId}>
+                        <ChatBox
+                            ref={chatBoxRef}
+                            openThreadList={openDrawer}
+                            onLoadingChange={setIsChatLoading}
+                        />
+                    </ChatStreamErrorBoundary>
                 </div>
             </div>
         </div>
