@@ -26,7 +26,7 @@ interface ChatBoxProps {
     onLoadingChange?: (loading: boolean) => void;
 }
 
-export interface ChatBoxRef {
+export interface ChatBoxRef { 
     sendMessage: (message: string, threadId?: string, broadcastRadius?: number) => Promise<void>;
 }
 
