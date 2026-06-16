@@ -329,7 +329,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 setCustomTiles((prev) => ({
                     ...prev,
                     layer1: {}
-                }));
+                })); 
 
                 setPublishedTiles((prev) => ({
                     ...prev,
