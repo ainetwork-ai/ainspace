@@ -10,7 +10,9 @@ export interface BackendUser {
 
 export interface BackendTokens {
   accessToken: string;
-  refreshToken: string;
+  // EPIC26: refresh is delivered via the httpOnly `rt` cookie, not the body.
+  // Optional for legacy/non-browser responses that still include it.
+  refreshToken?: string;
   expiresIn: number;
 }
 
@@ -26,7 +28,8 @@ export interface VerifyResponse {
 
 export interface RefreshResponse {
   accessToken: string;
-  refreshToken: string;
+  // EPIC26: rotated refresh comes via Set-Cookie, not the body.
+  refreshToken?: string;
   expiresIn: number;
 }
 
