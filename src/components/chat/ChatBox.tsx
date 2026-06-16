@@ -43,6 +43,9 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     const [cursorPosition, setCursorPosition] = useState(0);
     const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
     const [isMessageLoading, setIsMessageLoading] = useState(false);
+    // EPIC19: set when SSE auth recovery is exhausted. Thrown during render so a
+    // (local) error boundary catches it — replaces the old "Error: ..." system bubble.
+    const [fatalStreamError, setFatalStreamError] = useState<Error | null>(null);
     const { setShowCollisionMap } = useBuildStore();
     const inputRef = useRef<HTMLInputElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -220,10 +223,15 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     setIsMessageLoading(false);
                 }
             } else if (event.type === 'error') {
-                // Error message
+                // EPIC19: 401 auth errors are intercepted upstream (useThreadStream);
+                // this branch only handles non-auth stream errors. The proxy emits
+                // { status, body }, not { error } — fall back across all shapes.
+                const errData = event.data as { error?: string; body?: string; status?: number } | undefined;
+                const detail = errData?.error ?? errData?.body
+                    ?? (errData?.status ? `status ${errData.status}` : 'Unknown error');
                 const errorMessage: ChatMessage = {
                     id: `error-${Date.now()}`,
-                    text: `Error: ${event.data.error || 'Unknown error'}`,
+                    text: `Error: ${detail}`,
                     timestamp: new Date(),
                     sender: 'system',
                     threadId: currentThreadId || undefined
@@ -237,6 +245,9 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     useThreadStream({
         threadId: currentThreadId && currentThreadId !== '0' ? currentThreadId : null,
         onMessage: handleStreamEvent,
+        // EPIC19: SSE auth recovery exhausted -> throw via render (caught by the
+        // local ChatStreamErrorBoundary) instead of a system-message-first bubble.
+        onFatal: setFatalStreamError,
         // Subscribe whenever a real thread is open (not only after sending), so
         // agent/orchestration activity in the active thread streams in live —
         // e.g. replies to messages triggered from another client (ainteams).
@@ -710,6 +721,10 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         : isMessageLoading
           ? 'placeholder:text-[#49C7FF] placeholder:font-light'
           : 'placeholder:text-[#FFFFFF66]';
+
+    // EPIC19: surface an exhausted SSE auth recovery as a render throw so the
+    // nearest (local) error boundary catches it — no silent system-message error.
+    if (fatalStreamError) throw fatalStreamError;
 
     return (
         <div className={cn('flex h-full min-h-0 w-full flex-col bg-transparent', className)}>
