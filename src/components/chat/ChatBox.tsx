@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback, forwardRef } from 'react';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
-import { ChatMessage, useBuildStore, useChatStore, useGameStateStore, useThreadStore, useUserStore } from '@/stores';
+import { ChatMessage, Thread, useBuildStore, useChatStore, useGameStateStore, useThreadStore, useUIStore, useUserStore } from '@/stores';
 import * as Sentry from '@sentry/nextjs';
 import { useThreadStream } from '@/hooks/useThreadStream';
 import { StreamEvent } from '@/lib/a2aOrchestration';
@@ -11,7 +11,7 @@ import { AlertTriangle, Triangle, X } from 'lucide-react';
 import ChatMessageCard from '@/components/chat/ChatMessageCard';
 import { AgentState } from '@/lib/agent';
 import MentionSuggestionDropdown from '@/components/chat/MentionSuggestionDropdown';
-import { generateAgentComboId } from '@/lib/hash';
+import { bffAuthFetch } from '@/lib/backend/bff-fetch';
 import { Spinner } from '@/components/ui/spinner';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { useNearbyAgents } from '@/hooks/useNearbyAgents';
@@ -43,6 +43,9 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     const [cursorPosition, setCursorPosition] = useState(0);
     const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
     const [isMessageLoading, setIsMessageLoading] = useState(false);
+    // EPIC19: set when SSE auth recovery is exhausted. Thrown during render so a
+    // (local) error boundary catches it — replaces the old "Error: ..." system bubble.
+    const [fatalStreamError, setFatalStreamError] = useState<Error | null>(null);
     const { setShowCollisionMap } = useBuildStore();
     const inputRef = useRef<HTMLInputElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -58,9 +61,10 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     );
 
     // Track if a message has been sent (to enable SSE connection)
-    const [hasStartedConversation, setHasStartedConversation] = useState(false);
 
     const userId = useUserStore((state) => state.getUserId());
+    const isBackendAuthed = useUserStore((state) => state.isBackendAuthed);
+    const isKioskSession = useUserStore((state) => state.isKioskSession);
     const { updateThread } = useThreadStore();
     const { isDesktop } = useIsDesktop();
 
@@ -105,9 +109,15 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         [userId]
     );
 
+    // EPIC18 kiosk invariant: this reads conversation content from the shared
+    // kiosk account and is NOT guarded. The skip-fetch kiosk design holds only
+    // because kiosk thread ids originate solely from in-session addThread and
+    // Ctrl+K resets currentThreadId to '0'. Never set currentThreadId on a kiosk
+    // to a backend id not in the local thread list (e.g. deep links / notifications)
+    // or it would load a prior visitor's messages.
     const fetchThreadMessages = useCallback(
         async (threadId: string) => {
-            const response = await fetch(`/api/threads/${threadId}`);
+            const response = await bffAuthFetch(`/api/threads/${threadId}`);
             const data = await response.json();
 
             if (data.success && data.messages) {
@@ -121,20 +131,22 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
 
     useEffect(() => {
         if (currentThreadId && currentThreadId !== '0') {
-            const currnetThreadMessages = getMessagesByThreadId(currentThreadId);
-            if (currnetThreadMessages.length > 0) {
-                setDisplayedMessages(currnetThreadMessages);
-            } else {
-                console.log('Fetching thread messages for thread ID:', currentThreadId);
-                fetchThreadMessages(currentThreadId).then((messages) => {
+            // Always refetch from the backend on open. The DM is a shared source of
+            // truth (e.g. ainteams may have added messages since this thread was
+            // last cached), so the in-memory cache alone goes stale — and SSE only
+            // delivers messages that arrive *after* opening, not past history.
+            // Cached messages are shown immediately by the sync effect below; we
+            // skip overwriting with an empty result so a just-created thread's
+            // optimistic message isn't wiped before its send is persisted.
+            fetchThreadMessages(currentThreadId).then((messages) => {
+                if (messages.length > 0) {
                     setMessages(messages, currentThreadId);
-                });
-            }
+                }
+            });
         } else {
             setDisplayedMessages([]);
-            setHasStartedConversation(false);
         }
-    }, [currentThreadId, setMessages, getMessagesByThreadId, fetchThreadMessages]);
+    }, [currentThreadId, setMessages, fetchThreadMessages]);
 
     useEffect(() => {
         if (currentThreadId && currentThreadId !== '0') {
@@ -152,11 +164,9 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         return agentString;
     }, []);
 
-    // Handle SSE stream messages from A2A Orchestration
+    // Handle SSE stream messages from the backend orchestration stream
     const handleStreamEvent = useCallback(
         (event: StreamEvent) => {
-            console.log('SSE Event received:', JSON.stringify(event, null, 2));
-
             if (event.type === 'connected') {
                 console.log('Connected to thread stream');
                 if (sseConnectedResolverRef.current) {
@@ -172,37 +182,22 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     clearTimeout(responseTimeoutRef.current);
                     responseTimeoutRef.current = null;
                 }
-                // Message data is in data.data (nested structure from A2A Orchestration)
-                const eventData = event.data as {
-                    data?: { speaker?: string; content?: string };
-                    sender?: string;
-                    agentName?: string;
-                    agent?: { name?: string };
-                    name?: string;
-                    content?: string;
-                    message?: string;
-                };
-                const messageData = (eventData.data || eventData) as {
+                // Backend SSE message event (EPIC14): payload is
+                //   { type:'message', data:{ id, conversationId, speaker, userId, content, parentId?, createdAt } }
+                // so speaker/content/id live directly on event.data.
+                const messageData = event.data as {
+                    id?: string;
                     speaker?: string;
                     content?: string;
-                    id?: string;
                 };
 
-                // Extract agent name from speaker field (A2A Orchestration format)
-                const agentName =
-                    messageData.speaker ||
-                    eventData.sender ||
-                    eventData.agentName ||
-                    eventData.agent?.name ||
-                    eventData.name ||
-                    'agent';
-
-                // Extract message content
-                const messageContent =
-                    messageData.content || eventData.content || eventData.message || JSON.stringify(eventData);
-
-                console.log('Extracted agent name:', agentName);
-                console.log('Extracted message content:', messageContent);
+                const messageContent = messageData.content ?? '';
+                if (!messageContent) {
+                    // Nothing renderable (malformed/empty payload) — skip rather than
+                    // dumping the raw event object into a chat bubble.
+                    return;
+                }
+                const agentName = messageData.speaker || 'agent';
 
                 // Add agent message to chat
                 const agentMessage: ChatMessage = {
@@ -247,10 +242,15 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     }, 60000);
                 }
             } else if (event.type === 'error') {
-                // Error message
+                // EPIC19: 401 auth errors are intercepted upstream (useThreadStream);
+                // this branch only handles non-auth stream errors. The proxy emits
+                // { status, body }, not { error } — fall back across all shapes.
+                const errData = event.data as { error?: string; body?: string; status?: number } | undefined;
+                const detail = errData?.error ?? errData?.body
+                    ?? (errData?.status ? `status ${errData.status}` : 'Unknown error');
                 const errorMessage: ChatMessage = {
                     id: `error-${Date.now()}`,
-                    text: `Error: ${event.data.error || 'Unknown error'}`,
+                    text: `Error: ${detail}`,
                     timestamp: new Date(),
                     sender: 'system',
                     threadId: currentThreadId || undefined
@@ -264,7 +264,13 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     useThreadStream({
         threadId: currentThreadId && currentThreadId !== '0' ? currentThreadId : null,
         onMessage: handleStreamEvent,
-        enabled: hasStartedConversation && !!currentThreadId && currentThreadId !== '0'
+        // EPIC19: SSE auth recovery exhausted -> throw via render (caught by the
+        // local ChatStreamErrorBoundary) instead of a system-message-first bubble.
+        onFatal: setFatalStreamError,
+        // Subscribe whenever a real thread is open (not only after sending), so
+        // agent/orchestration activity in the active thread streams in live —
+        // e.g. replies to messages triggered from another client (ainteams).
+        enabled: !!currentThreadId && currentThreadId !== '0'
     });
 
     const moveToBottom = () => {
@@ -299,7 +305,14 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     }, [aiCommentary, currentThreadId]);
 
     const handleSendMessage = async () => {
-        if (!userId) return;
+        // EPIC14: sending requires a backend session (token), not just a
+        // connected wallet/guest sessionId — the message path proxies the
+        // browser-held Bearer to the backend DM. A non-logged-in user can't send;
+        // prompt the wallet-connect modal instead of failing silently.
+        if (!isBackendAuthed || !userId) {
+            useUIStore.getState().setWalletModalOpen(true);
+            return;
+        }
 
         if (inputValue.trim() === 'show me grid') {
             setShowCollisionMap(true);
@@ -410,7 +423,6 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     setMessages(existingThreadMessages, existingThread.id);
                     setDisplayedMessages(existingThreadMessages);
                     setCurrentThreadId(existingThread.id);
-                    setHasStartedConversation(true);
                     threadIdToSend = existingThread.id;
                 }
             }
@@ -435,28 +447,34 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 // Step 1: For new threads, create thread first and wait for SSE
                 const isNewThread = !threadIdToSend;
                 if (isNewThread) {
-                    const createResponse = await fetch('/api/thread-create', {
+                    // EPIC15: create (or reuse) the backend DM. The server owns
+                    // the thread id; agent a2aUrls are resolved to backend user
+                    // UUIDs inside the BFF, which returns the assembled Thread.
+                    const agentUrls = nearbyAgents.map((a: AgentState) => a.agentUrl);
+                    // EPIC18: kiosk shares one backend account, so a plain create
+                    // would dedupe onto a prior visitor's conversation. The kiosk
+                    // thread list is local-only, so reaching this isNewThread path
+                    // means "first time this agent-combo this session" -> always
+                    // forceNew a fresh conversation. Within-session re-chats hit the
+                    // local thread (findThreadByName) and never reach here. Wallet
+                    // sessions (isKioskSession=false) keep backend dedup unchanged.
+                    const useForceNew = isKioskSession;
+                    const createResponse = await bffAuthFetch('/api/threads', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ agentNames, userId }),
+                        body: JSON.stringify({ agentUrls, ...(useForceNew ? { forceNew: true } : {}) }),
                     });
+                    if (createResponse.status === 422) {
+                        throw new Error('NO_RESOLVABLE_AGENTS');
+                    }
                     const createResult = await createResponse.json();
                     if (!createResponse.ok) {
                         throw new Error(createResult.details || createResult.error || createResponse.statusText);
                     }
 
-                    threadIdToSend = createResult.threadId;
-
-                    // Save thread mapping
-                    const agentComboId = await generateAgentComboId(agentNames);
-                    addThread({
-                        threadName,
-                        id: threadIdToSend!,
-                        agentNames,
-                        agentComboId,
-                        createdAt: new Date().toISOString(),
-                        lastMessageAt: new Date().toISOString()
-                    });
+                    const createdThread = createResult.thread as Thread;
+                    threadIdToSend = createdThread.id;
+                    addThread(createdThread);
 
                     setMessages((prev) => {
                         if (!prev) return [newMessage];
@@ -466,23 +484,8 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
 
                     setCurrentThreadId(threadIdToSend!);
 
-                    // Save to backend (async, don't wait)
-                    if (userId) {
-                        fetch('/api/threads', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                userId, threadName,
-                                id: threadIdToSend,
-                                agentNames,
-                            })
-                        }).catch((err) => console.error('Failed to save thread mapping:', err));
-                    }
-
-                    // Enable SSE and wait for connection
-                    setHasStartedConversation(true);
-
-                    // Wait for SSE 'connected' event (max 10s timeout)
+                    // SSE connects on the currentThreadId change above; wait for
+                    // its synthetic 'connected' before sending (max 10s timeout)
                     let sseTimeoutId: ReturnType<typeof setTimeout> | null = null;
                     await Promise.race([
                         new Promise<void>((resolve) => { sseConnectedResolverRef.current = resolve; }),
@@ -500,13 +503,12 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 // Step 2: Send message (SSE is now connected)
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 30000);
-                const response = await fetch('/api/thread-message', {
+                const response = await bffAuthFetch('/api/thread-message', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         message: userMessageText,
                         threadId: threadIdToSend,
-                        userId,
                     }),
                     signal: controller.signal
                 });
@@ -522,7 +524,6 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     updateThread(result.threadId, {
                         lastMessageAt: new Date().toISOString()
                     });
-                    setHasStartedConversation(true);
                 }
 
                 // Start response timeout — if no AI message within 60s, stop loading
@@ -547,7 +548,12 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 console.error('Failed to send thread message:', error);
 
                 const isTimeout = error instanceof Error && error.name === 'AbortError';
-                const errorText = isTimeout
+                // EPIC15: none of the nearby agents are registered in the backend
+                // workspace, so a DM can't be created — expected, not an error.
+                const isNoAgents = error instanceof Error && error.message === 'NO_RESOLVABLE_AGENTS';
+                const errorText = isNoAgents
+                    ? '참여 가능한 에이전트가 없어 대화를 시작할 수 없습니다.'
+                    : isTimeout
                     ? 'Message timeout - the conversation is taking longer than expected. Please try again.'
                     : `Failed to send message: ${error instanceof Error ? error.message : 'Unknown error'}`;
 
@@ -570,10 +576,12 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     setMessages((prev) => [...prev, errorMessage], threadIdToSend);
                 }
 
-                Sentry.captureException(error instanceof Error ? error : new Error('Failed to send thread message'), {
-                    tags: { component: 'ChatBox', action: 'sendMessage' },
-                    extra: { threadName, threadId: threadIdToSend, agentNames, isTimeout }
-                });
+                if (!isNoAgents) {
+                    Sentry.captureException(error instanceof Error ? error : new Error('Failed to send thread message'), {
+                        tags: { component: 'ChatBox', action: 'sendMessage' },
+                        extra: { threadName, threadId: threadIdToSend, agentNames, isTimeout }
+                    });
+                }
                 setIsMessageLoading(false);
             }
         }
@@ -719,7 +727,6 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         setMessages([], '0');
         setDisplayedMessages([]);
         setCurrentThreadId('0');
-        setHasStartedConversation(false);
     };
 
     const inputPlaceholder = showUnplacedNotice
@@ -733,6 +740,10 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         : isMessageLoading
           ? 'placeholder:text-[#49C7FF] placeholder:font-light'
           : 'placeholder:text-[#FFFFFF66]';
+
+    // EPIC19: surface an exhausted SSE auth recovery as a render throw so the
+    // nearest (local) error boundary catches it — no silent system-message error.
+    if (fatalStreamError) throw fatalStreamError;
 
     return (
         <div className={cn('flex h-full min-h-0 w-full flex-col bg-transparent', className)}>

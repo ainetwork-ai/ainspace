@@ -4,8 +4,10 @@ import { useGameState } from '@/hooks/useGameState';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { BROADCAST_RADIUS, MOVEMENT_MODE } from '@/constants/game';
-import { useUIStore, useThreadStore, useBuildStore, useAgentStore, useUserStore, useUserAgentStore } from '@/stores';
-import { useAccount } from 'wagmi';
+import { useUIStore, useThreadStore, useBuildStore, useAgentStore, useUserStore, useUserAgentStore, useChatStore } from '@/stores';
+import { useAccount, useSignMessage } from 'wagmi';
+import { ensureBackendAuth, ensureKioskSession } from '@/lib/backend/auth';
+import { getAccessToken, getKioskFlag, isAccessExpired } from '@/lib/backend/token-store';
 import { StoredAgent } from '@/lib/redis';
 import { useVillageLoader } from '@/hooks/useVillageLoader';
 import { useVillageStore } from '@/stores/useVillageStore';
@@ -52,7 +54,8 @@ export default function Home() {
     const { worldPosition, userId, visibleAgents } = useGameState();
     const { spawnAgent } = useAgentStore();
     const { address } = useAccount();
-    const { setAddress, setPermissions, setLastVerifiedAt, initSessionId, resetSessionId, getSessionId, hasMigratedThreads, setMigratedThreads, isPermissionExpired, verifyPermissions } = useUserStore();
+    const { signMessageAsync } = useSignMessage();
+    const { setAddress, setPermissions, setLastVerifiedAt, initSessionId, resetSessionId, getSessionId, hasMigratedThreads, setMigratedThreads, isPermissionExpired, verifyPermissions, hydrateBackendAuth, setBackendAuth, clearBackendAuth } = useUserStore();
     const { updateAgent: updateUserAgent } = useUserAgentStore();
 
     const [HUDOff, setHUDOff] = useState<boolean>(false);
@@ -63,6 +66,33 @@ export default function Home() {
     useEffect(() => {
         initSessionId();
     }, [initSessionId]);
+
+    // Restore backend JWT session from localStorage on mount (no network/signature)
+    useEffect(() => {
+        hydrateBackendAuth();
+        const token = getAccessToken();
+        console.log('[AINSpace] backend token on load:', token
+            ? `present (expired=${isAccessExpired()})`
+            : 'none (guest)');
+    }, [hydrateBackendAuth]);
+
+    // EPIC18: try to bootstrap a wallet-less session on mount. Kiosk-agnostic —
+    // on a kiosk deployment the BFF returns a session (and we mark it kiosk); on
+    // the public web it 404s and this is a no-op. Non-blocking. The hydrate effect
+    // above already restored any stored session, so this only runs when there's
+    // no usable one.
+    useEffect(() => {
+        (async () => {
+            try {
+                const user = await ensureKioskSession();
+                // Atomically mark auth + kiosk so the thread-list fetch never runs
+                // for a kiosk before the skip-guard sees isKioskSession.
+                if (user) setBackendAuth(user, getKioskFlag());
+            } catch (error) {
+                console.error('Kiosk bootstrap failed (non-blocking):', error);
+            }
+        })();
+    }, [setBackendAuth]);
 
     // Lock html/body to viewport on the game page only (iOS keyboard fix).
     // Scrollable pages like reports must remain scrollable.
@@ -81,13 +111,16 @@ export default function Home() {
             if (e.ctrlKey && e.code === 'KeyK') {
                 e.preventDefault();
 
-                // Only allow when wallet is not connected (guest mode)
+                // Only allow when wallet is not connected (guest/kiosk mode)
                 if (address) return;
-                console.log('resetting session');
+                // EPIC18: new visitor. Clear the local thread list + the on-screen
+                // conversation, and reset to the empty thread. The kiosk's local-only
+                // list means the next chat creates a fresh forceNew conversation
+                // (handled in ChatBox); the backend session/token stays alive.
                 clearThreads();
                 setCurrentThreadId('0');
+                useChatStore.getState().clearMessages();
                 resetSessionId();
-                console.log('[AINSpace] Guest session reset: threads cleared, new session ID issued.');
             }
         };
 
@@ -108,6 +141,14 @@ export default function Home() {
             if (!address) {
                 setAddress(null);
                 setPermissions(null);
+                // A kiosk session is wallet-less by design, so "no address" is its
+                // normal state — clearing here would tear down (or race) it. Only
+                // clear for wallet sessions (wallet disconnected = logged out).
+                if (useUserStore.getState().isKioskSession || getKioskFlag()) {
+                    // kiosk: wallet-less by design — keep the session
+                } else {
+                    clearBackendAuth();
+                }
                 hasInitializedAuth.current = false;
                 prevAddressRef.current = null;
                 return;
@@ -126,6 +167,21 @@ export default function Home() {
             hasInitializedAuth.current = true;
 
             setAddress(address);
+
+            // Obtain a backend JWT (challenge -> wallet sign -> verify), independent of
+            // the holder-permission flow below. Non-blocking: failure/decline/undeployed
+            // backend must not break existing (BFF-backed) features.
+            (async () => {
+                try {
+                    const user = await ensureBackendAuth({
+                        address,
+                        signMessage: (message: string) => signMessageAsync({ message }),
+                    });
+                    if (user) setBackendAuth(user);
+                } catch (error) {
+                    console.error('Backend auth failed (non-blocking):', error);
+                }
+            })();
 
             // Migrate threads from sessionId to wallet address on first login
             const sessionId = getSessionId();
@@ -217,7 +273,7 @@ export default function Home() {
         }
 
         initUserAuth();
-    }, [address, setAddress, setPermissions, setLastVerifiedAt, getSessionId, hasMigratedThreads, setMigratedThreads])
+    }, [address, setAddress, setPermissions, setLastVerifiedAt, getSessionId, hasMigratedThreads, setMigratedThreads, clearBackendAuth, setBackendAuth, signMessageAsync])
 
     // Periodic permission refresh
     useEffect(() => {

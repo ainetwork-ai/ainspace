@@ -13,7 +13,7 @@ import { useGameState } from '@/hooks/useGameState';
 import { TileLayers } from '@/stores/useBuildStore';
 import ChatBoxOverlay from '@/components/chat/ChatBoxOverlay';
 import { ChatBoxRef } from '@/components/chat/ChatBox';
-import { useAgentStore, useUIStore } from '@/stores';
+import { useAgentStore, useUIStore, useUserStore } from '@/stores';
 import TileMap from '@/components/TileMap';
 import { Z_INDEX_OFFSETS } from '@/constants/common';
 import { StoredAgent } from '@/lib/redis';
@@ -49,6 +49,9 @@ export default function MapTab({
     onPlaceAgentAtPosition,
 }: MapTabProps) {
     const { address } = useAccount();
+    // EPIC18: kiosk has a backend session but no wallet — treat it as logged in.
+    const isBackendAuthed = useUserStore((s) => s.isBackendAuthed);
+    const isLoggedIn = !!address || isBackendAuthed;
     const [showWalletModal, setShowWalletModal] = useState(false);
     const agents = useAgentStore((s) => s.agents);
     const { selectedAgentForPlacement, setSelectedAgentForPlacement } = useUIStore();
@@ -83,15 +86,10 @@ export default function MapTab({
         // Clear previous error
         setPlacementError(null);
 
-        console.log('Clicked coordinates:', worldX, worldY);
-
         // Check if clicked coordinates are within one of the allowed maps
         const { gridX, gridY } = worldToGrid(worldX, worldY);
         const clickedVillageSlug = useVillageStore.getState().getVillageSlugAtGrid(gridX, gridY);
         const isAllowedMap = allowedMaps.includes('*') || (clickedVillageSlug && allowedMaps.includes(clickedVillageSlug));
-        console.log('clickedVillageSlug', clickedVillageSlug);
-        console.log('allowedMaps', allowedMaps);
-        console.log('isAllowedMap', isAllowedMap);
         if (!isAllowedMap) {
             setPlacementError(`Please place agent within allowed area.`);
             setSelectedPosition(null);
@@ -126,35 +124,8 @@ export default function MapTab({
         }
     }, [selectedAgentForPlacement, onPlaceAgentAtPosition, isPositionValid, setSelectedAgentForPlacement, selectedPosition]);
 
-    const moveCountRef = useRef(0);
     const handleMobileMove = useCallback(
         (direction: DIRECTION) => {
-            const isDev = process.env.NEXT_PUBLIC_ENABLE_PERF_MARKS === 'true';
-            if (isDev) {
-                moveCountRef.current++;
-                const moveId = moveCountRef.current;
-                performance.mark(`move-${moveId}-input`);
-
-                if (moveId === 1) {
-                    if (performance.getEntriesByName('village-init-start').length > 0) {
-                        performance.measure('⏱ TOTAL: village init → first joystick', 'village-init-start', `move-${moveId}-input`);
-                    }
-                    if (performance.getEntriesByName('village-ready').length > 0) {
-                        performance.measure('⏱ village ready → first joystick', 'village-ready', `move-${moveId}-input`);
-                    }
-                    const measures = performance.getEntriesByType('measure');
-                    console.log('\n📊 Performance Timeline:');
-                    measures.forEach(m => console.log(`  ${m.name}: ${m.duration.toFixed(0)}ms`));
-                }
-
-                requestAnimationFrame(() => {
-                    performance.mark(`move-${moveId}-frame`);
-                    performance.measure(`🎮 move #${moveId} input→frame`, `move-${moveId}-input`, `move-${moveId}-frame`);
-                    const m = performance.getEntriesByName(`🎮 move #${moveId} input→frame`)[0];
-                    if (m) console.log(`  ${m.name}: ${m.duration.toFixed(1)}ms`);
-                });
-            }
-
             if (isAutonomous) return;
 
             // Calculate new position
@@ -207,7 +178,6 @@ export default function MapTab({
                 if (event.key.toLowerCase() === 'r') {
                     event.preventDefault();
                     resetLocation();
-                    console.log('Location reset to initial position (63, 58)');
                     return;
                 } else if (event.key.toLowerCase() === 'h') {
                     event.preventDefault();
@@ -290,7 +260,7 @@ export default function MapTab({
                     />
                 </div>
 
-                {!isDesktop && (address ? (
+                {!isDesktop && (isLoggedIn ? (
                     <div
                         className="absolute top-4 right-4"
                         style={{ zIndex: Z_INDEX_OFFSETS.UI }}

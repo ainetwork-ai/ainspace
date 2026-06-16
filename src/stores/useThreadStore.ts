@@ -35,7 +35,15 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
     broadcastStatus: null,
 
     setThreads: (threads) => set({ threads }),
-    addThread: (thread) => set((state) => ({ threads: [thread, ...state.threads] })),
+    // EPIC15: upsert by id — backend returns the existing DM for a repeated
+    // agent combination, so adding by id must replace rather than duplicate.
+    addThread: (thread) => set((state) => {
+        const idx = state.threads.findIndex((t) => t.id === thread.id);
+        if (idx === -1) return { threads: [thread, ...state.threads] };
+        const threads = [...state.threads];
+        threads[idx] = thread;
+        return { threads };
+    }),
     findThreadByName: (threadName) => get().threads.find(thread => thread.threadName === threadName),
     findThreadById: (threadId) => get().threads.find(thread => thread.id === threadId),
     updateThread: (threadId, updates) => set((state) => {

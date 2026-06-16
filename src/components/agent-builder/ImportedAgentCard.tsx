@@ -26,11 +26,14 @@ export default function ImportedAgentCard({
     isDarkMode = false,
 }: ImportedAgentCardProps) {
     const { url, card, spriteUrl, isPlaced } = agent;
+    // EPIC16: agent left/deleted/unavailable in the backend workspace.
+    const isDisabled = agent.backendStatus === 'inactive';
 
     return (
         <div className={cn(
             "flex flex-col gap-2 p-[14px] border rounded-[8px]",
-            isDarkMode ? 'border-[#4A4E56]' : 'border-[#E6EAEF]'
+            isDarkMode ? 'border-[#4A4E56]' : 'border-[#E6EAEF]',
+            isDisabled && 'opacity-50'
         )}>
             <div className="flex flex-row justify-between">
                 <AgentProfile width={40} height={40} imageUrl={spriteUrl} backgroundColor={isDarkMode ? "#3A3E46" : "#F5F7FB"} />
@@ -50,6 +53,7 @@ export default function ImportedAgentCard({
                         ) : (
                             <Button
                                 onClick={() => onPlaceAgent(agent)}
+                                disabled={isDisabled}
                                 type="small"
                                 variant="primary"
                                 className="h-fit p-[9px] flex flex-row gap-1 items-center justify-center"
@@ -81,7 +85,17 @@ export default function ImportedAgentCard({
                     </DeleteConfirmModal>
                 </div>
             </div>
-            <p className={cn("font-semibold text-sm", isDarkMode ? 'text-white' : 'text-black')}>{card.name}</p>
+            <div className="flex flex-row items-center gap-1.5">
+                <p className={cn("font-semibold text-sm", isDarkMode ? 'text-white' : 'text-black')}>{card.name}</p>
+                {isDisabled && (
+                    <span
+                        title="This agent is no longer available in the workspace"
+                        className="rounded px-1.5 py-0.5 text-[10px] font-medium bg-red-500/15 text-red-500"
+                    >
+                        unavailable
+                    </span>
+                )}
+            </div>
             <p className={cn("font-medium text-sm line-clamp-4", isDarkMode ? 'text-[#CAD0D7]' : 'text-[#838D9D]')}>{card.description}</p>
         </div>
     )

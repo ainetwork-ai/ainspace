@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { UserPermissions } from '@/types/auth';
+import { BackendUser } from '@/types/backend';
+import { getUser as getBackendUser, getKioskFlag, hasSession } from '@/lib/backend/token-store';
+import { logoutBackend } from '@/lib/backend/auth';
 
 const SESSION_STORAGE_KEY = 'ainspace-session-id';
 const MIGRATION_DONE_KEY = 'ainspace-migration-done';
@@ -10,6 +13,9 @@ interface UserStore {
   sessionId: string | null;
   permissions: UserPermissions | null;
   lastVerifiedAt: number | null;
+  backendUser: BackendUser | null;
+  isBackendAuthed: boolean;
+  isKioskSession: boolean;
 
   getUserId: () => string | null;
   isWalletConnected: () => boolean;
@@ -23,6 +29,9 @@ interface UserStore {
   initSessionId: () => void;
   resetSessionId: () => void;
   clearUser: () => void;
+  hydrateBackendAuth: () => void;
+  setBackendAuth: (user: BackendUser, isKiosk?: boolean) => void;
+  clearBackendAuth: () => void;
   verifyPermissions: (address: string) => Promise<{ success: boolean; permissions?: UserPermissions }>;
   checkPermission: (permissionKey: keyof UserPermissions['permissions']) => boolean;
   isPermissionExpired: () => boolean;
@@ -36,6 +45,9 @@ export const useUserStore = create<UserStore>((set, get) => ({
   sessionId: null,
   permissions: null,
   lastVerifiedAt: null,
+  backendUser: null,
+  isBackendAuthed: false,
+  isKioskSession: false,
 
   getUserId: () => {
     const state = get();
@@ -97,7 +109,25 @@ export const useUserStore = create<UserStore>((set, get) => ({
     get().initSessionId();
   },
 
-  clearUser: () => set({ address: null, permissions: null, lastVerifiedAt: null }),
+  clearUser: () => set({ address: null, permissions: null, lastVerifiedAt: null, backendUser: null, isBackendAuthed: false, isKioskSession: false }),
+
+  // Restore backend session from localStorage on mount (no network/signature).
+  hydrateBackendAuth: () => {
+    if (typeof window === 'undefined') return;
+    if (hasSession()) {
+      set({ backendUser: getBackendUser(), isBackendAuthed: true, isKioskSession: getKioskFlag() });
+    }
+  },
+
+  // EPIC18: set auth + kiosk flag atomically so a kiosk never has a render where
+  // isBackendAuthed=true but isKioskSession=false (which would let the thread-list
+  // fetch run before the kiosk skip-guard applies). Wallet path omits isKiosk -> false.
+  setBackendAuth: (user, isKiosk = false) => set({ backendUser: user, isBackendAuthed: true, isKioskSession: isKiosk }),
+
+  clearBackendAuth: () => {
+    logoutBackend();
+    set({ backendUser: null, isBackendAuthed: false, isKioskSession: false });
+  },
 
   // Verify permissions with cooldown
   verifyPermissions: async (address: string) => {

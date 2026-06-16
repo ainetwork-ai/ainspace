@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getRedisClient, StoredAgent, addPlacedAgent, removePlacedAgent, getPlacedAgentCount, scanKeys } from '@/lib/redis';
+import { getRedisClient, StoredAgent, addPlacedAgent, removePlacedAgent, getPlacedAgentCount, scanKeys, upsertAgentFromRosterItem } from '@/lib/redis';
 import { canImportAgent, canPlaceAgent, canPlaceAgentOnMap, hasAdminAccess } from '@/lib/auth/permissions';
 import { MOVEMENT_MODE } from '@/constants/game';
 import { worldToGrid } from '@/lib/village-utils';
 import { getVillageByGrid } from '@/lib/village-redis';
+import { getBearer, backendFetch } from '@/lib/backend/server-client';
+import { BACKEND_WORKSPACE_ID, isBackendWorkspaceConfigured } from '@/lib/backend/config';
+import { BackendAgentListItem } from '@/lib/backend/agent-mapping';
 
 const AGENTS_KEY = 'agents:';
 
@@ -65,134 +68,66 @@ export async function GET(request: NextRequest) {
   }
 }
 
+/**
+ * POST /api/agents  (EPIC17)
+ * Import = invite the agent into the backend workspace, then materialize the
+ * returned agent into Redis. Body: { agentUrl, creator }. The backend fetches the
+ * card, dedups by canonical a2aUrl, and records ownership; ainspace no longer
+ * fetches the card (no /api/agent-proxy) nor builds the StoredAgent client-side.
+ */
 export async function POST(request: NextRequest) {
   try {
-    const { url, card, state, creator, isPlaced, spriteUrl, spriteHeight } = await request.json();
+    const { agentUrl, creator } = await request.json();
 
-    if (!url || !card) {
-      return NextResponse.json(
-        { error: 'Agent URL and card are required' },
-        { status: 400 }
-      );
+    if (!agentUrl || !creator) {
+      return NextResponse.json({ error: 'agentUrl and creator are required' }, { status: 400 });
     }
 
-    if (!creator) {
-      return NextResponse.json(
-        { error: 'Creator is required' },
-        { status: 400 }
-      );
+    const token = getBearer(request);
+    if (!token) {
+      return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
     }
 
-    // Check import permission
+    if (!isBackendWorkspaceConfigured()) {
+      return NextResponse.json({ error: 'BACKEND_WORKSPACE_ID is not configured' }, { status: 503 });
+    }
+
+    // ainspace import-policy gate (holder/permission). `code` marks this apart
+    // from a backend ownership 403 so the client routes the two differently.
     const importCheck = await canImportAgent(creator);
     if (!importCheck.allowed) {
       return NextResponse.json(
-        { error: importCheck.reason || 'No permission to import agents' },
-        { status: 403 }
+        { error: importCheck.reason || 'No permission to import agents', code: 'NO_IMPORT_PERMISSION' },
+        { status: 403 },
       );
     }
 
-    // Auto-set mapName from coordinates if state has x, y
-    if (state?.x !== undefined && state?.y !== undefined && !state.mapName) {
-      const { gridX, gridY } = worldToGrid(state.x, state.y);
-      const village = await getVillageByGrid(gridX, gridY);
-      if (village?.slug) {
-        state.mapName = village.slug;
-      }
-    }
-
-    const agentKey = `${AGENTS_KEY}${Buffer.from(url).toString('base64')}`;
-    const agentData: StoredAgent = {
-      url: url,
-      card: card,
-      state: state,
-      creator: creator,
-      timestamp: Date.now(),
-      isPlaced: isPlaced,
-      spriteUrl: spriteUrl,
-      spriteHeight: spriteHeight
-    }
-
-    try {
-      // Try Redis first
-      const redis = await getRedisClient();
-      
-      // Check for duplicate
-      const existing = await redis.get(agentKey);
-      if (existing) {
-        console.log(`Agent already exists: ${card.name} (${url})`);
-        return NextResponse.json(
-          {
-            success: true,
-            message: 'Agent already exists',
-            duplicate: true,
-            agent: {
-              url: url,
-              card: card
-            }
-          },
-          { 
-            status: 200,
-            headers: {
-              'Content-Type': 'application/json; charset=utf-8'
-            }
-          }
-        );
-      }
-
-      // Store agent in Redis
-      await redis.set(agentKey, JSON.stringify(agentData));
-      console.log(`Stored agent in Redis: ${card.name} (${url})`);
-
-    } catch (redisError) {
-      console.warn('Redis unavailable, using fallback storage:', redisError);
-      
-      // Check for duplicate in fallback storage
-      if (agentStore.has(url)) {
-        console.log(`Agent already exists in memory: ${card.name} (${url})`);
-        return NextResponse.json(
-          {
-            success: true,
-            message: 'Agent already exists',
-            duplicate: true,
-            agent: {
-              url: url,
-              card: card
-            }
-          },
-          { 
-            status: 200,
-            headers: {
-              'Content-Type': 'application/json; charset=utf-8'
-            }
-          }
-        );
-      }
-
-      // Store agent in fallback storage
-      agentStore.set(url, agentData);
-      console.log(`Stored agent in memory: ${card.name} (${url})`);
-    }
-
-    return NextResponse.json({ 
-      success: true,
-      message: 'Agent stored successfully',
-      agent: {
-        url: url,
-        card: card
-      }
-    }, {
-      headers: {
-        'Content-Type': 'application/json; charset=utf-8'
-      }
-    });
-
-  } catch (error) {
-    console.error('Error storing agent:', error);
-    return NextResponse.json(
-      { error: 'Failed to store agent' },
-      { status: 500 }
+    // Invite into the backend workspace (backend fetches card + dedups + records
+    // agentInvitedBy). Non-2xx (e.g. 403 for someone else's private agent) is
+    // forwarded verbatim so the client can show the backend's `message`.
+    const res = await backendFetch(
+      token,
+      '/agents',
+      { method: 'POST', body: JSON.stringify({ workspaceId: BACKEND_WORKSPACE_ID, a2aUrl: agentUrl }) },
     );
+    if (!res.ok) {
+      const body = await res.text();
+      return new NextResponse(body, {
+        status: res.status,
+        headers: { 'Content-Type': res.headers.get('content-type') ?? 'application/json' },
+      });
+    }
+
+    const invited = (await res.json()) as BackendAgentListItem;
+    const agent = await upsertAgentFromRosterItem(creator, invited);
+    if (!agent) {
+      return NextResponse.json({ error: 'invited agent has no resolvable a2a url' }, { status: 502 });
+    }
+
+    return NextResponse.json({ success: true, agent });
+  } catch (error) {
+    console.error('Error importing (inviting) agent:', error);
+    return NextResponse.json({ error: 'Failed to import agent' }, { status: 500 });
   }
 }
 
@@ -308,11 +243,10 @@ export async function PUT(request: NextRequest) {
       }
 
       agentData = {
-        url: existingData.url, // Always preserve original url
+        ...existingData, // Preserve untouched fields (backendUuid/backendStatus, url, timestamp)
         card: card !== undefined ? card : existingData.card,
         state: mergedState,
         creator: creator !== undefined ? creator : existingData.creator,
-        timestamp: existingData.timestamp, // Preserve original timestamp
         isPlaced: isPlaced !== undefined ? isPlaced : existingData.isPlaced,
         spriteUrl: spriteUrl !== undefined ? spriteUrl : existingData.spriteUrl,
         spriteHeight: spriteHeight !== undefined ? spriteHeight : existingData.spriteHeight
@@ -348,11 +282,10 @@ export async function PUT(request: NextRequest) {
       // Update agent in fallback storage (partial update)
       const existingData = agentStore.get(url)!;
       agentData = {
-        url: existingData.url, // Always preserve original url
+        ...existingData, // Preserve untouched fields (backendUuid/backendStatus, url, timestamp)
         card: card !== undefined ? card : existingData.card,
         state: state !== undefined ? state : existingData.state,
         creator: creator !== undefined ? creator : existingData.creator,
-        timestamp: existingData.timestamp, // Preserve original timestamp
         isPlaced: isPlaced !== undefined ? isPlaced : existingData.isPlaced,
         spriteUrl: spriteUrl !== undefined ? spriteUrl : existingData.spriteUrl,
         spriteHeight: spriteHeight !== undefined ? spriteHeight : existingData.spriteHeight

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useAccount } from 'wagmi';
 import ConnectWalletModal from '../ConnectWalletModal';
 import { MapPin } from 'lucide-react';
@@ -13,7 +13,7 @@ import DesktopSidebarFooter from '@/components/DesktopSidebarFooter';
 import WalletInfo from '@/components/WalletInfo';
 import { Z_INDEX_OFFSETS } from '@/constants/common';
 import { LayoutProps } from './MobileLayout';
-import { useGameStateStore, useUIStore } from '@/stores';
+import { useGameStateStore, useUIStore, useUserStore } from '@/stores';
 import { useVillageStore } from '@/stores/useVillageStore';
 
 export default function DesktopLayout({
@@ -35,14 +35,18 @@ export default function DesktopLayout({
     onPublishTiles,
 }: LayoutProps) {
     const { address } = useAccount();
-    const [showWalletModal, setShowWalletModal] = useState(false);
+    // EPIC18: kiosk has a backend session but no wallet — treat it as logged in.
+    const isBackendAuthed = useUserStore((s) => s.isBackendAuthed);
+    const isLoggedIn = !!address || isBackendAuthed;
     const { worldPosition } = useGameStateStore();
     const currentVillageName = useVillageStore((s) => s.currentVillage?.name);
-    const { selectedAgentForPlacement, setSelectedAgentForPlacement } = useUIStore();
+    // Shared global wallet modal — used by both the Login button and the chat
+    // send button (ChatBox opens it via the store when an unauthed user sends).
+    const { selectedAgentForPlacement, setSelectedAgentForPlacement, isWalletModalOpen, setWalletModalOpen } = useUIStore();
 
     return (
         <>
-        <ConnectWalletModal open={showWalletModal} onOpenChange={setShowWalletModal} isDarkMode={true} />
+        <ConnectWalletModal open={isWalletModalOpen} onOpenChange={setWalletModalOpen} isDarkMode={true} />
         <div className="flex h-screen w-full bg-gray-100">
             {/* 왼쪽 사이드바 */}
             <div className="relative flex w-[440px] flex-col bg-[#2F333B] overflow-hidden" style={{ zIndex: Z_INDEX_OFFSETS.UI }}>
@@ -101,11 +105,11 @@ export default function DesktopLayout({
                         </p>
                     </div>
                     {/* 지갑 상태 */}
-                    {address ? (
+                    {isLoggedIn ? (
                         <WalletInfo />
                     ) : (
                         <button
-                            onClick={() => setShowWalletModal(true)}
+                            onClick={() => setWalletModalOpen(true)}
                             className="inline-flex cursor-pointer flex-row items-center gap-2 rounded-lg bg-[#7F4FE8] p-2 px-4"
                         >
                             <p className="text-sm font-bold text-white">Login</p>

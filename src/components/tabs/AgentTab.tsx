@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import BaseTabContent from './BaseTabContent';
 import { useAccount } from 'wagmi';
 import ImportAgentSection from '@/components/agent-builder/ImportAgentSection';
 import { StoredAgent } from '@/lib/redis';
+import { bffAuthFetch } from '@/lib/backend/bff-fetch';
+import Button from '@/components/ui/Button';
 import CreateAgentSection from '@/components/agent-builder/CreateAgentSection';
 import ImportedAgentList from '@/components/agent-builder/ImportedAgentList';
 import { useAgentStore, useUIStore, useUserStore, useUserAgentStore } from '@/stores';
@@ -24,6 +26,7 @@ export default function AgentTab({
     isDarkMode = false,
 }: AgentTabProps) {
     const [isLoading, setIsLoading] = useState<boolean>(false);
+    const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
     const [isHolderModalOpen, setIsHolderModalOpen] = useState<boolean>(false);
     const [pendingPlacementAgent, setPendingPlacementAgent] = useState<{
@@ -43,23 +46,33 @@ export default function AgentTab({
         removeAgent: removeStoredAgent,
     } = useUserAgentStore();
 
-    useEffect(() => {
-        const fetchAgent = async () => {
-            try {
-                const result = await fetch(`/api/agents?address=${address}`, {
-                    method: 'GET',
-                    headers: { 'Content-Type': 'application/json' }
-                })
-                if (result.ok) {
-                    const agentsData = await result.json();
-                    setAgents(agentsData.agents);
-                }
-            } catch (error) {
-                console.log(error);
+    // EPIC16: load via the sync endpoint (read-through; pulls the backend roster
+    // when stale). Uses bffAuthFetch — the sync route calls the backend so it
+    // needs the Bearer token (the old `?address=` route was an unauthed Redis read).
+    const loadAgents = useCallback(async (refresh = false) => {
+        if (!address) return;
+        try {
+            const result = await bffAuthFetch(
+                `/api/agents/sync?address=${address}${refresh ? '&refresh=1' : ''}`,
+            );
+            if (result.ok) {
+                const agentsData = await result.json();
+                setAgents(agentsData.agents);
             }
+        } catch (error) {
+            console.log(error);
         }
-        fetchAgent();
-    }, [address, setAgents])
+    }, [address, setAgents]);
+
+    useEffect(() => {
+        loadAgents();
+    }, [loadAgents]);
+
+    const handleRefreshAgents = async () => {
+        setIsRefreshing(true);
+        await loadAgents(true);
+        setIsRefreshing(false);
+    };
 
     const handleImportAgent = async (agentUrl: string) => {
         if (!address) {
@@ -92,75 +105,36 @@ export default function AgentTab({
                 console.log('Permission verified successfully');
             }
 
-            // Step 3: Proceed with import
-            const proxyResponse = await fetch('/api/agent-proxy', {
+            // Step 3: Invite the agent into the backend workspace. The backend
+            // fetches the card + dedups by canonical a2aUrl (no /api/agent-proxy),
+            // and the BFF materializes the returned agent into Redis. bffAuthFetch
+            // attaches the Bearer the invite requires.
+            const response = await bffAuthFetch('/api/agents', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ agentUrl })
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ agentUrl, creator: address }),
             });
 
-            if (!proxyResponse.ok) {
-                const errorData = await proxyResponse.json();
-                throw new Error(errorData.error || 'Failed to fetch agent card');
-            }
-
-            const { agentCard } = await proxyResponse.json();
-
-            if (agents.some((agent) => agent.url === agentUrl)) {
-                setError('This agent has already been imported');
-                setIsLoading(false);
-                return;
-            }
-
-            const newAgent: StoredAgent = {
-                url: agentUrl,
-                card: agentCard,
-                isPlaced: false,
-                creator: address!,
-                timestamp: Date.now(),
-                state: {
-                    x: 0,
-                    y: 0,
-                    behavior: 'random',
-                    color: '#ffffff',
-                    moveInterval: 600 + Math.random() * 400
-                }
-            };
-
-            // Step 4: Call API (server-side validation)
-            const response = await fetch('/api/agents', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(newAgent)
-            });
-
-            // If API returns 403, force re-verify (no cooldown)
-            if (response.status === 403) {
-                const errorData = await response.json();
-                console.error('API permission denied:', errorData);
-
-                // Force re-verify by calling API directly
-                const forceVerifyResult = await verifyPermissions(address);
-
-                if (!forceVerifyResult.success || !forceVerifyResult.permissions?.permissions.importAgent) {
-                    setIsHolderModalOpen(true);
-                } else {
-                    setError('Permission verification updated. Please try again.');
-                }
-                setIsLoading(false);
-                return;
-            }
+            const result = await response.json();
 
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to import agent');
+                // ainspace holder gate (marked with `code`) -> re-verify / holder modal.
+                if (response.status === 403 && result.code === 'NO_IMPORT_PERMISSION') {
+                    const forceVerifyResult = await verifyPermissions(address);
+                    if (!forceVerifyResult.success || !forceVerifyResult.permissions?.permissions.importAgent) {
+                        setIsHolderModalOpen(true);
+                    } else {
+                        setError('Permission verification updated. Please try again.');
+                    }
+                    setIsLoading(false);
+                    return;
+                }
+                // Backend rejection (e.g. 403 for someone else's private agent) ->
+                // show the backend's reason verbatim.
+                throw new Error(result.message || result.error || 'Failed to import agent');
             }
 
-            addAgent(newAgent);
+            addAgent(result.agent);
         } catch (err) {
             setError(`Failed to import agent: ${err instanceof Error ? err.message : 'Unknown error'}`);
         } finally {
@@ -223,7 +197,10 @@ export default function AgentTab({
                 return;
             }
 
-            // Step 4: Show movement style modal before placement
+            // Step 4: Show movement style modal before placement.
+            // (EPIC16: the card already comes from the backend roster's
+            // agentCardJson at sync time, so no agent-proxy re-fetch is needed —
+            // that fetch 404s for builder-hosted agent URLs anyway.)
             setPendingPlacementAgent({
                 agent: agent,
                 allowedMaps: allowedMaps
@@ -331,6 +308,17 @@ export default function AgentTab({
                     <CreateAgentSection isDarkMode={isDarkMode} />
                     <ImportAgentSection handleImportAgent={handleImportAgent} isLoading={isLoading} isDarkMode={isDarkMode} />
                     {error && <div className="mt-2 text-sm text-red-600">⚠️ {error}</div>}
+                </div>
+                <div className="flex justify-end px-5 -mb-2">
+                    <Button
+                        type="small"
+                        variant="ghost"
+                        onClick={handleRefreshAgents}
+                        disabled={isRefreshing}
+                        className="mx-0 h-fit py-1"
+                    >
+                        {isRefreshing ? 'Refreshing…' : '↻ Refresh'}
+                    </Button>
                 </div>
                 <ImportedAgentList
                     agents={agents}
