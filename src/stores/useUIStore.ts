@@ -15,6 +15,10 @@ interface UIState {
         movementMode: MOVEMENT_MODE;
     } | null;
     setSelectedAgentForPlacement: (data: UIState['selectedAgentForPlacement']) => void;
+    // Global "connect wallet" modal — lets any component (e.g. the chat send
+    // button) prompt login without threading modal state through every parent.
+    isWalletModalOpen: boolean;
+    setWalletModalOpen: (open: boolean) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -22,4 +26,6 @@ export const useUIStore = create<UIState>((set) => ({
     setActiveTab: (tab) => set({ activeTab: tab }),
     selectedAgentForPlacement: null,
     setSelectedAgentForPlacement: (data) => set({ selectedAgentForPlacement: data }),
+    isWalletModalOpen: false,
+    setWalletModalOpen: (open) => set({ isWalletModalOpen: open }),
 }));
