@@ -8,6 +8,7 @@ import { config } from '@/lib/wagmi-config';
 import { shortAddress } from '@/lib/utils';
 import { useCopyAddress } from '@/hooks/useCopyAddress';
 import { useThreadStore, useUserStore } from '@/stores';
+import { logoutBackendSession } from '@/lib/backend/auth';
 
 export default function WalletInfo() {
     const { address } = useAccount();
@@ -22,6 +23,9 @@ export default function WalletInfo() {
     if (!displayAddress) return null;
 
     const handleDisconnect = () => {
+        // EPIC26: revoke the backend session + clear rt/sid cookies (best-effort)
+        // so the session can't be revived from the leftover httpOnly cookie.
+        void logoutBackendSession();
         disconnect(config);
         clearThreads();
     };

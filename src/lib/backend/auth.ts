@@ -6,14 +6,17 @@ import {
 } from '@/types/backend';
 import {
   clearSession,
+  getKioskFlag,
   getRefreshToken,
   getUser,
+  hasRefreshHint,
   hasSession,
   isAccessExpired,
   setKioskFlag,
   setSession,
   setTokens,
 } from './token-store';
+import { PUBLIC_BACKEND_BASE_URL, PUBLIC_BACKEND_CLIENT_ID } from './public-config';
 
 // Browser-side backend auth. All network calls go through the same-origin BFF
 // proxy (/api/backend-auth/*); the wallet signature is the only browser-native step.
@@ -32,8 +35,12 @@ class BackendAuthError extends Error {
 
 /** Full login: challenge -> wallet sign -> verify. Triggers a signature prompt. */
 export async function loginWithWallet({ address, signMessage }: AuthParams): Promise<BackendUser> {
-  // Challenge first — if backend is unavailable this throws before any signature prompt.
-  const challengeRes = await fetch('/api/backend-auth/challenge');
+  // Challenge first — if backend is unavailable this throws before any signature
+  // prompt. Browser-DIRECT (EPIC26 browser-direct auth flow); credentials:'include'
+  // for policy consistency (challenge itself sets no cookie).
+  const challengeRes = await fetch(`${PUBLIC_BACKEND_BASE_URL}/auth/challenge`, {
+    credentials: 'include',
+  });
   if (!challengeRes.ok) {
     throw new BackendAuthError(challengeRes.status, 'failed to get challenge');
   }
@@ -41,8 +48,13 @@ export async function loginWithWallet({ address, signMessage }: AuthParams): Pro
 
   const signature = await signMessage(challenge.message);
 
-  const verifyRes = await fetch('/api/backend-auth/verify', {
+  // Browser-DIRECT verify (not the BFF proxy) with credentials:'include' so the
+  // browser receives the backend's httpOnly refresh cookie (Set-Cookie). clientId
+  // is sent from the client now (it was injected by the BFF before). Requires the
+  // origin to be in the backend EXTERNAL_ORIGIN_ALLOWLIST (else CORS 403).
+  const verifyRes = await fetch(`${PUBLIC_BACKEND_BASE_URL}/auth/verify`, {
     method: 'POST',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       signature,
@@ -52,6 +64,7 @@ export async function loginWithWallet({ address, signMessage }: AuthParams): Pro
       // signature. The backend uses walletType to pick the right verification path.
       walletType: 'smart',
       challengeNonce: challenge.nonce,
+      clientId: PUBLIC_BACKEND_CLIENT_ID,
     }),
   });
   if (!verifyRes.ok) {
@@ -76,19 +89,30 @@ export function refreshTokens(): Promise<boolean> {
   if (refreshInFlight) return refreshInFlight;
 
   refreshInFlight = (async () => {
+    // EPIC26: kiosk logs in via the BFF (server-to-server), so its httpOnly `rt`
+    // cookie is set on the BFF — never the browser. The kiosk browser has nothing
+    // to refresh with, so skip refresh and let re-bootstrap handle expiry.
+    if (getKioskFlag()) return false;
+    // Nothing stored -> never logged in -> nothing to refresh.
+    if (!hasRefreshHint()) return false;
     const refreshToken = getRefreshToken();
-    if (!refreshToken) return false;
 
     try {
-      const res = await fetch('/api/backend-auth/refresh', {
+      // Wallet: browser-DIRECT refresh with credentials:'include' so the httpOnly
+      // `rt` cookie is auto-sent. Body refreshToken only as a legacy fallback when
+      // we still hold one (pre-EPIC26); normally the cookie carries it.
+      const res = await fetch(`${PUBLIC_BACKEND_BASE_URL}/auth/refresh`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken }),
+        body: JSON.stringify(refreshToken ? { refreshToken } : {}),
       });
       if (!res.ok) {
         clearSession();
         return false;
       }
+      // EPIC26: refresh body returns accessToken only; the rotated rt comes via
+      // Set-Cookie (rotated is undefined here, setTokens skips storing it).
       const { accessToken, refreshToken: rotated, expiresIn } = (await res.json()) as RefreshResponse;
       setTokens(accessToken, rotated, expiresIn);
       return true;
@@ -116,7 +140,7 @@ export async function ensureBackendAuth(params: AuthParams): Promise<BackendUser
 
   if (hasSession() && sameWallet) {
     if (!isAccessExpired()) return current;
-    if (getRefreshToken()) {
+    if (hasRefreshHint()) {
       const ok = await refreshTokens();
       if (ok) return getUser();
     }
@@ -131,6 +155,24 @@ export async function ensureBackendAuth(params: AuthParams): Promise<BackendUser
 }
 
 export function logoutBackend(): void {
+  clearSession();
+}
+
+/**
+ * EPIC26: explicit logout — revoke the backend session and clear the httpOnly
+ * `rt` / `sid` cookies server-side (browser-direct, credentials:'include'), then
+ * clear local state. Best-effort: local clear happens even if the call fails.
+ * Idempotent on the backend. (Wallet flow only; kiosk has no disconnect.)
+ */
+export async function logoutBackendSession(): Promise<void> {
+  try {
+    await fetch(`${PUBLIC_BACKEND_BASE_URL}/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+  } catch {
+    // best-effort
+  }
   clearSession();
 }
 
@@ -195,7 +237,7 @@ export function bootstrapKioskSessionShared(): Promise<BackendUser | null> {
 export async function ensureKioskSession(): Promise<BackendUser | null> {
   if (hasSession() && !isAccessExpired()) return getUser();
 
-  if (isAccessExpired() && getRefreshToken()) {
+  if (isAccessExpired() && hasRefreshHint()) {
     if (await refreshTokens()) return getUser();
   }
 

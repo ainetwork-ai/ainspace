@@ -45,15 +45,20 @@ export function getUser(): BackendUser | null {
 export function setSession(user: BackendUser, tokens: BackendTokens): void {
   if (!isBrowser()) return;
   localStorage.setItem(ACCESS_TOKEN_KEY, tokens.accessToken);
-  localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
+  // EPIC26: refresh is no longer returned in the body (httpOnly `rt` cookie only).
+  // Only persist a body-provided refresh token (legacy/non-browser); never "undefined".
+  if (tokens.refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
   localStorage.setItem(EXPIRES_AT_KEY, String(Date.now() + tokens.expiresIn * 1000));
   localStorage.setItem(USER_KEY, JSON.stringify(user));
 }
 
-export function setTokens(accessToken: string, refreshToken: string, expiresIn: number): void {
+export function setTokens(accessToken: string, refreshToken: string | undefined, expiresIn: number): void {
   if (!isBrowser()) return;
   localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
-  localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+  // Cookie-based refresh: the backend may rotate the refresh token via an httpOnly
+  // cookie and omit it from the body. Only persist a body-provided one (never store
+  // "undefined").
+  if (refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
   localStorage.setItem(EXPIRES_AT_KEY, String(Date.now() + expiresIn * 1000));
 }
 
@@ -79,6 +84,21 @@ export function getKioskFlag(): boolean {
 
 export function hasSession(): boolean {
   return !!getAccessToken();
+}
+
+/**
+ * Should we attempt a silent refresh at cold start?
+ *
+ * EPIC26: the refresh token is an httpOnly `rt` cookie and the `sid` hint cookie is
+ * scoped to the BACKEND origin — ainspace is a different origin, so JS can't read
+ * either (cross-origin). Instead we use a stored session as the hint: if we ever
+ * logged in there's a persisted user/access, so attempt refresh (the browser sends
+ * the rt cookie automatically via credentials:'include'). A never-logged-in guest
+ * has nothing stored -> no wasted refresh call.
+ */
+export function hasRefreshHint(): boolean {
+  if (!isBrowser()) return false;
+  return !!getUser() || !!getAccessToken() || !!getRefreshToken();
 }
 
 export function isAccessExpired(skewMs = 30000): boolean {
