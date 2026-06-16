@@ -1,5 +1,7 @@
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import ChatBox, { ChatBoxRef } from './ChatBox';
+import { ChatStreamErrorBoundary } from './ChatStreamErrorBoundary';
+import { useThreadStore } from '@/stores';
 import { cn } from '@/lib/utils';
 import { useKeyboardOpen } from '@/hooks/useKeyboardOpen';
 import { Z_INDEX_OFFSETS } from '@/constants/common';
@@ -22,6 +24,7 @@ export default function ChatBottomDrawer({
     onThreadSelect,
   }: ChatBottomDrawerProps) {
     const { isKeyboardOpen, visibleHeight, keyboardGap } = useKeyboardOpen();
+    const currentThreadId = useThreadStore((s) => s.currentThreadId);
 
     const style: React.CSSProperties = isKeyboardOpen
         ? {
@@ -46,12 +49,14 @@ export default function ChatBottomDrawer({
                 <DrawerHeader hidden>
                     <DrawerTitle />
                 </DrawerHeader>
-                <ChatBox
-                      ref={chatBoxRef}
-                      aiCommentary={lastCommentary}
-                      onThreadSelect={onThreadSelect}
-                      openThreadList={openThreadList}
-                />
+                <ChatStreamErrorBoundary resetKey={currentThreadId}>
+                    <ChatBox
+                          ref={chatBoxRef}
+                          aiCommentary={lastCommentary}
+                          onThreadSelect={onThreadSelect}
+                          openThreadList={openThreadList}
+                    />
+                </ChatStreamErrorBoundary>
             </DrawerContent>
         </Drawer>
     );
