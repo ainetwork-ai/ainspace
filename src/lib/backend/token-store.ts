@@ -10,6 +10,11 @@ const USER_KEY = 'ainspace-backend-user';
 // to the token lifecycle. Read to keep the kiosk session alive despite the wallet
 // being absent, and to drive Ctrl+K forceNew.
 const KIOSK_KEY = 'ainspace-backend-kiosk';
+// EPIC20: marks the current session as an email (ainteams) session — wallet-less
+// like kiosk, but browser-originated (the user logged in with email/password).
+// Read to keep the session alive when no wagmi address is connected (page.tsx),
+// the same way the kiosk flag does.
+const EMAIL_KEY = 'ainspace-backend-email';
 
 const isBrowser = (): boolean => typeof window !== 'undefined';
 
@@ -69,6 +74,7 @@ export function clearSession(): void {
   localStorage.removeItem(EXPIRES_AT_KEY);
   localStorage.removeItem(USER_KEY);
   localStorage.removeItem(KIOSK_KEY);
+  localStorage.removeItem(EMAIL_KEY);
 }
 
 export function setKioskFlag(on: boolean): void {
@@ -80,6 +86,20 @@ export function setKioskFlag(on: boolean): void {
 export function getKioskFlag(): boolean {
   if (!isBrowser()) return false;
   return localStorage.getItem(KIOSK_KEY) === '1';
+}
+
+// EPIC20: email-session flag (mirrors the kiosk flag). Set after a successful
+// email login/register so a wallet-less email session isn't torn down when no
+// wagmi address is connected.
+export function setEmailFlag(on: boolean): void {
+  if (!isBrowser()) return;
+  if (on) localStorage.setItem(EMAIL_KEY, '1');
+  else localStorage.removeItem(EMAIL_KEY);
+}
+
+export function getEmailFlag(): boolean {
+  if (!isBrowser()) return false;
+  return localStorage.getItem(EMAIL_KEY) === '1';
 }
 
 export function hasSession(): boolean {
