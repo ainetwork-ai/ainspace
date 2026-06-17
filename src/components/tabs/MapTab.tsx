@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useAccount } from 'wagmi';
 import ConnectWalletModal from '../ConnectWalletModal';
 import { MapPin } from 'lucide-react';
 
@@ -48,10 +47,8 @@ export default function MapTab({
     isPositionValid,
     onPlaceAgentAtPosition,
 }: MapTabProps) {
-    const { address } = useAccount();
-    // EPIC18: kiosk has a backend session but no wallet — treat it as logged in.
-    const isBackendAuthed = useUserStore((s) => s.isBackendAuthed);
-    const isLoggedIn = !!address || isBackendAuthed;
+    // Logged in via wallet, email (EPIC20), or kiosk (EPIC18) — any backend session.
+    const isLoggedIn = useUserStore((s) => s.isLoggedIn());
     const [showWalletModal, setShowWalletModal] = useState(false);
     const agents = useAgentStore((s) => s.agents);
     const { selectedAgentForPlacement, setSelectedAgentForPlacement } = useUIStore();

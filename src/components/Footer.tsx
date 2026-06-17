@@ -18,7 +18,7 @@ interface FooterProps {
 const WALLET_REQUIRED_TABS = ['agent', 'build'] as const;
 
 export default function Footer({ activeTab, onTabChange }: FooterProps) {
-    const isWalletConnected = useUserStore((state) => state.isWalletConnected());
+    const isLoggedIn = useUserStore((state) => state.isLoggedIn());
     const selectedAgentForPlacement = useUIStore((state) => state.selectedAgentForPlacement);
     const { offsetTop } = useKeyboardOpen();
     const isIOS = useIsIOS();
@@ -29,7 +29,7 @@ export default function Footer({ activeTab, onTabChange }: FooterProps) {
         // Block tab change when placing agent
         if (selectedAgentForPlacement) return;
 
-        if (WALLET_REQUIRED_TABS.includes(tab as typeof WALLET_REQUIRED_TABS[number]) && !isWalletConnected) {
+        if (WALLET_REQUIRED_TABS.includes(tab as typeof WALLET_REQUIRED_TABS[number]) && !isLoggedIn) {
             setShowWalletModal(true);
             return;
         }

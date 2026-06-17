@@ -1,6 +1,8 @@
 import {
   BackendUser,
   ChallengeResponse,
+  EmailErrorBody,
+  EmailRequestCodeResponse,
   RefreshResponse,
   VerifyResponse,
 } from '@/types/backend';
@@ -12,6 +14,7 @@ import {
   hasRefreshHint,
   hasSession,
   isAccessExpired,
+  setEmailFlag,
   setKioskFlag,
   setSession,
   setTokens,
@@ -31,6 +34,39 @@ class BackendAuthError extends Error {
     super(message);
     this.name = 'BackendAuthError';
   }
+}
+
+// EPIC20: email auth error carrying the backend envelope fields so the modal can
+// branch on them (429 cooldown via retryAfterSeconds, code attempts remaining).
+export class EmailAuthError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+    public reason?: string,
+    public retryAfterSeconds?: number,
+    public remainingAttempts?: number
+  ) {
+    super(message);
+    this.name = 'EmailAuthError';
+  }
+}
+
+// Read the backend error envelope ({ error, reason?, retryAfterSeconds?,
+// remainingAttempts? }) off a failed response and throw an EmailAuthError.
+async function throwEmailError(res: Response): Promise<never> {
+  let body: EmailErrorBody | null = null;
+  try {
+    body = (await res.json()) as EmailErrorBody;
+  } catch {
+    // non-JSON body — fall through to a generic message
+  }
+  throw new EmailAuthError(
+    res.status,
+    body?.error || 'request failed',
+    body?.reason,
+    body?.retryAfterSeconds,
+    body?.remainingAttempts
+  );
 }
 
 /** Full login: challenge -> wallet sign -> verify. Triggers a signature prompt. */
@@ -78,6 +114,75 @@ export async function loginWithWallet({ address, signMessage }: AuthParams): Pro
   // mistaken for kiosk on the next hydrate (which would hide their own threads).
   setKioskFlag(false);
   return user;
+}
+
+// --- EPIC20: email (ainteams) auth ----------------------------------------
+// Browser-DIRECT like loginWithWallet (NOT the BFF proxy): register/login set the
+// httpOnly `rt` cookie via Set-Cookie, so the calls must be credentials:'include'
+// to the backend origin for cookie-based refresh to work. clientId is sent from
+// the client (PUBLIC_BACKEND_CLIENT_ID) — required for external token issuance
+// + workspace auto-join; omitting it falls back to a cookie-only web UI session.
+
+/** Persist an email session ({user, tokens}) and mark it as an email session. */
+function commitEmailSession({ user, tokens }: VerifyResponse): BackendUser {
+  setSession(user, tokens);
+  setKioskFlag(false);
+  setEmailFlag(true);
+  return user;
+}
+
+/** Step 1 of signup: send a verification code to the email. */
+export async function requestEmailCode(email: string): Promise<EmailRequestCodeResponse> {
+  const res = await fetch(`${PUBLIC_BACKEND_BASE_URL}/auth/email/request-code`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) await throwEmailError(res);
+  return (await res.json()) as EmailRequestCodeResponse;
+}
+
+/** Step 2 of signup: verify the emailed code (server stamps verifiedAt). */
+export async function verifyEmailCode(email: string, code: string): Promise<void> {
+  const res = await fetch(`${PUBLIC_BACKEND_BASE_URL}/auth/email/verify-code`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, code }),
+  });
+  if (!res.ok) await throwEmailError(res);
+}
+
+/** Step 3 of signup: complete registration (must be within 10m of verify). */
+export async function registerWithEmail(params: {
+  email: string;
+  password: string;
+  displayName: string;
+}): Promise<BackendUser> {
+  const res = await fetch(`${PUBLIC_BACKEND_BASE_URL}/auth/email/register`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...params, clientId: PUBLIC_BACKEND_CLIENT_ID }),
+  });
+  if (!res.ok) await throwEmailError(res);
+  return commitEmailSession((await res.json()) as VerifyResponse);
+}
+
+/** Email login (single step). */
+export async function loginWithEmail(params: {
+  email: string;
+  password: string;
+}): Promise<BackendUser> {
+  const res = await fetch(`${PUBLIC_BACKEND_BASE_URL}/auth/email/login`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...params, clientId: PUBLIC_BACKEND_CLIENT_ID }),
+  });
+  if (!res.ok) await throwEmailError(res);
+  return commitEmailSession((await res.json()) as VerifyResponse);
 }
 
 // Single-flight guard so concurrent 401s don't fire multiple refreshes

@@ -15,14 +15,14 @@ interface DesktopSidebarFooterProps {
 const WALLET_REQUIRED_TABS = ['agent', 'build'] as const;
 
 export default function DesktopSidebarFooter({ activeTab, onTabChange }: DesktopSidebarFooterProps) {
-    const isWalletConnected = useUserStore((state) => state.isWalletConnected());
+    const isLoggedIn = useUserStore((state) => state.isLoggedIn());
     const selectedAgentForPlacement = useUIStore((state) => state.selectedAgentForPlacement);
     const [showWalletModal, setShowWalletModal] = useState(false);
 
     const handleTabChange = (tab: TabType) => {
         if (selectedAgentForPlacement) return;
 
-        if (WALLET_REQUIRED_TABS.includes(tab as typeof WALLET_REQUIRED_TABS[number]) && !isWalletConnected) {
+        if (WALLET_REQUIRED_TABS.includes(tab as typeof WALLET_REQUIRED_TABS[number]) && !isLoggedIn) {
             setShowWalletModal(true);
             return;
         }

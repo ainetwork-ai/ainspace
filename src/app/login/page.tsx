@@ -6,12 +6,14 @@ import { useAccount } from 'wagmi';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import ConnectWalletModal from '@/components/ConnectWalletModal';
+import EmailLoginModal from '@/components/EmailLoginModal';
 
 export default function LoginPage() {
     const { isConnected, isConnecting } = useAccount();
     const router = useRouter();
     const [showButton, setShowButton] = useState(false);
     const [showWalletModal, setShowWalletModal] = useState(false);
+    const [showEmailModal, setShowEmailModal] = useState(false);
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -45,12 +47,33 @@ export default function LoginPage() {
                     Connect Wallet
                 </button>
             </div>
+            <div
+                className={cn(
+                    'z-10 h-12 transition-all duration-700 ease-out',
+                    showButton ? 'opacity-100' : 'opacity-0'
+                )}
+            >
+                <button
+                    onClick={() => setShowEmailModal(true)}
+                    className="z-10 inline-flex h-12 w-[180px] cursor-pointer items-center justify-center self-center rounded border border-[#7f4fe8] bg-white/70 text-[#7f4fe8] font-medium"
+                >
+                    Continue with Email
+                </button>
+            </div>
             <Image src="/login/ainetwork.svg" alt="ainetwork" className="z-10" width={133} height={22} />
             <div className="h-10" />
             <div className="fixed bottom-0 flex w-full justify-center">
                 <Image src="/login/login_background.png" alt="Login Background" width={600} height={1000} />
             </div>
             <ConnectWalletModal open={showWalletModal} onOpenChange={setShowWalletModal} />
+            <EmailLoginModal
+                open={showEmailModal}
+                onOpenChange={setShowEmailModal}
+                onSuccess={() => {
+                    setShowEmailModal(false);
+                    router.push('/');
+                }}
+            />
         </div>
     );
 }
