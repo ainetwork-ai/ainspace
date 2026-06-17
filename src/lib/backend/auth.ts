@@ -296,15 +296,12 @@ export async function logoutBackendSession(): Promise<void> {
  */
 export async function bootstrapKioskSession(): Promise<BackendUser | null> {
   const res = await fetch('/api/backend-auth/kiosk-login', { method: 'POST' });
-  console.log('[kiosk] bootstrap status:', res.status);
   if (res.status === 404) return null; // not a kiosk deployment
   if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    console.error('[kiosk] bootstrap failed:', res.status, body.slice(0, 300));
+    console.error('kiosk bootstrap failed:', res.status);
     return null;
   }
   const { user, tokens } = (await res.json()) as VerifyResponse;
-  console.log('[kiosk] bootstrap ok | hasUser =', !!user, '| userId =', user?.id);
   setSession(user, tokens);
   setKioskFlag(true);
   return user;
