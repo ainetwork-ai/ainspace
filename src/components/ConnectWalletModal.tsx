@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useConnect } from 'wagmi';
 import {
     Dialog,
@@ -10,6 +10,8 @@ import {
     DialogDescription,
 } from '@/components/ui/dialog';
 import { Wallet } from 'lucide-react';
+import EmailLoginModal from '@/components/EmailLoginModal';
+import { useUserStore } from '@/stores';
 
 interface ConnectWalletModalProps {
     open: boolean;
@@ -31,6 +33,10 @@ export default function ConnectWalletModal({
     isDarkMode = false,
 }: ConnectWalletModalProps) {
     const { connect, connectors } = useConnect();
+    const setBackendAuth = useUserStore((s) => s.setBackendAuth);
+    // EPIC20: email login lives in this shared modal so every wallet-connect entry
+    // point (Footer, layout HUD, MapTab, ...) offers email too.
+    const [showEmailModal, setShowEmailModal] = useState(false);
 
     // Base App injects its own connector (name: "Base") — auto-connect when detected
     const baseAppConnector = connectors.find(
@@ -47,6 +53,7 @@ export default function ConnectWalletModal({
     // If Base App connector exists, modal won't show (auto-connect above)
     // Otherwise show configured connectors for user to pick
     return (
+        <>
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className={`w-[300px] rounded-2xl py-6 px-4 shadow-lg flex flex-col gap-4 border-none ${isDarkMode ? 'dark bg-[#2F333B] [&_[data-slot=dialog-close]]:text-white' : 'bg-white'}`}>
                 <DialogHeader className="flex flex-col items-center gap-1 pt-2">
@@ -78,6 +85,22 @@ export default function ConnectWalletModal({
                         ))}
                 </div>
 
+                <div className="flex items-center gap-2">
+                    <span className={`h-px flex-1 ${isDarkMode ? 'bg-[#3A3E46]' : 'bg-[#E5E7EB]'}`} />
+                    <span className={`text-xs ${isDarkMode ? 'text-[#838D9D]' : 'text-[#969EAA]'}`}>or</span>
+                    <span className={`h-px flex-1 ${isDarkMode ? 'bg-[#3A3E46]' : 'bg-[#E5E7EB]'}`} />
+                </div>
+
+                <button
+                    onClick={() => {
+                        onOpenChange(false);
+                        setShowEmailModal(true);
+                    }}
+                    className={`w-full py-3 px-4 font-bold rounded-lg transition-colors text-left ${isDarkMode ? 'bg-[#3A3050] text-[#C0A9F1] hover:bg-[#4A3E60]' : 'bg-[#F3F0FF] text-[#7C3AED] hover:bg-[#E8E0FF]'}`}
+                >
+                    Continue with Email
+                </button>
+
                 <button
                     onClick={() => onOpenChange(false)}
                     className={`w-full py-2 px-4 font-medium transition-colors ${isDarkMode ? 'text-[#838D9D] hover:text-[#CAD0D7]' : 'text-[#969EAA] hover:text-[#2F333B]'}`}
@@ -86,5 +109,18 @@ export default function ConnectWalletModal({
                 </button>
             </DialogContent>
         </Dialog>
+
+        <EmailLoginModal
+            open={showEmailModal}
+            onOpenChange={setShowEmailModal}
+            isDarkMode={isDarkMode}
+            onSuccess={(user) => {
+                // Email session is wallet-less — reflect it in the store so the UI
+                // updates without a reload (token/flags already persisted by auth.ts).
+                setBackendAuth(user);
+                setShowEmailModal(false);
+            }}
+        />
+        </>
     );
 }

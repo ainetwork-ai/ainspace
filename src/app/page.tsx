@@ -7,7 +7,7 @@ import { BROADCAST_RADIUS, MOVEMENT_MODE } from '@/constants/game';
 import { useUIStore, useThreadStore, useBuildStore, useAgentStore, useUserStore, useUserAgentStore, useChatStore } from '@/stores';
 import { useAccount, useSignMessage } from 'wagmi';
 import { ensureBackendAuth, ensureKioskSession } from '@/lib/backend/auth';
-import { getAccessToken, getKioskFlag, isAccessExpired } from '@/lib/backend/token-store';
+import { getAccessToken, getEmailFlag, getKioskFlag, isAccessExpired } from '@/lib/backend/token-store';
 import { StoredAgent } from '@/lib/redis';
 import { useVillageLoader } from '@/hooks/useVillageLoader';
 import { useVillageStore } from '@/stores/useVillageStore';
@@ -141,11 +141,11 @@ export default function Home() {
             if (!address) {
                 setAddress(null);
                 setPermissions(null);
-                // A kiosk session is wallet-less by design, so "no address" is its
-                // normal state — clearing here would tear down (or race) it. Only
-                // clear for wallet sessions (wallet disconnected = logged out).
-                if (useUserStore.getState().isKioskSession || getKioskFlag()) {
-                    // kiosk: wallet-less by design — keep the session
+                // A kiosk OR email session is wallet-less by design, so "no address"
+                // is its normal state — clearing here would tear it down (or race it).
+                // Only clear for wallet sessions (wallet disconnected = logged out).
+                if (useUserStore.getState().isKioskSession || getKioskFlag() || getEmailFlag()) {
+                    console.log('[auth] initUserAuth: no address (kiosk/email) -> keep session');
                 } else {
                     clearBackendAuth();
                 }

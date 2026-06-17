@@ -44,6 +44,14 @@ const nextConfig: NextConfig = {
             'pino-pretty': false,
             'lokijs': false,
             'encoding': false,
+            // wagmi's connector barrel re-exports every connector; we only use
+            // baseAccount + injected, so stub the unused connectors' optional peer
+            // deps (they aren't installed). Same rationale as the modules above.
+            'accounts': false, // Tempo connector
+            '@metamask/connect-evm': false, // metaMask connector
+            '@safe-global/safe-apps-sdk': false, // safe connector
+            '@safe-global/safe-apps-provider': false, // safe connector
+            '@walletconnect/ethereum-provider': false, // walletConnect connector
         };
 
         return config;

@@ -41,3 +41,18 @@ export interface BrowserVerifyRequest {
   walletType: 'smart' | 'eoa';
   challengeNonce: string;
 }
+
+// --- EPIC20: email (ainteams) auth -----------------------------------------
+// register/login return the same { user, tokens } shape as wallet verify.
+export interface EmailRequestCodeResponse {
+  ok: boolean;
+  expiresInMinutes: number;
+}
+
+// Backend error envelope for /auth/email/*. `error` carries the display message.
+export interface EmailErrorBody {
+  error: string;
+  reason?: string;
+  retryAfterSeconds?: number; // present on 429 (cooldown)
+  remainingAttempts?: number; // present on code-verify failures
+}

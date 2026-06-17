@@ -19,6 +19,7 @@ interface UserStore {
 
   getUserId: () => string | null;
   isWalletConnected: () => boolean;
+  isLoggedIn: () => boolean;
   getSessionId: () => string | null;
   hasMigratedThreads: (walletAddress: string) => boolean;
   setMigratedThreads: (walletAddress: string) => void;
@@ -55,6 +56,13 @@ export const useUserStore = create<UserStore>((set, get) => ({
   },
 
   isWalletConnected: () => !!get().address,
+
+  // Logged in = holds a backend session (access token) from ANY source —
+  // wallet, email (EPIC20), or kiosk (EPIC18) — or has a wallet connected while
+  // backend auth is still settling. Use this for "is the user authed" UI gating;
+  // use isWalletConnected()/address only when a wallet address is actually needed
+  // (on-chain ops, holder checks, agent placement).
+  isLoggedIn: () => get().isBackendAuthed || !!get().address,
 
   getSessionId: () => get().sessionId,
 
