@@ -89,6 +89,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         replyTo?: string;
         content: string;
         speaker: string;
+        avatarUrl?: string | null;
         timestamp: Date;
     }
 
@@ -102,6 +103,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     timestamp: backendMessage.timestamp,
                     sender: isUserMessage ? 'user' : 'ai',
                     senderId: isUserMessage ? userId : backendMessage.speaker,
+                    avatarUrl: backendMessage.avatarUrl ?? undefined,
                     threadId: threadId
                 } as ChatMessage;
             });
