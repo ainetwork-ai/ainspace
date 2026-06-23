@@ -11,7 +11,7 @@ import rehypeSanitize from 'rehype-sanitize';
 const PROFILE_SIZE = 30;
 
 export default function ChatMessageCard({ message }: { message: ChatMessage }) {
-    const { getAgentByName } = useAgentStore();
+    const { getAgentByName, agents } = useAgentStore();
     const { worldPosition: playerPosition } = useGameStateStore();
 
     const agent = getAgentByName(message.senderId || '');
@@ -21,6 +21,21 @@ export default function ChatMessageCard({ message }: { message: ChatMessage }) {
     // village / post-refresh). SSE-streamed messages carry no avatarUrl, so
     // those still rely on the store match.
     const agentImageUrl = agent?.spriteUrl ?? message.avatarUrl;
+
+    // [PROFILE-DEBUG] TEMPORARY (dev-only experiment) — capture the real runtime
+    // data on Vercel to confirm why the chat agent profile falls back to default.
+    if (message.sender !== 'user') {
+        console.log('[PROFILE-DEBUG]', {
+            senderId: message.senderId,
+            messageAvatarUrl: message.avatarUrl,
+            agentFound: !!agent,
+            agentName: agent?.name,
+            agentSpriteUrl: agent?.spriteUrl,
+            resolvedImageUrl: agentImageUrl,
+            storeCount: agents.length,
+            storeNames: agents.map((a) => a.name),
+        });
+    }
 
     const getAgentNameAndPosition = useMemo(() => {
         if (!message.senderId) return 'AI';
