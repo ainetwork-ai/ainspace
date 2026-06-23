@@ -32,11 +32,6 @@ export async function GET(
             });
         }
         const data = (await res.json()) as { messages: BackendDmMessage[] };
-        // [PROFILE-DEBUG] TEMPORARY (dev experiment) — does the backend send
-        // user.avatarUrl per message? Log the raw author shape of agent messages.
-        console.log('[PROFILE-DEBUG] raw /dm messages users:', JSON.stringify(
-            data.messages.slice(0, 8).map((m) => ({ userId: m.userId, user: m.user })),
-        ));
         const messages = [...data.messages].reverse().map(mapBackendMessageToAinspace);
         return NextResponse.json({ success: true, messages });
     } catch (error) {
