@@ -26,24 +26,6 @@ export default function ChatMessageCard({ message }: { message: ChatMessage }) {
     // author avatar when the agent isn't spawned locally.
     const agentImageUrl = agent?.spriteUrl ?? message.avatarUrl;
 
-    // [PROFILE-DEBUG] TEMPORARY (dev experiment) — confirm uuid matching works.
-    if (message.sender !== 'user') {
-        console.log('[PROFILE-DEBUG]', {
-            senderId: message.senderId,
-            senderUserId: message.senderUserId,
-            messageAvatarUrl: message.avatarUrl,
-            matchedByUuid: !!agentByUuid,
-            matchedByName: !agentByUuid && !!agent,
-            matchedAgentName: agent?.name,
-            resolvedImageUrl: agentImageUrl,
-            store: agents.map((a) => ({
-                name: a.name,
-                backendUuid: a.backendUuid,
-                hasSprite: !!a.spriteUrl,
-            })),
-        });
-    }
-
     const getAgentNameAndPosition = useMemo(() => {
         if (!message.senderId) return 'AI';
         // Reuse the agent matched above (by backend UUID, then name).
