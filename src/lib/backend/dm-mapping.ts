@@ -79,6 +79,7 @@ export function mapBackendMessageToAinspace(m: BackendDmMessage): {
   timestamp: string;
   speaker: string;
   avatarUrl: string | null;
+  senderUserId: string | null;
 } {
   const isAgent = m.user?.isAgent ?? false;
   const speaker = isAgent ? (m.user?.displayName ?? 'agent') : 'User';
@@ -88,5 +89,7 @@ export function mapBackendMessageToAinspace(m: BackendDmMessage): {
     timestamp: toIso(m.createdAt),
     speaker,
     avatarUrl: isAgent ? (m.user?.avatarUrl ?? null) : null,
+    // Stable backend user UUID of the author (== StoredAgent.backendUuid).
+    senderUserId: m.user?.id ?? m.userId ?? null,
   };
 }
