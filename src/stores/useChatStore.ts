@@ -6,6 +6,9 @@ export interface ChatMessage {
     timestamp: Date;
     sender: 'user' | 'system' | 'ai';
     senderId?: string;
+    // Backend-provided author avatar (agents). Used as a fallback when the agent
+    // isn't found in the local agent store. Absent on SSE-streamed messages.
+    avatarUrl?: string;
     threadId?: string;
 }
 
