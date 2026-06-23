@@ -11,7 +11,7 @@ import rehypeSanitize from 'rehype-sanitize';
 const PROFILE_SIZE = 30;
 
 export default function ChatMessageCard({ message }: { message: ChatMessage }) {
-    const { getAgentByName } = useAgentStore();
+    const { getAgentByName, agents } = useAgentStore();
     const { worldPosition: playerPosition } = useGameStateStore();
 
     const agent = getAgentByName(message.senderId || '');
@@ -21,6 +21,26 @@ export default function ChatMessageCard({ message }: { message: ChatMessage }) {
     // village / post-refresh). SSE-streamed messages carry no avatarUrl, so
     // those still rely on the store match.
     const agentImageUrl = agent?.spriteUrl ?? message.avatarUrl;
+
+    // [PROFILE-DEBUG] TEMPORARY (dev experiment) — map shows custom sprite but
+    // chat falls back to default for some agents => name match likely unreliable.
+    // Log identity fields to decide the right matching key (name vs userId).
+    if (message.sender !== 'user') {
+        console.log('[PROFILE-DEBUG]', {
+            senderId: message.senderId,
+            senderUserId: message.senderUserId,
+            messageAvatarUrl: message.avatarUrl,
+            matchedByName: !!agent,
+            matchedSpriteUrl: agent?.spriteUrl,
+            resolvedImageUrl: agentImageUrl,
+            store: agents.map((a) => ({
+                name: a.name,
+                backendUuid: (a as unknown as { backendUuid?: string }).backendUuid,
+                agentUrl: a.agentUrl,
+                hasSprite: !!a.spriteUrl,
+            })),
+        });
+    }
 
     const getAgentNameAndPosition = useMemo(() => {
         if (!message.senderId) return 'AI';

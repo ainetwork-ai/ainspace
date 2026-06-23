@@ -90,6 +90,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         content: string;
         speaker: string;
         avatarUrl?: string | null;
+        senderUserId?: string | null;
         timestamp: Date;
     }
 
@@ -104,6 +105,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     sender: isUserMessage ? 'user' : 'ai',
                     senderId: isUserMessage ? userId : backendMessage.speaker,
                     avatarUrl: backendMessage.avatarUrl ?? undefined,
+                    senderUserId: backendMessage.senderUserId ?? undefined,
                     threadId: threadId
                 } as ChatMessage;
             });
@@ -191,6 +193,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     id?: string;
                     speaker?: string;
                     content?: string;
+                    userId?: string;
                 };
 
                 const messageContent = messageData.content ?? '';
@@ -208,6 +211,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     timestamp: new Date(),
                     sender: 'ai',
                     senderId: agentName,
+                    senderUserId: messageData.userId,
                     threadId: currentThreadId || undefined
                 };
                 setMessages((prev) => {
