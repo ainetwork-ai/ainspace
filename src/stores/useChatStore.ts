@@ -9,6 +9,9 @@ export interface ChatMessage {
     // Backend-provided author avatar (agents). Used as a fallback when the agent
     // isn't found in the local agent store. Absent on SSE-streamed messages.
     avatarUrl?: string;
+    // Stable backend user UUID of the author (== StoredAgent.backendUuid). Used
+    // to match the agent in the local store reliably (displayName is unreliable).
+    senderUserId?: string;
     threadId?: string;
 }
 
