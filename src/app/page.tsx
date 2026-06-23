@@ -13,6 +13,7 @@ import { useVillageLoader } from '@/hooks/useVillageLoader';
 import { useVillageStore } from '@/stores/useVillageStore';
 import { findNearestValidPosition } from '@/lib/village-utils';
 import { useAgentLoader } from '@/hooks/useAgentLoader';
+import { useAgentBackendUuids } from '@/hooks/useAgentBackendUuids';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import DesktopLayout from '@/components/layouts/DesktopLayout';
 import MobileLayout from '@/components/layouts/MobileLayout';
@@ -553,6 +554,9 @@ export default function Home() {
         isPositionValid,
         findAvailableSpawnPosition: findAvailableSpawnPositionByRadius,
     });
+
+    // 백엔드 user UUID hydrate: 채팅 프로필이 backendUuid로 매칭되도록 보강
+    useAgentBackendUuids();
 
 
     // Tab normalization: desktop uses 'chat' instead of 'map', mobile uses 'map' instead of 'chat'
