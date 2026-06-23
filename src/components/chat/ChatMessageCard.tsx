@@ -14,29 +14,31 @@ export default function ChatMessageCard({ message }: { message: ChatMessage }) {
     const { getAgentByName, agents } = useAgentStore();
     const { worldPosition: playerPosition } = useGameStateStore();
 
-    const agent = getAgentByName(message.senderId || '');
+    // Match the message author to a local agent by the stable backend UUID
+    // first (displayName is unreliable — backend may suffix it, e.g.
+    // "WarmHeart" -> "WarmHeart22"), then fall back to name matching.
+    const agentByUuid = message.senderUserId
+        ? agents.find((a) => a.backendUuid && a.backendUuid === message.senderUserId)
+        : undefined;
+    const agent = agentByUuid ?? getAgentByName(message.senderId || '');
 
     // Prefer the local agent-store sprite; fall back to the backend-provided
-    // author avatar when the agent isn't spawned locally (unplaced / other
-    // village / post-refresh). SSE-streamed messages carry no avatarUrl, so
-    // those still rely on the store match.
+    // author avatar when the agent isn't spawned locally.
     const agentImageUrl = agent?.spriteUrl ?? message.avatarUrl;
 
-    // [PROFILE-DEBUG] TEMPORARY (dev experiment) — map shows custom sprite but
-    // chat falls back to default for some agents => name match likely unreliable.
-    // Log identity fields to decide the right matching key (name vs userId).
+    // [PROFILE-DEBUG] TEMPORARY (dev experiment) — confirm uuid matching works.
     if (message.sender !== 'user') {
         console.log('[PROFILE-DEBUG]', {
             senderId: message.senderId,
             senderUserId: message.senderUserId,
             messageAvatarUrl: message.avatarUrl,
-            matchedByName: !!agent,
-            matchedSpriteUrl: agent?.spriteUrl,
+            matchedByUuid: !!agentByUuid,
+            matchedByName: !agentByUuid && !!agent,
+            matchedAgentName: agent?.name,
             resolvedImageUrl: agentImageUrl,
             store: agents.map((a) => ({
                 name: a.name,
-                backendUuid: (a as unknown as { backendUuid?: string }).backendUuid,
-                agentUrl: a.agentUrl,
+                backendUuid: a.backendUuid,
                 hasSprite: !!a.spriteUrl,
             })),
         });
@@ -44,16 +46,14 @@ export default function ChatMessageCard({ message }: { message: ChatMessage }) {
 
     const getAgentNameAndPosition = useMemo(() => {
         if (!message.senderId) return 'AI';
-        // Try to find agent by ID first, then by name (for SSE stream messages)
-        // FIXME(yoojin): need to change senderId to agent id. now senderId is agent name.
-        const agent = getAgentByName(message.senderId);
+        // Reuse the agent matched above (by backend UUID, then name).
         if (agent && playerPosition) {
             const distance = calculateDistance(agent, playerPosition);
             return `${agent.name} (${agent.x}, ${agent.y}) [${distance.toFixed(1)}u]`;
         }
         // If agent not found in local agents array, just return the senderId as name
         return message.senderId || 'AI';
-    }, [getAgentByName, playerPosition, message.senderId]);
+    }, [agent, playerPosition, message.senderId]);
 
     const renderSenderName = message.sender === 'user' ? 'Me' : getAgentNameAndPosition;
     
