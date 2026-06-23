@@ -7,6 +7,10 @@ export interface AgentInfo {
     name: string;
     agentUrl: string;
     skills: AgentSkill[];
+    // EPIC15/16: backend user UUID. Lets chat match a message author
+    // (message.senderUserId) to this agent reliably — displayName is unreliable
+    // (backend may suffix it, e.g. "WarmHeart" -> "WarmHeart22").
+    backendUuid?: string;
 }
 
 export interface AgentWorldState {
