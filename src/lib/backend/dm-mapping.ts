@@ -36,7 +36,7 @@ export interface BackendDmMessage {
   content: string;
   createdAt: string | Date;
   userId: string;
-  user?: { id: string; displayName: string; isAgent: boolean };
+  user?: { id: string; displayName: string; avatarUrl?: string | null; isAgent: boolean };
 }
 
 const toIso = (v: string | Date): string =>
@@ -70,11 +70,15 @@ export async function mapDmToThread(dm: BackendDmListItem): Promise<Thread> {
 
 // Matches ChatBox.mappingBackendMessagesToChatMessages (line 91-106):
 //   speaker === 'User' decides user/ai; uses {id, content, timestamp, speaker}.
+// avatarUrl is the message author's backend profile image (agents only); the
+// chat UI prefers the local agent-store sprite and falls back to this when the
+// agent isn't spawned locally (unplaced / other village / post-refresh).
 export function mapBackendMessageToAinspace(m: BackendDmMessage): {
   id: string;
   content: string;
   timestamp: string;
   speaker: string;
+  avatarUrl: string | null;
 } {
   const isAgent = m.user?.isAgent ?? false;
   const speaker = isAgent ? (m.user?.displayName ?? 'agent') : 'User';
@@ -83,5 +87,6 @@ export function mapBackendMessageToAinspace(m: BackendDmMessage): {
     content: m.content,
     timestamp: toIso(m.createdAt),
     speaker,
+    avatarUrl: isAgent ? (m.user?.avatarUrl ?? null) : null,
   };
 }
