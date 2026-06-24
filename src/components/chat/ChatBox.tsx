@@ -16,6 +16,27 @@ import { Spinner } from '@/components/ui/spinner';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { useNearbyAgents } from '@/hooks/useNearbyAgents';
 
+// When a thread's history is refetched on open, the backend result is the shared
+// source of truth — but it does NOT yet include a just-sent optimistic user
+// message that is still in-flight (not persisted). Overwriting the store wholesale
+// wipes that message from the UI while the reply is awaited (the bug seen when
+// chatting an existing agent-combo without first selecting its thread). Preserve
+// store messages absent from the fetched history, matched by id AND by sender+text
+// so the optimistic copy is dropped once the backend has persisted an equivalent
+// (otherwise it would resurface as a duplicate on the next reopen).
+export function mergePendingMessages(
+    fetched: ChatMessage[],
+    prev: ChatMessage[] | undefined
+): ChatMessage[] {
+    if (!prev || prev.length === 0) return fetched;
+    const fetchedIds = new Set(fetched.map((m) => m.id));
+    const fetchedContentKeys = new Set(fetched.map((m) => `${m.sender}|${m.text}`));
+    const pending = prev.filter(
+        (m) => !fetchedIds.has(m.id) && !fetchedContentKeys.has(`${m.sender}|${m.text}`)
+    );
+    return pending.length > 0 ? [...fetched, ...pending] : fetched;
+}
+
 interface ChatBoxProps {
     className?: string;
     onAddMessage?: (message: ChatMessage) => void;
@@ -140,11 +161,14 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             // last cached), so the in-memory cache alone goes stale — and SSE only
             // delivers messages that arrive *after* opening, not past history.
             // Cached messages are shown immediately by the sync effect below; we
-            // skip overwriting with an empty result so a just-created thread's
-            // optimistic message isn't wiped before its send is persisted.
-            fetchThreadMessages(currentThreadId).then((messages) => {
-                if (messages.length > 0) {
-                    setMessages(messages, currentThreadId);
+            // skip an empty result and merge (not overwrite) a non-empty one so a
+            // just-sent optimistic message isn't wiped before its send is persisted.
+            fetchThreadMessages(currentThreadId).then((fetched) => {
+                if (fetched.length > 0) {
+                    // Merge rather than overwrite: a just-sent optimistic user
+                    // message isn't in the backend history yet, so a wholesale
+                    // replace would drop it from the UI while the reply streams in.
+                    setMessages((prev) => mergePendingMessages(fetched, prev), currentThreadId);
                 }
             });
         } else {
