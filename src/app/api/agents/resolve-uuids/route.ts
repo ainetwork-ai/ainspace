@@ -36,15 +36,7 @@ export async function POST(request: NextRequest) {
         }
 
         const urls = agentUrls.filter((u): u is string => typeof u === 'string' && u.length > 0);
-        const { resolved, unresolved } = await resolveAgentUuids(token, BACKEND_WORKSPACE_ID, urls);
-
-        // [UUID-HYDRATE-DEBUG] TEMPORARY (dev experiment)
-        console.log('[UUID-HYDRATE] resolve-uuids', JSON.stringify({
-            workspaceId: BACKEND_WORKSPACE_ID,
-            requested: urls,
-            resolvedCount: resolved.length,
-            unresolved,
-        }));
+        const { resolved } = await resolveAgentUuids(token, BACKEND_WORKSPACE_ID, urls);
 
         const map: Record<string, string> = {};
         for (const { url, uuid } of resolved) map[url] = uuid;
