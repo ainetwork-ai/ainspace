@@ -24,6 +24,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, skipped: true });
   }
 
+  // Bound the upstream call: a hung/slow orchestrator must NOT hold this route
+  // open indefinitely (the client fire-and-forgets, so nothing else will ever
+  // cancel it). Mirror the 30s send-timeout pattern the client applies to the
+  // thread-message send (ChatBox). On abort the fetch rejects and is handled by
+  // the catch below as a benign no-op — the client never sees it.
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+
   try {
     // Pass the body through verbatim — this route is a thin authenticated proxy,
     // not a validator (the payload was assembled to contract by the client).
@@ -36,6 +44,7 @@ export async function POST(request: NextRequest) {
         'Content-Type': 'application/json',
       },
       body,
+      signal: controller.signal,
     });
 
     // Forward the orchestrator's status/body. The client ignores this (fire-and-
@@ -55,5 +64,9 @@ export async function POST(request: NextRequest) {
       error instanceof Error ? error.message : error
     );
     return NextResponse.json({ ok: false, skipped: true });
+  } finally {
+    // Always clear the abort timer — on success, upstream error, or abort — so
+    // it can't fire after the response has already been returned.
+    clearTimeout(timeoutId);
   }
 }
