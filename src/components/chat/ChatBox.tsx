@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback, forwardRef } from 'react';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
-import { ChatMessage, Thread, useBuildStore, useChatStore, useGameStateStore, useThreadStore, useUIStore, useUserStore } from '@/stores';
+import { ChatMessage, Thread, useAgentStore, useBuildStore, useChatStore, useGameStateStore, useThreadStore, useUIStore, useUserAgentStore, useUserStore } from '@/stores';
 import * as Sentry from '@sentry/nextjs';
 import { useThreadStream } from '@/hooks/useThreadStream';
 import { StreamEvent } from '@/lib/a2aOrchestration';
@@ -15,6 +15,8 @@ import { bffAuthFetch } from '@/lib/backend/bff-fetch';
 import { Spinner } from '@/components/ui/spinner';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { useNearbyAgents } from '@/hooks/useNearbyAgents';
+import { buildIngestPayload, IngestAgentInput } from '@/lib/report/build-ingest-payload';
+import { dualWriteTurn } from '@/lib/report/dual-write';
 
 // When a thread's history is refetched on open, the backend result is the shared
 // source of truth — but it does NOT yet include a just-sent optimistic user
@@ -35,6 +37,69 @@ export function mergePendingMessages(
         (m) => !fetchedIds.has(m.id) && !fetchedContentKeys.has(`${m.sender}|${m.text}`)
     );
     return pending.length > 0 ? [...fetched, ...pending] : fetched;
+}
+
+// --- EPIC21 report dual-write glue -------------------------------------------
+// Resolve a thread's agent roster (name + a2aUrl + backendAgentId) for the ingest
+// payload. Store reads go through getState() so this stays off React's render path
+// — dual-write is fire-and-forget and must never affect chat state.
+
+// New-thread send: agents are the in-radius AgentState list (carries agentUrl =
+// a2aUrl and, once EPIC16 sync ran, backendUuid).
+function rosterFromNearby(nearby: AgentState[]): IngestAgentInput[] {
+    return nearby
+        .filter((a) => a.name)
+        .map((a) => {
+            const entry: IngestAgentInput = { name: a.name };
+            if (a.agentUrl) entry.a2aUrl = a.agentUrl;
+            if (a.backendUuid) entry.backendAgentId = a.backendUuid;
+            if (a.color) entry.color = a.color;
+            return entry;
+        });
+}
+
+// Existing-thread send: the Thread only holds agent names, so resolve a2aUrl /
+// backendAgentId from the local agent stores (world store first, then the persisted
+// StoredAgent store by card name).
+function rosterFromNames(names: string[]): IngestAgentInput[] {
+    const world = useAgentStore.getState().agents;
+    const stored = useUserAgentStore.getState().agents;
+    return names.map((name) => {
+        const entry: IngestAgentInput = { name };
+        const w = world.find((a) => a.name === name);
+        if (w) {
+            if (w.agentUrl) entry.a2aUrl = w.agentUrl;
+            if (w.backendUuid) entry.backendAgentId = w.backendUuid;
+            if (w.color) entry.color = w.color;
+            return entry;
+        }
+        const s = stored.find((a) => a.card?.name === name);
+        if (s) {
+            if (s.url) entry.a2aUrl = s.url;
+            if (s.backendUuid) entry.backendAgentId = s.backendUuid;
+        }
+        return entry;
+    });
+}
+
+// Agent SSE turn: resolve the speaker's a2aUrl. Prefer the backend user UUID (the
+// SSE delivers it reliably as messageData.userId), then fall back to display-name
+// match (the backend may suffix the name, so UUID is the sturdier key). undefined
+// => caller omits senderA2aUrl best-effort (never fails the turn).
+function resolveTurnA2aUrl(backendAgentId: string | undefined, speaker: string): string | undefined {
+    const world = useAgentStore.getState().agents;
+    const stored = useUserAgentStore.getState().agents;
+    if (backendAgentId) {
+        const w = world.find((a) => a.backendUuid === backendAgentId);
+        if (w?.agentUrl) return w.agentUrl;
+        const s = stored.find((a) => a.backendUuid === backendAgentId);
+        if (s?.url) return s.url;
+    }
+    const wn = world.find((a) => a.name === speaker);
+    if (wn?.agentUrl) return wn.agentUrl;
+    const sn = stored.find((a) => a.card?.name === speaker);
+    if (sn?.url) return sn.url;
+    return undefined;
 }
 
 interface ChatBoxProps {
@@ -72,6 +137,15 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const responseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const sseConnectedResolverRef = useRef<(() => void) | null>(null);
+    // EPIC21 (F5, privacy-critical): the SSE stream also delivers agent replies that
+    // OTHER clients (ainteams) triggered against a shared DM. Dual-write only the
+    // turns ainspace itself conducted — so agent-turn dual-write is gated to the
+    // send ainspace just performed: the thread it sent to, while that round is still
+    // in progress. Set on send, cleared when the round's loading ends.
+    const conductedSendRef = useRef<{ threadId: string | null; inProgress: boolean }>({
+        threadId: null,
+        inProgress: false,
+    });
 
     const [displayedMessages, setDisplayedMessages] = useState<ChatMessage[]>([]);
     const activeThread = currentThreadId && currentThreadId !== '0' ? findThreadById(currentThreadId) : undefined;
@@ -103,6 +177,14 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     useEffect(() => {
         onLoadingChange?.(isMessageLoading);
     }, [isMessageLoading, onLoadingChange]);
+
+    // EPIC21: a round ends when loading flips off (reply complete / timeout / error
+    // all route through setIsMessageLoading(false)). Once it does, stop attributing
+    // further agent turns in this thread to ainspace — subsequent replies would be
+    // ainteams-triggered. This single effect is the catch-all for every end path.
+    useEffect(() => {
+        if (!isMessageLoading) conductedSendRef.current.inProgress = false;
+    }, [isMessageLoading]);
 
     // FIXME(yoojin): move type
     interface BackendMessage {
@@ -242,6 +324,48 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     if (!prev) return [agentMessage];
                     return [...prev, agentMessage];
                 }, currentThreadId);
+
+                // EPIC21: best-effort dual-write of THIS agent turn — gated (F5) to a
+                // send ainspace itself conducted in this same thread, so ainteams-
+                // triggered replies flowing through the same stream are NOT mirrored.
+                // Fire-and-forget: never awaited, never throws (chat UX untouched).
+                try {
+                    const gate = conductedSendRef.current;
+                    if (gate.inProgress && gate.threadId && gate.threadId === currentThreadId) {
+                        const backendUser = useUserStore.getState().backendUser;
+                        if (backendUser && currentThreadId) {
+                            const thread = useThreadStore.getState().findThreadById(currentThreadId);
+                            const senderA2aUrl = resolveTurnA2aUrl(messageData.userId, agentName);
+                            // Register the speaking agent by its SSE display name (the
+                            // same source as the turn's speaker) so the orchestrator's
+                            // join key matches; messageData.userId is the reliable
+                            // backendAgentId (SSE-delivered, may backfill an un-synced agent).
+                            const speakerAgent: IngestAgentInput = { name: agentName };
+                            if (senderA2aUrl) speakerAgent.a2aUrl = senderA2aUrl;
+                            if (messageData.userId) speakerAgent.backendAgentId = messageData.userId;
+                            dualWriteTurn(
+                                buildIngestPayload({
+                                    conversationId: currentThreadId,
+                                    threadName: thread?.threadName,
+                                    user: { backendUserId: backendUser.id },
+                                    agents: [speakerAgent],
+                                    turns: [
+                                        {
+                                            kind: 'agent',
+                                            id: agentMessage.id,
+                                            speaker: agentName,
+                                            content: messageContent,
+                                            timestamp: agentMessage.timestamp.getTime(),
+                                            senderA2aUrl,
+                                        },
+                                    ],
+                                })
+                            );
+                        }
+                    }
+                } catch {
+                    // Best-effort: dual-write must never affect chat rendering.
+                }
             } else if (event.type === 'block') {
                 // Block messages are not displayed in chat (used for internal processing only)
                 console.log('Block event (not displayed):', event.data);
@@ -530,6 +654,12 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     sseConnectedResolverRef.current = null;
                 }
 
+                // EPIC21 (F5): mark this thread as ainspace-conducted for the whole
+                // round about to start, BEFORE the send, so agent turns that stream
+                // back are attributed to ainspace. threadIdToSend is final here (new
+                // thread already created above). Cleared when loading ends (effect).
+                conductedSendRef.current = { threadId: threadIdToSend ?? null, inProgress: true };
+
                 // Step 2: Send message (SSE is now connected)
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 30000);
@@ -548,6 +678,37 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 const result = await response.json();
                 if (!response.ok) {
                     throw new Error(result.details || result.error || response.statusText);
+                }
+
+                // EPIC21: best-effort dual-write of the user turn (this send was
+                // accepted). Identity comes from ids ainspace already holds — thread
+                // userId = backend users.id (NOT wallet address), agents = current
+                // thread roster. Fire-and-forget: never awaited, never throws.
+                try {
+                    const backendUser = useUserStore.getState().backendUser;
+                    if (backendUser && threadIdToSend) {
+                        const agents = selectedThread
+                            ? rosterFromNames(selectedThread.agentNames)
+                            : rosterFromNearby(nearbyAgents);
+                        dualWriteTurn(
+                            buildIngestPayload({
+                                conversationId: threadIdToSend,
+                                threadName: threadName || undefined,
+                                user: { backendUserId: backendUser.id },
+                                agents,
+                                turns: [
+                                    {
+                                        kind: 'user',
+                                        id: newMessage.id,
+                                        content: userMessageText,
+                                        timestamp: newMessage.timestamp.getTime(),
+                                    },
+                                ],
+                            })
+                        );
+                    }
+                } catch {
+                    // Best-effort: never let dual-write affect the chat send path.
                 }
 
                 if (!isNewThread && result.threadId) {
