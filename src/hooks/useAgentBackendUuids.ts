@@ -27,12 +27,6 @@ export function useAgentBackendUuids(): void {
     const requestedRef = useRef<Set<string>>(new Set());
 
     useEffect(() => {
-        // [UUID-HYDRATE-DEBUG] TEMPORARY (dev experiment)
-        console.log('[UUID-HYDRATE] effect run', {
-            isBackendAuthed,
-            agentCount: agents.length,
-            missingBackendUuid: agents.filter((a) => !a.backendUuid).map((a) => a.agentUrl),
-        });
         if (!isBackendAuthed) return;
 
         const pending = agents
@@ -42,7 +36,6 @@ export function useAgentBackendUuids(): void {
 
         pending.forEach((u) => requestedRef.current.add(u));
 
-        console.log('[UUID-HYDRATE] requesting resolve', pending);
         bffAuthFetch('/api/agents/resolve-uuids', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -50,14 +43,12 @@ export function useAgentBackendUuids(): void {
         })
             .then((res) => res.json())
             .then((data) => {
-                console.log('[UUID-HYDRATE] resolve response', data);
                 const resolved: Record<string, string> = data?.resolved ?? {};
                 for (const [url, uuid] of Object.entries(resolved)) {
                     if (uuid) updateAgent(url, { backendUuid: uuid });
                 }
             })
-            .catch((err) => {
-                console.log('[UUID-HYDRATE] resolve error', err);
+            .catch(() => {
                 // Allow a retry on the next agents/auth change.
                 pending.forEach((u) => requestedRef.current.delete(u));
             });
