@@ -99,7 +99,7 @@ export function generateMetadata(): Metadata {
             }
         },
         other: {
-          'base:app_id': '69d76201adb751d63e3ce6e2',
+          'base:app_id': '69d737baadb751d63e3ce6a8',
         },
     };
 }
