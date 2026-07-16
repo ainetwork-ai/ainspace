@@ -1,5 +1,7 @@
 import { Thread } from '@/types/thread';
 import { generateAgentComboId } from '@/lib/hash';
+import { ChatMessageFile } from '@/stores/useChatStore';
+import { toChatMessageFiles } from '@/lib/backend/chat-files';
 
 // Map backend DM/message shapes to the ainspace shapes the chat UI already
 // consumes, so ChatBox/Overlay/SidebarPanel render identically after the
@@ -37,6 +39,8 @@ export interface BackendDmMessage {
   createdAt: string | Date;
   userId: string;
   user?: { id: string; displayName: string; avatarUrl?: string | null; isAgent: boolean };
+  // EPIC22: files attached to the message (agent-sent images).
+  files?: unknown[];
 }
 
 const toIso = (v: string | Date): string =>
@@ -80,9 +84,11 @@ export function mapBackendMessageToAinspace(m: BackendDmMessage): {
   speaker: string;
   avatarUrl: string | null;
   senderUserId: string | null;
+  files?: ChatMessageFile[];
 } {
   const isAgent = m.user?.isAgent ?? false;
   const speaker = isAgent ? (m.user?.displayName ?? 'agent') : 'User';
+  const files = toChatMessageFiles(m.files);
   return {
     id: m.id,
     content: m.content,
@@ -91,5 +97,6 @@ export function mapBackendMessageToAinspace(m: BackendDmMessage): {
     avatarUrl: isAgent ? (m.user?.avatarUrl ?? null) : null,
     // Stable backend user UUID of the author (== StoredAgent.backendUuid).
     senderUserId: m.user?.id ?? m.userId ?? null,
+    ...(files ? { files } : {}),
   };
 }
