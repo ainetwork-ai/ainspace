@@ -68,6 +68,18 @@ export default function ChatMessageCard({ message }: { message: ChatMessage }) {
                 >
                     {message.text}
                 </ReactMarkdown>
+                {/* EPIC22: render agent-sent images below the text */}
+                {message.files?.map((f, idx) =>
+                    f.mimeType?.startsWith('image/') ? (
+                        <img
+                            key={f.fileUrl || idx}
+                            src={f.fileUrl}
+                            alt={f.fileName ?? ''}
+                            className="max-w-full rounded-lg mt-2"
+                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        />
+                    ) : null
+                )}
             </div>
         </div>
     );

@@ -10,4 +10,4 @@ export { useUserAgentStore } from './useUserAgentStore';
 
 export type { Thread } from '@/types/thread';
 export type { TileLayers } from './useBuildStore';
-export type { ChatMessage } from './useChatStore';
+export type { ChatMessage, ChatMessageFile } from './useChatStore';

@@ -17,6 +17,7 @@ import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { useNearbyAgents } from '@/hooks/useNearbyAgents';
 import { buildIngestPayload, IngestAgentInput } from '@/lib/report/build-ingest-payload';
 import { dualWriteTurn } from '@/lib/report/dual-write';
+import { toChatMessageFiles } from '@/lib/backend/chat-files';
 
 // When a thread's history is refetched on open, the backend result is the shared
 // source of truth — but it does NOT yet include a just-sent optimistic user
@@ -195,12 +196,15 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         avatarUrl?: string | null;
         senderUserId?: string | null;
         timestamp: Date;
+        // EPIC22: files attached to the message (agent-sent images).
+        files?: unknown[];
     }
 
     const mappingBackendMessagesToChatMessages = useCallback(
         (backendMessages: BackendMessage[], threadId: string) => {
             return backendMessages.map((backendMessage) => {
                 const isUserMessage = backendMessage.speaker === 'User';
+                const files = toChatMessageFiles(backendMessage.files);
                 return {
                     id: backendMessage.id,
                     text: backendMessage.content,
@@ -209,7 +213,8 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     senderId: isUserMessage ? userId : backendMessage.speaker,
                     avatarUrl: backendMessage.avatarUrl ?? undefined,
                     senderUserId: backendMessage.senderUserId ?? undefined,
-                    threadId: threadId
+                    threadId: threadId,
+                    ...(files ? { files } : {}),
                 } as ChatMessage;
             });
         },
@@ -300,10 +305,12 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     speaker?: string;
                     content?: string;
                     userId?: string;
+                    files?: unknown;
                 };
 
                 const messageContent = messageData.content ?? '';
-                if (!messageContent) {
+                const files = toChatMessageFiles(messageData.files);
+                if (!messageContent && !files?.length) {
                     // Nothing renderable (malformed/empty payload) — skip rather than
                     // dumping the raw event object into a chat bubble.
                     return;
@@ -318,7 +325,8 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     sender: 'ai',
                     senderId: agentName,
                     senderUserId: messageData.userId,
-                    threadId: currentThreadId || undefined
+                    threadId: currentThreadId || undefined,
+                    ...(files ? { files } : {}),
                 };
                 setMessages((prev) => {
                     if (!prev) return [agentMessage];

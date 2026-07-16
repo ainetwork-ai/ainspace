@@ -3,6 +3,8 @@
  * Handles thread management, agent imports, and real-time messaging
  */
 
+import { ChatMessageFile } from '@/stores/useChatStore';
+
 const A2A_ORCHESTRATION_BASE_URL = process.env.NEXT_PUBLIC_A2A_ORCHESTRATION_BASE_URL;
 
 export interface Agent {
@@ -37,6 +39,8 @@ export interface StreamEvent {
       timestamp?: number;
       replyTo?: string;
       status?: 'accepted' | 'dropped';
+      // EPIC22: files attached to the message (agent-sent images).
+      files?: ChatMessageFile[];
     };
     next?: {
       id: string;
@@ -51,6 +55,8 @@ export interface StreamEvent {
     summary?: string;
     error?: string;
     clientId?: string;
+    // EPIC22: files attached to the message (agent-sent images).
+    files?: ChatMessageFile[];
     [key: string]: unknown;
   };
 }
