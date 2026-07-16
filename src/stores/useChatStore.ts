@@ -1,5 +1,13 @@
 import { create } from 'zustand';
 
+export interface ChatMessageFile {
+    fileUrl: string;
+    mimeType?: string | null;
+    fileName?: string | null;
+    width?: number | null;
+    height?: number | null;
+}
+
 export interface ChatMessage {
     id: string;
     text: string;
@@ -13,6 +21,8 @@ export interface ChatMessage {
     // to match the agent in the local store reliably (displayName is unreliable).
     senderUserId?: string;
     threadId?: string;
+    // EPIC22: files attached to the message (agent-sent images).
+    files?: ChatMessageFile[];
 }
 
 export interface ThreadMessages {
