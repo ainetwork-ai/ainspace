@@ -7,6 +7,7 @@ import { calculateDistance } from '@/lib/utils';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeSanitize from 'rehype-sanitize';
+import ChatImage from '@/components/chat/ChatImage';
 
 const PROFILE_SIZE = 30;
 
@@ -69,6 +70,19 @@ export default function ChatMessageCard({ message }: { message: ChatMessage }) {
                     {message.text}
                 </ReactMarkdown>
             </div>
+            {/* EPIC22: agent-sent images — laid out in a row, wrapping to a new
+                line when horizontal space runs out. Kept OUTSIDE the `prose`
+                wrapper so typography's large img margins don't inflate the gap;
+                spacing is controlled by the flex `gap`. */}
+            {message.files?.some((f) => f.mimeType?.startsWith('image/')) && (
+                <div className='flex flex-row flex-wrap gap-2'>
+                    {message.files.map((f, idx) =>
+                        f.mimeType?.startsWith('image/') ? (
+                            <ChatImage key={f.fileUrl || idx} file={f} />
+                        ) : null
+                    )}
+                </div>
+            )}
         </div>
     );
 }
