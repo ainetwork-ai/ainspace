@@ -7,6 +7,7 @@ import { calculateDistance } from '@/lib/utils';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeSanitize from 'rehype-sanitize';
+import ChatImage from '@/components/chat/ChatImage';
 
 const PROFILE_SIZE = 30;
 
@@ -68,16 +69,11 @@ export default function ChatMessageCard({ message }: { message: ChatMessage }) {
                 >
                     {message.text}
                 </ReactMarkdown>
-                {/* EPIC22: render agent-sent images below the text */}
+                {/* EPIC22: render agent-sent images below the text.
+                    Thumbnail + click/tap lightbox is encapsulated in ChatImage. */}
                 {message.files?.map((f, idx) =>
                     f.mimeType?.startsWith('image/') ? (
-                        <img
-                            key={f.fileUrl || idx}
-                            src={f.fileUrl}
-                            alt={f.fileName ?? ''}
-                            className="max-w-full rounded-lg mt-2"
-                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                        />
+                        <ChatImage key={f.fileUrl || idx} file={f} />
                     ) : null
                 )}
             </div>
