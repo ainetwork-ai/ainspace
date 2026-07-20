@@ -136,6 +136,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     const { setShowCollisionMap } = useBuildStore();
     const inputRef = useRef<HTMLInputElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const messagesContainerRef = useRef<HTMLDivElement>(null);
     const responseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const sseConnectedResolverRef = useRef<(() => void) | null>(null);
     // EPIC21 (F5, privacy-critical): the SSE stream also delivers agent replies that
@@ -435,8 +436,22 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         enabled: !!currentThreadId && currentThreadId !== '0'
     });
 
-    const moveToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const moveToBottom = (behavior: ScrollBehavior = 'smooth') => {
+        messagesEndRef.current?.scrollIntoView({ behavior });
+    };
+
+    // Images render below the text but load asynchronously, so the auto-scroll
+    // above runs while they still have ~0 height — once they load, the added
+    // height leaves the last image cut off below the fold. Re-pin to bottom when
+    // any descendant media finishes loading, but only if we're still near the
+    // bottom, so a user who scrolled up to read history isn't yanked down.
+    // `load` doesn't bubble; onLoadCapture (capture phase) catches descendants.
+    const NEAR_BOTTOM_PX = 320; // > max thumbnail height (~220px) so one load stays "near"
+    const handleMediaLoad = () => {
+        const el = messagesContainerRef.current;
+        if (!el) return;
+        const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
+        if (gap <= NEAR_BOTTOM_PX) moveToBottom('auto');
     };
 
     useEffect(() => {
@@ -947,7 +962,11 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     return (
         <div className={cn('flex h-full min-h-0 w-full flex-col bg-transparent', className)}>
             {/* NOTE: Chat Messages */}
-            <div className="flex flex-1 flex-col gap-4 overflow-y-auto scrollbar-hide p-4 pt-2">
+            <div
+                ref={messagesContainerRef}
+                onLoadCapture={handleMediaLoad}
+                className="flex flex-1 flex-col gap-4 overflow-y-auto scrollbar-hide p-4 pt-2"
+            >
                 {displayedMessages.map((message) => (
                     <ChatMessageCard key={message.id} message={message} />
                 ))}
