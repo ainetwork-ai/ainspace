@@ -4,12 +4,31 @@ import { ChatMessage, useAgentStore, useGameStateStore } from '@/stores';
 import { useMemo } from 'react';
 import { AgentProfile } from '@/components/AgentProfile';
 import { calculateDistance } from '@/lib/utils';
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeSanitize from 'rehype-sanitize';
 import ChatImage from '@/components/chat/ChatImage';
 
 const PROFILE_SIZE = 30;
+
+// Stable module-level markdown config. These MUST NOT be recreated per render:
+// ChatMessageCard re-renders frequently (it subscribes to player/agent position,
+// which updates via autonomous movement ~every 1.5s). If `components`/plugins are
+// new identities each render, react-markdown remounts the rendered nodes (incl.
+// <a>) every time, so a single link click's mousedown and click land on different
+// DOM nodes and the click is dropped — the reason links needed a double-click.
+const REMARK_PLUGINS = [remarkGfm];
+const REHYPE_PLUGINS = [rehypeSanitize];
+const MARKDOWN_COMPONENTS: Components = {
+    a: ({ node, ...props }) => (
+        <a
+            {...props}
+            className="text-blue-400 underline hover:text-blue-300 visited:text-purple-400"
+            target="_blank"
+            rel="noopener noreferrer"
+        />
+    ),
+};
 
 export default function ChatMessageCard({ message }: { message: ChatMessage }) {
     const { getAgentByName, agents } = useAgentStore();
@@ -54,18 +73,9 @@ export default function ChatMessageCard({ message }: { message: ChatMessage }) {
             </div>
             <div className='justify-start font-semibold leading-[25px] text-white prose prose-invert prose-sm max-w-none'>
                 <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    rehypePlugins={[rehypeSanitize]}
-                    components={{
-                        a: ({ node, ...props }) => (
-                            <a
-                                {...props}
-                                className="text-blue-400 underline hover:text-blue-300 visited:text-purple-400"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                            />
-                        ),
-                    }}
+                    remarkPlugins={REMARK_PLUGINS}
+                    rehypePlugins={REHYPE_PLUGINS}
+                    components={MARKDOWN_COMPONENTS}
                 >
                     {message.text}
                 </ReactMarkdown>
