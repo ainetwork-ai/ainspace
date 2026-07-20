@@ -35,7 +35,7 @@ export default function ChatImage({ file }: { file: ChatMessageFile }) {
             <DialogPrimitive.Trigger asChild>
                 <button
                     type="button"
-                    className="mt-2 block cursor-zoom-in overflow-hidden rounded-lg transition-transform duration-150 hover:scale-[1.02] hover:brightness-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+                    className="block cursor-zoom-in overflow-hidden rounded-lg transition-transform duration-150 hover:scale-[1.02] hover:brightness-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
                     aria-label={alt ? `이미지 확대: ${alt}` : '이미지 확대'}
                 >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
