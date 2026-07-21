@@ -58,11 +58,14 @@ export const useUserStore = create<UserStore>((set, get) => ({
   isWalletConnected: () => !!get().address,
 
   // Logged in = holds a backend session (access token) from ANY source —
-  // wallet, email (EPIC20), or kiosk (EPIC18) — or has a wallet connected while
-  // backend auth is still settling. Use this for "is the user authed" UI gating;
-  // use isWalletConnected()/address only when a wallet address is actually needed
-  // (on-chain ops, holder checks, agent placement).
-  isLoggedIn: () => get().isBackendAuthed || !!get().address,
+  // wallet, email (EPIC20), or kiosk (EPIC18). Deliberately NOT keyed on a wagmi
+  // address: in the Base in-app browser wagmi auto-connects and hands us an
+  // address with no backend auth, which would open the agent tab / chat bar while
+  // every real action fails (no backend token) — a confusing dead-end. A wallet
+  // address alone is "connected", not "logged in". Use isWalletConnected()/address
+  // only when a wallet address is actually needed (on-chain ops, holder checks,
+  // agent placement).
+  isLoggedIn: () => get().isBackendAuthed,
 
   getSessionId: () => get().sessionId,
 

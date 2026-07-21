@@ -60,7 +60,7 @@ export default function ChatMessageCard({ message }: { message: ChatMessage }) {
     const renderSenderName = message.sender === 'user' ? 'Me' : getAgentNameAndPosition;
     
     return (
-        <div className='flex flex-col items-start gap-1'>
+        <div className='flex w-full min-w-0 flex-col items-start gap-1'>
             <div className='flex flex-row items-center gap-2'>
                 <AgentProfile
                     width={PROFILE_SIZE}
@@ -71,7 +71,13 @@ export default function ChatMessageCard({ message }: { message: ChatMessage }) {
                     {renderSenderName}
                 </span>
             </div>
-            <div className='justify-start font-semibold leading-[25px] text-white prose prose-invert prose-sm max-w-none'>
+            {/* max-w-full + min-w-0 + overflow-wrap:anywhere keep long unbreakable
+                tokens (URLs w/o break points, code spans, code blocks) from
+                overflowing the chat width. Without these, items-start lets a flex
+                child grow to its content's min-content width, and the message
+                list's overflow-y-auto promotes overflow-x to auto -> a horizontal
+                scrollbar on the whole chat. */}
+            <div className='justify-start font-semibold leading-[25px] text-white prose prose-invert prose-sm max-w-full min-w-0 [overflow-wrap:anywhere]'>
                 <ReactMarkdown
                     remarkPlugins={REMARK_PLUGINS}
                     rehypePlugins={REHYPE_PLUGINS}
