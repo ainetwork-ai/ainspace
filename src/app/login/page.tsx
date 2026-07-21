@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import ConnectWalletModal from '@/components/ConnectWalletModal';
 import EmailLoginModal from '@/components/EmailLoginModal';
+import { hasSession } from '@/lib/backend/token-store';
 
 export default function LoginPage() {
     const { isConnected, isConnecting } = useAccount();
@@ -23,10 +24,14 @@ export default function LoginPage() {
         return () => clearTimeout(timer);
     }, []);
 
-    // Redirect to home page if wallet is already connected
+    // Redirect home if already logged in — wallet (wagmi) OR a stored backend
+    // session (email/kiosk, EPIC20/EPIC18). The login page doesn't hydrate the
+    // user store, so a wallet-less session can only be seen via token-store here;
+    // without this an email user returning to /login is stuck on the login screen
+    // despite holding a valid session.
     useEffect(() => {
         if (isConnecting) return;
-        if (isConnected) {
+        if (isConnected || hasSession()) {
             router.push('/');
         }
     }, [isConnected, isConnecting, router]);
