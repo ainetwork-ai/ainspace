@@ -115,5 +115,17 @@ export async function GET(
 
   // 본문은 **스트림 그대로** 넘긴다 — 버퍼로 모으면 최대 25MB 가 이 프로세스 메모리에
   // 올라가고, 동시 요청이 몇 개만 겹쳐도 그대로 배가된다.
-  return new NextResponse(upstream.body, { status: upstream.status, headers });
+  //
+  // null-body status(204·304)에는 body 를 **명시적으로 null** 로 넘긴다. `Response`
+  // 생성자는 그 status 에 non-null body 가 오면 `TypeError` 를 던지고, 그러면 캐시된
+  // 이미지를 다시 볼 때마다(=304 가 정상 응답인 그 경로에서) 500 이 된다.
+  //
+  // Node 20·22 의 `fetch` 는 304 에 `body === null` 을 준다(실측). 그래도 가드를 두는
+  // 이유는 이 라우트가 도는 배포 런타임을 여기서 돌려볼 수 없기 때문이다 — 한 줄이고
+  // 정상 경로에서는 no-op 인데, 빠졌을 때의 실패는 조용하고 재방문마다 반복된다.
+  const nullBody = upstream.status === 204 || upstream.status === 304;
+  return new NextResponse(nullBody ? null : upstream.body, {
+    status: upstream.status,
+    headers,
+  });
 }
