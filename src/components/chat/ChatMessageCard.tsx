@@ -92,9 +92,9 @@ export default function ChatMessageCard({ message }: { message: ChatMessage }) {
                 spacing is controlled by the flex `gap`. */}
             {message.files?.some((f) => f.mimeType?.startsWith('image/')) && (
                 <div className='flex flex-row flex-wrap gap-2'>
-                    {message.files.map((f, idx) =>
+                    {message.files.map((f) =>
                         f.mimeType?.startsWith('image/') ? (
-                            <ChatImage key={f.fileUrl || idx} file={f} />
+                            <ChatImage key={f.id} file={f} />
                         ) : null
                     )}
                 </div>
