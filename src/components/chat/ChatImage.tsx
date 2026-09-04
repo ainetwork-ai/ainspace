@@ -4,6 +4,8 @@ import { useState } from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { XIcon } from 'lucide-react';
 import { ChatMessageFile } from '@/stores';
+import { chatFileSrc } from '@/lib/backend/chat-files';
+import { getAccessToken } from '@/lib/backend/token-store';
 import { Z_INDEX_OFFSETS } from '@/constants/common';
 
 const LIGHTBOX_Z = Z_INDEX_OFFSETS.UI + 100;
@@ -18,11 +20,24 @@ const LIGHTBOX_Z = Z_INDEX_OFFSETS.UI + 100;
  *   viewport. Clicking the lightbox image toggles fit <-> 1:1 natural size
  *   (panning via overflow-auto) so fine detail is inspectable. Close via the
  *   X button, backdrop click, or ESC (Radix).
+ *
+ * EPIC23 — `src` 는 `file.fileUrl` 이 **아니다.** 그 값은 backend 저장형(`s3://…`)이라
+ * 브라우저가 열 수 없다(그래서 이 컴포넌트는 한동안 아무것도 못 그렸다). URL 은
+ * `chatFileSrc` 가 만들고, 썸네일과 라이트박스가 **같은 변수**를 쓴다 — 한쪽만 고치면
+ * 라이트박스만 깨진 상태가 되어 원인이 안 보인다.
  */
 export default function ChatImage({ file }: { file: ChatMessageFile }) {
     const [open, setOpen] = useState(false);
     const [zoomed, setZoomed] = useState(false);
     const alt = file.fileName ?? '';
+    // 토큰은 localStorage 라 동기로 읽힌다. **memo 하지 않는다** — `getAccessToken()` 은
+    // memo 할 수 없는 외부 소스이고, `[file]` 로 캐시하면 토큰이 갱신돼도 `file` 의
+    // identity 가 그대로라 옛 URL 이 남는다(정확히 반대 효과다). 비용은 템플릿 리터럴
+    // 하나라 deps 배열보다 싸다.
+    const src = chatFileSrc(file, getAccessToken());
+
+    // 토큰이 없거나 id 가 없으면 그릴 것이 없다 — 깨진 이미지 아이콘보다 낫다.
+    if (!src) return null;
 
     return (
         <DialogPrimitive.Root
@@ -40,7 +55,7 @@ export default function ChatImage({ file }: { file: ChatMessageFile }) {
                 >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                        src={file.fileUrl}
+                        src={src}
                         alt={alt}
                         loading="lazy"
                         decoding="async"
@@ -81,7 +96,7 @@ export default function ChatImage({ file }: { file: ChatMessageFile }) {
                     >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
-                            src={file.fileUrl}
+                            src={src}
                             alt={alt}
                             onClick={() => setZoomed((z) => !z)}
                             className={
