@@ -184,22 +184,28 @@ export const isErrorCode = (v: unknown): v is ErrorCode =>
 export const makeError = (code: ErrorCode, message: string, extra: ErrorExtra = {}): ErrorBody =>
   ({ error: { code, message, retryable: RETRYABLE[code], ...extra } });
 
-/** 어댑터가 던지는 유일한 오류 타입. 라우트가 `toErrorBody` 로 계약 바디로 바꾼다. */
+/**
+ * 어댑터가 던지는 유일한 오류 타입. 라우트가 `toErrorBody` 로 계약 바디로 바꾼다.
+ * `status` 는 **항상 코드 표(HTTP_STATUS_FOR)** 에서 온다 — 원본(aindrive/Ainize/SSO/에이전트)의 HTTP status 는
+ * 응답 status 로 새지 않고 `upstreamStatus` 에만 남는다(네이티브 라우트 404 → fallback 판단용).
+ */
 export class AinContractError extends Error {
   readonly code: ErrorCode;
   readonly status: number;
   readonly retryable: boolean;
   readonly actionUrl?: string;
   readonly detail?: string;
+  readonly upstreamStatus?: number;
 
-  constructor(code: ErrorCode, message: string, opts: { status?: number; retryable?: boolean; actionUrl?: string; detail?: string } = {}) {
+  constructor(code: ErrorCode, message: string, opts: { retryable?: boolean; actionUrl?: string; detail?: string; upstreamStatus?: number } = {}) {
     super(message);
     this.name = 'AinContractError';
     this.code = code;
-    this.status = opts.status ?? HTTP_STATUS_FOR[code];
+    this.status = HTTP_STATUS_FOR[code];
     this.retryable = opts.retryable ?? RETRYABLE[code];
     this.actionUrl = opts.actionUrl;
     this.detail = opts.detail;
+    this.upstreamStatus = opts.upstreamStatus;
   }
 
   toBody(): ErrorBody {

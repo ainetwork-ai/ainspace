@@ -34,7 +34,7 @@ export async function fetchEvents(opts: EventsSourceOptions, cursor: string | nu
   const base = opts.baseUrl.replace(/\/+$/, '');
   const headers: Record<string, string> = opts.token ? { authorization: `Bearer ${opts.token}` } : {};
   const r = await getJson<unknown>(f, `${base}${FEED_PATH[opts.source]}${qs({ cursor: cursor ?? undefined })}`, headers);
-  if (!isEventPage(r)) throw new AinContractError('temporary_failure', '원본 이벤트 피드가 계약 모양이 아닙니다.', { status: 502, retryable: true });
+  if (!isEventPage(r)) throw new AinContractError('temporary_failure', '원본 이벤트 피드가 계약 모양이 아닙니다.', { retryable: true });
   return r;
 }
 

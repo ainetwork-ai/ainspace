@@ -6,14 +6,45 @@ import { AinContractError, isErrorBody, type ErrorCode } from './types';
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
-export async function getJson<T>(f: FetchLike, url: string, headers: Record<string, string> = {}): Promise<T> {
-  const res = await f(url, { headers: { accept: 'application/json', ...headers }, cache: 'no-store' });
+/** 원본 호출(목록·SSO·MCP)의 기본 타임아웃. A2A `message/send` 는 에이전트가 실제로 일하는 시간이라 더 길다. */
+export const UPSTREAM_TIMEOUT_MS = 20_000;
+export const A2A_TIMEOUT_MS = 120_000;
+
+export interface UpstreamFetchOptions {
+  timeoutMs: number;
+  /** 호출자의 취소 신호(있으면 타임아웃과 함께 묶는다). */
+  signal?: AbortSignal;
+  /** 실패 detail 접두어 (`{target}_timeout` / `{target}_unreachable`). 로그에도 이 이름으로 남는다. */
+  target: string;
+}
+
+/**
+ * 원본 호출 한 번 — 항상 타임아웃이 있다. 시간 초과·연결 실패는 `temporary_failure`(재시도 가능)로 옮기고,
+ * 원인은 서버 로그에만 남긴다(응답에는 고정 문구·detail 만). 호출자의 취소는 그대로 던진다.
+ */
+export async function fetchUpstream(f: FetchLike, url: string, init: RequestInit, o: UpstreamFetchOptions): Promise<Response> {
+  const timeout = AbortSignal.timeout(o.timeoutMs);
+  const signal = o.signal ? AbortSignal.any([o.signal, timeout]) : timeout;
+  try {
+    return await f(url, { ...init, signal });
+  } catch (e) {
+    if (o.signal?.aborted) throw e;
+    const timedOut = timeout.aborted;
+    console.error(`${o.target} request failed:`, timedOut ? `timeout after ${o.timeoutMs}ms` : e instanceof Error ? e.message : 'unknown');
+    throw new AinContractError('temporary_failure',
+      timedOut ? '원본 서비스가 제때 응답하지 않았습니다. 잠시 후 다시 시도해 주세요.' : '원본 서비스에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.',
+      { retryable: true, detail: `${o.target}_${timedOut ? 'timeout' : 'unreachable'}` });
+  }
+}
+
+export async function getJson<T>(f: FetchLike, url: string, headers: Record<string, string> = {}, o: { timeoutMs?: number; target?: string } = {}): Promise<T> {
+  const res = await fetchUpstream(f, url, { headers: { accept: 'application/json', ...headers }, cache: 'no-store' }, { timeoutMs: o.timeoutMs ?? UPSTREAM_TIMEOUT_MS, target: o.target ?? 'upstream' });
   if (res.ok) return (await res.json()) as T;
   let body: unknown = null;
   try { body = await res.json(); } catch { /* not json */ }
   if (isErrorBody(body)) {
     const { code, message, retryable, actionUrl, detail } = body.error;
-    throw new AinContractError(code, message, { status: res.status, retryable, actionUrl, detail });
+    throw new AinContractError(code, message, { retryable, actionUrl, detail, upstreamStatus: res.status });
   }
   const code: ErrorCode =
     res.status === 401 ? 'auth_required'
@@ -22,7 +53,7 @@ export async function getJson<T>(f: FetchLike, url: string, headers: Record<stri
     : res.status === 429 ? 'rate_limited'
     : 'temporary_failure';
   // URL 은 상태 파악용으로만 남기고 쿼리는 뗀다(쿼리에 무엇이 실렸든 메시지로 새지 않게).
-  throw new AinContractError(code, `${res.status} from ${url.split('?')[0]}`, { status: res.status, retryable: res.status >= 500 || res.status === 429 });
+  throw new AinContractError(code, `${res.status} from ${url.split('?')[0]}`, { retryable: res.status >= 500 || res.status === 429, upstreamStatus: res.status });
 }
 
 export const qs = (o: Record<string, string | number | undefined>): string => {
@@ -32,8 +63,8 @@ export const qs = (o: Record<string, string | number | undefined>): string => {
   return s ? `?${s}` : '';
 };
 
-/** 원본 404 = "그 네이티브 라우트가 아직 없다" → fallback 신호. */
-export const isNotFound = (e: unknown): boolean => e instanceof AinContractError && e.status === 404;
+/** 원본 404 = "그 네이티브 라우트가 아직 없다" → fallback 신호(원본 status 로 판단하며 응답 status 와는 무관). */
+export const isNotFound = (e: unknown): boolean => e instanceof AinContractError && e.upstreamStatus === 404;
 
 // 응답에 실리면 안 되는 키. 어댑터는 typed 로 조립하므로 보통 걸리지 않지만, 원본이
 // 계약 모양으로 응답하는 네이티브 경로는 그대로 전달하므로 마지막 방어선으로 한 번 더 거른다.

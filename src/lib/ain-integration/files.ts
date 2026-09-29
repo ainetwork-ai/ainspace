@@ -10,7 +10,7 @@
  * 순수 함수 + fetch 주입. 토큰은 헤더로만 나가고 응답·로그·오류 메시지에 절대 싣지 않는다.
  */
 import { createHash } from 'node:crypto';
-import { getJson, getNativeSupport, isNotFound, paginate, qs, setNativeSupport, type FetchLike } from './http';
+import { UPSTREAM_TIMEOUT_MS, fetchUpstream, getJson, getNativeSupport, isNotFound, paginate, qs, setNativeSupport, type FetchLike } from './http';
 import {
   AIN_CONTRACT_VERSION, AinContractError, isFileListResponse,
   type ErrorCode, type FileAccessRole, type FileListItem, type FileListRequest, type FileListResponse, type FileRef, type OwnerRef,
@@ -29,6 +29,8 @@ export interface FilesSourceOptions {
   /** 소유 드라이브의 ownerRef 로 쓸 "나". 없으면 principal `me`. */
   me?: OwnerRef;
   now?: () => Date;
+  /** 원본 호출(목록·MCP list_files) 타임아웃(기본 UPSTREAM_TIMEOUT_MS). */
+  timeoutMs?: number;
 }
 
 // ------------------------------------------------------------------------------- stable id (phase A)
@@ -104,7 +106,7 @@ export async function listSharedFiles(opts: FilesSourceOptions, req: FileListReq
 
   if (getNativeSupport(nativeKey) !== false) {
     try {
-      const r = await getJson<unknown>(f, `${issuer}/api/oauth/shared${qs({ scope: req.scope, q: req.q, cursor: req.cursor, limit: req.limit, org: req.org, folder: req.folder })}`, headers);
+      const r = await getJson<unknown>(f, `${issuer}/api/oauth/shared${qs({ scope: req.scope, q: req.q, cursor: req.cursor, limit: req.limit, org: req.org, folder: req.folder })}`, headers, { timeoutMs: opts.timeoutMs, target: 'aindrive' });
       if (isFileListResponse(r)) { setNativeSupport(nativeKey, true); return sanitizeNative(r); }
       setNativeSupport(nativeKey, false);
     } catch (e) {
@@ -117,7 +119,7 @@ export async function listSharedFiles(opts: FilesSourceOptions, req: FileListReq
 async function listFromDrives(f: FetchLike, issuer: string, headers: Record<string, string>, req: FileListRequest, opts: FilesSourceOptions): Promise<FileListResponse> {
   const asOf = (opts.now ?? (() => new Date()))().toISOString();
   if (req.scope === 'shared_with_org') return { contract: AIN_CONTRACT_VERSION, asOf, nextCursor: null, items: [] };
-  const r = await getJson<{ drives?: OauthDrive[] }>(f, `${issuer}/api/oauth/drives`, headers);
+  const r = await getJson<{ drives?: OauthDrive[] }>(f, `${issuer}/api/oauth/drives`, headers, { timeoutMs: opts.timeoutMs, target: 'aindrive' });
   let items = (r.drives ?? [])
     .filter((d) => (req.scope === 'mine' ? d.role === 'owner' : d.role !== 'owner'))
     .map((d) => driveToFolderItem(issuer, d, opts.me));
@@ -152,15 +154,15 @@ export async function listFolderEntries(opts: FilesSourceOptions, driveId: strin
   const f = opts.fetch ?? fetch;
   const issuer = opts.aindriveUrl.replace(/\/+$/, '');
   const base = aindriveNormalizePath(path);
-  const res = await f(`${issuer}/mcp/d/${encodeURIComponent(driveId)}`, {
+  const res = await fetchUpstream(f, `${issuer}/mcp/d/${encodeURIComponent(driveId)}`, {
     method: 'POST',
     headers: { authorization: `Bearer ${opts.token}`, 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'list_files', arguments: { path: base === '/' ? '' : base.slice(1) } } }),
     cache: 'no-store',
-  });
+  }, { timeoutMs: opts.timeoutMs ?? UPSTREAM_TIMEOUT_MS, target: 'aindrive_mcp' });
   if (!res.ok) {
     const code: ErrorCode = res.status === 401 ? 'auth_required' : res.status === 403 ? 'forbidden' : res.status === 404 ? 'resource_deleted' : res.status === 429 ? 'rate_limited' : res.status >= 500 ? 'source_offline' : 'temporary_failure';
-    throw new AinContractError(code, `${res.status} listing folder`, { status: res.status });
+    throw new AinContractError(code, '폴더 목록을 가져오지 못했습니다.', { detail: 'aindrive_mcp_http_error', upstreamStatus: res.status });
   }
   const rpc = await readMcpResult(res);
   if (rpc.error || !rpc.result) {

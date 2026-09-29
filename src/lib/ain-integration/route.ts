@@ -9,10 +9,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { readBearerHeader, verifyAppSession, type AppSession } from './app-session';
 import { isAinIntegrationEnabled } from './config';
 import { stripSecretKeys } from './http';
-import {
-  AinContractError, HTTP_STATUS_FOR, LIST_LIMIT_DEFAULT, LIST_LIMIT_MAX, makeError, toErrorBody,
-  type ErrorBody,
-} from './types';
+import { HTTP_STATUS_FOR, LIST_LIMIT_DEFAULT, LIST_LIMIT_MAX, makeError, toErrorBody, type ErrorBody } from './types';
 
 const NO_STORE = { 'Cache-Control': 'private, no-store' } as const;
 
@@ -73,12 +70,12 @@ export function parseListQuery<S extends string>(params: URLSearchParams, scopes
   return { scope: scopeRaw as S, ...(q ? { q } : {}), ...(cursor ? { cursor } : {}), limit, ...(org ? { org } : {}), ...(folder ? { folder } : {}) };
 }
 
-/** 어댑터 오류 → 계약 바디. `AinContractError` 가 고른 HTTP status 를 그대로 쓴다(바디의 code 매핑과 다를 수 있다). */
+/** 어댑터 오류 → 계약 바디. HTTP status 는 바디의 code 표(HTTP_STATUS_FOR)에서만 온다 — 원본의 status 를 되비추지 않는다. */
 export const failureResponse = (e: unknown): NextResponse => {
   const body = toErrorBody(e);
   if (body.error.code === 'temporary_failure') {
     // 원본 호출 실패의 원인은 서버 로그에만 남긴다(메시지에 토큰·URL 쿼리가 실릴 수 있는 종류라 응답에는 일반 문구).
     console.error('AIN integration upstream failure:', e instanceof Error ? e.message : e);
   }
-  return errorResponse(body, e instanceof AinContractError ? e.status : undefined);
+  return errorResponse(body);
 };

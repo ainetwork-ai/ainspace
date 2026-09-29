@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { NextRequest } from 'next/server';
 import taskRef from '@/lib/ain-integration/__fixtures__/task-ref.json';
 import { findSecretKey } from '@/lib/ain-integration/http';
-import { AinContractError, type TaskRef } from '@/lib/ain-integration/types';
+import { AinContractError, HTTP_STATUS_FOR, type TaskRef } from '@/lib/ain-integration/types';
 import { SESSION_ENV, fakeJwt, signedJwt, withEnv } from '@/lib/ain-integration/__tests__/helpers';
 import { invokeDeps as deps } from '@/lib/ain-integration/deps';
 import { POST } from './route';
@@ -132,23 +132,33 @@ test('위조(서명 없는)·sub 없는 bearer 와 ?token= 쿼리 → 401 auth_r
   });
 }));
 
-test('어댑터가 고른 HTTP status 가 응답 status 다(unsupported_input 400, a2a temporary_failure 502)', withEnv({ ...ON, ...SSO_ENV }, async () => {
+test('응답 HTTP status 는 코드 표(HTTP_STATUS_FOR)에서 온다 — 원본의 status(upstreamStatus)는 되비추지 않는다', withEnv({ ...ON, ...SSO_ENV }, async () => {
   await withDeps({
     getAindriveAccountToken: async () => 't', getSessionProof: async () => 'eyJ.idtoken.sig', saveTaskRef: async () => {},
-    invokeSharedAgent: async () => { throw new AinContractError('unsupported_input', 'agentKey 모양', { status: 400 }); },
+    invokeSharedAgent: async () => { throw new AinContractError('unsupported_input', 'agentKey 모양'); },
   }, async () => {
     const res = await post(body, signedJwt('u1'));
-    assert.equal(res.status, 400);
+    assert.equal(res.status, HTTP_STATUS_FOR.unsupported_input);
     assert.equal((await res.json()).error.code, 'unsupported_input');
   });
   await withDeps({
     getAindriveAccountToken: async () => 't', getSessionProof: async () => 'eyJ.idtoken.sig', saveTaskRef: async () => {},
-    invokeSharedAgent: async () => { throw new AinContractError('temporary_failure', '에이전트가 요청을 처리하지 못했습니다.', { status: 502, retryable: true, detail: 'agent_rpc_error' }); },
+    invokeSharedAgent: async () => { throw new AinContractError('temporary_failure', '에이전트가 요청을 처리하지 못했습니다.', { retryable: true, detail: 'agent_rpc_error', upstreamStatus: 502 }); },
   }, async () => {
     const res = await post(body, signedJwt('u1'));
-    assert.equal(res.status, 502);
+    assert.equal(res.status, 503);
     const b = await res.json();
     assert.equal(b.error.code, 'temporary_failure');
     assert.equal(b.error.detail, 'agent_rpc_error');
+    assert.equal(findSecretKey(b), null);
+    assert.ok(!('upstreamStatus' in b.error));
+  });
+  // 원본이 200 대가 아닌 어떤 status 를 주든(예: 418) 응답은 코드 표.
+  await withDeps({
+    getAindriveAccountToken: async () => 't', getSessionProof: async () => 'eyJ.idtoken.sig', saveTaskRef: async () => {},
+    invokeSharedAgent: async () => { throw new AinContractError('forbidden', '볼 수 없음', { upstreamStatus: 418 }); },
+  }, async () => {
+    const res = await post(body, signedJwt('u1'));
+    assert.equal(res.status, 403);
   });
 }));

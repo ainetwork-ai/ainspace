@@ -7,7 +7,8 @@ import { requestDelegation } from './delegation';
 import { aindriveFileId } from './files';
 import { findSecretKey, resetNativeSupport } from './http';
 import { deriveIdempotencyKey, invokeSharedAgent, parseInvokeBody, type InvokeOptions } from './invoke';
-import { AIN_CONTRACT_VERSION, AinContractError, DELEGATION_PART_TYPE, FILE_REFS_PART_TYPE, conversationContextId, isTaskRef, type AgentRef, type FileRef } from './types';
+import type { FetchLike } from './http';
+import { AIN_CONTRACT_VERSION, AinContractError, DELEGATION_PART_TYPE, FILE_REFS_PART_TYPE, HTTP_STATUS_FOR, conversationContextId, isTaskRef, type AgentRef, type FileRef } from './types';
 import { fakeFetch, jsonResponse } from './__tests__/helpers';
 
 const AINDRIVE = 'https://aindrive.example';
@@ -124,7 +125,8 @@ test('(a) parts 3개가 text → file-refs → delegation 순서·type 으로 �
   assert.deepEqual(sso.audience, [AINDRIVE]);
   assert.equal(sso.ttlSeconds, 900);
   assert.equal(sso.cnf.jwk.x, POP_JWK.x);
-  assert.ok(sso.idempotencyKey.startsWith(task.idempotencyKey + '-dlg-'));
+  // 위임 키 접미는 무작위 UUID(시각이 아니다).
+  assert.match(sso.idempotencyKey, new RegExp(`^${task.idempotencyKey}-dlg-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`));
   // 결과
   assert.ok(isTaskRef(task));
   assert.equal(task.status, 'completed');
@@ -183,6 +185,89 @@ test('(d) popJwk 없는 에이전트 → unsupported_input (SSO·A2A 는 호출�
   await assert.rejects(() => invokeSharedAgent(opts(s.f), request), (e: AinContractError) => e.code === 'unsupported_input');
   assert.equal(s.ssoBodies.length, 0);
   assert.equal(s.a2aBodies.length, 0);
+  assert.equal(aindriveCalls(s.f), 0, 'popJwk 없는 에이전트에는 aindrive 를 훑기 전에 끝난다');
+});
+
+const aindriveCalls = (f: ReturnType<typeof fakeFetch>) => f.calls.filter((c) => c.url.startsWith(AINDRIVE)).length;
+
+test('(g) 순서: popJwk·SSO 설정·세션 증명을 aindrive 탐색보다 먼저 본다 — 전제가 없으면 aindrive 는 한 번도 불리지 않는다', async () => {
+  const s = stack();
+  await assert.rejects(() => invokeSharedAgent(opts(s.f, { getSessionProof: async () => null }), request), (e: AinContractError) => e.code === 'auth_required');
+  assert.equal(aindriveCalls(s.f), 0, '세션 증명 없음 → aindrive 미호출');
+  await assert.rejects(() => invokeSharedAgent(opts(s.f, { sso: null }), request), (e: AinContractError) => e.detail === 'ain_sso_client_missing');
+  assert.equal(aindriveCalls(s.f), 0, 'SSO 설정 없음 → aindrive 미호출');
+  // 파일이 없는 호출은 전제를 묻지 않는다(증명 조회조차 없다).
+  let proofAsked = false;
+  await invokeSharedAgent(opts(s.f, { getSessionProof: async () => { proofAsked = true; return null; } }), { ...request, fileKeys: [] });
+  assert.equal(proofAsked, false);
+  // 전제가 갖춰지면 aindrive 를 훑고(목록 + MCP) 위임·호출까지 간다.
+  await invokeSharedAgent(opts(s.f), request);
+  assert.ok(aindriveCalls(s.f) >= 2);
+});
+
+test('(h) actionUrl: SSO 거절 → AIN SSO 연결 URL, aindrive 토큰 없음 → aindrive 연결 URL (서로 바뀌지 않는다)', async () => {
+  const s = stack({ ssoRejects: 'proof' });
+  await assert.rejects(() => invokeSharedAgent(opts(s.f), request), (e: AinContractError) =>
+    e.code === 'auth_required' && e.actionUrl === `${SSO}/` && e.detail === 'session_proof_invalid' && !e.message.includes('sessionProof must be'));
+  await assert.rejects(() => invokeSharedAgent(opts(s.f, { getSessionProof: async () => null }), request), (e: AinContractError) => e.code === 'auth_required' && e.actionUrl === `${SSO}/`);
+  await assert.rejects(() => invokeSharedAgent(opts(s.f, { aindriveToken: null }), request), (e: AinContractError) => e.code === 'auth_required' && e.actionUrl === `${AINDRIVE}/oauth/authorize`);
+  // connectUrl 이 없는 배포면 actionUrl 없이 auth_required.
+  await assert.rejects(() => invokeSharedAgent(opts(s.f, { sso: { issuer: SSO, clientId: 'c', clientSecret: 's' } }), request), (e: AinContractError) => e.code === 'auth_required' && e.actionUrl === undefined);
+});
+
+test('(i) 원본 오류 문장은 응답에 싣지 않는다 — SSO 계약 모양 오류의 message·A2A HTTP 오류; status 는 코드 표', async () => {
+  // SSO 가 계약 모양 오류 바디를 돌려줘도 message 는 고정 문구, code 만 옮긴다.
+  const ssoMsg = 'internal: token aind_aat_leaked for user X';
+  const sso = fakeFetch({
+    '/api/shared-agents': () => jsonResponse({ contract: '1.0', asOf: '2026-09-29T06:00:00Z', nextCursor: null, items: [{ ref: agentRef(), canInvoke: true }] }),
+    '/api/oauth/shared': (url) => jsonResponse({ contract: '1.0', asOf: '2026-09-29T06:00:00Z', nextCursor: null, items: url.searchParams.get('scope') === 'shared_with_me' ? [{ ref: rootFolder, role: 'viewer', shareOrigin: 'direct' }] : [] }),
+    [`/mcp/d/${DRIVE}`]: (_url, init) => sse({ jsonrpc: '2.0', id: JSON.parse(String(init?.body)).id, result: { content: [], structuredContent: { entries: [{ name: '전시 안내.md', path: '전시 안내.md', isDir: false, size: 88, mtimeMs: 1, mime: 'text/markdown' }] } } }),
+    '/api/delegations/resource': () => jsonResponse({ error: { code: 'forbidden', message: ssoMsg, retryable: false } }, 418),
+  });
+  await assert.rejects(() => invokeSharedAgent(opts(sso), request), (e: AinContractError) => {
+    const body = JSON.stringify(e.toBody());
+    return e.code === 'forbidden' && e.status === 403 && e.upstreamStatus === 418 && e.detail === 'ain_sso_forbidden' && !body.includes(ssoMsg) && !body.includes('aind_aat_leaked') && !body.includes('418');
+  });
+  // 에이전트 엔드포인트가 5xx → temporary_failure, status 503(코드 표), 원본 숫자·문장은 바디에 없다.
+  const agent500 = stack({ agentReply: () => { throw new Error('unused'); } });
+  const f500: FetchLike = (url, init) => url.endsWith('/agents/doc-summary') ? Promise.resolve(new Response('upstream exploded: secret-ish text', { status: 500 })) : agent500.f(url, init);
+  await assert.rejects(() => invokeSharedAgent(opts(f500 as ReturnType<typeof fakeFetch>), request), (e: AinContractError) => {
+    const body = JSON.stringify(e.toBody());
+    return e.code === 'temporary_failure' && e.retryable && e.status === 503 && e.upstreamStatus === 500 && e.detail === 'agent_http_error' && !body.includes('exploded') && !body.includes('500');
+  });
+  // 에이전트 403 → forbidden 403(코드 표와 같지만 upstreamStatus 로만 기억한다).
+  const f403: FetchLike = (url, init) => url.endsWith('/agents/doc-summary') ? Promise.resolve(new Response('', { status: 403 })) : agent500.f(url, init);
+  await assert.rejects(() => invokeSharedAgent(opts(f403 as ReturnType<typeof fakeFetch>), request), (e: AinContractError) => e.code === 'forbidden' && e.status === HTTP_STATUS_FOR.forbidden);
+});
+
+/** signal 이 abort 될 때까지 응답하지 않는 fetch — 타임아웃 검증용. */
+const hangs = (base: ReturnType<typeof fakeFetch>, pathSuffix: string): FetchLike => (url, init) => {
+  if (!url.endsWith(pathSuffix)) return base(url, init);
+  return new Promise<Response>((_resolve, reject) => {
+    const sig = init?.signal;
+    assert.ok(sig, `${pathSuffix}: 원본 호출에는 항상 AbortSignal 이 있어야 한다`);
+    if (sig.aborted) reject(sig.reason);
+    else sig.addEventListener('abort', () => reject(sig.reason), { once: true });
+  });
+};
+
+test('(j) 타임아웃: A2A message/send · SSO 위임 · aindrive MCP list_files 가 제때 답하지 않으면 temporary_failure(재시도 가능) + *_timeout', async () => {
+  const s = stack();
+  const t0 = Date.now();
+  await assert.rejects(() => invokeSharedAgent(opts(hangs(s.f, '/agents/doc-summary') as ReturnType<typeof fakeFetch>, { a2a: { timeoutMs: 20 } }), request),
+    (e: AinContractError) => e.code === 'temporary_failure' && e.retryable && e.detail === 'agent_timeout' && e.status === 503);
+  await assert.rejects(() => invokeSharedAgent(opts(hangs(s.f, '/api/delegations/resource') as ReturnType<typeof fakeFetch>, { sso: { issuer: SSO, clientId: 'c', clientSecret: 's', connectUrl: `${SSO}/`, timeoutMs: 20 } }), request),
+    (e: AinContractError) => e.code === 'temporary_failure' && e.retryable && e.detail === 'ain_sso_timeout');
+  // MCP list_files 는 resolveFiles 가 폴더를 훑을 때 불린다(목록에 없는 fileKey → 뿌리 탐색).
+  const { listFolderEntries } = await import('./files');
+  await assert.rejects(() => listFolderEntries({ aindriveUrl: AINDRIVE, token: 'aind_aat_secret', fetch: hangs(s.f, `/mcp/d/${DRIVE}`), timeoutMs: 20 }, DRIVE, '/'),
+    (e: AinContractError) => e.code === 'temporary_failure' && e.retryable && e.detail === 'aindrive_mcp_timeout');
+  assert.ok(Date.now() - t0 < 5_000, '짧은 timeoutMs 가 실제로 적용된다');
+  assert.equal(s.a2aBodies.length, 0);
+  // 정상 호출에도 A2A 요청에 signal 이 실린다(기본 타임아웃).
+  await invokeSharedAgent(opts(s.f), request);
+  const a2aCall = s.f.calls.find((c) => c.url.endsWith('/agents/doc-summary'));
+  assert.ok(a2aCall?.init?.signal instanceof AbortSignal);
 });
 
 test('(e) 세션 증명 없음 → auth_required + actionUrl(AIN SSO 연결); 다른 토큰을 대신 보내지 않는다', async () => {
@@ -229,7 +314,7 @@ test('A2A: failed 상태는 error 를 싣고, JSON-RPC error 는 temporary_failu
   const err = stack({ agentReply: (b) => ({ jsonrpc: '2.0', id: b.id, error: { code: -32000, message: `boom ${DELEGATION_TOKEN}` } }) });
   await assert.rejects(() => invokeSharedAgent(opts(err.f), request), (e: AinContractError) => {
     const body = JSON.stringify(e.toBody());
-    return e.code === 'temporary_failure' && e.retryable && e.status === 502 && e.detail === 'agent_rpc_error' && !body.includes(DELEGATION_TOKEN) && !body.includes('boom') && !e.message.includes(DELEGATION_TOKEN);
+    return e.code === 'temporary_failure' && e.retryable && e.status === 503 && e.detail === 'agent_rpc_error' && !body.includes(DELEGATION_TOKEN) && !body.includes('boom') && !e.message.includes(DELEGATION_TOKEN);
   });
   const msg = stack({ agentReply: (b) => ({ jsonrpc: '2.0', id: b.id, result: { kind: 'message', messageId: 'm-1', parts: [{ kind: 'text', text: '바로 답' }] } }) });
   const m = await invokeSharedAgent(opts(msg.f), request);

@@ -93,12 +93,12 @@ export async function introspectSession(token: string, baseUrl: string, opts: Ve
     });
   } catch (e) {
     console.error('app session introspection failed:', e instanceof Error ? e.message : 'unknown');
-    throw new AinContractError('temporary_failure', '세션을 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.', { status: 503, retryable: true, detail: 'app_session_verifier_unavailable' });
+    throw new AinContractError('temporary_failure', '세션을 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.', { retryable: true, detail: 'app_session_verifier_unavailable' });
   }
   if (res.status === 401 || res.status === 403) return null;
   if (!res.ok) {
     console.error(`app session introspection returned ${res.status}`);
-    throw new AinContractError('temporary_failure', '세션을 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.', { status: 503, retryable: true, detail: 'app_session_verifier_unavailable' });
+    throw new AinContractError('temporary_failure', '세션을 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.', { retryable: true, detail: 'app_session_verifier_unavailable' });
   }
   let body: unknown;
   try { body = await res.json(); } catch { body = null; }
@@ -116,5 +116,5 @@ export async function verifyAppSession(token: string, opts: VerifyAppSessionOpti
   if (key) return verifyHs256Session(token, key, { issuer: getIssuer(), audience: getAudience(), now: opts.now });
   const baseUrl = getBackendBaseUrl();
   if (baseUrl) return introspectSession(token, baseUrl, opts);
-  throw new AinContractError('temporary_failure', '이 배포에는 세션 검증이 설정되어 있지 않습니다(BACKEND_JWT_SIGNING_KEY 또는 BACKEND_BASE_URL).', { status: 503, retryable: false, detail: 'app_session_verifier_missing' });
+  throw new AinContractError('temporary_failure', '이 배포에는 세션 검증이 설정되어 있지 않습니다(BACKEND_JWT_SIGNING_KEY 또는 BACKEND_BASE_URL).', { retryable: false, detail: 'app_session_verifier_missing' });
 }
