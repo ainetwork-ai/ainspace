@@ -96,11 +96,18 @@ export interface AgentRef {
   outputModes: string[];
   uiCapabilities: UiCapability[];
   pricingRef?: string;
+  /**
+   * v1.1: 에이전트의 PoP 공개키(JWK). 제품은 위임을 이 키에 묶어(`cnf.jwk`) 그 에이전트만 쓸 수 있게 한다
+   * (docs/08-agent-delegation.md). 공개키이므로 `d` 는 절대 없다.
+   */
+  popJwk?: PopJwk;
   status: AgentStatus;
   displayName: string;
   description?: string;
   updatedAt: string;
 }
+
+export interface PopJwk { kty: string; crv?: string; x?: string; y?: string; kid?: string; alg?: string; [k: string]: unknown }
 
 export interface AgentListItem {
   ref: AgentRef;
@@ -244,10 +251,137 @@ export const isFileRef = (v: unknown): v is FileRef =>
 export const isAgentRef = (v: unknown): v is AgentRef =>
   isObj(v) && v.contract === AIN_CONTRACT_VERSION && isStr(v.registryIssuer) && isStr(v.agentId)
   && isStr(v.releaseId) && isStr(v.agentCardUrl) && isStr(v.endpoint) && isStr(v.displayName)
-  && isStr(v.status) && isObj(v.ownerRef) && Array.isArray(v.skills) && Array.isArray(v.uiCapabilities);
+  && isStr(v.status) && isObj(v.ownerRef) && Array.isArray(v.skills) && Array.isArray(v.uiCapabilities)
+  && Array.isArray(v.supportedProtocolVersions)
+  // popJwk 는 선택이지만 있으면 공개 JWK 여야 한다(비밀 스칼라 `d` 가 실려 오면 계약 위반 → 그대로 전달하지 않는다).
+  && (v.popJwk === undefined || (isObj(v.popJwk) && isStr(v.popJwk.kty) && !('d' in v.popJwk)));
 
 export const isFileListResponse = (v: unknown): v is FileListResponse =>
   isListEnvelope(v) && v.items.every((i) => isObj(i) && isFileRef(i.ref) && isStr(i.role) && isStr(i.shareOrigin));
 
 export const isAgentListResponse = (v: unknown): v is AgentListResponse =>
   isListEnvelope(v) && v.items.every((i) => isObj(i) && isAgentRef(i.ref) && typeof i.canInvoke === 'boolean');
+
+// ---------------------------------------------------------------------------------------------- 2단계: 호출·이벤트
+// 원본: ain-integration/packages/contracts/src/{task,events,a2a-parts,agent-ref(conversationScope),delegation}.ts.
+// 마찬가지로 구조만 옮기고 검증은 경계에서 최소한만 한다.
+
+/** A2A task 상태 + 제품이 자체 기록용으로 더하는 `disconnected`. */
+export type TaskStatus = 'submitted' | 'working' | 'input_required' | 'completed' | 'failed' | 'canceled' | 'disconnected';
+
+export interface TaskCitation { locator: string; excerpt?: string }
+
+/** 계약 `task-ref`. 토큰·비밀을 절대 담지 않는다. */
+export interface TaskRef {
+  contract: ContractVersion;
+  taskId: string;
+  contextId: string;
+  /** `agentKey(ref)`. */
+  agent: string;
+  /** 같은 논리 요청의 재시도는 같은 키를 쓴다(같은 messageId → 노드가 같은 답을 돌려준다). */
+  idempotencyKey: string;
+  status: TaskStatus;
+  createdAt: string;
+  updatedAt: string;
+  /** 답변이 읽은 파일과 인용 위치. */
+  sources: { file: FileRef; citations: TaskCitation[] }[];
+  outputs: { file: FileRef; overwrote: boolean }[];
+  error?: ErrorBody['error'];
+}
+
+/**
+ * 대화 컨텍스트 경계(계획 §4.3): 같은 에이전트라도 `account + org + product + room + conversation` 이
+ 다르면 메모리를 공유하지 않는다. 제품은 여기서 A2A `contextId` 를 만든다.
+ */
+export interface ConversationScope {
+  account: string;
+  org: string | null;
+  product: 'ainteams' | 'ainmem' | 'aina' | 'ainspace' | 'afan' | 'aindrive' | 'ainize' | 'reference';
+  room: string | null;
+  conversation: string;
+}
+
+/** 결정적 contextId: 같은 scope → 같은 id. `ctx:<account>:<org|->:<product>:<room|->:<conversation>` (URL 인코딩). */
+export const conversationContextId = (s: ConversationScope): string =>
+  ['ctx', s.account, s.org ?? '-', s.product, s.room ?? '-', s.conversation].map(encodeURIComponent).join(':');
+
+// A2A data part 의 `metadata.type` (docs/08-agent-delegation.md §3)
+export const FILE_REFS_PART_TYPE = 'ai.ain/file-refs';
+export const DELEGATION_PART_TYPE = 'ai.ain/delegation';
+
+/** `ai.ain/delegation` part — 에이전트의 PoP 키에 묶인 `ain-rdlg+jwt`. 메시지 밖(응답·로그·저장)으로는 절대 나가지 않는다. */
+export interface DelegationPart {
+  token: string;
+  audience: string[];
+  expiresAt: string;
+  jti: string;
+}
+
+// ---------------------------------------------------------------------------------------------- events
+
+export const FILE_EVENT_TYPES = ['file.shared', 'file.updated', 'file.renamed', 'file.moved', 'file.deleted', 'file.revoked', 'file.availability'] as const;
+export const AGENT_EVENT_TYPES = ['agent.published', 'agent.updated', 'agent.unpublished', 'agent.disabled', 'agent.moved', 'agent.deleted', 'agent.revoked'] as const;
+export type FileEventType = (typeof FILE_EVENT_TYPES)[number];
+export type AgentEventType = (typeof AGENT_EVENT_TYPES)[number];
+
+interface ResourceEventBase {
+  eventId: string;
+  /** `fileKey()` 또는 `agentKey()`. */
+  resourceId: string;
+  /** 원본에서 리소스별로 단조 증가. */
+  version: number;
+  occurredAt: string;
+  recipient?: string;
+}
+export interface FileEvent extends ResourceEventBase { kind: 'file'; type: FileEventType; revision?: string }
+export interface AgentEvent extends ResourceEventBase { kind: 'agent'; type: AgentEventType; releaseId?: string }
+export type ResourceEvent = FileEvent | AgentEvent;
+
+/** `cursor` 이후의 이벤트 한 페이지. `gap: true` 면 원본이 그만큼 오래된 이벤트를 더는 갖고 있지 않다 → 전체 재목록. */
+export interface EventPage {
+  contract: ContractVersion;
+  events: ResourceEvent[];
+  nextCursor: string | null;
+  gap: boolean;
+}
+
+/** "숨기고 캐시된 바이트·컨텍스트 사용을 멈춰라" 를 뜻하는 이벤트 종류(작업 10). 목록에서는 숨기지 않고 "접근 불가"로 표시한다. */
+export const REVOKING_TYPES: ReadonlySet<string> = new Set(['file.deleted', 'file.revoked', 'agent.unpublished', 'agent.disabled', 'agent.deleted', 'agent.revoked']);
+
+export const EVENT_SOURCES = ['aindrive', 'ainize'] as const;
+export type EventSource = (typeof EVENT_SOURCES)[number];
+
+// ---------------------------------------------------------------------------------------------- guards (2단계)
+
+const isTaskStatus = (v: unknown): v is TaskStatus =>
+  v === 'submitted' || v === 'working' || v === 'input_required' || v === 'completed' || v === 'failed' || v === 'canceled' || v === 'disconnected';
+
+export const isTaskRef = (v: unknown): v is TaskRef =>
+  isObj(v) && v.contract === AIN_CONTRACT_VERSION && isStr(v.taskId) && isStr(v.contextId) && isStr(v.agent)
+  && isStr(v.idempotencyKey) && isTaskStatus(v.status) && isStr(v.createdAt) && isStr(v.updatedAt)
+  && Array.isArray(v.sources) && v.sources.every((s) => isObj(s) && isFileRef(s.file) && Array.isArray(s.citations))
+  && Array.isArray(v.outputs) && v.outputs.every((o) => isObj(o) && isFileRef(o.file) && typeof o.overwrote === 'boolean');
+
+export const isResourceEvent = (v: unknown): v is ResourceEvent =>
+  isObj(v) && isStr(v.eventId) && isStr(v.resourceId) && typeof v.version === 'number' && Number.isInteger(v.version) && v.version >= 0
+  && isStr(v.occurredAt) && isStr(v.type)
+  && ((v.kind === 'file' && (FILE_EVENT_TYPES as readonly string[]).includes(v.type))
+    || (v.kind === 'agent' && (AGENT_EVENT_TYPES as readonly string[]).includes(v.type)));
+
+export const isEventPage = (v: unknown): v is EventPage =>
+  isObj(v) && v.contract === AIN_CONTRACT_VERSION && Array.isArray(v.events) && v.events.every(isResourceEvent)
+  && (v.nextCursor === null || isStr(v.nextCursor)) && typeof v.gap === 'boolean';
+
+/** `issuer#driveId#fileId` → 세 조각. 모양이 아니면 null. */
+export function parseFileKey(key: string): { issuer: string; driveId: string; fileId: string } | null {
+  const parts = key.split('#');
+  if (parts.length !== 3 || parts.some((p) => !p)) return null;
+  return { issuer: parts[0].replace(/\/+$/, ''), driveId: parts[1], fileId: parts[2] };
+}
+
+/** `registryIssuer#agentId` → 두 조각. */
+export function parseAgentKey(key: string): { registryIssuer: string; agentId: string } | null {
+  const hash = key.indexOf('#');
+  if (hash <= 0 || hash === key.length - 1) return null;
+  return { registryIssuer: key.slice(0, hash).replace(/\/+$/, ''), agentId: key.slice(hash + 1) };
+}

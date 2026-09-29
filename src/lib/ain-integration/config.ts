@@ -36,3 +36,20 @@ export const isAinIntegrationEnabled = (): boolean =>
  */
 export const isAinIntegrationEnabledClient = (): boolean =>
   isOn(process.env.NEXT_PUBLIC_AIN_INTEGRATION_ENABLED);
+
+// ---------------------------------------------------------------------------------------------- 2단계: AIN SSO (위임 발급)
+
+/** AIN SSO issuer — `POST {issuer}/api/delegations/resource` 를 부르는 곳. */
+export const getAinSsoIssuer = (): string =>
+  stripSlash(process.env.AIN_SSO_ISSUER?.trim() || 'https://auth.comcom.ai');
+
+/** first-party 클라이언트 자격(client_secret_basic). 둘 중 하나라도 없으면 null → 위임을 요청할 수 없다. */
+export const getAinSsoClientCredentials = (): { clientId: string; clientSecret: string } | null => {
+  const clientId = process.env.AIN_SSO_CLIENT_ID?.trim();
+  const clientSecret = process.env.AIN_SSO_CLIENT_SECRET?.trim();
+  return clientId && clientSecret ? { clientId, clientSecret } : null;
+};
+
+/** `auth_required` 의 actionUrl — 사용자가 AIN SSO 를 연결하러 갈 곳. */
+export const getAinSsoConnectUrl = (): string =>
+  process.env.AIN_SSO_CONNECT_URL?.trim() || `${getAinSsoIssuer()}/`;

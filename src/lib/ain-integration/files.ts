@@ -13,7 +13,7 @@ import { createHash } from 'node:crypto';
 import { getJson, getNativeSupport, isNotFound, paginate, qs, setNativeSupport, type FetchLike } from './http';
 import {
   AIN_CONTRACT_VERSION, AinContractError, isFileListResponse,
-  type FileAccessRole, type FileListItem, type FileListRequest, type FileListResponse, type FileRef, type OwnerRef,
+  type ErrorCode, type FileAccessRole, type FileListItem, type FileListRequest, type FileListResponse, type FileRef, type OwnerRef,
 } from './types';
 
 export interface OauthDrive { id: string; name: string; online: boolean; role: 'owner' | 'editor' | 'viewer' | string }
@@ -124,4 +124,109 @@ async function listFromDrives(f: FetchLike, issuer: string, headers: Record<stri
   if (req.q) { const q = req.q.toLowerCase(); items = items.filter((i) => i.ref.displayName.toLowerCase().includes(q)); }
   const { page, nextCursor } = paginate(items, req.cursor, req.limit);
   return { contract: AIN_CONTRACT_VERSION, asOf, nextCursor, items: page };
+}
+
+// ------------------------------------------------------------------------------- folder browsing
+// 공유 목록은 공유의 "뿌리"(보통 드라이브 루트 폴더)만 돌려준다. 그 안의 파일을 고르려면 폴더를 탐색해야
+// 하는데, aindrive 의 `fs/list` 는 세션·위임만 받고 계정 토큰(aind_aat_)은 거절한다. 계정 토큰으로 열리는
+// 것은 드라이브 MCP 엔드포인트(`POST /mcp/d/{driveId}`, stateless Streamable HTTP)의 `list_files` 도구다.
+// 항목 모양은 fs/list 와 같다: `{ name, path, isDir, size, mtimeMs, mime }`.
+
+export interface FolderEntry { name: string; path: string; isDir: boolean; size?: number | null; mtimeMs?: number | null; mime?: string | null }
+
+/** MCP 응답은 `text/event-stream`(data: 한 줄) 또는 JSON. 둘 다 JSON-RPC 한 건으로 푼다. */
+async function readMcpResult(res: Response): Promise<{ result?: unknown; error?: { message?: string } }> {
+  const text = await res.text();
+  const ct = res.headers.get('content-type') ?? '';
+  if (ct.includes('text/event-stream')) {
+    const data = text.split(/\r?\n/).filter((l) => l.startsWith('data:')).map((l) => l.slice(5).trim()).filter(Boolean);
+    for (const d of data) { try { const j = JSON.parse(d); if (j && typeof j === 'object' && ('result' in j || 'error' in j)) return j; } catch { /* keep looking */ } }
+    return {};
+  }
+  try { return JSON.parse(text); } catch { return {}; }
+}
+
+/** 폴더 한 단계의 항목. 경로는 드라이브 루트 기준 절대 경로(`/a/b.md`, NFC). */
+export async function listFolderEntries(opts: FilesSourceOptions, driveId: string, path: string): Promise<FolderEntry[]> {
+  if (!opts.token) throw new AinContractError('auth_required', 'aindrive 계정이 연결되어 있지 않습니다.', { ...(opts.connectUrl ? { actionUrl: opts.connectUrl } : {}) });
+  const f = opts.fetch ?? fetch;
+  const issuer = opts.aindriveUrl.replace(/\/+$/, '');
+  const base = aindriveNormalizePath(path);
+  const res = await f(`${issuer}/mcp/d/${encodeURIComponent(driveId)}`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${opts.token}`, 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'list_files', arguments: { path: base === '/' ? '' : base.slice(1) } } }),
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    const code: ErrorCode = res.status === 401 ? 'auth_required' : res.status === 403 ? 'forbidden' : res.status === 404 ? 'resource_deleted' : res.status === 429 ? 'rate_limited' : res.status >= 500 ? 'source_offline' : 'temporary_failure';
+    throw new AinContractError(code, `${res.status} listing folder`, { status: res.status });
+  }
+  const rpc = await readMcpResult(res);
+  if (rpc.error || !rpc.result) throw new AinContractError('temporary_failure', 'aindrive 폴더 목록 응답을 읽을 수 없습니다.', { detail: rpc.error?.message });
+  const result = rpc.result as { isError?: boolean; structuredContent?: { entries?: unknown[] }; content?: { type: string; text?: string }[] };
+  if (result.isError) {
+    const msg = (result.content ?? []).map((c) => c.text ?? '').join(' ').toLowerCase();
+    const code: ErrorCode = /forbidden|permission|not allowed/.test(msg) ? 'forbidden' : /offline|not connected/.test(msg) ? 'source_offline' : 'temporary_failure';
+    throw new AinContractError(code, '폴더를 읽을 수 없습니다.');
+  }
+  const entries = (result.structuredContent?.entries ?? []) as Record<string, unknown>[];
+  return entries
+    .filter((e) => typeof e.name === 'string' && e.name)
+    .map((e) => {
+      const raw = typeof e.path === 'string' && e.path ? e.path : `${base === '/' ? '' : base}/${e.name as string}`;
+      // MCP 는 드라이브 루트 기준 상대 경로를 준다("a/b.md"). 정규화하면 절대 경로가 된다.
+      return {
+        name: e.name as string,
+        path: aindriveNormalizePath(raw),
+        isDir: e.isDir === true,
+        size: typeof e.size === 'number' ? e.size : null,
+        mtimeMs: typeof e.mtimeMs === 'number' ? e.mtimeMs : null,
+        mime: typeof e.mime === 'string' ? e.mime : null,
+      };
+    });
+}
+
+/** 폴더 항목 → FileRef. 소유자·가용성은 부모(공유 뿌리)의 것을 물려받는다(fallback 변환과 같은 규칙). */
+export function entryToFileRef(parent: FileRef, e: FolderEntry): FileRef {
+  const cpath = aindriveNormalizePath(e.path);
+  return {
+    contract: AIN_CONTRACT_VERSION,
+    issuer: parent.issuer,
+    driveId: parent.driveId,
+    fileId: aindriveFileId(parent.driveId, cpath),
+    revision: aindriveRevision({ mtimeMs: e.mtimeMs, size: e.size }),
+    kind: e.isDir ? 'folder' : 'file',
+    ...(e.mime && !e.isDir ? { mimeType: e.mime } : {}),
+    displayName: e.name,
+    ownerRef: parent.ownerRef,
+    availability: parent.availability,
+    sourceUrl: `${parent.issuer}/d/${encodeURIComponent(parent.driveId)}${cpath.split('/').map(encodeURIComponent).join('/')}${e.isDir ? '/' : ''}`,
+    legacy: { path: cpath },
+    ...(typeof e.size === 'number' && !e.isDir ? { size: e.size } : {}),
+  };
+}
+
+export const FOLDER_WALK_MAX_ENTRIES = 2000;
+export const FOLDER_WALK_MAX_DEPTH = 8;
+
+/**
+ * 공유 뿌리 아래에서 `fileId`(경로 해시)에 맞는 항목을 찾는다 — 너비 우선, 항목·깊이 상한.
+ * 해시는 되돌릴 수 없으니 실제로 탐색해 같은 id 가 나오는 경로를 찾는 수밖에 없다.
+ */
+export async function findInFolder(opts: FilesSourceOptions, root: FileRef, fileId: string): Promise<FileRef | null> {
+  if (root.kind !== 'folder') return null;
+  const queue: { ref: FileRef; depth: number }[] = [{ ref: root, depth: 0 }];
+  let seen = 0;
+  while (queue.length) {
+    const { ref, depth } = queue.shift()!;
+    const entries = await listFolderEntries(opts, ref.driveId, ref.legacy?.path ?? '/');
+    for (const e of entries) {
+      if (++seen > FOLDER_WALK_MAX_ENTRIES) return null;
+      const child = entryToFileRef(ref, e);
+      if (child.fileId === fileId) return child;
+      if (e.isDir && depth + 1 < FOLDER_WALK_MAX_DEPTH) queue.push({ ref: child, depth: depth + 1 });
+    }
+  }
+  return null;
 }

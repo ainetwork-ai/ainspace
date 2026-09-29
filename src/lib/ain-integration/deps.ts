@@ -4,7 +4,13 @@
  */
 import { getAindriveAccountToken } from './aindrive-token';
 import { listSharedAgents } from './agents';
+import { fetchEvents } from './events';
 import { listSharedFiles } from './files';
+import { invokeSharedAgent } from './invoke';
+import { getSessionProof } from './session-proof';
+import { saveTaskRef } from './task-store';
 
 export const sharedFilesDeps = { getAindriveAccountToken, listSharedFiles };
 export const sharedAgentsDeps = { listSharedAgents };
+export const invokeDeps = { getAindriveAccountToken, getSessionProof, invokeSharedAgent, saveTaskRef };
+export const eventsDeps = { getAindriveAccountToken, fetchEvents };
