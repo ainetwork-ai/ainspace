@@ -7,6 +7,7 @@ import { getVillageByGrid } from '@/lib/village-redis';
 import { getBearer, backendFetch } from '@/lib/backend/server-client';
 import { BACKEND_WORKSPACE_ID, isBackendWorkspaceConfigured } from '@/lib/backend/config';
 import { BackendAgentListItem } from '@/lib/backend/agent-mapping';
+import { parseCommonAgentId } from '@/lib/ain-integration/common-agent-id';
 
 const AGENTS_KEY = 'agents:';
 
@@ -71,16 +72,25 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/agents  (EPIC17)
  * Import = invite the agent into the backend workspace, then materialize the
- * returned agent into Redis. Body: { agentUrl, creator }. The backend fetches the
- * card, dedups by canonical a2aUrl, and records ownership; ainspace no longer
- * fetches the card (no /api/agent-proxy) nor builds the StoredAgent client-side.
+ * returned agent into Redis. Body: { agentUrl, creator, commonAgentId? }. The
+ * backend fetches the card, dedups by canonical a2aUrl, and records ownership;
+ * ainspace no longer fetches the card (no /api/agent-proxy) nor builds the
+ * StoredAgent client-side.
+ *
+ * `commonAgentId` (AIN integration): optional `"<registryIssuer>#<agentId>"` from
+ * the shared-agent picker; stored on the StoredAgent beside backendUuid.
  */
 export async function POST(request: NextRequest) {
   try {
-    const { agentUrl, creator } = await request.json();
+    const { agentUrl, creator, commonAgentId: commonAgentIdRaw } = await request.json();
 
     if (!agentUrl || !creator) {
       return NextResponse.json({ error: 'agentUrl and creator are required' }, { status: 400 });
+    }
+
+    const commonAgentId = parseCommonAgentId(commonAgentIdRaw);
+    if (commonAgentId === false) {
+      return NextResponse.json({ error: 'commonAgentId must be "<registryIssuer>#<agentId>"' }, { status: 400 });
     }
 
     const token = getBearer(request);
@@ -119,7 +129,7 @@ export async function POST(request: NextRequest) {
     }
 
     const invited = (await res.json()) as BackendAgentListItem;
-    const agent = await upsertAgentFromRosterItem(creator, invited);
+    const agent = await upsertAgentFromRosterItem(creator, invited, commonAgentId ? { commonAgentId } : {});
     if (!agent) {
       return NextResponse.json({ error: 'invited agent has no resolvable a2a url' }, { status: 502 });
     }

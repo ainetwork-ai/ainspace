@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "TSX_TSCONFIG_PATH=tsconfig.test.json node --import tsx --test \"src/**/*.test.ts\" \"src/**/*.test.tsx\"",
     "seed:villages": "tsx scripts/seed-villages.ts",
     "migrate:auth": "tsx scripts/migrate-auth-map-names.ts",
     "manage:auth": "tsx scripts/manage-auth.ts"

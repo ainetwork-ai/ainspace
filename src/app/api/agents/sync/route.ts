@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getBearer, decodeUserId } from '@/lib/backend/server-client';
 import { BACKEND_WORKSPACE_ID, isBackendWorkspaceConfigured } from '@/lib/backend/config';
-import { fetchWorkspaceAgents } from '@/lib/backend/agent-mapping';
+import { fetchWorkspaceAgents, isOwnedByMe } from '@/lib/backend/agent-mapping';
 import { getAgents, getAgentsSyncedAt, setAgentsSyncedAt, syncAgentsFromRoster } from '@/lib/redis';
 
 /**
@@ -9,7 +9,8 @@ import { getAgents, getAgentsSyncedAt, setAgentsSyncedAt, syncAgentsFromRoster }
  * EPIC16: read-through sync of the backend workspace agent roster into Redis.
  *
  * When stale (>30min since last sync) or `refresh=1`, pulls the roster, keeps the
- * caller's owned agents (agentInvitedBy === token `sub`), materializes them as
+ * caller's owned agents (`isMine`, falling back to the deprecated
+ * `agentInvitedBy === token sub` for older backends), materializes them as
  * StoredAgents (creating defaults for new ones, marking roster-absent ones
  * disabled), then always returns the caller's StoredAgents. Placement/coords/full
  * card stay in Redis (untouched). Mirrors the DM BFF merge pattern.
@@ -39,8 +40,8 @@ export async function GET(request: NextRequest) {
     if (isBackendWorkspaceConfigured() && myUserId && (forceRefresh || stale)) {
         try {
             const roster = await fetchWorkspaceAgents(token, BACKEND_WORKSPACE_ID);
-            // Scope to agents this user owns (canonical owner = agentInvitedBy).
-            const mine = roster.filter((a) => a.agentInvitedBy === myUserId);
+            // Scope to agents this user owns (`isMine`; `agentInvitedBy` fallback).
+            const mine = roster.filter((a) => isOwnedByMe(a, myUserId));
             const synced = await syncAgentsFromRoster(wallet, mine);
             await setAgentsSyncedAt(wallet, Date.now());
             return NextResponse.json({ success: true, agents: synced });
