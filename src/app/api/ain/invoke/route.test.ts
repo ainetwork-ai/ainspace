@@ -4,16 +4,16 @@ import { NextRequest } from 'next/server';
 import taskRef from '@/lib/ain-integration/__fixtures__/task-ref.json';
 import { findSecretKey } from '@/lib/ain-integration/http';
 import { AinContractError, type TaskRef } from '@/lib/ain-integration/types';
-import { fakeJwt, withEnv } from '@/lib/ain-integration/__tests__/helpers';
+import { SESSION_ENV, fakeJwt, signedJwt, withEnv } from '@/lib/ain-integration/__tests__/helpers';
 import { invokeDeps as deps } from '@/lib/ain-integration/deps';
 import { POST } from './route';
 
-const ON = { AIN_INTEGRATION_ENABLED: 'true', NEXT_PUBLIC_AIN_INTEGRATION_ENABLED: undefined };
+const ON = { ...SESSION_ENV, AIN_INTEGRATION_ENABLED: 'true', NEXT_PUBLIC_AIN_INTEGRATION_ENABLED: undefined };
 const OFF = { AIN_INTEGRATION_ENABLED: undefined, NEXT_PUBLIC_AIN_INTEGRATION_ENABLED: undefined };
 const SSO_ENV = { AIN_SSO_ISSUER: 'https://sso.example', AIN_SSO_CLIENT_ID: 'client-ainspace', AIN_SSO_CLIENT_SECRET: 's3cret', AINDRIVE_URL: 'https://aindrive.example', AINIZE_URL: 'https://ainize.example' };
 const body = { agentKey: 'https://ainize.example#doc-summary', text: '요약', fileKeys: ['https://aindrive.example#drv_1#p1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'], conversation: 'thr_1' };
 
-const post = (b: unknown, bearer?: string) => POST(new NextRequest('http://localhost/api/ain/invoke', {
+const post = (b: unknown, bearer?: string, path = '/api/ain/invoke') => POST(new NextRequest(`http://localhost${path}`, {
   method: 'POST', headers: { 'content-type': 'application/json', ...(bearer ? { authorization: `Bearer ${bearer}` } : {}) }, body: typeof b === 'string' ? b : JSON.stringify(b),
 }));
 
@@ -25,7 +25,7 @@ async function withDeps(patch: Partial<Deps>, fn: () => Promise<void>) {
 }
 
 test('플래그 off → 404', withEnv(OFF, async () => {
-  assert.equal((await post(body, fakeJwt('u1'))).status, 404);
+  assert.equal((await post(body, signedJwt('u1'))).status, 404);
 }));
 
 test('세션 없음 → 401 auth_required (원본은 호출되지 않는다)', withEnv(ON, async () => {
@@ -39,16 +39,16 @@ test('세션 없음 → 401 auth_required (원본은 호출되지 않는다)', w
 }));
 
 test('잘못된 바디 → 400 unsupported_input', withEnv(ON, async () => {
-  assert.equal((await post('{not json', fakeJwt('u1'))).status, 400);
-  assert.equal((await post({ ...body, agentKey: 'nohash' }, fakeJwt('u1'))).status, 400);
-  assert.equal((await post({ ...body, fileKeys: ['bad'] }, fakeJwt('u1'))).status, 400);
-  const res = await post({ ...body, conversation: '' }, fakeJwt('u1'));
+  assert.equal((await post('{not json', signedJwt('u1'))).status, 400);
+  assert.equal((await post({ ...body, agentKey: 'nohash' }, signedJwt('u1'))).status, 400);
+  assert.equal((await post({ ...body, fileKeys: ['bad'] }, signedJwt('u1'))).status, 400);
+  const res = await post({ ...body, conversation: '' }, signedJwt('u1'));
   assert.equal(res.status, 400);
   assert.equal((await res.json()).error.code, 'unsupported_input');
 }));
 
 test('세션 증명 없음 → 401 auth_required + actionUrl(AIN SSO); backend JWT 는 세션 증명으로 쓰이지 않는다', withEnv({ ...ON, ...SSO_ENV, AIN_SSO_CONNECT_URL: 'https://sso.example/connect' }, async () => {
-  const jwt = fakeJwt('user-42');
+  const jwt = signedJwt('user-42');
   let proofArg: string | null | undefined;
   let seenProof: string | null | undefined;
   await withDeps({
@@ -68,7 +68,7 @@ test('세션 증명 없음 → 401 auth_required + actionUrl(AIN SSO); backend J
 }));
 
 test('성공: 옵션이 env·세션에서 조립되고 응답은 {task, text}, 토큰 없음, no-store; TaskRef 는 스레드 옆에 저장', withEnv({ ...ON, ...SSO_ENV }, async () => {
-  const jwt = fakeJwt('user-42');
+  const jwt = signedJwt('user-42');
   let seen: { aindriveUrl: string; ainizeUrl: string; aindriveToken: string | null; sso: { issuer: string; clientId: string; clientSecret: string } | null; scope: { account: string; org: string | null; product: string }; req: unknown } | null = null;
   let saved: { userId: string; conversation: string; taskId: string } | null = null;
   await withDeps({
@@ -105,11 +105,50 @@ test('SSO 클라이언트 자격 없음 → sso:null 로 전달(어댑터가 판
     invokeSharedAgent: async (o) => { sso = o.sso; throw new AinContractError('agent_stopped', '중지됨'); },
     saveTaskRef: async () => {},
   }, async () => {
-    const res = await post(body, fakeJwt('u1'));
+    const res = await post(body, signedJwt('u1'));
     assert.equal(sso, null);
     assert.equal(res.status, 409);
     const b = await res.json();
     assert.equal(b.error.code, 'agent_stopped');
     assert.equal(b.error.retryable, false);
+  });
+}));
+
+test('위조(서명 없는)·sub 없는 bearer 와 ?token= 쿼리 → 401 auth_required; 원본·Redis 조회는 일어나지 않는다', withEnv({ ...ON, ...SSO_ENV }, async () => {
+  let touched = 0;
+  await withDeps({
+    getAindriveAccountToken: async () => { touched++; return 't'; },
+    getSessionProof: async () => { touched++; return 'eyJ.idtoken.sig'; },
+    invokeSharedAgent: async () => { touched++; return { task: taskRef as TaskRef, text: '' }; },
+  }, async () => {
+    for (const b of [fakeJwt('user-42'), 'h.e30.s', signedJwt('user-42', { key: 'wrong-key-wrong-key-wrong-key-wrong-key' }), signedJwt('', { sub: null })]) {
+      const res = await post(body, b);
+      assert.equal(res.status, 401);
+      assert.equal((await res.json()).error.code, 'auth_required');
+    }
+    const q = await post(body, undefined, `/api/ain/invoke?token=${encodeURIComponent(signedJwt('user-42'))}`);
+    assert.equal(q.status, 401);
+    assert.equal(touched, 0);
+  });
+}));
+
+test('어댑터가 고른 HTTP status 가 응답 status 다(unsupported_input 400, a2a temporary_failure 502)', withEnv({ ...ON, ...SSO_ENV }, async () => {
+  await withDeps({
+    getAindriveAccountToken: async () => 't', getSessionProof: async () => 'eyJ.idtoken.sig', saveTaskRef: async () => {},
+    invokeSharedAgent: async () => { throw new AinContractError('unsupported_input', 'agentKey 모양', { status: 400 }); },
+  }, async () => {
+    const res = await post(body, signedJwt('u1'));
+    assert.equal(res.status, 400);
+    assert.equal((await res.json()).error.code, 'unsupported_input');
+  });
+  await withDeps({
+    getAindriveAccountToken: async () => 't', getSessionProof: async () => 'eyJ.idtoken.sig', saveTaskRef: async () => {},
+    invokeSharedAgent: async () => { throw new AinContractError('temporary_failure', '에이전트가 요청을 처리하지 못했습니다.', { status: 502, retryable: true, detail: 'agent_rpc_error' }); },
+  }, async () => {
+    const res = await post(body, signedJwt('u1'));
+    assert.equal(res.status, 502);
+    const b = await res.json();
+    assert.equal(b.error.code, 'temporary_failure');
+    assert.equal(b.error.detail, 'agent_rpc_error');
   });
 }));

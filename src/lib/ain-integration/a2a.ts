@@ -8,7 +8,8 @@
  * `messageId = idempotencyKey` — 같은 논리 요청의 재시도는 같은 messageId 를 보내고 노드는 같은 task 를 돌려준다.
  *
  * 위임 토큰은 data part 에만 있다. 텍스트 part·응답·로그에는 넣지 않으며, 에이전트 답변에 토큰 문자열이
- * 섞여 돌아와도(있어서는 안 되지만) 응답에 싣기 전에 지운다.
+ * 섞여 돌아와도(있어서는 안 되지만) 응답에 싣기 전에 지운다. JSON-RPC error 의 `message` 도 에이전트가 만든
+ * 문자열이므로 응답(`detail`)에 싣지 않는다 — 고정 코드만 주고, 원문은 토큰을 지운 뒤 서버 로그에만 남긴다.
  */
 import type { FetchLike } from './http';
 import {
@@ -75,8 +76,16 @@ export function textOfTask(task: A2aTask): string {
   return textParts(lastAgent?.parts);
 }
 
-function unwrap(r: { result?: unknown; error?: { message?: string; code?: number } }): A2aTask {
-  if (r.error) throw new AinContractError('temporary_failure', '에이전트가 요청을 처리하지 못했습니다.', { status: 502, retryable: true, detail: r.error.message });
+/** 응답·로그에 실리기 전에 위임 토큰을 지운다. */
+const redactor = (delegation: DelegationPart | undefined) => (s: string) =>
+  delegation && s.includes(delegation.token) ? s.split(delegation.token).join('[redacted]') : s;
+
+function unwrap(r: { result?: unknown; error?: { message?: string; code?: number } }, redact: (s: string) => string): A2aTask {
+  if (r.error) {
+    // 에이전트가 만든 message 는 신뢰하지 않는다: 클라이언트에는 고정 detail, 서버 로그에는 토큰을 지운 원문만.
+    console.error('A2A message/send JSON-RPC error:', { code: r.error.code, message: redact(String(r.error.message ?? '')).slice(0, 500) });
+    throw new AinContractError('temporary_failure', '에이전트가 요청을 처리하지 못했습니다.', { status: 502, retryable: true, detail: 'agent_rpc_error' });
+  }
   const t = r.result as (A2aTask & { kind?: string }) | { kind: 'message'; parts: A2aPart[]; messageId: string; contextId?: string } | undefined;
   if (!t || typeof t !== 'object') throw new AinContractError('temporary_failure', '에이전트 응답이 비어 있습니다.', { status: 502, retryable: true });
   if ((t as { kind?: string }).kind === 'message') {
@@ -112,9 +121,9 @@ export async function invokeAgent(opts: InvokeAgentOptions, input: InvokeAgentIn
   }
   let rpc: { result?: unknown; error?: { message?: string } };
   try { rpc = await res.json(); } catch { throw new AinContractError('temporary_failure', '에이전트 응답을 읽을 수 없습니다.', { status: 502, retryable: true }); }
-  const a2aTask = unwrap(rpc);
-  let text = textOfTask(a2aTask);
-  if (input.delegation && text.includes(input.delegation.token)) text = text.split(input.delegation.token).join('[redacted]');
+  const redact = redactor(input.delegation);
+  const a2aTask = unwrap(rpc, redact);
+  const text = redact(textOfTask(a2aTask));
   const status = STATE[a2aTask.status.state] ?? 'working';
   const task: TaskRef = {
     contract: AIN_CONTRACT_VERSION,

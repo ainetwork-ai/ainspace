@@ -163,7 +163,11 @@ export async function listFolderEntries(opts: FilesSourceOptions, driveId: strin
     throw new AinContractError(code, `${res.status} listing folder`, { status: res.status });
   }
   const rpc = await readMcpResult(res);
-  if (rpc.error || !rpc.result) throw new AinContractError('temporary_failure', 'aindrive 폴더 목록 응답을 읽을 수 없습니다.', { detail: rpc.error?.message });
+  if (rpc.error || !rpc.result) {
+    // MCP 의 error.message 는 원본이 만든 문자열이라 응답에 싣지 않는다(계정 토큰이 섞일 수 있다). 로그에도 토큰은 지운다.
+    console.error('aindrive MCP list_files error:', { message: String(rpc.error?.message ?? '(no result)').split(opts.token).join('[redacted]').slice(0, 500) });
+    throw new AinContractError('temporary_failure', 'aindrive 폴더 목록 응답을 읽을 수 없습니다.', { detail: 'aindrive_mcp_error' });
+  }
   const result = rpc.result as { isError?: boolean; structuredContent?: { entries?: unknown[] }; content?: { type: string; text?: string }[] };
   if (result.isError) {
     const msg = (result.content ?? []).map((c) => c.text ?? '').join(' ').toLowerCase();

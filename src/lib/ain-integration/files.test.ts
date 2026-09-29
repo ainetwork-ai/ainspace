@@ -1,7 +1,7 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fileListFixture from './__fixtures__/file-list-response.json';
-import { aindriveFileId, aindriveNormalizePath, driveToFolderItem, listSharedFiles } from './files';
+import { aindriveFileId, aindriveNormalizePath, driveToFolderItem, listFolderEntries, listSharedFiles } from './files';
 import { findSecretKey, resetNativeSupport } from './http';
 import { AinContractError, isFileListResponse } from './types';
 import { fakeFetch, jsonResponse } from './__tests__/helpers';
@@ -106,4 +106,12 @@ test('네이티브 응답의 sourceUrl 에 자격증명이 실려 있으면 그 
   const res = await listSharedFiles(opts(f), { scope: 'shared_with_me', limit: 50 });
   assert.equal(res.items[0].ref.sourceUrl, undefined);
   assert.equal(res.items[0].ref.fileId, fileListFixture.items[0].ref.fileId);
+});
+
+test('폴더 탐색(MCP) 오류: 원본의 error.message 는 응답 바디(detail)에 싣지 않는다 — 계정 토큰이 섞여 와도', async () => {
+  const f = fakeFetch({ '/mcp/d/drv_1': () => jsonResponse({ jsonrpc: '2.0', id: 1, error: { code: -32000, message: 'bad token aind_aat_secret rejected' } }) });
+  await assert.rejects(() => listFolderEntries(opts(f), 'drv_1', '/'), (e: AinContractError) => {
+    const body = JSON.stringify(e.toBody());
+    return e.code === 'temporary_failure' && e.detail === 'aindrive_mcp_error' && !body.includes('aind_aat_secret') && !body.includes('rejected');
+  });
 });

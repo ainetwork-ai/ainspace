@@ -1,5 +1,4 @@
 import { NextRequest } from 'next/server';
-import { decodeUserId } from '@/lib/backend/server-client';
 import { getAindriveConnectUrl, getAindriveUrl, getAinizeUrl } from '@/lib/ain-integration/config';
 import { eventsDeps as deps } from '@/lib/ain-integration/deps';
 import { errorResponse, failureResponse, guardAinRoute, okResponse } from '@/lib/ain-integration/route';
@@ -11,12 +10,12 @@ export const runtime = 'nodejs';
  * GET /api/ain/events?source=aindrive|ainize&cursor=
  *   → 계약 event-page 그대로 (adapter-invoke-spec §GET /api/ain/events)
  *
- * 앱 세션으로 보호한다. aindrive 피드는 사용자의 aindrive 계정 토큰으로(없으면 `auth_required` + actionUrl),
+ * 앱 세션(검증된 backend JWT)으로 보호한다. aindrive 피드는 사용자의 aindrive 계정 토큰으로(없으면 `auth_required` + actionUrl),
  * Ainize 피드는 익명으로 부른다. 소비자(클라이언트 캐시)는 `reduceEventPage` 로 적용한다.
  */
 export async function GET(request: NextRequest) {
-  const guard = guardAinRoute(request);
-  if (!('bearer' in guard)) return guard;
+  const guard = await guardAinRoute(request);
+  if (!('userId' in guard)) return guard;
 
   const params = request.nextUrl.searchParams;
   const source = params.get('source') ?? '';
@@ -30,7 +29,7 @@ export async function GET(request: NextRequest) {
 
   try {
     if (source === 'aindrive') {
-      const token = await deps.getAindriveAccountToken(decodeUserId(guard.bearer));
+      const token = await deps.getAindriveAccountToken(guard.userId);
       const page = await deps.fetchEvents({ source: 'aindrive', baseUrl: getAindriveUrl(), token, connectUrl: getAindriveConnectUrl() }, cursor);
       return okResponse(page);
     }

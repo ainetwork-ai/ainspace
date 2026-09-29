@@ -1,15 +1,16 @@
 /**
  * `/api/ain/*` 라우트 공용 — 플래그·세션 가드, 쿼리 파싱, 계약 오류 응답.
  *
- * 세션: 다른 BFF 라우트와 같이 브라우저가 든 backend JWT(`getBearer`)로 보호한다. 토큰은
- * 원본(aindrive/Ainize)으로 전달하지 않고 호출자 식별(`sub`)에만 쓴다.
+ * 세션: 브라우저가 든 backend JWT 를 **여기서 검증**한다(`app-session.ts`: 공유 키 HS256 또는 backend
+ * `/auth/me` introspection). 이 라우트군은 토큰을 원본(aindrive/Ainize/SSO)으로 전달하지 않고 검증된
+ * `sub` 만 호출자 식별에 쓴다. bearer 는 Authorization 헤더에서만 읽는다(`?token=` 불가).
  */
 import { NextResponse, type NextRequest } from 'next/server';
-import { getBearer } from '@/lib/backend/server-client';
+import { readBearerHeader, verifyAppSession, type AppSession } from './app-session';
 import { isAinIntegrationEnabled } from './config';
 import { stripSecretKeys } from './http';
 import {
-  HTTP_STATUS_FOR, LIST_LIMIT_DEFAULT, LIST_LIMIT_MAX, makeError, toErrorBody,
+  AinContractError, HTTP_STATUS_FOR, LIST_LIMIT_DEFAULT, LIST_LIMIT_MAX, makeError, toErrorBody,
   type ErrorBody,
 } from './types';
 
@@ -24,18 +25,28 @@ export function okResponse<T>(body: T): NextResponse {
 }
 
 /**
- * 플래그 off → 404 (라우트가 "없는" 것처럼). 세션 없음 → 401 `auth_required`.
- * 통과하면 bearer 를 돌려준다.
+ * 플래그 off → 404 (라우트가 "없는" 것처럼). 세션 없음·위조·만료 → 401 `auth_required`.
+ * 검증기가 설정되어 있지 않거나 닿지 않으면 503 `temporary_failure`(세션이 없다고 단정하지 않는다).
+ * 통과하면 검증된 사용자 id 를 돌려준다 — 서명 없는 `sub` 는 절대 쓰지 않는다.
  */
-export function guardAinRoute(request: NextRequest): { bearer: string } | NextResponse {
+export async function guardAinRoute(request: NextRequest): Promise<AppSession | NextResponse> {
   if (!isAinIntegrationEnabled()) {
     return errorResponse(makeError('temporary_failure', 'AIN 통합이 이 배포에서 꺼져 있습니다.', { retryable: false, detail: 'ain_integration_disabled' }), 404);
   }
-  const bearer = getBearer(request);
+  const bearer = readBearerHeader(request);
   if (!bearer) {
     return errorResponse(makeError('auth_required', '로그인이 필요합니다.'));
   }
-  return { bearer };
+  let session: AppSession | null;
+  try {
+    session = await verifyAppSession(bearer);
+  } catch (e) {
+    return failureResponse(e);
+  }
+  if (!session) {
+    return errorResponse(makeError('auth_required', '세션이 유효하지 않습니다. 다시 로그인해 주세요.'));
+  }
+  return session;
 }
 
 export interface ParsedListQuery<S extends string> { scope: S; q?: string; cursor?: string; limit: number; org?: string; folder?: string }
@@ -62,11 +73,12 @@ export function parseListQuery<S extends string>(params: URLSearchParams, scopes
   return { scope: scopeRaw as S, ...(q ? { q } : {}), ...(cursor ? { cursor } : {}), limit, ...(org ? { org } : {}), ...(folder ? { folder } : {}) };
 }
 
+/** 어댑터 오류 → 계약 바디. `AinContractError` 가 고른 HTTP status 를 그대로 쓴다(바디의 code 매핑과 다를 수 있다). */
 export const failureResponse = (e: unknown): NextResponse => {
   const body = toErrorBody(e);
   if (body.error.code === 'temporary_failure') {
     // 원본 호출 실패의 원인은 서버 로그에만 남긴다(메시지에 토큰·URL 쿼리가 실릴 수 있는 종류라 응답에는 일반 문구).
     console.error('AIN integration upstream failure:', e instanceof Error ? e.message : e);
   }
-  return errorResponse(body);
+  return errorResponse(body, e instanceof AinContractError ? e.status : undefined);
 };

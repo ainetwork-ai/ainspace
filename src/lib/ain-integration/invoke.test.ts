@@ -166,6 +166,14 @@ test('(c) 같은 입력 두 번 → 같은 messageId·taskId, 위임 키는 시�
   assert.notEqual(d.task.idempotencyKey, a.task.idempotencyKey);
   assert.match(a.task.idempotencyKey, /^idem_[0-9a-f]{40}$/);
   assert.equal(deriveIdempotencyKey({ account: 'u', agentKey: 'a#b', fileKeys: ['k'], text: 't', conversation: 'c' }), deriveIdempotencyKey({ account: 'u', agentKey: 'a#b', fileKeys: ['k'], text: 't', conversation: 'c' }));
+  // room 은 contextId 의 경계이므로 키에도 들어간다: 다른 방 = 다른 messageId. fileKeys 는 순서와 무관.
+  const e = await invokeSharedAgent(opts(s.f), { ...request, room: 'village-1' });
+  assert.notEqual(e.task.idempotencyKey, a.task.idempotencyKey);
+  assert.equal(e.task.contextId, 'ctx:user-42:-:ainspace:village-1:thr_1');
+  const base = { account: 'u', agentKey: 'a#b', text: 't', conversation: 'c' };
+  assert.equal(deriveIdempotencyKey({ ...base, fileKeys: ['k1', 'k2'] }), deriveIdempotencyKey({ ...base, fileKeys: ['k2', 'k1', 'k2'] }));
+  assert.equal(deriveIdempotencyKey({ ...base, fileKeys: ['k'] }), deriveIdempotencyKey({ ...base, fileKeys: ['k'], room: null }));
+  assert.notEqual(deriveIdempotencyKey({ ...base, fileKeys: ['k'], room: 'r1' }), deriveIdempotencyKey({ ...base, fileKeys: ['k'], room: 'r2' }));
 });
 
 test('(d) popJwk 없는 에이전트 → unsupported_input (SSO·A2A 는 호출되지 않는다)', async () => {
@@ -180,6 +188,11 @@ test('(d) popJwk 없는 에이전트 → unsupported_input (SSO·A2A 는 호출�
 test('(e) 세션 증명 없음 → auth_required + actionUrl(AIN SSO 연결); 다른 토큰을 대신 보내지 않는다', async () => {
   const s = stack();
   await assert.rejects(() => invokeSharedAgent(opts(s.f, { getSessionProof: async () => null }), request), (e: AinContractError) => e.code === 'auth_required' && e.actionUrl === `${SSO}/`);
+  // SSO 클라이언트가 설정되지 않은 배포는 사용자 문제(auth_required)가 아니라 배포 문제(temporary_failure)로 — 증명 유무와 무관하게, 증명 조회보다 먼저.
+  let proofAsked = false;
+  await assert.rejects(() => invokeSharedAgent(opts(s.f, { sso: null, getSessionProof: async () => { proofAsked = true; return null; } }), request), (e: AinContractError) => e.code === 'temporary_failure' && e.detail === 'ain_sso_client_missing' && e.retryable === false);
+  assert.equal(proofAsked, false);
+  await assert.rejects(() => invokeSharedAgent(opts(s.f, { sso: null }), request), (e: AinContractError) => e.code === 'temporary_failure' && e.detail === 'ain_sso_client_missing');
   assert.equal(s.ssoBodies.length, 0);
   assert.equal(s.a2aBodies.length, 0);
   // SSO 가 증명을 거절하면 auth_required
@@ -212,8 +225,12 @@ test('A2A: failed 상태는 error 를 싣고, JSON-RPC error 는 temporary_failu
   assert.equal(r.task.status, 'failed');
   assert.equal(r.task.error?.code, 'temporary_failure');
   assert.equal(r.text, '읽을 수 없음');
-  const err = stack({ agentReply: (b) => ({ jsonrpc: '2.0', id: b.id, error: { code: -32000, message: 'boom' } }) });
-  await assert.rejects(() => invokeSharedAgent(opts(err.f), request), (e: AinContractError) => e.code === 'temporary_failure' && e.retryable);
+  // JSON-RPC error.message 는 에이전트가 만든 문자열: 토큰을 되돌려 말해도 응답 바디(detail·message)에 실리지 않는다.
+  const err = stack({ agentReply: (b) => ({ jsonrpc: '2.0', id: b.id, error: { code: -32000, message: `boom ${DELEGATION_TOKEN}` } }) });
+  await assert.rejects(() => invokeSharedAgent(opts(err.f), request), (e: AinContractError) => {
+    const body = JSON.stringify(e.toBody());
+    return e.code === 'temporary_failure' && e.retryable && e.status === 502 && e.detail === 'agent_rpc_error' && !body.includes(DELEGATION_TOKEN) && !body.includes('boom') && !e.message.includes(DELEGATION_TOKEN);
+  });
   const msg = stack({ agentReply: (b) => ({ jsonrpc: '2.0', id: b.id, result: { kind: 'message', messageId: 'm-1', parts: [{ kind: 'text', text: '바로 답' }] } }) });
   const m = await invokeSharedAgent(opts(msg.f), request);
   assert.equal(m.task.status, 'completed');

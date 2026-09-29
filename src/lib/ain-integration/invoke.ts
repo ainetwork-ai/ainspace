@@ -7,9 +7,11 @@
  *     탐색(MCP list_files)해 경로 해시가 맞는 항목을 찾는다. 못 찾으면 `forbidden`(볼 수 없는 파일의 이름은
  *     응답에 넣지 않는다).
  *  3. 위임: 파일이 있으면 `getSessionProof` 로 사용자의 AIN SSO ID 토큰을 얻어 SSO 에 `ain-rdlg+jwt` 를
- *     요청한다. 증명이 없으면 `auth_required` + actionUrl. 에이전트에 popJwk 가 없으면 `unsupported_input`.
- *  4. 호출: A2A `message/send`. `idempotencyKey` 는 (account, agentKey, fileKeys, text, conversation) 에서
- *     결정적으로 유도해 재시도가 같은 messageId 를 보내게 한다. 위임의 idempotencyKey 는 시도마다 새 값이다
+ *     요청한다. SSO 클라이언트 설정이 없으면(배포 문제) `temporary_failure` 를 먼저, 증명이 없으면(사용자 문제)
+ *     `auth_required` + actionUrl(항상 연결 안내가 실린다). 에이전트에 popJwk 가 없으면 `unsupported_input`.
+ *  4. 호출: A2A `message/send`. `idempotencyKey` 는 (account, agentKey, fileKeys 정렬, text, conversation, room)
+ *     에서 결정적으로 유도해 재시도가 같은 messageId 를 보내게 한다 — contextId 에 들어가는 것(room 포함)이
+ *     모두 들어가므로 다른 방의 같은 요청이 같은 messageId 로 다른 contextId 를 보내는 일이 없다. 위임의 idempotencyKey 는 시도마다 새 값이다
  *     (SSO 는 토큰을 한 번만 돌려주므로, 재시도는 새 단기 위임을 받아야 한다).
  *
  * 순수 함수 + fetch 주입. 토큰(세션 증명·위임·계정)은 응답·로그·오류 메시지에 절대 싣지 않는다.
@@ -53,9 +55,13 @@ export interface InvokeResult { task: TaskRef; text: string }
 
 export const INVOKE_LIMITS = { text: 20_000, fileKeys: 64, conversation: 256, room: 256, key: 1024 } as const;
 
-/** 결정적 idempotencyKey — 계약 opaqueId(공백·슬래시 없음). */
-export function deriveIdempotencyKey(input: { account: string; agentKey: string; fileKeys: string[]; text: string; conversation: string }): string {
-  const h = createHash('sha256').update(JSON.stringify([input.account, input.agentKey, input.fileKeys, input.text, input.conversation])).digest('hex');
+/**
+ * 결정적 idempotencyKey — 계약 opaqueId(공백·슬래시 없음). fileKeys 는 순서와 무관하게(정렬), room 은
+ * contextId 와 같은 경계로(없으면 null) 들어간다.
+ */
+export function deriveIdempotencyKey(input: { account: string; agentKey: string; fileKeys: string[]; text: string; conversation: string; room?: string | null }): string {
+  const fileKeys = [...new Set(input.fileKeys)].sort();
+  const h = createHash('sha256').update(JSON.stringify([input.account, input.agentKey, fileKeys, input.text, input.conversation, input.room ?? null])).digest('hex');
   return `idem_${h.slice(0, 40)}`;
 }
 
@@ -129,18 +135,19 @@ export async function invokeSharedAgent(opts: InvokeOptions, req: InvokeRequest)
   const files = await resolveFiles({ aindriveUrl: opts.aindriveUrl, token: opts.aindriveToken, connectUrl: opts.aindriveConnectUrl, fetch: opts.fetch, now: opts.now }, req.fileKeys);
 
   const scope: ConversationScope = { ...opts.scope, room: req.room ?? null, conversation: req.conversation };
-  const idempotencyKey = deriveIdempotencyKey({ account: scope.account, agentKey: agentKey(agent.ref), fileKeys: files.map(fileKey), text: req.text, conversation: req.conversation });
+  const idempotencyKey = deriveIdempotencyKey({ account: scope.account, agentKey: agentKey(agent.ref), fileKeys: files.map(fileKey), text: req.text, conversation: req.conversation, room: scope.room });
 
   let delegation: DelegationPart | undefined;
   if (files.length) {
     if (!agent.ref.popJwk) throw new AinContractError('unsupported_input', '이 에이전트는 PoP 키를 광고하지 않아 파일을 넘길 수 없습니다.', { status: 415 });
+    // 배포 설정 문제(SSO 클라이언트 없음)를 사용자 인증 문제로 보이게 하지 않는다: 설정을 먼저 본다.
+    if (!opts.sso) throw new AinContractError('temporary_failure', 'AIN SSO 클라이언트가 이 배포에 설정되어 있지 않습니다.', { retryable: false, detail: 'ain_sso_client_missing' });
     const sessionProof = await opts.getSessionProof();
     if (!sessionProof) {
       throw new AinContractError('auth_required', 'AIN SSO 계정이 연결되어 있지 않습니다. 연결하면 파일을 에이전트에게 넘길 수 있습니다.', {
-        ...(opts.sso?.connectUrl ? { actionUrl: opts.sso.connectUrl } : {}),
+        ...(opts.sso.connectUrl ? { actionUrl: opts.sso.connectUrl } : {}),
       });
     }
-    if (!opts.sso) throw new AinContractError('temporary_failure', 'AIN SSO 클라이언트가 이 배포에 설정되어 있지 않습니다.', { retryable: false, detail: 'ain_sso_client_missing' });
     const issued = await requestDelegation({ ...opts.sso, fetch: opts.fetch }, {
       sessionProof, agent: agent.ref, files,
       idempotencyKey: `${idempotencyKey}-dlg-${randomBytes(6).toString('hex')}`,
