@@ -2,7 +2,7 @@
  * AIN 통합 어댑터 라이브 점검 — 실제 aindrive / Ainize / AIN SSO 노드에 제품의 어댑터를 그대로 붙여 본다.
  *
  * 실행:
- *   AINDRIVE_TOKEN_FILE=/path/to/bob-aat npx tsx scripts/ain-integration-live-check.ts [--invoke] [--events]
+ *   AINDRIVE_TOKEN_FILE=/path/to/bob-aat npx tsx scripts/ain-integration-live-check.ts [--invoke] [--events] [--save]
  *
  * env (모두 선택, 기본은 로컬 스택):
  *   AINDRIVE_URL            (기본 http://127.0.0.1:3737)
@@ -22,6 +22,11 @@
  *   기대: task.status==='completed', 답변에 "Sources" 와 파일의 사실("김작가" 또는 "12점"), 두 번째 호출은 같은 taskId,
  *         라우트(/api/ain/invoke)도 같은 taskId. 토큰(세션 증명·위임·계정)은 응답·출력 어디에도 없다.
  * --events: /api/ain/events?source=aindrive|ainize 를 어댑터와 라우트로 불러 이벤트 수를 찍는다.
+ * --save (--invoke 와 같은 비밀 필요, 토큰은 drives:write 도 있어야 한다):
+ *   SAVE_FOLDER_KEY   답변을 쓸 **내** 폴더의 fileKey (기본 …#ni37ry1tdOvC#p1:219bf3e9… = bob 의 drive-B 루트)
+ *   SAVE_DISPLAY_NAME (기본 summary-ainspace.md), onConflict 는 rename.
+ *   기대: task.outputs[0] 이 그 폴더의 파일(fileKey 가 제품 자신의 목록(mine)+MCP 탐색으로 다시 보인다), 두 번째 호출은
+ *         같은 taskId·같은 outputs[0].fileId 이고 폴더의 파일 수가 늘지 않는다(재시도 재사용), 라우트도 같다.
  *
  * 1) 순수 어댑터(`lib/ain-integration/{files,agents,invoke,events}`)를 fetch=globalThis.fetch 로 직접 호출한다.
  * 2) `/api/ain/*` 라우트 핸들러를 **실제 세션**으로 in-process 호출한다: 이 프로세스에서만 쓰는 무작위 HS256 키를
@@ -35,16 +40,18 @@
  */
 import { createHmac, randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { listSharedFiles } from '../src/lib/ain-integration/files';
+import { entryToFileRef, findInFolder, listFolderEntries, listSharedFiles } from '../src/lib/ain-integration/files';
+import { isRenamedVariant } from '../src/lib/ain-integration/save';
 import { listSharedAgents } from '../src/lib/ain-integration/agents';
 import { fetchEvents } from '../src/lib/ain-integration/events';
 import { findSecretKey } from '../src/lib/ain-integration/http';
 import { invokeSharedAgent, type InvokeResult } from '../src/lib/ain-integration/invoke';
-import { agentKey, conversationContextId, fileKey, isEventPage, isTaskRef, type AgentListResponse, type EventPage, type FileListResponse } from '../src/lib/ain-integration/types';
+import { agentKey, conversationContextId, fileKey, isEventPage, isFileRef, isTaskRef, parseFileKey, type AgentListResponse, type EventPage, type FileListResponse, type FileRef } from '../src/lib/ain-integration/types';
 
 const ARGS = new Set(process.argv.slice(2));
 const DO_INVOKE = ARGS.has('--invoke');
 const DO_EVENTS = ARGS.has('--events');
+const DO_SAVE = ARGS.has('--save');
 
 const stripSlash = (u: string) => u.replace(/\/+$/, '');
 const AINDRIVE_URL = stripSlash(process.env.AINDRIVE_URL?.trim() || 'http://127.0.0.1:3737');
@@ -56,6 +63,8 @@ const EXPECT_INVOKE_FILE_KEY = process.env.EXPECT_INVOKE_FILE_KEY?.trim()
   || 'http://127.0.0.1:3737#TOIUVmRbXUWS#p1:9a6888b347a36e18ab4e8f8bdf11f22e';
 const INVOKE_TEXT = process.env.INVOKE_TEXT?.trim() || '이 문서를 두 줄로 요약하고 Sources를 남겨줘';
 const AIN_SSO_ISSUER = stripSlash(process.env.AIN_SSO_ISSUER?.trim() || 'http://127.0.0.1:3910');
+const SAVE_FOLDER_KEY = process.env.SAVE_FOLDER_KEY?.trim() || 'http://127.0.0.1:3737#ni37ry1tdOvC#p1:219bf3e95a35cf3726d1ded33e8dea20';
+const SAVE_DISPLAY_NAME = process.env.SAVE_DISPLAY_NAME?.trim() || 'summary-ainspace.md';
 const LIVE_USER_ID = process.env.LIVE_USER_ID?.trim() || 'live-check-user';
 const CONVERSATION = 'live-check';
 const SKIP_ROUTES = process.env.SKIP_ROUTE_CHECK === '1';
@@ -349,6 +358,104 @@ async function main() {
       } catch (e) { fail(`events route threw: ${redact(token, e)}`); }
     }
     summary.eventCounts = counts;
+  }
+
+  // ---------------------------------------------------------------- 5. --save: 답변을 내 aindrive 폴더에 저장
+  if (DO_SAVE) {
+    console.log(`\n[5] save: invoke with saveTo ${SAVE_FOLDER_KEY} / ${SAVE_DISPLAY_NAME} (rename)`);
+    try {
+      const secrets = loadInvokeSecrets();
+      SECRETS.push(secrets.sessionProof, secrets.clientSecret);
+      const folderParts = parseFileKey(SAVE_FOLDER_KEY);
+      if (!folderParts) throw new Error('SAVE_FOLDER_KEY is not a fileKey');
+      const filesOpts = { aindriveUrl: AINDRIVE_URL, token, fetch: globalThis.fetch };
+      const scope = { account: LIVE_USER_ID, org: null, product: 'ainspace' as const };
+      const opts = {
+        aindriveUrl: AINDRIVE_URL, ainizeUrl: AINIZE_URL, aindriveToken: token,
+        sso: { issuer: AIN_SSO_ISSUER, clientId: secrets.clientId, clientSecret: secrets.clientSecret, connectUrl: `${AIN_SSO_ISSUER}/` },
+        getSessionProof: async () => secrets.sessionProof, scope, fetch: globalThis.fetch,
+      };
+      const req = { agentKey: EXPECT_AGENT_KEY, text: INVOKE_TEXT, fileKeys: [EXPECT_INVOKE_FILE_KEY], conversation: 'live-check-save', saveTo: { folderKey: SAVE_FOLDER_KEY, displayName: SAVE_DISPLAY_NAME, onConflict: 'rename' as const } };
+
+      // 제품 자신의 목록(mine)으로 폴더를 찾고 그 안을 MCP 로 훑는다 — 저장 전후의 파일 수를 센다.
+      const mine = await listSharedFiles(filesOpts, { scope: 'mine', limit: 50 });
+      let folder: FileRef | null = mine.items.map((i) => i.ref).find((r) => fileKey(r) === SAVE_FOLDER_KEY) ?? null;
+      if (!folder) {
+        for (const root of mine.items.map((i) => i.ref).filter((r) => r.driveId === folderParts.driveId && r.kind === 'folder')) { folder = await findInFolder(filesOpts, root, folderParts.fileId); if (folder) break; }
+      }
+      check(!!folder && folder.kind === 'folder', `save: folder ${SAVE_FOLDER_KEY} is in the user's own listing (mine)`);
+      if (!folder) throw new Error('save folder not found in mine listing');
+      const browse = async () => {
+        const entries = await listFolderEntries(filesOpts, folder!.driveId, folder!.legacy?.path ?? '/');
+        const refs = entries.filter((e) => !e.isDir).map((e) => entryToFileRef(folder!, e));
+        const outputs = refs.filter((r) => r.displayName === SAVE_DISPLAY_NAME || isRenamedVariant(SAVE_DISPLAY_NAME, r.displayName));
+        return { refs, outputs };
+      };
+      const before = await browse();
+      console.log(`  before: ${before.refs.length} file(s) in folder, ${before.outputs.length} named like ${SAVE_DISPLAY_NAME}`);
+
+      const checkSaved = (label: string, r: InvokeResult) => {
+        const t = r.task;
+        console.log(`  ${label} task=${t.taskId} status=${t.status} outputs=${t.outputs.length}${t.outputs[0] ? ` → ${fileKey(t.outputs[0].file)} (${t.outputs[0].file.displayName}, overwrote=${t.outputs[0].overwrote})` : ''}`);
+        check(isTaskRef(t) && t.status === 'completed', `${label}: task completed`);
+        check(t.outputs.length === 1 && isFileRef(t.outputs[0].file), `${label}: outputs[0] is a contract FileRef`);
+        const out = t.outputs[0]?.file;
+        if (out) {
+          check(out.issuer === AINDRIVE_URL && out.driveId === folderParts.driveId && out.kind === 'file', `${label}: outputs[0] is a file in the target drive`);
+          check(out.displayName === SAVE_DISPLAY_NAME || isRenamedVariant(SAVE_DISPLAY_NAME, out.displayName), `${label}: displayName ${out.displayName} is ${SAVE_DISPLAY_NAME} or its rename variant`);
+          check(/^p1:[0-9a-f]{32}$/.test(out.fileId) && /^m\d+-s\d+$/.test(out.revision), `${label}: fileId p1:… / revision m…-s…`);
+          check(out.sourceUrl === `${AINDRIVE_URL}/d/${encodeURIComponent(out.driveId)}${(out.legacy?.path ?? '').split('/').map(encodeURIComponent).join('/')}`, `${label}: sourceUrl = {AINDRIVE_URL}/d/{driveId}{path}`);
+          check(JSON.stringify(out.ownerRef) === JSON.stringify(folder!.ownerRef), `${label}: ownerRef is the folder owner (the user)`);
+          check(t.outputs[0].overwrote === false, `${label}: overwrote=false (rename policy)`);
+        }
+        check(!leaks(r) && findSecretKey(r) === null && !JSON.stringify(r).includes(token), `${label}: no secrets in result`);
+      };
+
+      const first = await invokeSharedAgent(opts, req);
+      checkSaved('adapter#1', first);
+      const firstKey = first.task.outputs[0] ? fileKey(first.task.outputs[0].file) : '';
+      const afterFirst = await browse();
+      check(afterFirst.refs.some((r) => fileKey(r) === firstKey), `save: outputs[0] fileKey is visible through the product's own browse of the folder (${firstKey})`);
+      const foundByWalk = firstKey ? await findInFolder(filesOpts, folder, parseFileKey(firstKey)!.fileId) : null;
+      check(!!foundByWalk && fileKey(foundByWalk) === firstKey, 'save: findInFolder resolves the saved fileId to the same FileRef');
+      console.log(`  after#1: ${afterFirst.refs.length} file(s), ${afterFirst.outputs.length} named like ${SAVE_DISPLAY_NAME}`);
+
+      const second = await invokeSharedAgent(opts, req);
+      checkSaved('adapter#2', second);
+      check(second.task.taskId === first.task.taskId, 'adapter#2: same taskId on retry');
+      check(second.task.outputs[0] && fileKey(second.task.outputs[0].file) === firstKey, 'adapter#2: same outputs[0] fileKey (reused, not written again)');
+      const afterSecond = await browse();
+      // 폴더는 다른 제품의 라이브 체크와 공유되므로 전체 파일 수가 아니라 "우리 이름(및 rename 변형)" 의 수만 비교한다.
+      check(afterSecond.outputs.length === afterFirst.outputs.length, `save: second run did not create another file named like ${SAVE_DISPLAY_NAME} (${afterFirst.outputs.length} → ${afterSecond.outputs.length}; folder total ${afterFirst.refs.length} → ${afterSecond.refs.length})`);
+      summary.savedFileKey = firstKey; summary.savedDisplayName = first.task.outputs[0]?.file.displayName; summary.folderFilesAfter = afterSecond.refs.length;
+
+      if (!SKIP_ROUTES) {
+        setRouteEnv();
+        process.env.AIN_SSO_ISSUER = AIN_SSO_ISSUER;
+        process.env.AIN_SSO_CLIENT_ID = secrets.clientId; process.env.AIN_SSO_CLIENT_SECRET = secrets.clientSecret;
+        if (!session) { session = mintSession(LIVE_USER_ID); SECRETS.push(session); }
+        const { NextRequest } = await import('next/server');
+        const { invokeDeps } = await import('../src/lib/ain-integration/deps');
+        const invoke = await import('../src/app/api/ain/invoke/route');
+        invokeDeps.getAindriveAccountToken = async () => token;
+        invokeDeps.getSessionProof = async () => secrets.sessionProof;
+        invokeDeps.saveTaskRef = async () => {};
+        const res = await invoke.POST(new NextRequest('http://localhost/api/ain/invoke', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${session}` }, body: JSON.stringify(req) }));
+        const body = await res.json();
+        check(res.status === 200, `route invoke(saveTo): status 200 (got ${res.status}${res.status !== 200 ? ` ${JSON.stringify(body)}` : ''})`);
+        if (res.status === 200) {
+          checkSaved('route', body as InvokeResult);
+          check((body as InvokeResult).task.outputs[0] && fileKey((body as InvokeResult).task.outputs[0].file) === firstKey, 'route invoke(saveTo): same outputs[0] fileKey as adapter');
+          const afterRoute = await browse();
+          check(afterRoute.outputs.length === afterSecond.outputs.length, `route invoke(saveTo): no new file named like ${SAVE_DISPLAY_NAME} either`);
+        }
+        check(!JSON.stringify(body).includes(token) && !leaks(body), 'route invoke(saveTo): no secrets in body');
+        // 잘못된 saveTo 는 400 으로 막힌다(원본 호출 없이).
+        const bad = await invoke.POST(new NextRequest('http://localhost/api/ain/invoke', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${session}` }, body: JSON.stringify({ ...req, saveTo: { ...req.saveTo, displayName: 'a/b.md' } }) }));
+        check(bad.status === 400, `route invoke(saveTo): displayName with slash → 400 (got ${bad.status})`);
+        summary.saveRouteStatus = res.status;
+      }
+    } catch (e) { fail(`save threw: ${redact(token, e)}`); }
   }
 
   summary.ok = failures.length === 0;

@@ -197,11 +197,15 @@ export class AinContractError extends Error {
   readonly detail?: string;
   readonly upstreamStatus?: number;
 
-  constructor(code: ErrorCode, message: string, opts: { retryable?: boolean; actionUrl?: string; detail?: string; upstreamStatus?: number } = {}) {
+  /**
+   * `conflict: true` 는 제품 자신의 판단(같은 이름의 출력 파일이 있고 `onConflict: 'fail'`)을 409 로 보낸다 —
+   * 원본의 status 가 아니라 계약이 정한 유일한 예외(reference-client `writeText` 와 같은 매핑).
+   */
+  constructor(code: ErrorCode, message: string, opts: { retryable?: boolean; actionUrl?: string; detail?: string; upstreamStatus?: number; conflict?: boolean } = {}) {
     super(message);
     this.name = 'AinContractError';
     this.code = code;
-    this.status = HTTP_STATUS_FOR[code];
+    this.status = opts.conflict ? 409 : HTTP_STATUS_FOR[code];
     this.retryable = opts.retryable ?? RETRYABLE[code];
     this.actionUrl = opts.actionUrl;
     this.detail = opts.detail;

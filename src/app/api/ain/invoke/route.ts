@@ -10,8 +10,10 @@ import { makeError } from '@/lib/ain-integration/types';
 export const runtime = 'nodejs';
 
 /**
- * POST /api/ain/invoke  { agentKey, text, fileKeys: string[], conversation, room? }
+ * POST /api/ain/invoke  { agentKey, text, fileKeys: string[], conversation, room?, saveTo? }
  *   → 200 { task: TaskRef, text }  (adapter-invoke-spec §POST /api/ain/invoke)
+ *   saveTo: { folderKey, displayName, onConflict: 'fail'|'overwrite'|'rename' } — 완료된 답변을 사용자 자신의 aindrive
+ *   폴더에 쓰고 `task.outputs[0] = { file, overwrote }` 로 보고한다(lib/ain-integration/save.ts). 이름 충돌 + fail 은 409.
  *
  * 앱 세션(검증된 backend JWT — 서명 없는 `sub` 는 거절)으로 보호한다. 선택한 파일을 선택한 공유 에이전트에게
  * 넘겨 호출한다: 파일은 사용자의 aindrive 계정 토큰으로 해석하고, 위임은 사용자의 **AIN SSO ID 토큰**(세션 증명)

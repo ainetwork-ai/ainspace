@@ -358,9 +358,23 @@ export interface StoredAgent {
     // list; stored beside backendUuid so Space can join Teams/Ainize views of the
     // same agent. Optional — URL-imported and roster-synced agents have none.
     commonAgentId?: string;
+    // AIN integration (plan 17.3): version of the last Ainize agent.* event applied
+    // to backendStatus (lib/ain-integration/agent-events.ts). Older events never
+    // roll a newer status back. Placement is untouched by those events.
+    ainStatusVersion?: number;
 }
 
 const AGENTS_KEY = 'agents:';
+
+/**
+ * AIN integration: persist one StoredAgent under its `agents:<base64(url)>` key
+ * (same key form as PUT /api/agents). Throws on Redis failure so the caller can
+ * report it — status changes must not be silently dropped.
+ */
+export async function saveStoredAgent(agent: StoredAgent): Promise<void> {
+    const redis = await getRedisClient();
+    await redis.set(`${AGENTS_KEY}${Buffer.from(agent.url).toString('base64')}`, JSON.stringify(agent));
+}
 
 /**
  * Get all registered agents from Redis

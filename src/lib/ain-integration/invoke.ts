@@ -12,6 +12,9 @@
  *     찾느라 원본을 부르지 않는다.
  *  4. 위임: SSO 에 `ain-rdlg+jwt` 를 요청한다. SSO 가 증명을 거절하면 `auth_required` 에도 AIN SSO 연결 actionUrl 을
  *     싣는다(aindrive 연결 URL 은 계정 토큰이 없을 때만 — 둘을 바꿔 싣지 않는다).
+ *  6. 저장(선택, `saveTo`): 폴더는 **에이전트를 부르기 전에** 사용자 자신의 목록(mine)에서 찾는다(계정 토큰이 없으면
+ *     `auth_required`, 내 것이 아니면 `forbidden`). task 가 `completed` 면 답변 텍스트를 그 폴더에 쓰고
+ *     `TaskRef.outputs[0] = { file, overwrote }` 로 보고한다(save.ts — 충돌 정책·재시도 규칙은 거기에).
  *  5. 호출: A2A `message/send`. `idempotencyKey` 는 (account, agentKey, fileKeys 정렬, text, conversation, room)
  *     에서 결정적으로 유도해 재시도가 같은 messageId 를 보내게 한다 — contextId 에 들어가는 것(room 포함)이
  *     모두 들어가므로 다른 방의 같은 요청이 같은 messageId 로 다른 contextId 를 보내는 일이 없다. 위임의 idempotencyKey 는
@@ -24,8 +27,9 @@ import { createHash, randomUUID } from 'node:crypto';
 import { invokeAgent, type InvokeAgentOptions } from './a2a';
 import { listSharedAgents } from './agents';
 import { delegationPartOf, requestDelegation, type SsoDelegationOptions } from './delegation';
-import { findInFolder, listSharedFiles, type FilesSourceOptions } from './files';
+import { collectListedFiles, findInFolder, type FilesSourceOptions } from './files';
 import type { FetchLike } from './http';
+import { parseSaveTo, resolveOwnFolder, saveAnswerToFolder, type SaveTarget } from './save';
 import {
   AinContractError, agentKey, fileKey, parseAgentKey, parseFileKey,
   type AgentListItem, type AgentRef, type ConversationScope, type DelegationPart, type FileRef, type TaskRef,
@@ -37,6 +41,8 @@ export interface InvokeRequest {
   fileKeys: string[];
   conversation: string;
   room?: string;
+  /** 완료된 답변을 쓸 폴더와 충돌 정책(계약 writeTarget). 없으면 저장하지 않는다. */
+  saveTo?: SaveTarget;
 }
 
 export interface InvokeOptions {
@@ -88,24 +94,6 @@ export async function resolveAgent(opts: Pick<InvokeOptions, 'ainizeUrl' | 'fetc
   throw new AinContractError('resource_deleted', '그 에이전트를 목록에서 찾을 수 없습니다.');
 }
 
-const FILE_PAGE_LIMIT = 200;
-const FILE_MAX_PAGES = 5;
-
-/** 1단계 목록(shared_with_me → mine)을 모두 모은다. 같은 fileKey 가 두 범위에 있으면 먼저 본 것이 남는다. */
-async function collectListedFiles(files: FilesSourceOptions): Promise<Map<string, FileRef>> {
-  const byKey = new Map<string, FileRef>();
-  for (const scope of ['shared_with_me', 'mine'] as const) {
-    let cursor: string | undefined;
-    for (let page = 0; page < FILE_MAX_PAGES; page++) {
-      const res = await listSharedFiles(files, { scope, limit: FILE_PAGE_LIMIT, ...(cursor ? { cursor } : {}) });
-      for (const i of res.items) { const k = fileKey(i.ref); if (!byKey.has(k)) byKey.set(k, i.ref); }
-      if (!res.nextCursor) break;
-      cursor = res.nextCursor;
-    }
-  }
-  return byKey;
-}
-
 export async function resolveFiles(files: FilesSourceOptions, keys: string[]): Promise<FileRef[]> {
   if (!keys.length) return [];
   const issuer = files.aindriveUrl.replace(/\/+$/, '');
@@ -115,7 +103,8 @@ export async function resolveFiles(files: FilesSourceOptions, keys: string[]): P
     if (p.issuer !== issuer) throw new AinContractError('unsupported_input', '이 배포가 연결된 aindrive 의 파일만 넘길 수 있습니다.');
     return { key: `${p.issuer}#${p.driveId}#${p.fileId}`, ...p };
   });
-  const listed = await collectListedFiles(files);
+  // 1단계 목록(shared_with_me → mine). 같은 fileKey 가 두 범위에 있으면 먼저 본 것이 남는다.
+  const listed = await collectListedFiles(files, ['shared_with_me', 'mine']);
   const out: FileRef[] = [];
   for (const w of wanted) {
     let ref = listed.get(w.key) ?? null;
@@ -153,7 +142,10 @@ export async function invokeSharedAgent(opts: InvokeOptions, req: InvokeRequest)
   // 파일이 있으면 popJwk·SSO 설정·세션 증명을 먼저 본다 — 넘길 수 없는 파일을 찾느라 aindrive 를 부르지 않는다.
   const prereq = req.fileKeys.length ? await requireDelegationPrerequisites(opts, agent.ref) : null;
 
-  const files = await resolveFiles({ aindriveUrl: opts.aindriveUrl, token: opts.aindriveToken, connectUrl: opts.aindriveConnectUrl, fetch: opts.fetch, now: opts.now }, req.fileKeys);
+  const filesOpts: FilesSourceOptions = { aindriveUrl: opts.aindriveUrl, token: opts.aindriveToken, connectUrl: opts.aindriveConnectUrl, fetch: opts.fetch, now: opts.now };
+  const files = await resolveFiles(filesOpts, req.fileKeys);
+  // 저장 폴더도 에이전트를 부르기 전에 확정한다 — 쓸 수 없는 곳을 위해 에이전트를 돌리지 않는다.
+  const saveFolder = req.saveTo ? await resolveOwnFolder(filesOpts, req.saveTo.folderKey) : null;
 
   const scope: ConversationScope = { ...opts.scope, room: req.room ?? null, conversation: req.conversation };
   const idempotencyKey = deriveIdempotencyKey({ account: scope.account, agentKey: agentKey(agent.ref), fileKeys: files.map(fileKey), text: req.text, conversation: req.conversation, room: scope.room });
@@ -176,7 +168,12 @@ export async function invokeSharedAgent(opts: InvokeOptions, req: InvokeRequest)
     delegation = delegationPartOf(issued, [...new Set(files.map((f) => f.issuer))]);
   }
 
-  return invokeAgent({ ...opts.a2a, fetch: opts.fetch, now: opts.now }, { agent: agent.ref, text: req.text, files, delegation, scope, idempotencyKey });
+  const result = await invokeAgent({ ...opts.a2a, fetch: opts.fetch, now: opts.now }, { agent: agent.ref, text: req.text, files, delegation, scope, idempotencyKey });
+  if (saveFolder && req.saveTo && result.task.status === 'completed') {
+    const saved = await saveAnswerToFolder(filesOpts, saveFolder, req.saveTo, result.text);
+    result.task.outputs = [{ file: saved.file, overwrote: saved.overwrote }];
+  }
+  return result;
 }
 
 /** 라우트 경계의 바디 검증. 통과하면 정규화된 요청, 아니면 사용자에게 보여도 되는 이유. */
@@ -200,5 +197,11 @@ export function parseInvokeBody(body: unknown): { ok: true; req: InvokeRequest }
     if (!r || /[\s/\\]/.test(r)) return { ok: false, message: 'room 은 공백·슬래시 없는 식별자여야 합니다.' };
     room = r;
   }
-  return { ok: true, req: { agentKey: agentKeyRaw, text, fileKeys: [...new Set(fileKeysRaw as string[])], conversation, ...(room ? { room } : {}) } };
+  let saveTo: SaveTarget | undefined;
+  if (b.saveTo !== undefined && b.saveTo !== null) {
+    const parsed = parseSaveTo(b.saveTo);
+    if (!parsed.ok) return parsed;
+    saveTo = parsed.saveTo;
+  }
+  return { ok: true, req: { agentKey: agentKeyRaw, text, fileKeys: [...new Set(fileKeysRaw as string[])], conversation, ...(room ? { room } : {}), ...(saveTo ? { saveTo } : {}) } };
 }

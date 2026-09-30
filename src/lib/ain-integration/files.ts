@@ -12,8 +12,8 @@
 import { createHash } from 'node:crypto';
 import { UPSTREAM_TIMEOUT_MS, fetchUpstream, getJson, getNativeSupport, isNotFound, paginate, qs, setNativeSupport, type FetchLike } from './http';
 import {
-  AIN_CONTRACT_VERSION, AinContractError, isFileListResponse,
-  type ErrorCode, type FileAccessRole, type FileListItem, type FileListRequest, type FileListResponse, type FileRef, type OwnerRef,
+  AIN_CONTRACT_VERSION, AinContractError, fileKey, isFileListResponse,
+  type ErrorCode, type FileAccessRole, type FileListItem, type FileListRequest, type FileListResponse, type FileListScope, type FileRef, type OwnerRef,
 } from './types';
 
 export interface OauthDrive { id: string; name: string; online: boolean; role: 'owner' | 'editor' | 'viewer' | string }
@@ -49,8 +49,8 @@ export function aindriveFileId(driveId: string, path: string): string {
   return AINDRIVE_PATH_ID_PREFIX + createHash('sha256').update(driveId + '\0' + aindriveNormalizePath(path)).digest('hex').slice(0, 32);
 }
 
-/** mtime·size 로 만든 약한 revision. 드라이브 루트는 둘 다 없어 `m0-s0`. */
-export const aindriveRevision = (e: { mtimeMs?: number | null; size?: number | null }) => `m${e.mtimeMs ?? 0}-s${e.size ?? 0}`;
+/** mtime·size 로 만든 약한 revision `m<ms>-s<bytes>`. 드라이브 루트는 둘 다 없어 `m0-s0`. 원본의 mtimeMs 는 소수일 수 있어 ms 로 반올림한다. */
+export const aindriveRevision = (e: { mtimeMs?: number | null; size?: number | null }) => `m${Math.round(e.mtimeMs ?? 0)}-s${e.size ?? 0}`;
 
 /** 드라이브 한 줄 → 그 루트 폴더의 FileListItem (fallback 변환). */
 export function driveToFolderItem(issuer: string, d: OauthDrive, me?: OwnerRef): FileListItem {
@@ -128,6 +128,24 @@ async function listFromDrives(f: FetchLike, issuer: string, headers: Record<stri
   return { contract: AIN_CONTRACT_VERSION, asOf, nextCursor, items: page };
 }
 
+const LIST_PAGE_LIMIT = 200;
+const LIST_MAX_PAGES = 5;
+
+/** 1단계 목록을 범위 순서대로 모두 모은다. 같은 fileKey 가 두 범위에 있으면 먼저 본 것이 남는다. */
+export async function collectListedFiles(opts: FilesSourceOptions, scopes: readonly FileListScope[]): Promise<Map<string, FileRef>> {
+  const byKey = new Map<string, FileRef>();
+  for (const scope of scopes) {
+    let cursor: string | undefined;
+    for (let page = 0; page < LIST_MAX_PAGES; page++) {
+      const res = await listSharedFiles(opts, { scope, limit: LIST_PAGE_LIMIT, ...(cursor ? { cursor } : {}) });
+      for (const i of res.items) { const k = fileKey(i.ref); if (!byKey.has(k)) byKey.set(k, i.ref); }
+      if (!res.nextCursor) break;
+      cursor = res.nextCursor;
+    }
+  }
+  return byKey;
+}
+
 // ------------------------------------------------------------------------------- folder browsing
 // 공유 목록은 공유의 "뿌리"(보통 드라이브 루트 폴더)만 돌려준다. 그 안의 파일을 고르려면 폴더를 탐색해야
 // 하는데, aindrive 의 `fs/list` 는 세션·위임만 받고 계정 토큰(aind_aat_)은 거절한다. 계정 토큰으로 열리는
@@ -137,7 +155,7 @@ async function listFromDrives(f: FetchLike, issuer: string, headers: Record<stri
 export interface FolderEntry { name: string; path: string; isDir: boolean; size?: number | null; mtimeMs?: number | null; mime?: string | null }
 
 /** MCP 응답은 `text/event-stream`(data: 한 줄) 또는 JSON. 둘 다 JSON-RPC 한 건으로 푼다. */
-async function readMcpResult(res: Response): Promise<{ result?: unknown; error?: { message?: string } }> {
+export async function readMcpResult(res: Response): Promise<{ result?: unknown; error?: { message?: string } }> {
   const text = await res.text();
   const ct = res.headers.get('content-type') ?? '';
   if (ct.includes('text/event-stream')) {
