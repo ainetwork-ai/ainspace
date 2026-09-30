@@ -1,0 +1,13 @@
+{
+  "iss": "https://auth.comcom.ai",
+  "sub": "acc_8Qk2ZpL0vX1",
+  "aud": ["https://aindrive.ainetwork.ai"],
+  "org": "org_comcom",
+  "agt": "https://ainize.ai#gallery-guide",
+  "res": [{ "resource": "https://aindrive.ainetwork.ai#drv_7f3a#p1:3c8f0b1d2e4a5b6c7d8e9f0a1b2c3d4e", "actions": ["read"] }],
+  "prd": "ainteams",
+  "cnf": { "jkt": "NzbLsXh8uDCcd-6MNwXF4W_7noWXFZAfHkxZsRGC9Xs" },
+  "iat": 1790661600,
+  "exp": 1790665200,
+  "jti": "dlg_01J9ZK3Q"
+}

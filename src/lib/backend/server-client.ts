@@ -22,6 +22,8 @@ export function getBearer(req: NextRequest): string | null {
 // EPIC16: decode the caller's backend user id (`sub`) from the JWT payload.
 // No signature check — the backend re-verifies the Bearer; the BFF only reads
 // the claim to scope the agent roster to the caller's owned agents.
+// NOT for routes that do not forward the Bearer to the backend: /api/ain/* verifies
+// the session itself (lib/ain-integration/app-session.ts) and never trusts this claim.
 export function decodeUserId(token: string): string | null {
   try {
     const parts = token.split('.');

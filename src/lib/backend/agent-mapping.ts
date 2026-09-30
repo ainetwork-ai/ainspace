@@ -17,7 +17,17 @@ export interface BackendAgentListItem {
   // so we can use it directly as the agent card and still read `.url` for matching.
   agentCardJson?: (Partial<AgentCard> & { url?: string }) | null;
   // EPIC16 (agent list sync): ownership / availability / avatar.
-  agentInvitedBy?: string | null; // canonical owner (backend user id)
+  /**
+   * Teams: "this row is owned by the caller" (per-workspace registry.ownerId === viewer).
+   * Canonical since Teams EPIC32/55 — prefer over `agentInvitedBy`.
+   */
+  isMine?: boolean;
+  /**
+   * @deprecated Teams exposes this only for ainspace back-compat (workspace ownerId
+   * mirrored onto the old global key) and will remove it once consumers use `isMine`.
+   * Read via `isOwnedByMe` so the fallback lives in one place.
+   */
+  agentInvitedBy?: string | null;
   status?: string; // availability; non-active => disabled in ainspace
   avatarUrl?: string | null;
 }
@@ -25,6 +35,16 @@ export interface BackendAgentListItem {
 export interface ResolveAgentUuidsResult {
   resolved: { url: string; uuid: string }[];
   unresolved: string[];
+}
+
+/**
+ * Ownership check used to scope the roster to the caller's agents.
+ * `isMine` (Teams' current field) wins when present; older backends that only
+ * send the deprecated `agentInvitedBy` still work via the fallback compare.
+ */
+export function isOwnedByMe(item: Pick<BackendAgentListItem, 'isMine' | 'agentInvitedBy'>, myUserId: string | null): boolean {
+  if (typeof item.isMine === 'boolean') return item.isMine;
+  return !!myUserId && item.agentInvitedBy === myUserId;
 }
 
 // Normalize an a2a URL for comparison: lowercase, strip trailing slash, and

@@ -18,6 +18,8 @@ import { useNearbyAgents } from '@/hooks/useNearbyAgents';
 import { buildIngestPayload, IngestAgentInput } from '@/lib/report/build-ingest-payload';
 import { dualWriteTurn } from '@/lib/report/dual-write';
 import { toChatMessageFiles } from '@/lib/backend/chat-files';
+import SharedFilePicker, { SharedFilePick } from '@/components/chat/SharedFilePicker';
+import { insertAtCursor } from '@/lib/ain-integration/link-part';
 
 // When a thread's history is refetched on open, the backend result is the shared
 // source of truth — but it does NOT yet include a just-sent optimistic user
@@ -898,6 +900,23 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
         [inputValue, cursorPosition]
     );
 
+    // AIN integration: "공유 파일" pick -> insert a markdown link part at the caret.
+    // No upload: the bytes stay at the origin, which re-checks access when opened.
+    const handleSharedFilePick = useCallback(
+        ({ markdown }: SharedFilePick) => {
+            const el = inputRef.current;
+            const at = el?.selectionStart ?? inputValue.length;
+            const next = insertAtCursor(inputValue, at, markdown);
+            setInputValue(next.value);
+            setCursorPosition(next.cursor);
+            setTimeout(() => {
+                el?.focus();
+                el?.setSelectionRange(next.cursor, next.cursor);
+            }, 0);
+        },
+        [inputValue]
+    );
+
     const unplacedPlaceholder = 'Agents have left the village...';
 
     const showUnplacedNotice = hasUnplacedAgents && inputValue.trim().length === 0;
@@ -1015,6 +1034,8 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                             height={16}
                         />
                     </div>
+                    {/* AIN integration entry point — renders nothing unless the flag is on. */}
+                    <SharedFilePicker onPick={handleSharedFilePick} disabled={isMessageLoading || showUnplacedNotice} />
                     <div className="relative flex-1">
                         {showUnplacedNotice && (
                             <AlertTriangle className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-[#FFB020]" />

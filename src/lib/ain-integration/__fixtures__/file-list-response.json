@@ -1,0 +1,22 @@
+{
+  "contract": "1.0",
+  "asOf": "2026-09-29T06:00:00Z",
+  "nextCursor": null,
+  "items": [
+    { "ref": {
+  "contract": "1.0",
+  "issuer": "https://aindrive.ainetwork.ai",
+  "driveId": "drv_7f3a",
+  "fileId": "p1:3c8f0b1d2e4a5b6c7d8e9f0a1b2c3d4e",
+  "revision": "m1790600000000-s48213",
+  "kind": "file",
+  "mimeType": "application/pdf",
+  "displayName": "전시 안내.pdf",
+  "ownerRef": { "kind": "account", "issuer": "https://auth.comcom.ai", "subject": "acc_8Qk2ZpL0vX1" },
+  "availability": { "state": "online", "lastSeenAt": "2026-09-29T06:00:00Z" },
+  "sourceUrl": "https://aindrive.ainetwork.ai/d/drv_7f3a/exhibitions/2026-12/%EC%A0%84%EC%8B%9C%20%EC%95%88%EB%82%B4.pdf",
+  "legacy": { "path": "/exhibitions/2026-12/전시 안내.pdf" },
+  "size": 48213
+}, "role": "viewer", "shareOrigin": "direct", "sharedAt": "2026-09-28T10:00:00Z" }
+  ]
+}

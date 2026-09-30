@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import BaseTabContent from './BaseTabContent';
 import { useAccount } from 'wagmi';
-import ImportAgentSection from '@/components/agent-builder/ImportAgentSection';
+import ImportAgentSection, { ImportAgentOptions } from '@/components/agent-builder/ImportAgentSection';
 import { StoredAgent } from '@/lib/redis';
 import { bffAuthFetch } from '@/lib/backend/bff-fetch';
 import Button from '@/components/ui/Button';
@@ -74,7 +74,7 @@ export default function AgentTab({
         setIsRefreshing(false);
     };
 
-    const handleImportAgent = async (agentUrl: string) => {
+    const handleImportAgent = async (agentUrl: string, options: ImportAgentOptions = {}) => {
         if (!address) {
             setError("Wallet connection has been disconnected. Please reconnect wallet.")
             return;
@@ -112,7 +112,13 @@ export default function AgentTab({
             const response = await bffAuthFetch('/api/agents', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ agentUrl, creator: address }),
+                // AIN integration: the shared-agent picker also passes commonAgentId
+                // ("<registryIssuer>#<agentId>"), stored on the StoredAgent beside backendUuid.
+                body: JSON.stringify({
+                    agentUrl,
+                    creator: address,
+                    ...(options.commonAgentId ? { commonAgentId: options.commonAgentId } : {}),
+                }),
             });
 
             const result = await response.json();

@@ -1,0 +1,55 @@
+{
+  "contract": "1.0",
+  "asOf": "2026-09-29T06:00:00Z",
+  "nextCursor": "c2",
+  "items": [
+    {
+      "ref": {
+        "contract": "1.0",
+        "registryIssuer": "https://ainize.ai",
+        "agentId": "gallery-guide",
+        "releaseId": "v3",
+        "ownerRef": {
+          "kind": "wallet",
+          "issuer": "https://ainize.ai",
+          "subject": "0x7ede5ac5ebea04c5f0dc33fdf6e24f610262bcbe"
+        },
+        "visibility": "org",
+        "orgRef": {
+          "kind": "org",
+          "issuer": "https://auth.comcom.ai",
+          "subject": "org_comcom"
+        },
+        "agentCardUrl": "https://ainize.ai/agents/gallery-guide/.well-known/agent-card.json",
+        "endpoint": "https://ainize.ai/agents/gallery-guide",
+        "supportedProtocolVersions": [
+          "0.3.0"
+        ],
+        "skills": [
+          {
+            "id": "guide",
+            "name": "전시 안내",
+            "description": "작품과 일정을 안내한다"
+          }
+        ],
+        "inputModes": [
+          "text/plain"
+        ],
+        "outputModes": [
+          "text/plain",
+          "application/a2ui+json"
+        ],
+        "uiCapabilities": [
+          "streaming",
+          "cancel",
+          "a2ui_basic"
+        ],
+        "status": "active",
+        "displayName": "Uncommon Gallery 안내",
+        "description": "전시 자료 폴더를 읽고 방문자 질문에 답한다",
+        "updatedAt": "2026-09-29T06:00:00Z"
+      },
+      "canInvoke": true
+    }
+  ]
+}

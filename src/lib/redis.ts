@@ -353,9 +353,28 @@ export interface StoredAgent {
     // EPIC16: backend roster availability. 'inactive' = left/deleted/unavailable
     // in the workspace -> shown disabled in AgentTab. Set by syncAgentsFromRoster.
     backendStatus?: 'active' | 'inactive';
+    // AIN integration: cross-product agent identity `"<registryIssuer>#<agentId>"`
+    // (contract agentKey). Set when the agent was imported from the shared-agent
+    // list; stored beside backendUuid so Space can join Teams/Ainize views of the
+    // same agent. Optional — URL-imported and roster-synced agents have none.
+    commonAgentId?: string;
+    // AIN integration (plan 17.3): version of the last Ainize agent.* event applied
+    // to backendStatus (lib/ain-integration/agent-events.ts). Older events never
+    // roll a newer status back. Placement is untouched by those events.
+    ainStatusVersion?: number;
 }
 
 const AGENTS_KEY = 'agents:';
+
+/**
+ * AIN integration: persist one StoredAgent under its `agents:<base64(url)>` key
+ * (same key form as PUT /api/agents). Throws on Redis failure so the caller can
+ * report it — status changes must not be silently dropped.
+ */
+export async function saveStoredAgent(agent: StoredAgent): Promise<void> {
+    const redis = await getRedisClient();
+    await redis.set(`${AGENTS_KEY}${Buffer.from(agent.url).toString('base64')}`, JSON.stringify(agent));
+}
 
 /**
  * Get all registered agents from Redis
@@ -433,6 +452,11 @@ export async function setAgentsSyncedAt(wallet: string, ts: number): Promise<voi
 
 const agentKeyFor = (url: string) => `${AGENTS_KEY}${Buffer.from(url).toString('base64')}`;
 
+export interface RosterItemExtras {
+    /** AIN common agent id to record on the StoredAgent (see StoredAgent.commonAgentId). */
+    commonAgentId?: string;
+}
+
 /**
  * EPIC16: reconcile a user's StoredAgents against the backend workspace roster.
  * - roster item matched to a local agent -> refresh backendUuid + backendStatus
@@ -441,7 +465,7 @@ const agentKeyFor = (url: string) => `${AGENTS_KEY}${Buffer.from(url).toString('
  *
  * Placement/coords/full card and any existing sprite are NEVER overwritten — only
  * backendUuid/backendStatus are touched on existing agents. `roster` must already
- * be filtered to this user's owned agents (agentInvitedBy === caller).
+ * be filtered to this user's owned agents (`isOwnedByMe`).
  */
 // EPIC16/17: produce the StoredAgent to persist for one backend roster item.
 // - existing agent  -> update only backendUuid/backendStatus (placement/card/sprite preserved)
@@ -452,6 +476,7 @@ function applyRosterItem(
     wallet: string,
     b: BackendAgentListItem,
     existing?: StoredAgent,
+    extras: RosterItemExtras = {},
 ): { agent: StoredAgent; changed: boolean } | null {
     const key = itemA2aUrl(b);
     if (!key || !b.id) return null;
@@ -461,11 +486,13 @@ function applyRosterItem(
         b.status === 'unavailable' || b.status === 'agentCardUnavailable' ? 'inactive' : 'active';
 
     if (existing) {
-        if (existing.backendUuid === b.id && existing.backendStatus === backendStatus) {
+        const commonChanged = !!extras.commonAgentId && existing.commonAgentId !== extras.commonAgentId;
+        if (existing.backendUuid === b.id && existing.backendStatus === backendStatus && !commonChanged) {
             return { agent: existing, changed: false };
         }
         existing.backendUuid = b.id;
         existing.backendStatus = backendStatus;
+        if (commonChanged) existing.commonAgentId = extras.commonAgentId;
         return { agent: existing, changed: true };
     }
 
@@ -485,6 +512,7 @@ function applyRosterItem(
         timestamp: Date.now(),
         backendUuid: b.id,
         backendStatus,
+        ...(extras.commonAgentId ? { commonAgentId: extras.commonAgentId } : {}),
     };
     return { agent: created, changed: true };
 }
@@ -539,6 +567,7 @@ export async function syncAgentsFromRoster(
 export async function upsertAgentFromRosterItem(
     wallet: string,
     item: BackendAgentListItem,
+    extras: RosterItemExtras = {},
 ): Promise<StoredAgent | null> {
     const key = itemA2aUrl(item);
     if (!key) return null;
@@ -546,7 +575,7 @@ export async function upsertAgentFromRosterItem(
     const existing = (await getAgents()).find(
         (a) => a.creator === wallet && normalizeA2aUrl(a.url) === norm,
     );
-    const res = applyRosterItem(wallet, item, existing);
+    const res = applyRosterItem(wallet, item, existing, extras);
     if (!res) return null;
     if (res.changed) {
         const redis = await getRedisClient();

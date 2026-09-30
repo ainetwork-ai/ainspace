@@ -1,11 +1,18 @@
 'use client';
 
 import Button from '@/components/ui/Button';
+import SharedAgentPicker from '@/components/agent-builder/SharedAgentPicker';
 import { cn } from '@/lib/utils';
 import { useState } from "react";
 
+/** AIN integration: extra fields the import flow records beside backendUuid. */
+export interface ImportAgentOptions {
+    /** `"<registryIssuer>#<agentId>"` from the shared-agent picker. */
+    commonAgentId?: string;
+}
+
 interface ImportAgentSectionProps {
-    handleImportAgent: (agentUrl: string) => void;
+    handleImportAgent: (agentUrl: string, options?: ImportAgentOptions) => void;
     isLoading: boolean;
     isDarkMode?: boolean;
 }
@@ -59,6 +66,12 @@ export default function ImportAgentSection({
             <p className={cn("text-xs font-medium text-center", isDarkMode ? 'text-[#FFB020]' : 'text-[#B78213]')}>
                 ⚠️Your agent must support <span className="text-[#7F4FE8] underline">A2A (Agent-to-Agent)</span>
             </p>
+            {/* AIN integration entry point — renders nothing unless NEXT_PUBLIC_AIN_INTEGRATION_ENABLED. */}
+            <SharedAgentPicker
+                isDarkMode={isDarkMode}
+                disabled={isLoading}
+                onPick={({ agentUrl: pickedUrl, commonAgentId }) => handleImportAgent(pickedUrl, { commonAgentId })}
+            />
         </div>
     )
 }
