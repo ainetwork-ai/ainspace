@@ -351,3 +351,18 @@ test('parseInvokeBody: 모양 검증', () => {
   const noFiles = parseInvokeBody({ agentKey: AGENT_KEY, text: 't', conversation: 'c' });
   assert.ok(noFiles.ok && noFiles.req.fileKeys.length === 0);
 });
+
+test('20.1 C: requestId(차례 id) — 모양 검증, 있을 때만 idempotencyKey 에 들어간다(없으면 예전 키 그대로)', () => {
+  const base = { agentKey: AGENT_KEY, text: 't', conversation: 'c' };
+  for (const bad of ['', 'has space', 'a/b', 'x'.repeat(129), 42, {}]) assert.equal(parseInvokeBody({ ...base, requestId: bad }).ok, false, String(bad));
+  const ok = parseInvokeBody({ ...base, requestId: 'turn_0b1c-2d:3.e_f' });
+  assert.ok(ok.ok && ok.req.requestId === 'turn_0b1c-2d:3.e_f');
+  const none = parseInvokeBody({ ...base, requestId: null });
+  assert.ok(none.ok && !('requestId' in none.req));
+
+  const k = { account: 'u', agentKey: 'a#b', fileKeys: ['k'], text: 't', conversation: 'c', room: 'r' };
+  assert.equal(deriveIdempotencyKey({ ...k, requestId: undefined }), deriveIdempotencyKey(k));
+  assert.equal(deriveIdempotencyKey({ ...k, requestId: 'turn_1' }), deriveIdempotencyKey({ ...k, requestId: 'turn_1' }), '같은 차례의 재시도 = 같은 키');
+  assert.notEqual(deriveIdempotencyKey({ ...k, requestId: 'turn_1' }), deriveIdempotencyKey({ ...k, requestId: 'turn_2' }), '다음 차례의 같은 질문 = 다른 키');
+  assert.notEqual(deriveIdempotencyKey({ ...k, requestId: 'turn_1' }), deriveIdempotencyKey(k));
+});

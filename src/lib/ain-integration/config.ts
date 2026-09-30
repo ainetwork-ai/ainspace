@@ -75,3 +75,14 @@ export const getAinSsoClientCredentials = (): { clientId: string; clientSecret: 
 /** `auth_required` 의 actionUrl — 사용자가 AIN SSO 를 연결하러 갈 곳. */
 export const getAinSsoConnectUrl = (): string =>
   process.env.AIN_SSO_CONNECT_URL?.trim() || `${getAinSsoIssuer()}/`;
+
+// ---------------------------------------------------------------------------------------------- 공유 에이전트 목록 자격
+
+/**
+ * 설치 단위의 Ainize **조직 범위 API 키**(선택, `AINIZE_API_KEY`) — Teams 와 같은 뜻. 있으면 목록 요청에 Bearer 로
+ * 붙이고 기본 목록 범위가 `shared_with_org` 가 된다. 없으면 `public`. 서버 전용(헤더로만 나가고 응답·로그에 싣지 않는다).
+ */
+export const getAinizeApiKey = (): string | null => process.env.AINIZE_API_KEY?.trim() || null;
+
+/** `/api/ain/shared-agents` 가 실제로 원본에 물은 범위를 알리는 응답 헤더 — 선택기가 목록 제목을 고르는 데 쓴다. */
+export const AGENT_SCOPE_HEADER = 'x-ain-agent-scope';

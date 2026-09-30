@@ -19,6 +19,7 @@ import { SESSION_ENV, TEST_SIGNING_KEY, fakeFetch, jsonResponse, signedJwt, with
 import { PUT as MATERIALS_PUT } from './[slug]/materials/route';
 import { PUT as PRESENCE_PUT } from './[slug]/presence/route';
 import { POST as INVOKE } from '../invoke/route';
+import { retryTurn, runTurn, sourceItems, startTurn, type AskFetcher } from '@/lib/ain-integration/ask-client';
 
 const AINDRIVE = 'https://aindrive.example';
 const AINIZE = 'https://ainize.example';
@@ -41,7 +42,7 @@ const ref = (id: string): FileRef => ({
 });
 const PUB = ref('pub'); const MEM = ref('mem'); const AGT = ref('agt'); const PICK = ref('pick'); const SECRET = ref('secret');
 
-interface TeamsCall { user: string | null; body: { agentRef?: AgentRef; fileKeys?: string[]; conversationContextId?: string; actions?: string[] } }
+interface TeamsCall { user: string | null; body: { agentRef?: AgentRef; fileKeys?: string[]; conversationContextId?: string; requestId?: string; actions?: string[] } }
 
 /**
  * 가짜 Teams web `/api/ain/delegation` — 계약 그대로: Bearer 는 **Teams backend access JWT**(iss `a2a-backend`,
@@ -247,6 +248,66 @@ test('B: Teams 가 Space 의 Bearer 를 받지 않으면(발급자·키 불일�
       assert.equal(e.actionUrl, undefined);
       assert.equal(w.teams.calls.length, 1);
       assert.equal(w.teams.calls[0].user, null);
+      assert.equal(w.up.messages.length, 0);
+    })();
+  } finally { await w.restore(); }
+}));
+
+test('20.1 C: 마을 채팅의 묻기 흐름(클라이언트 → /api/ain/invoke → Teams 위임 → 에이전트) — 차례마다 requestId, 재시도는 같은 값, 결과 카드 상태', withEnv(ENV, async () => {
+  const state = { proofs: new Set(['visitor-9']), visible: new Map([['visitor-9', new Set([PUB, MEM, AGT, PICK].map(fileKey))]]), enabled: true };
+  const w = await wire(state);
+  try {
+    await withEnv({ AIN_TEAMS_DELEGATION_URL: w.teams.url }, async () => {
+      assert.equal((await PRESENCE_PUT(req('PUT', '/api/ain/villages/alpha/presence', 'visitor-9'), ctx('alpha'))).status, 200);
+      // 브라우저의 bffAuthFetch 대신: 같은 오리진 라우트를 검증된 세션 bearer 로 부른다.
+      const fetcher: AskFetcher = async (url, init) => {
+        assert.equal(url, '/api/ain/invoke');
+        return INVOKE(req('POST', url, 'visitor-9', JSON.parse(String(init?.body))));
+      };
+      const target = { agentKey: AGENT_KEY, name: '갤러리 안내', placedIn: 'alpha' };
+      const ask = { target, text: '이 마을을 안내해 줘', files: [PICK], conversation: 'ask_v', room: 'alpha', villageMaterials: true };
+
+      const t1 = startTurn(ask, 'turn_one');
+      const done1 = await runTurn(fetcher, t1);
+      assert.equal(done1.phase, 'completed');
+      assert.equal(done1.text, '안내');
+      assert.equal(done1.task?.status, 'completed');
+      // 결과 카드의 Sources = 에이전트에 넘어간 파일(고른 파일 + 에이전트용 마을 자료), 원본 열기 링크 포함, members 자료 없음
+      const src = sourceItems(done1.task);
+      assert.deepEqual(src.map((x) => x.name).sort(), ['agt.pdf', 'pick.pdf', 'pub.pdf']);
+      assert.ok(src.every((x) => x.href?.startsWith(`${AINDRIVE}/d/drv_1/`)));
+      assert.equal(findSecretKey(done1), null);
+      assert.ok(!JSON.stringify(done1).includes(DLG_TOKEN));
+
+      const again = await runTurn(fetcher, retryTurn(done1));
+      assert.equal(again.phase, 'completed');
+      const t2 = startTurn(ask, 'turn_two');
+      await runTurn(fetcher, t2);
+
+      // Teams 가 받은 차례 id: 같은 차례의 재시도는 같은 값(Teams 가 한 번만 센다), 다음 차례는 새 값
+      assert.deepEqual(w.teams.calls.map((c) => c.body.requestId), ['turn_one', 'turn_one', 'turn_two']);
+      assert.ok(w.teams.calls.every((c) => c.user === 'visitor-9'));
+      assert.deepEqual([...(w.teams.calls[0].body.fileKeys ?? [])].sort(), [PICK, PUB, AGT].map(fileKey).sort());
+      // 에이전트 쪽: 재시도는 같은 messageId(같은 작업), 다음 차례는 다른 messageId
+      const ids = w.up.messages.map((m) => (m as unknown as { messageId: string }).messageId);
+      assert.equal(ids.length, 3);
+      assert.equal(ids[0], ids[1]);
+      assert.notEqual(ids[0], ids[2]);
+      assert.equal(w.up.messages[0].contextId, conversationContextId({ account: 'visitor-9', org: null, product: 'ainspace', room: 'alpha', conversation: 'ask_v' }));
+    })();
+  } finally { await w.restore(); }
+}));
+
+test('20.1 C: 묻기 흐름의 실패 카드 — Teams 가 세션 증명 없음(401 + actionUrl)을 주면 연결 안내가 카드에 실린다', withEnv(ENV, async () => {
+  const w = await wire({ proofs: new Set(), visible: new Map(), enabled: true });
+  try {
+    await withEnv({ AIN_TEAMS_DELEGATION_URL: w.teams.url }, async () => {
+      const fetcher: AskFetcher = async (url, init) => INVOKE(req('POST', url, 'visitor-9', JSON.parse(String(init?.body))));
+      const done = await runTurn(fetcher, startTurn({ target: { agentKey: AGENT_KEY, name: '갤러리 안내', placedIn: 'alpha' }, text: '안내', files: [PICK], conversation: 'ask_v', room: 'alpha' }, 'turn_x'));
+      assert.equal(done.phase, 'failed');
+      assert.equal(done.error?.code, 'auth_required');
+      assert.equal(done.error?.actionUrl, TEAMS_ACTION_URL);
+      assert.equal(w.teams.calls[0].body.requestId, 'turn_x');
       assert.equal(w.up.messages.length, 0);
     })();
   } finally { await w.restore(); }

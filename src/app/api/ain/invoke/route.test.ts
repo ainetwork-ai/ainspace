@@ -162,3 +162,17 @@ test('응답 HTTP status 는 코드 표(HTTP_STATUS_FOR)에서 온다 — 원본
     assert.equal(res.status, 403);
   });
 }));
+
+test('20.1 C: requestId(차례 id)는 검증 뒤 그대로 어댑터로 간다; 모양이 틀리면 400(원본 호출 없음)', withEnv({ ...ON, ...SSO_ENV }, async () => {
+  const seen: unknown[] = [];
+  await withDeps({
+    getAindriveAccountToken: async () => 't', getSessionProof: async () => 'eyJ.idtoken.sig', saveTaskRef: async () => {},
+    invokeSharedAgent: async (_o, req) => { seen.push(req); return { task: taskRef as TaskRef, text: '답' }; },
+  }, async () => {
+    assert.equal((await post({ ...body, requestId: 'turn_1' }, signedJwt('u1'))).status, 200);
+    const bad = await post({ ...body, requestId: 'has space' }, signedJwt('u1'));
+    assert.equal(bad.status, 400);
+    assert.equal((await bad.json()).error.code, 'unsupported_input');
+    assert.deepEqual(seen, [{ ...body, requestId: 'turn_1' }]);
+  });
+}));

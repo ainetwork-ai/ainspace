@@ -419,6 +419,7 @@ export default function Home() {
             lastMoved: Date.now(),
             moveInterval: agent.state.moveInterval || 600 + Math.random() * 400,
             skills: agent.card.skills || [],
+            ...(agent.commonAgentId ? { commonAgentId: agent.commonAgentId } : {}),
             spriteUrl: agent.spriteUrl,
             spriteHeight: agent.spriteHeight || 50,
             // Include spawn data and movement mode

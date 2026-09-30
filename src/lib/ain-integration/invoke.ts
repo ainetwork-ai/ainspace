@@ -17,7 +17,7 @@
  *  6. 저장(선택, `saveTo`): 폴더는 **에이전트를 부르기 전에** 사용자 자신의 목록(mine)에서 찾는다(계정 토큰이 없으면
  *     `auth_required`, 내 것이 아니면 `forbidden`). task 가 `completed` 면 답변 텍스트를 그 폴더에 쓰고
  *     `TaskRef.outputs[0] = { file, overwrote }` 로 보고한다(save.ts — 충돌 정책·재시도 규칙은 거기에).
- *  5. 호출: A2A `message/send`. `idempotencyKey` 는 (account, agentKey, fileKeys 정렬, text, conversation, room)
+ *  5. 호출: A2A `message/send`. `idempotencyKey` 는 (account, agentKey, fileKeys 정렬, text, conversation, room[, requestId])
  *     에서 결정적으로 유도해 재시도가 같은 messageId 를 보내게 한다 — contextId 에 들어가는 것(room 포함)이
  *     모두 들어가므로 다른 방의 같은 요청이 같은 messageId 로 다른 contextId 를 보내는 일이 없다. 위임의 idempotencyKey 는
  *     시도마다 새 무작위 접미(randomUUID)다 — 시각이 아니다(같은 ms 의 재시도도 달라야 하고, SSO 는 토큰을 한 번만 돌려준다).
@@ -51,6 +51,13 @@ export interface InvokeRequest {
    * `members` 자료는 넘기지 않는다. 라우트가 fileKeys 에 합친다(village-materials.ts).
    */
   villageMaterials?: boolean;
+  /**
+   * 이 호출의 **차례(turn)** id — 클라이언트가 한 차례마다 새로 만들고, 같은 차례의 재시도에는 같은 값을 보낸다.
+   * Teams 위임(B)에 그대로 실어 Teams 의 유료 셈이 같은 차례의 재시도를 한 번만 세게 한다(ainteams #1318
+   * `/api/ain/delegation` 의 `requestId`). A2A idempotencyKey 에도 들어가 다른 차례의 같은 질문이 같은 답으로 합쳐지지 않는다.
+   * 없으면 예전과 같다(Teams 는 발급마다 센다).
+   */
+  requestId?: string;
 }
 
 export interface InvokeOptions {
@@ -84,15 +91,21 @@ export interface InvokeOptions {
 
 export interface InvokeResult { task: TaskRef; text: string }
 
-export const INVOKE_LIMITS = { text: 20_000, fileKeys: 64, conversation: 256, room: 256, key: 1024 } as const;
+export const INVOKE_LIMITS = { text: 20_000, fileKeys: 64, conversation: 256, room: 256, key: 1024, requestId: 128 } as const;
+
+/** 차례 id 모양 — 계약 opaqueId 의 부분집합(Teams 는 출력 가능한 ASCII 1..512 를 받는다). */
+export const REQUEST_ID_RE = /^[A-Za-z0-9._:-]{1,128}$/;
 
 /**
  * 결정적 idempotencyKey — 계약 opaqueId(공백·슬래시 없음). fileKeys 는 순서와 무관하게(정렬), room 은
  * contextId 와 같은 경계로(없으면 null) 들어간다.
  */
-export function deriveIdempotencyKey(input: { account: string; agentKey: string; fileKeys: string[]; text: string; conversation: string; room?: string | null }): string {
+export function deriveIdempotencyKey(input: { account: string; agentKey: string; fileKeys: string[]; text: string; conversation: string; room?: string | null; requestId?: string }): string {
   const fileKeys = [...new Set(input.fileKeys)].sort();
-  const h = createHash('sha256').update(JSON.stringify([input.account, input.agentKey, fileKeys, input.text, input.conversation, input.room ?? null])).digest('hex');
+  const parts: unknown[] = [input.account, input.agentKey, fileKeys, input.text, input.conversation, input.room ?? null];
+  // 차례 id 가 있을 때만 더한다 — 없으면 예전 키와 같다(이미 저장된 TaskRef 의 키가 바뀌지 않는다).
+  if (input.requestId) parts.push(input.requestId);
+  const h = createHash('sha256').update(JSON.stringify(parts)).digest('hex');
   return `idem_${h.slice(0, 40)}`;
 }
 
@@ -208,7 +221,7 @@ export async function invokeSharedAgent(opts: InvokeOptions, req: InvokeRequest)
   const saveFolder = req.saveTo ? await resolveOwnFolder(filesOpts, req.saveTo.folderKey) : null;
 
   const scope: ConversationScope = { ...opts.scope, room: req.room ?? null, conversation: req.conversation };
-  const idempotencyKey = deriveIdempotencyKey({ account: scope.account, agentKey: agentKey(agent.ref), fileKeys: files.map(fileKey), text: req.text, conversation: req.conversation, room: scope.room });
+  const idempotencyKey = deriveIdempotencyKey({ account: scope.account, agentKey: agentKey(agent.ref), fileKeys: files.map(fileKey), text: req.text, conversation: req.conversation, room: scope.room, ...(req.requestId ? { requestId: req.requestId } : {}) });
 
   let delegation: DelegationPart | undefined;
   if (files.length && prereq?.via === 'teams') {
@@ -216,7 +229,7 @@ export async function invokeSharedAgent(opts: InvokeOptions, req: InvokeRequest)
     // teams-delegation.ts 가 Teams 의 것을 옮긴다 — actionUrl 이 없는 auth_required 는 Teams 가 로그인 세션을 거절한 것
     // (teams_session_invalid)이라 이 배포의 AIN SSO 연결 안내를 붙이지 않는다.
     const issued = await requestTeamsDelegation({ url: prereq.teams.url, teamsJwt: prereq.teams.teamsJwt, timeoutMs: prereq.teams.timeoutMs, fetch: opts.fetch }, {
-      agent: agent.ref, files, conversationContextId: conversationContextId(scope),
+      agent: agent.ref, files, conversationContextId: conversationContextId(scope), ...(req.requestId ? { requestId: req.requestId } : {}),
     });
     delegation = delegationPartOf(issued, [...new Set(files.map((f) => f.issuer))]);
   } else if (files.length && prereq?.via === 'sso') {
@@ -274,5 +287,10 @@ export function parseInvokeBody(body: unknown): { ok: true; req: InvokeRequest }
   if (b.villageMaterials !== undefined && typeof b.villageMaterials !== 'boolean') return { ok: false, message: 'villageMaterials 는 boolean 이어야 합니다.' };
   const villageMaterials = b.villageMaterials === true;
   if (villageMaterials && !room) return { ok: false, message: 'villageMaterials 는 room(마을 slug)과 함께 써야 합니다.' };
-  return { ok: true, req: { agentKey: agentKeyRaw, text, fileKeys: [...new Set(fileKeysRaw as string[])], conversation, ...(room ? { room } : {}), ...(saveTo ? { saveTo } : {}), ...(villageMaterials ? { villageMaterials } : {}) } };
+  let requestId: string | undefined;
+  if (b.requestId !== undefined && b.requestId !== null) {
+    if (typeof b.requestId !== 'string' || !REQUEST_ID_RE.test(b.requestId)) return { ok: false, message: `requestId 는 영숫자·._:- 로 된 1..${INVOKE_LIMITS.requestId}자 식별자여야 합니다.` };
+    requestId = b.requestId;
+  }
+  return { ok: true, req: { agentKey: agentKeyRaw, text, fileKeys: [...new Set(fileKeysRaw as string[])], conversation, ...(room ? { room } : {}), ...(saveTo ? { saveTo } : {}), ...(villageMaterials ? { villageMaterials } : {}), ...(requestId ? { requestId } : {}) } };
 }
