@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { FolderOpen, FileText, Paperclip } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { isAinIntegrationEnabledClient } from '@/lib/ain-integration/config';
+import { followActionUrl } from '@/lib/ain-integration/connect-client';
 import { fileLinkMarkdown } from '@/lib/ain-integration/link-part';
 import { fileKey, type FileListItem, type FileListScope, type FileRef } from '@/lib/ain-integration/types';
 
@@ -15,8 +16,8 @@ import { fileKey, type FileListItem, type FileListScope, type FileRef } from '@/
 
 export interface SharedFilePick { markdown: string; ref: FileRef }
 
-type Fetcher = (input: string) => Promise<Response>;
-const defaultFetcher: Fetcher = (input) => import('@/lib/backend/bff-fetch').then((m) => m.bffAuthFetch(input));
+type Fetcher = (input: string, init?: RequestInit) => Promise<Response>;
+const defaultFetcher: Fetcher = (input, init) => import('@/lib/backend/bff-fetch').then((m) => m.bffAuthFetch(input, init));
 
 interface SharedFilePickerProps {
   onPick: (pick: SharedFilePick) => void;
@@ -61,6 +62,17 @@ export default function SharedFilePicker({
     }
   }, [fetcher, scope]);
 
+  // actionUrl 이 이 제품의 연결 시작 라우트면 bearer 를 실어 불러 aindrive 로 이동하고, 아니면 새 탭으로 연다.
+  const connect = useCallback(async (actionUrl: string) => {
+    const message = await followActionUrl(actionUrl, {
+      fetcher,
+      navigate: (u) => window.location.assign(u),
+      openTab: (u) => window.open(u, '_blank', 'noopener,noreferrer'),
+      location: window.location,
+    });
+    if (message) setError({ message });
+  }, [fetcher]);
+
   if (!enabled) return null;
 
   const toggle = () => {
@@ -103,7 +115,7 @@ export default function SharedFilePicker({
             <p className="text-xs text-[#FFB020]">
               {error.message}
               {error.actionUrl && (
-                <> <a href={error.actionUrl} target="_blank" rel="noreferrer" className="underline">aindrive 연결</a></>
+                <> <button type="button" onClick={() => void connect(error.actionUrl!)} className="underline">aindrive 연결</button></>
               )}
             </p>
           )}

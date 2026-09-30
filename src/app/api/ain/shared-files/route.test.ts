@@ -37,7 +37,7 @@ test('잘못된 scope → 400 unsupported_input', withEnv(ON, async () => {
   assert.equal((await res.json()).error.code, 'unsupported_input');
 }));
 
-test('aindrive 토큰이 없는 사용자 → 401 auth_required + actionUrl', withEnv({ ...ON, AINDRIVE_ACCOUNT_TOKEN: undefined, AINDRIVE_URL: 'https://aindrive.example' }, async () => {
+test('aindrive 토큰이 없는 사용자 → 401 auth_required + actionUrl', withEnv({ ...ON, AINDRIVE_ACCOUNT_TOKEN: undefined, AINDRIVE_URL: 'https://aindrive.example', AINDRIVE_CONNECT_URL: undefined, NEXT_PUBLIC_URL: undefined }, async () => {
   const origToken = deps.getAindriveAccountToken;
   deps.getAindriveAccountToken = async () => null;
   try {
@@ -45,7 +45,7 @@ test('aindrive 토큰이 없는 사용자 → 401 auth_required + actionUrl', wi
     assert.equal(res.status, 401);
     const body = await res.json();
     assert.equal(body.error.code, 'auth_required');
-    assert.equal(body.error.actionUrl, 'https://aindrive.example/oauth/authorize');
+    assert.equal(body.error.actionUrl, 'http://localhost/api/ain/aindrive/connect');
   } finally { deps.getAindriveAccountToken = origToken; }
 }));
 

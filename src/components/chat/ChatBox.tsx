@@ -19,6 +19,7 @@ import { buildIngestPayload, IngestAgentInput } from '@/lib/report/build-ingest-
 import { dualWriteTurn } from '@/lib/report/dual-write';
 import { toChatMessageFiles } from '@/lib/backend/chat-files';
 import SharedFilePicker, { SharedFilePick } from '@/components/chat/SharedFilePicker';
+import ChatAttachmentUpload from '@/components/chat/ChatAttachmentUpload';
 import { insertAtCursor } from '@/lib/ain-integration/link-part';
 
 // When a thread's history is refetched on open, the backend result is the shared
@@ -1036,6 +1037,8 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     </div>
                     {/* AIN integration entry point — renders nothing unless the flag is on. */}
                     <SharedFilePicker onPick={handleSharedFilePick} disabled={isMessageLoading || showUnplacedNotice} />
+                    {/* 17.7: new chat attachments go to the user's aindrive (link part only). Flag-gated. */}
+                    <ChatAttachmentUpload onUploaded={handleSharedFilePick} disabled={isMessageLoading || showUnplacedNotice} />
                     <div className="relative flex-1">
                         {showUnplacedNotice && (
                             <AlertTriangle className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-[#FFB020]" />

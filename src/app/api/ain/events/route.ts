@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
   try {
     if (source === 'aindrive') {
       const token = await deps.getAindriveAccountToken(guard.userId);
-      const page = await deps.fetchEvents({ source: 'aindrive', baseUrl: getAindriveUrl(), token, connectUrl: getAindriveConnectUrl() }, cursor);
+      const page = await deps.fetchEvents({ source: 'aindrive', baseUrl: getAindriveUrl(), token, connectUrl: getAindriveConnectUrl(request.nextUrl.origin) }, cursor);
       return okResponse(page);
     }
     const page = await deps.fetchEvents({ source: source as EventSource, baseUrl: getAinizeUrl(), token: null }, cursor);

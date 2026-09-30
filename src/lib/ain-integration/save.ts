@@ -146,6 +146,14 @@ const pickMeta = (v: unknown): WrittenMeta => {
  * 성공 응답의 mtime/size 는 있으면 쓰고 없으면 호출 시각·바이트 수로 채운다.
  */
 export async function writeTextFile(opts: FilesSourceOptions, driveId: string, path: string, text: string): Promise<WrittenMeta> {
+  return writeDriveFile(opts, driveId, path, text, 'utf8');
+}
+
+/**
+ * 한 파일을 쓴다 — `utf8` 텍스트 또는 `base64` 바이트(채팅 첨부). aindrive 의 `fs/write`·MCP `write_file` 둘 다
+ * `encoding: 'utf8'|'base64'` 를 받는다. 텍스트일 때는 예전과 같은 바디(encoding 키 없음)를 보낸다.
+ */
+export async function writeDriveFile(opts: FilesSourceOptions, driveId: string, path: string, content: string, encoding: 'utf8' | 'base64'): Promise<WrittenMeta> {
   if (!opts.token) throw new AinContractError('auth_required', 'aindrive 계정이 연결되어 있지 않습니다. 연결하면 답변을 저장할 수 있습니다.', { ...(opts.connectUrl ? { actionUrl: opts.connectUrl } : {}) });
   const f = opts.fetch ?? fetch;
   const issuer = opts.aindriveUrl.replace(/\/+$/, '');
@@ -156,7 +164,7 @@ export async function writeTextFile(opts: FilesSourceOptions, driveId: string, p
   if (getNativeSupport(nativeKey) !== false) {
     const res = await fetchUpstream(f, `${issuer}/api/drives/${encodeURIComponent(driveId)}/fs/write`, {
       method: 'POST', headers: { authorization: `Bearer ${opts.token}`, 'content-type': 'application/json', accept: 'application/json' },
-      body: JSON.stringify({ path: abs, content: text }), cache: 'no-store',
+      body: JSON.stringify({ path: abs, content, ...(encoding === 'base64' ? { encoding } : {}) }), cache: 'no-store',
     }, { timeoutMs, target: 'aindrive_write' });
     if (res.ok) {
       setNativeSupport(nativeKey, true);
@@ -171,7 +179,7 @@ export async function writeTextFile(opts: FilesSourceOptions, driveId: string, p
   const res = await fetchUpstream(f, `${issuer}/mcp/d/${encodeURIComponent(driveId)}`, {
     method: 'POST',
     headers: { authorization: `Bearer ${opts.token}`, 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'write_file', arguments: { path: abs.slice(1), content: text, encoding: 'utf8' } } }),
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'write_file', arguments: { path: abs.slice(1), content, encoding } } }),
     cache: 'no-store',
   }, { timeoutMs, target: 'aindrive_mcp' });
   if (!res.ok) throw writeError(writeErrorCode(res.status), 'aindrive_mcp_http_error', res.status);
@@ -201,10 +209,21 @@ export async function writeTextFile(opts: FilesSourceOptions, driveId: string, p
  * `folder` 는 `resolveOwnFolder` 가 돌려준 내 폴더여야 한다(ownerRef 가 곧 사용자다).
  */
 export async function saveAnswerToFolder(opts: FilesSourceOptions, folder: FileRef, target: SaveTarget, text: string): Promise<SaveResult> {
+  return saveContentToFolder(opts, folder, target, { text });
+}
+
+/** 저장할 내용: 답변 텍스트, 또는 바이트(채팅 첨부 — base64 로 쓴다). */
+export type SaveContent = { text: string } | { bytes: Uint8Array; mimeType?: string };
+
+/**
+ * saveTo 경로의 공통 단계(폴더 목록 → 충돌 정책·재시도 규칙 → 쓰기 → FileRef). 답변 저장과 17.7 채팅 첨부가 함께 쓴다.
+ */
+export async function saveContentToFolder(opts: FilesSourceOptions, folder: FileRef, target: SaveTarget, content: SaveContent): Promise<SaveResult> {
   if (folder.kind !== 'folder') throw new AinContractError('unsupported_input', 'saveTo.folderKey 는 폴더여야 합니다.');
   const name = target.displayName.normalize('NFC');
   const folderPath = aindriveNormalizePath(folder.legacy?.path ?? '/');
-  const bytes = Buffer.byteLength(text, 'utf8');
+  const isText = 'text' in content;
+  const bytes = isText ? Buffer.byteLength(content.text, 'utf8') : content.bytes.byteLength;
 
   // 충돌 정책은 폴더에 무엇이 있는지 알아야 지킬 수 있다: 목록을 못 읽으면 쓰지 않는다(오류가 그대로 올라간다).
   const entries = await listFolderEntries(opts, folder.driveId, folderPath);
@@ -229,9 +248,12 @@ export async function saveAnswerToFolder(opts: FilesSourceOptions, folder: FileR
   }
 
   const path = joinPath(folderPath, finalName);
-  const written = await writeTextFile(opts, folder.driveId, path, text);
+  const written = isText
+    ? await writeTextFile(opts, folder.driveId, path, content.text)
+    : await writeDriveFile(opts, folder.driveId, path, Buffer.from(content.bytes).toString('base64'), 'base64');
   const now = (opts.now ?? (() => new Date()))().getTime();
-  const file = entryToFileRef(folder, { name: finalName, path, isDir: false, size: written.size ?? bytes, mtimeMs: written.mtimeMs ?? now, mime: mimeOf(finalName) });
+  const mime = !isText && content.mimeType ? content.mimeType : mimeOf(finalName);
+  const file = entryToFileRef(folder, { name: finalName, path, isDir: false, size: written.size ?? bytes, mtimeMs: written.mtimeMs ?? now, mime });
   return { file, overwrote, reused: false };
 }
 
