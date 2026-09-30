@@ -28,6 +28,8 @@ const REDIS_RULES: [RegExp, AssetKind][] = [
   [/^village:grid:/, K('village-grid', 'redis', 'stays', '격자 → 마을 역인덱스')],
   [/^villages:all$/, K('village-index', 'redis', 'stays', '마을 목록')],
   [/^village:[^:]+:ain_materials$/, K('village-materials', 'redis', 'reference', '마을 자료(Aindrive 참조 + audience)')],
+  [/^village:[^:]+:ain_asset_links$/, K('village-asset-links', 'redis', 'reference', '마을 맵·타일셋의 Aindrive 복사본 fileKey(원래 URL 유지)')],
+  [/^ain:asset_link_rollback:/, K('asset-link-rollback', 'redis', 'stays', '자산 연결 실행별 롤백 항목(토큰 없음)')],
   [/^village:[^:]+:members$/, K('village-members', 'redis', 'stays', '마을 멤버(backend 사용자 id)')],
   [/^village:[^:]+:(players|heartbeat|events)$/, K('village-presence', 'redis', 'ephemeral', '접속자·heartbeat·이벤트')],
   [/^village:[^:]+$/, K('village-metadata', 'redis', 'stays', '마을 메타데이터(맵 URL 등)')],
