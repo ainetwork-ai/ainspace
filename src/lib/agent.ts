@@ -11,6 +11,10 @@ export interface AgentInfo {
     // (message.senderUserId) to this agent reliably — displayName is unreliable
     // (backend may suffix it, e.g. "WarmHeart" -> "WarmHeart22").
     backendUuid?: string;
+    // AIN integration: shared-agent id `"<registryIssuer>#<agentId>"` (StoredAgent.commonAgentId).
+    // Present only for agents imported from the shared-agent list — lets the village chat
+    // ask this placed agent through /api/ain/invoke.
+    commonAgentId?: string;
 }
 
 export interface AgentWorldState {

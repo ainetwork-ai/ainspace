@@ -9,7 +9,9 @@
  *   POST {AIN_TEAMS_DELEGATION_URL}            (Teams **web** 앱의 `/api/ain/delegation`)
  *   Authorization: Bearer <Space 클라이언트가 이미 든 Teams backend access JWT — iss a2a-backend, aud client-access>
  *     Teams web 은 이 토큰을 backend `/auth/me` 로 확인한다(ainteams web `lib/ain-integration/space-caller-auth.ts`).
- *   { agentRef: AgentRef, fileKeys: string[], conversationContextId: string, actions?: ['read'] }
+ *   { agentRef: AgentRef, fileKeys: string[], conversationContextId: string, requestId?: string, actions?: ['read'] }
+ *     requestId — Space 의 한 차례(turn) id(클라이언트가 만든다, invoke 바디의 `requestId`). 같은 차례의 재시도는 같은 값.
+ *     Teams 는 유료 셈의 멱등 키에 넣는다 — 있으면 차례마다 한 번, 없으면 발급마다 센다(ainteams #1318).
  *   → 200 { delegation: { token, exp, jti } }
  *   → 401 { error: { code: 'auth_required', actionUrl } }   연결 필요 — 저장된 세션 증명 없음(AIN SSO 연결) 또는 aindrive 연결 없음.
  *                                                           actionUrl 이 상대 경로면 Teams origin 기준으로 푼다(연결은 Teams 에서 한다).
@@ -52,6 +54,8 @@ export interface TeamsDelegationInput {
   agent: AgentRef;
   files: FileRef[];
   conversationContextId: string;
+  /** 차례 id. 있으면 그대로 싣는다(없으면 키 자체를 빼서 예전 바디와 같다). */
+  requestId?: string;
 }
 
 const MSG_AUTH = 'AIN SSO 계정이 연결되어 있지 않습니다. Teams 에서 AIN SSO 로 로그인하면 파일을 에이전트에게 넘길 수 있습니다.';
@@ -86,6 +90,7 @@ export async function requestTeamsDelegation(opts: TeamsDelegationOptions, input
     agentRef: input.agent,
     fileKeys: input.files.map(fileKey),
     conversationContextId: input.conversationContextId,
+    ...(input.requestId ? { requestId: input.requestId } : {}),
     actions: ['read'],
   };
   const res = await fetchUpstream(f, opts.url, {

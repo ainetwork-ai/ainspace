@@ -13,7 +13,8 @@ import { makeError } from '@/lib/ain-integration/types';
 export const runtime = 'nodejs';
 
 /**
- * POST /api/ain/invoke  { agentKey, text, fileKeys: string[], conversation, room?, saveTo?, villageMaterials? }
+ * POST /api/ain/invoke  { agentKey, text, fileKeys: string[], conversation, room?, saveTo?, villageMaterials?, requestId? }
+ *   requestId: 한 차례(turn) id(클라이언트가 만든다, 재시도는 같은 값) — Teams 위임 바디에 그대로 실려 유료 셈이 차례마다 한 번이 된다.
  *   villageMaterials: true 면 room(= 마을 slug)의 마을 자료 중 audience public·agent 만 fileKeys 에 더한다(17.5, members 는 넘기지 않음).
  *     조건: room 이 마을 slug 이고, agentKey 가 **그 마을에 배치된** 에이전트이며, 호출자가 그 마을의 멤버이거나
  *     검증된 체류(`PUT /api/ain/villages/:slug/presence`) 중이어야 한다. 그리고 이 호출에서 resolve 한 에이전트 소유자가 기준 소유자와

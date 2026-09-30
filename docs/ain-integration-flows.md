@@ -111,3 +111,18 @@ Space 는 AIN SSO 로 로그인하지 않는다(지갑·키오스크 → backend
 ## 17.7 자산 인벤토리·이관
 
 `docs/ain-asset-migration.md`.
+
+## 20.1 공유 에이전트 목록 범위(결함 B)와 마을 채팅의 "공유 에이전트에게 묻기"(결함 C)
+
+- **B**: Space 에는 사용자별 Ainize 세션이 없다. `GET /api/ain/shared-agents` 는 scope 가 없거나 `shared_with_me` 면
+  조직 키(`AINIZE_API_KEY`)가 있을 때 `shared_with_org`, 없으면 `public` 을 묻고, 실제 범위를 `x-ain-agent-scope` 헤더로 알린다
+  (Teams·Memory 와 같다). 선택기(`SharedAgentPicker`)는 기본으로 scope 없이 부르고, 명시한 범위가 401 `auth_required`
+  (연결 안내 없음)면 기본 범위로 한 번 다시 묻는다.
+- **C**: 채팅 입력 위 `AskSharedAgentPanel` — 이 마을에 배치된 공유 에이전트(`commonAgentId` 가 있는 것) 또는 공유 에이전트
+  목록에서 고른 에이전트 + 공유 파일(선택) + "이 마을의 자료도 넘기기"(배치된 에이전트일 때만) → `POST /api/ain/invoke`
+  `{ agentKey, text, fileKeys, conversation, room, villageMaterials?, requestId }` → 결과 카드(상태·답·Sources 원본 열기·취소·다시 시도).
+- `requestId` = 한 차례(turn) id. "묻기"마다 새로, **다시 시도는 같은 값**. 서버는 그대로 Teams `/api/ain/delegation` 바디에 싣고
+  (ainteams #1318 — 유료 셈이 차례마다 한 번), A2A idempotencyKey 에도 넣는다(재시도 = 같은 messageId, 다음 차례 = 다른 messageId).
+- 취소는 진행 중인 요청을 끊는 것(AbortController)이다. invoke 가 동기(`message/send`)라 원본 작업 취소 API 는 아직 없다 —
+  이미 시작된 작업은 끝까지 갈 수 있고 카드는 `canceled` 로 남는다.
+- Space 에는 AIN-UI 가 들어와 있지 않아 결과 카드는 기존 채팅 카드 스타일로 그린다.

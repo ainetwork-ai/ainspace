@@ -49,7 +49,7 @@ export function useAgentLoader({
       // 이미 스폰했으면 skip
       if (spawnedUrlsRef.current.has(agentData.url)) continue;
 
-      const { url, card, state, spriteUrl, spriteHeight, backendUuid } = agentData;
+      const { url, card, state, spriteUrl, spriteHeight, backendUuid, commonAgentId } = agentData;
 
       // 에이전트의 마을 결정
       let mapName = state.mapName;
@@ -107,6 +107,7 @@ export function useAgentLoader({
         moveInterval: state.moveInterval || 800,
         skills: card.skills,
         backendUuid: backendUuid,
+        ...(commonAgentId ? { commonAgentId } : {}),
         spriteUrl: spriteUrl,
         spriteHeight: spriteHeight || 40,
         spawnX: migratedState.spawnX,

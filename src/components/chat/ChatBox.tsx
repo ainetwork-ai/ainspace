@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback, forwardRef } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo, forwardRef } from 'react';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { ChatMessage, Thread, useAgentStore, useBuildStore, useChatStore, useGameStateStore, useThreadStore, useUIStore, useUserAgentStore, useUserStore } from '@/stores';
@@ -21,6 +21,9 @@ import { toChatMessageFiles } from '@/lib/backend/chat-files';
 import SharedFilePicker, { SharedFilePick } from '@/components/chat/SharedFilePicker';
 import ChatAttachmentUpload from '@/components/chat/ChatAttachmentUpload';
 import { insertAtCursor } from '@/lib/ain-integration/link-part';
+import AskSharedAgentPanel from '@/components/chat/AskSharedAgentPanel';
+import { placedAskTargets } from '@/lib/ain-integration/ask-client';
+import { useVillageStore } from '@/stores/useVillageStore';
 
 // When a thread's history is refetched on open, the backend result is the shared
 // source of truth — but it does NOT yet include a just-sent optimistic user
@@ -127,6 +130,10 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     const { messages, setMessages, getMessagesByThreadId } = useChatStore();
     const { currentThreadId, setCurrentThreadId, findThreadByName, findThreadById, addThread } = useThreadStore();
     const nearbyAgents = useNearbyAgents();
+    // AIN integration (20.1 C): "공유 에이전트에게 묻기" — the village's placed shared agents.
+    const currentVillageSlug = useVillageStore((s) => s.currentVillageSlug);
+    const allAgents = useAgentStore((s) => s.agents);
+    const askTargets = useMemo(() => placedAskTargets(allAgents, currentVillageSlug), [allAgents, currentVillageSlug]);
     const [inputValue, setInputValue] = useState('');
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [filteredAgents, setFilteredAgents] = useState<AgentState[]>([]);
@@ -1014,6 +1021,9 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     <Spinner className="size-4 text-white" />
                 </div>
             )}
+
+            {/* AIN integration (20.1 C): ask a shared agent with picked files / village materials → result card with Sources. Flag-gated. */}
+            <AskSharedAgentPanel slug={currentVillageSlug} placedAgents={askTargets} loggedIn={isBackendAuthed} />
 
             {/* NOTE: Chat Input Area */}
             <div className={cn('relative w-full', isDesktop ? 'bg-[#222529]' : 'bg-black/30 backdrop-blur-[6px]')}>

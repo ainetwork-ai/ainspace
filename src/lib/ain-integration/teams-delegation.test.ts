@@ -94,3 +94,13 @@ test('B 401 구분: 상대 actionUrl 은 Teams origin 기준, aindrive 연결과
     assert.equal(e?.actionUrl, undefined);
   }
 });
+
+test('B + #1318: requestId(차례 id)가 있으면 바디에 그대로 싣고, 없으면 키 자체가 없다', async () => {
+  const f = fakeFetch({ '/api/ain/delegation': () => jsonResponse({ delegation: { token: TOKEN, exp: 1_900_000_000, jti: 'rdlg_1' } }) });
+  await requestTeamsDelegation({ url: `${TEAMS}/api/ain/delegation`, teamsJwt: JWT, fetch: f }, { ...input, requestId: 'turn_abc' });
+  await requestTeamsDelegation({ url: `${TEAMS}/api/ain/delegation`, teamsJwt: JWT, fetch: f }, input);
+  const [withId, without] = f.calls.map((c) => JSON.parse(String(c.init!.body)));
+  assert.equal(withId.requestId, 'turn_abc');
+  assert.deepEqual(Object.keys(withId).sort(), ['actions', 'agentRef', 'conversationContextId', 'fileKeys', 'requestId']);
+  assert.ok(!('requestId' in without));
+});
