@@ -10,6 +10,7 @@ import {
 import { getFirebaseStorage } from '@/lib/firebase';
 import { rewriteTmjTilesetPaths } from '@/lib/tmj-rewriter';
 import { hasAdminAccess } from '@/lib/auth/permissions';
+import { villageDeps } from '@/lib/ain-integration/deps';
 
 /**
  * GET /api/villages/[slug]
@@ -184,6 +185,10 @@ export async function DELETE(
         { status: 404 },
       );
     }
+
+    // AIN 통합 키(소유자·멤버·자료·체류)도 지운다 — 같은 slug 로 다시 만든 마을이 옛 멤버·자료를 물려받지 않게.
+    // 플래그와 무관하게 지운다(플래그를 잠시 꺼 둔 동안 삭제돼도 남지 않게). 실패해도 삭제는 성공으로 둔다.
+    await villageDeps.directory.clearVillage(slug).catch((e) => console.warn('Failed to clear AIN village keys:', e instanceof Error ? e.message : 'unknown'));
 
     return NextResponse.json({ success: true });
   } catch (error) {

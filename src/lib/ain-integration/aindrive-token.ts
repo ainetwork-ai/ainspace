@@ -19,7 +19,10 @@
  * AES-256-GCM, 키 = HKDF(env `AINDRIVE_TOKEN_KEY`), AAD = 사용자 id. 키가 없으면 연결을 시작하지 않는다(평문 저장 없음).
  * 예전 평문 키 `ain:aindrive_token:<userId>` 는 더 읽지 않는다(연결을 다시 하면 된다).
  *
- * env `AINDRIVE_ACCOUNT_TOKEN`(배포 단위 토큰 — 계정이 하나인 전시 키오스크)은 사용자 연결이 **없을 때만** 쓴다.
+ * env `AINDRIVE_ACCOUNT_TOKEN`(배포 단위 토큰)은 **개발(NODE_ENV=development)에서만**, 그리고 사용자 레코드가
+ * **아예 없을 때만** 쓴다. 운영에서는 쓰지 않는다 — 쓰면 "그 사용자의 aindrive 로 해석·저장" 이라는 경로가 조용히
+ * 공용 계정으로 바뀐다. 레코드가 있는데 봉인을 못 열면(키 회전·변조) 어느 환경에서도 공용 토큰으로 물러서지 않고 null
+ * (→ `auth_required`, 다시 연결).
  *
  * 토큰 값은 절대 로그·응답·오류 메시지에 싣지 않는다.
  */
@@ -80,20 +83,27 @@ export function safeReturnTo(raw: string | null | undefined): string {
 
 // ------------------------------------------------------------------------------- store
 
-export async function readConnection(userId: string, d: AindriveOAuthDeps = defaultOAuthDeps): Promise<AindriveConnection | null> {
+type ConnectionRead = { state: 'none' } | { state: 'unreadable' } | { state: 'ok'; conn: AindriveConnection };
+
+async function readConnectionState(userId: string, d: AindriveOAuthDeps): Promise<ConnectionRead> {
   const k = keys();
-  if (!k) return null;
   const sealed = await d.kv.get(connectionKey(userId));
-  if (!sealed) return null;
+  if (!sealed) return { state: 'none' };
+  if (!k) return { state: 'unreadable' };
   const json = unseal(k.conn, sealed, userId);
   if (!json) {
     console.error('aindrive connection record could not be opened (key rotated or tampered); treating as not connected');
-    return null;
+    return { state: 'unreadable' };
   }
   try {
     const v = JSON.parse(json) as AindriveConnection;
-    return typeof v.accessToken === 'string' && v.accessToken ? v : null;
-  } catch { return null; }
+    return typeof v.accessToken === 'string' && v.accessToken ? { state: 'ok', conn: v } : { state: 'unreadable' };
+  } catch { return { state: 'unreadable' }; }
+}
+
+export async function readConnection(userId: string, d: AindriveOAuthDeps = defaultOAuthDeps): Promise<AindriveConnection | null> {
+  const r = await readConnectionState(userId, d);
+  return r.state === 'ok' ? r.conn : null;
 }
 
 export async function writeConnection(userId: string, conn: AindriveConnection, d: AindriveOAuthDeps = defaultOAuthDeps): Promise<void> {
@@ -220,7 +230,9 @@ export interface TokenLookupOptions extends AindriveOAuthDeps { aindriveUrl: str
 const inflight = new Map<string, Promise<string | null>>();
 
 async function refreshConnection(userId: string, conn: AindriveConnection, o: TokenLookupOptions): Promise<string | null> {
-  if (!conn.refreshToken || !o.clientId) { await disconnectAindrive(userId, o); return null; }
+  // client_id 가 없는 것은 배포 설정 문제다 — 연결을 지우지 않고 temporary_failure(설정을 고치면 그대로 다시 쓴다).
+  if (!o.clientId) throw notConfigured('client_id');
+  if (!conn.refreshToken) { await disconnectAindrive(userId, o); return null; }
   const next = await tokenRequest(o.aindriveUrl, { grant_type: 'refresh_token', refresh_token: conn.refreshToken, client_id: o.clientId }, o);
   if (next === 'rejected') {
     // 다른 인스턴스가 먼저 회전시켰을 수 있다: 저장본이 바뀌었으면 그것을 쓴다.
@@ -233,19 +245,28 @@ async function refreshConnection(userId: string, conn: AindriveConnection, o: To
   return next.accessToken;
 }
 
+/** 배포 단위 토큰은 개발에서만 쓴다(운영·테스트에서는 없음과 같다). */
+export function getSharedAindriveToken(): string | null {
+  if (process.env.NODE_ENV !== 'development') return null;
+  return process.env.AINDRIVE_ACCOUNT_TOKEN?.trim() || null;
+}
+
 /**
- * 사용자의 aindrive 계정 access 토큰(필요하면 갱신). 연결이 없으면 배포 단위 토큰(env), 그것도 없으면 null.
- * 갱신 중 원본 장애는 temporary_failure 로 던진다(연결을 지우지 않는다).
+ * 사용자의 aindrive 계정 access 토큰(필요하면 갱신). 사용자 레코드가 없으면 개발에서만 배포 단위 토큰(env), 아니면 null.
+ * 레코드가 있는데 열 수 없으면 null(공용 토큰으로 물러서지 않는다). 갱신 중 원본 장애·설정 누락은 temporary_failure 로
+ * 던진다(연결을 지우지 않는다).
  */
 export async function getAindriveAccountTokenFrom(userId: string | null, o: TokenLookupOptions): Promise<string | null> {
   if (userId) {
-    let conn: AindriveConnection | null = null;
-    try { conn = await readConnection(userId, o); } catch (error) {
+    let r: ConnectionRead;
+    try { r = await readConnectionState(userId, o); } catch (error) {
       // 저장소 장애를 "연결 없음"으로 보지 않는다(배포 토큰으로 물러서면 다른 계정으로 원본을 부르게 된다).
       console.error('aindrive connection lookup failed:', error instanceof Error ? error.message : 'unknown');
       throw new AinContractError('temporary_failure', 'aindrive 연결 정보를 읽을 수 없습니다. 잠시 후 다시 시도해 주세요.', { retryable: true, detail: 'aindrive_connection_store_unavailable' });
     }
-    if (conn) {
+    if (r.state === 'unreadable') return null;
+    if (r.state === 'ok') {
+      const conn = r.conn;
       if (conn.expiresAt - REFRESH_MARGIN_MS > nowMs(o)) return conn.accessToken;
       const running = inflight.get(userId);
       if (running) return running;
@@ -254,8 +275,7 @@ export async function getAindriveAccountTokenFrom(userId: string | null, o: Toke
       return p;
     }
   }
-  const shared = process.env.AINDRIVE_ACCOUNT_TOKEN?.trim();
-  return shared || null;
+  return getSharedAindriveToken();
 }
 
 /** 라우트용: 설정(env)과 기본 의존성으로 조회한다. */

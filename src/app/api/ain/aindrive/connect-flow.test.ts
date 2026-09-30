@@ -266,14 +266,54 @@ test('A: 키·클라이언트 id 없음 → 503 temporary_failure(평문 저장�
   } finally { s.restore(); }
 });
 
-test('A: 저장소 장애는 temporary_failure — 배포 토큰으로 물러서지 않는다', withEnv({ ...ENV, AINDRIVE_ACCOUNT_TOKEN: 'aind_aat_kiosk' }, async () => {
+test('A: 저장소 장애는 temporary_failure — 배포 토큰으로 물러서지 않는다', withEnv({ ...ENV, AINDRIVE_ACCOUNT_TOKEN: 'aind_aat_kiosk', NODE_ENV: 'development' }, async () => {
   const s = setup();
   try {
-    assert.equal(await getAindriveAccountToken('nobody'), 'aind_aat_kiosk', '연결이 없으면 키오스크 토큰');
+    assert.equal(await getAindriveAccountToken('nobody'), 'aind_aat_kiosk', '개발에서 연결이 없으면 키오스크 토큰');
     aindriveConnectDeps.kv = { ...s.kv, get: async () => { throw new Error('redis down'); } };
     const res = await LIST(makeRequest('/api/ain/shared-files?scope=shared_with_me', signedJwt('user-42')));
     assert.equal(res.status, 503);
     assert.equal((await res.json()).error.detail, 'aindrive_connection_store_unavailable');
     assert.deepEqual(s.server.seenAuth, []);
+  } finally { s.restore(); }
+}));
+
+test('A: 배포 단위 AINDRIVE_ACCOUNT_TOKEN 은 개발에서만, 레코드를 못 열면 어디서도 쓰지 않는다', async () => {
+  const s = setup();
+  try {
+    for (const NODE_ENV of ['production', 'test', undefined]) {
+      await withEnv({ ...ENV, AINDRIVE_ACCOUNT_TOKEN: 'aind_aat_kiosk', NODE_ENV }, async () => {
+        assert.equal(await getAindriveAccountToken('nobody'), null, `NODE_ENV=${NODE_ENV}: 공용 토큰 없음`);
+        const r = await LIST(makeRequest('/api/ain/shared-files?scope=shared_with_me', signedJwt('nobody')));
+        assert.equal(r.status, 401);
+      })();
+    }
+    assert.deepEqual(s.server.seenAuth, []);
+    // 레코드는 있는데 봉인을 열 수 없다(키 회전·변조) → 개발에서도 공용 토큰으로 물러서지 않는다(다시 연결).
+    await withEnv({ ...ENV, AINDRIVE_ACCOUNT_TOKEN: 'aind_aat_kiosk', NODE_ENV: 'development' }, async () => {
+      await s.kv.set('ain:aindrive_account:user-9', 'v1.tampered.record');
+      assert.equal(await getAindriveAccountToken('user-9'), null);
+      await withEnv({ AINDRIVE_TOKEN_KEY: 'another-token-key-0123456789abcdef-0123456789' }, async () => {
+        assert.equal(await getAindriveAccountToken('user-9'), null);
+      })();
+    })();
+  } finally { s.restore(); }
+});
+
+test('A: 갱신 때 AINDRIVE_OAUTH_CLIENT_ID 가 없으면 temporary_failure — 연결을 지우지 않는다', withEnv(ENV, async () => {
+  const s = setup();
+  try {
+    const c = await connect(signedJwt('u5'));
+    const g = s.server.approve(c.body.authorizeUrl);
+    await CALLBACK(callbackReq({ code: g.code, state: g.state }, c.cookie!));
+    s.advance(2 * 3600 * 1000);
+    await withEnv({ AINDRIVE_OAUTH_CLIENT_ID: undefined }, async () => {
+      await assert.rejects(getAindriveAccountToken('u5'), (e: { code?: string; detail?: string }) => e.code === 'temporary_failure' && e.detail === 'aindrive_connect_client_id_missing');
+      const r = await LIST(makeRequest('/api/ain/shared-files?scope=shared_with_me', signedJwt('u5')));
+      assert.equal(r.status, 503);
+    })();
+    assert.equal(s.kv.data.has('ain:aindrive_account:u5'), true, '연결은 그대로');
+    // 설정을 고치면 그 연결로 갱신이 된다
+    assert.equal(await getAindriveAccountToken('u5'), 'aind_aat_a2');
   } finally { s.restore(); }
 }));

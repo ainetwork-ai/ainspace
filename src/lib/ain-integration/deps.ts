@@ -12,6 +12,7 @@ import { invokeSharedAgent, resolveFiles } from './invoke';
 import { getSessionProof } from './session-proof';
 import { saveTaskRef } from './task-store';
 import { defaultVillageStore, listVillageMaterials } from './village-materials';
+import { redisVillageDirectory } from './village-membership';
 
 export const sharedFilesDeps = { getAindriveAccountToken, listSharedFiles };
 export const sharedAgentsDeps = { listSharedAgents };
@@ -23,3 +24,5 @@ export const aindriveConnectDeps = defaultOAuthDeps;
 export const villageMaterialsDeps = { store: defaultVillageStore, getAindriveAccountToken, resolveFiles };
 /** 17.7 채팅 첨부(새 첨부 → aindrive). */
 export const attachmentsDeps = { getAindriveAccountToken, saveChatAttachment };
+/** 17.5 마을 멤버십·검증된 체류·배치 에이전트(village-membership.ts)와 시계. 마을 생성·삭제 라우트도 이것을 쓴다. */
+export const villageDeps = { directory: redisVillageDirectory, now: () => Date.now() };
