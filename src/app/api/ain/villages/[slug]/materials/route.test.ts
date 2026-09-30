@@ -49,6 +49,9 @@ test('순수 규칙: 방문자 public, 멤버 public+members, 에이전트 publi
   assert.deepEqual(visibleMaterials(all, 'visitor').map((m) => m.audience), ['public']);
   assert.deepEqual(visibleMaterials(all, 'member').map((m) => m.audience), ['public', 'members']);
   assert.deepEqual(agentMaterialKeys(all), [fileKey(PUB), fileKey(AGT)]);
+  // 17.4 전시 자료(사람용 작품)는 public 이어도 에이전트에 넘기지 않는다
+  const art = { ...PUB, fileId: 'p1:art' };
+  assert.deepEqual(agentMaterialKeys([...all, { ref: art, audience: 'public', addedBy: 'owner', addedAt: '4', exhibition: true }]), [fileKey(PUB), fileKey(AGT)]);
 });
 
 test('17.5 GET: 방문자·멤버가 보는 자료가 다르고, 저장은 참조 하나당 Redis 필드 하나(audience 포함)', withEnv(ON, async () => {

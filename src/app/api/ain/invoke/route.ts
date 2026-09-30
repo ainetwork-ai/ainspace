@@ -16,7 +16,8 @@ export const runtime = 'nodejs';
  * POST /api/ain/invoke  { agentKey, text, fileKeys: string[], conversation, room?, saveTo?, villageMaterials? }
  *   villageMaterials: true 면 room(= 마을 slug)의 마을 자료 중 audience public·agent 만 fileKeys 에 더한다(17.5, members 는 넘기지 않음).
  *     조건: room 이 마을 slug 이고, agentKey 가 **그 마을에 배치된** 에이전트이며, 호출자가 그 마을의 멤버이거나
- *     검증된 체류(`PUT /api/ain/villages/:slug/presence`) 중이어야 한다. 아니면 403(원본은 부르지 않는다).
+ *     검증된 체류(`PUT /api/ain/villages/:slug/presence`) 중이어야 한다. 그리고 이 호출에서 resolve 한 에이전트 소유자가 기준 소유자와
+ *     같아야 한다(17.3, 위임 전에 기다려 확인 — `agent_owner_changed`). 아니면 403(원본은 부르지 않는다). 전시 자료는 넘기지 않는다.
  *     더해진 자료는 사용자가 고른 파일과 **똑같은 경로**를 탄다: 같은 fileKeys 배열 → 호출자의 aindrive 토큰으로 해석
  *     → 호출자의 세션 증명으로 위임 → 같은 file-refs part. 그래서 세션 증명이 없으면(Space 운영 = B 미적용) 고른 파일과
  *     마찬가지로 auth_required 가 된다(자료를 조용히 빼고 부르지 않는다).
@@ -31,7 +32,7 @@ export const runtime = 'nodejs';
  * 응답에는 토큰이 없다(TaskRef 계약 + stripSecretKeys). 플래그 off 면 404.
  *
  * 공통 항목 B(Space): `AIN_TEAMS_DELEGATION_URL` 이 있으면 위임은 Teams `POST /api/ain/delegation` 이 발급한다 —
- * 호출자의 Teams JWT(이 요청의 bearer, 위에서 검증됨)를 Teams 에만 보낸다. 없으면 예전 경로(세션 증명 없음 → auth_required).
+ * 호출자의 Teams backend access JWT(이 요청의 bearer, 위에서 검증됨 — Teams web 이 backend `/auth/me` 로 다시 확인)를 Teams 에만 보낸다. 없으면 예전 경로(세션 증명 없음 → auth_required).
  */
 export async function POST(request: NextRequest) {
   const guard = await guardAinRoute(request);
@@ -73,6 +74,8 @@ export async function POST(request: NextRequest) {
       getSessionProof: () => deps.getSessionProof(userId),
       // 17.3: resolve 한 에이전트의 소유자가 배치 때와 다르면 마을 소유자 재확인 대기로 표시(기다리지 않는다).
       onAgentResolved: (ref) => { void deps.observeResolvedAgent(ref); },
+      // 17.3: 마을 자료를 넘길 때는 위임 전에 소유자를 확인한다(기다린다) — 바뀌었거나 재확인 대기면 403.
+      verifyVillageAgentOwner: (room, ref) => deps.verifyVillageAgentOwner(room, ref),
       teamsDelegation: teamsUrl ? { url: teamsUrl, teamsJwt: readBearerHeader(request), connectUrl: getAinSsoConnectUrl() } : null,
       // 컨텍스트 경계: 이 제품의 사용자 + 대화. Space 에는 조직 개념이 없다(org=null).
       scope: { account: userId, org: null, product: 'ainspace' },

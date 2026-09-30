@@ -71,6 +71,12 @@ export interface InvokeOptions {
   scope: Omit<ConversationScope, 'conversation' | 'room'>;
   /** 17.3: 레지스트리에서 에이전트를 resolve 할 때마다(소유자 변경 관찰). 기다리지 않는다·실패해도 호출은 계속. */
   onAgentResolved?: (ref: AgentRef) => void;
+  /**
+   * 17.3: 마을 자료(`villageMaterials`)를 넘기는 호출에서 **위임 전에 기다리는** 소유자 확인(agent-ownership
+   * `verifyVillageAgentOwner`). false 면 `forbidden`(agent_owner_changed) — 소유자가 바뀐 첫 호출에서도 자료가 새 소유자의
+   * 에이전트에 가지 않는다. 이 확인이 관찰을 겸하므로 그때는 `onAgentResolved` 를 부르지 않는다.
+   */
+  verifyVillageAgentOwner?: (room: string, ref: AgentRef) => Promise<boolean>;
   fetch?: FetchLike;
   a2a?: Omit<InvokeAgentOptions, 'fetch'>;
   now?: () => Date;
@@ -180,7 +186,17 @@ async function requireDelegationPrerequisites(opts: InvokeOptions, agent: AgentR
 
 export async function invokeSharedAgent(opts: InvokeOptions, req: InvokeRequest): Promise<InvokeResult> {
   const agent = await resolveAgent(opts, req.agentKey);
-  try { opts.onAgentResolved?.(agent.ref); } catch { /* 관찰 실패는 호출과 무관 */ }
+  const materials = req.villageMaterials && req.room ? req.room : null;
+  if (materials) {
+    // 마을 자료는 배치 때(또는 재확인 때)의 소유자에게만 — 이 호출에서 resolve 한 소유자로 먼저 확인한다(기다린다).
+    // 확인 수단이 없으면(주입 누락) 넘기지 않는다.
+    const ok = opts.verifyVillageAgentOwner ? await opts.verifyVillageAgentOwner(materials, agent.ref) : false;
+    if (!ok) {
+      throw new AinContractError('forbidden', '이 에이전트의 소유자가 바뀌어 마을 소유자의 재확인 전에는 마을 자료를 넘길 수 없습니다.', { detail: 'agent_owner_changed' });
+    }
+  } else {
+    try { opts.onAgentResolved?.(agent.ref); } catch { /* 관찰 실패는 호출과 무관 */ }
+  }
   if (!agent.canInvoke || agent.ref.status !== 'active') throw new AinContractError('agent_stopped', '이 에이전트는 지금 호출할 수 없습니다.');
 
   // 파일이 있으면 popJwk·SSO 설정·세션 증명을 먼저 본다 — 넘길 수 없는 파일을 찾느라 aindrive 를 부르지 않는다.
@@ -196,19 +212,12 @@ export async function invokeSharedAgent(opts: InvokeOptions, req: InvokeRequest)
 
   let delegation: DelegationPart | undefined;
   if (files.length && prereq?.via === 'teams') {
-    // B(Space): Teams 가 자기 invoke 경로와 같은 방식으로 AIN SSO 에서 받아 온다. 오류(auth_required 의 actionUrl 포함)는 그대로.
-    let issued;
-    try {
-      issued = await requestTeamsDelegation({ url: prereq.teams.url, teamsJwt: prereq.teams.teamsJwt, timeoutMs: prereq.teams.timeoutMs, fetch: opts.fetch }, {
-        agent: agent.ref, files, conversationContextId: conversationContextId(scope),
-      });
-    } catch (e) {
-      // Teams 가 actionUrl 을 주지 않았으면 이 배포의 AIN SSO 연결 안내로.
-      if (e instanceof AinContractError && e.code === 'auth_required' && !e.actionUrl && prereq.teams.connectUrl) {
-        throw new AinContractError('auth_required', e.message, { actionUrl: prereq.teams.connectUrl, detail: e.detail, upstreamStatus: e.upstreamStatus });
-      }
-      throw e;
-    }
+    // B(Space): Teams 가 자기 invoke 경로와 같은 방식으로 AIN SSO 에서 받아 온다. 오류(연결 안내 actionUrl 포함)는
+    // teams-delegation.ts 가 Teams 의 것을 옮긴다 — actionUrl 이 없는 auth_required 는 Teams 가 로그인 세션을 거절한 것
+    // (teams_session_invalid)이라 이 배포의 AIN SSO 연결 안내를 붙이지 않는다.
+    const issued = await requestTeamsDelegation({ url: prereq.teams.url, teamsJwt: prereq.teams.teamsJwt, timeoutMs: prereq.teams.timeoutMs, fetch: opts.fetch }, {
+      agent: agent.ref, files, conversationContextId: conversationContextId(scope),
+    });
     delegation = delegationPartOf(issued, [...new Set(files.map((f) => f.issuer))]);
   } else if (files.length && prereq?.via === 'sso') {
     let issued;

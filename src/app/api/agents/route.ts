@@ -8,6 +8,8 @@ import { getBearer, backendFetch } from '@/lib/backend/server-client';
 import { BACKEND_WORKSPACE_ID, isBackendWorkspaceConfigured } from '@/lib/backend/config';
 import { BackendAgentListItem } from '@/lib/backend/agent-mapping';
 import { parseCommonAgentId } from '@/lib/ain-integration/common-agent-id';
+import { registryOwnerKey } from '@/lib/ain-integration/agent-ownership';
+import { getAinizeUrl, isAinIntegrationEnabled } from '@/lib/ain-integration/config';
 
 const AGENTS_KEY = 'agents:';
 
@@ -129,7 +131,11 @@ export async function POST(request: NextRequest) {
     }
 
     const invited = (await res.json()) as BackendAgentListItem;
-    const agent = await upsertAgentFromRosterItem(creator, invited, commonAgentId ? { commonAgentId } : {});
+    // 17.3: record the registry owner as the baseline the village placement is accepted with. If the
+    // lookup fails the agent has no baseline, and the first observation after placement asks the
+    // village owner to confirm instead of silently accepting whoever owns it then.
+    const ainOwnerKey = commonAgentId && isAinIntegrationEnabled() ? await registryOwnerKey({ ainizeUrl: getAinizeUrl() }, commonAgentId) : null;
+    const agent = await upsertAgentFromRosterItem(creator, invited, commonAgentId ? { commonAgentId, ...(ainOwnerKey ? { ainOwnerKey } : {}) } : {});
     if (!agent) {
       return NextResponse.json({ error: 'invited agent has no resolvable a2a url' }, { status: 502 });
     }

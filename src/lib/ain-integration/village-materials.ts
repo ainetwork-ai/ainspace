@@ -5,7 +5,7 @@
  *   KV hash `village:<slug>:ain_materials` — field = fileKey(`issuer#driveId#fileId`),
  *   value = JSON `{ ref: FileRef, audience: 'public'|'members'|'agent', addedBy, addedAt }`.
  *
- *   - `public`  : 방문자·멤버 모두 본다. 마을 에이전트에게도 넘길 수 있다.
+ *   - `public`  : 방문자·멤버 모두 본다. 마을 에이전트에게도 넘길 수 있다(전시 자료 `exhibition: true` 는 제외 — 사람용).
  *   - `members` : 멤버만 본다. **에이전트에게 넘기지 않는다**.
  *   - `agent`   : 사람 목록에는 나오지 않고(관리 보기 제외), 마을 에이전트 호출에만 file-refs 로 넘긴다.
  *
@@ -50,8 +50,12 @@ export function visibleMaterials(all: VillageMaterial[], viewer: VillageViewer):
   return all.filter((m) => ok.includes(m.audience));
 }
 
+/**
+ * 에이전트에게 넘길 마을 자료. 17.4 전시 자료(`exhibition: true`)는 **사람에게 보여 주는 작품**이라 audience 가 public 이어도
+ * 넘기지 않는다(자료 필드는 fileKey 하나당 하나라, 전시한 파일은 에이전트 자료가 아니다).
+ */
 export function agentMaterialKeys(all: VillageMaterial[]): string[] {
-  return all.filter((m) => AGENT_AUDIENCES.includes(m.audience)).map((m) => fileKey(m.ref));
+  return all.filter((m) => AGENT_AUDIENCES.includes(m.audience) && m.exhibition !== true).map((m) => fileKey(m.ref));
 }
 
 const parse = (raw: string): VillageMaterial | null => {

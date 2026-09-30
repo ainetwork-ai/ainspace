@@ -42,6 +42,7 @@ test('B 오류 매핑: 401→auth_required(http(s) actionUrl 만), 403→forbidd
   const codeOf = async (res: Response) => { try { await call(() => res).run(); return null; } catch (e) { return e as AinContractError; } };
   let e = await codeOf(jsonResponse({ error: { code: 'auth_required', message: 'x', actionUrl: 'https://teams.example/sso' } }, 401));
   assert.equal(e?.code, 'auth_required'); assert.equal(e?.actionUrl, 'https://teams.example/sso'); assert.equal(e?.status, 401);
+  assert.equal(e?.detail, 'teams_session_proof_missing');
   e = await codeOf(jsonResponse({ error: { code: 'auth_required', actionUrl: 'javascript:alert(1)' } }, 401));
   assert.equal(e?.code, 'auth_required'); assert.equal(e?.actionUrl, undefined);
   e = await codeOf(jsonResponse({ error: { code: 'forbidden', message: 'secret.pdf 는 볼 수 없음' } }, 403));
@@ -72,4 +73,24 @@ test('B: env — 미설정 null, https 또는 localhost http 만', async () => {
   await withEnv({ AIN_TEAMS_DELEGATION_URL: 'http://teams.example/api/ain/delegation' }, async () => {
     await captureErrors(async () => { assert.equal(getTeamsDelegationUrl(), null); });
   })();
+});
+
+test('B 401 구분: 상대 actionUrl 은 Teams origin 기준, aindrive 연결과 AIN SSO 연결을 가르고, Bearer 거절은 연결 안내 없이 teams_session_invalid', async () => {
+  const codeOf = async (res: Response) => { try { await call(() => res).run(); return null; } catch (e) { return e as AinContractError; } };
+  // Teams 저장 세션 증명 없음(AIN_SSO_CONNECT_PATH, 상대)
+  let e = await codeOf(jsonResponse({ error: { code: 'auth_required', message: 'x', retryable: false, actionUrl: '/ain/connect' } }, 401));
+  assert.equal(e?.actionUrl, `${TEAMS}/ain/connect`);
+  assert.equal(e?.detail, 'teams_session_proof_missing');
+  // Teams 쪽 aindrive 연결 없음(AINDRIVE_CONNECT_PATH, 상대) — AIN SSO 안내로 바꾸지 않는다
+  e = await codeOf(jsonResponse({ error: { code: 'auth_required', message: 'x', retryable: false, actionUrl: '/api/ain/aindrive/connect' } }, 401));
+  assert.equal(e?.actionUrl, `${TEAMS}/api/ain/aindrive/connect`);
+  assert.equal(e?.detail, 'teams_aindrive_not_connected');
+  assert.ok(e?.message.includes('aindrive'));
+  // Teams 가 Bearer 를 거절(requireAuth 401 — 계약 본문 없음, 또는 actionUrl 없는 auth_required)
+  for (const body of [{ error: 'Unauthorized' }, { error: { code: 'auth_required', message: 'Sign in to AIN Teams', retryable: false } }]) {
+    e = await codeOf(jsonResponse(body, 401));
+    assert.equal(e?.code, 'auth_required');
+    assert.equal(e?.detail, 'teams_session_invalid');
+    assert.equal(e?.actionUrl, undefined);
+  }
 });

@@ -3,7 +3,7 @@
  * 않으므로 여기 두고, 테스트가 Redis·원본 호출 없이 라우트를 돌릴 때 이 객체의 필드를 바꿔 끼운다.
  */
 import { applyAgentEvents, redisAgentStore } from './agent-events';
-import { observeAgentOwners, observeResolvedAgent, resolveAgentOwners, trackedAgentKeys } from './agent-ownership';
+import { observeAgentOwners, observeResolvedAgent, resolveAgentOwners, trackedAgentKeys, verifyVillageAgentOwner } from './agent-ownership';
 import { defaultOAuthDeps, getAindriveAccountToken } from './aindrive-token';
 import { listSharedAgents } from './agents';
 import { fetchEvents } from './events';
@@ -23,6 +23,8 @@ export const invokeDeps = {
   listVillageMaterials: (slug: string) => listVillageMaterials(slug, villageMaterialsDeps.store),
   /** 17.3: invoke 가 resolve 한 에이전트의 소유자 관찰. */
   observeResolvedAgent: (ref: Parameters<typeof observeResolvedAgent>[0]) => observeResolvedAgent(ref, villageAgentsDeps.store),
+  /** 17.3: 마을 자료를 넘기기 전 기다리는 소유자 확인. */
+  verifyVillageAgentOwner: (slug: string, ref: Parameters<typeof verifyVillageAgentOwner>[1]) => verifyVillageAgentOwner(slug, ref, villageAgentsDeps.store),
 };
 /** 17.3 이벤트 반영: 상태(applyAgentEvents) + 소유권(agent.updated/moved → 레지스트리 재조회 → observeAgentOwners). */
 export const eventsDeps = {

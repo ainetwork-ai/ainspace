@@ -44,10 +44,14 @@ const PUB = ref('pub'); const MEM = ref('mem'); const AGT = ref('agt'); const PI
 interface TeamsCall { user: string | null; body: { agentRef?: AgentRef; fileKeys?: string[]; conversationContextId?: string; actions?: string[] } }
 
 /**
- * 가짜 Teams backend — 계약 그대로: Bearer Teams JWT → 사용자, 봉인된 세션 증명이 있는 사용자만, 그 사용자가 자기 aindrive
- * 연결로 볼 수 있는 fileKey 만. 플래그 off 면 404.
+ * 가짜 Teams web `/api/ain/delegation` — 계약 그대로: Bearer 는 **Teams backend access JWT**(iss `a2a-backend`,
+ * aud `client-access`, backend 키) — 실제 Teams web 이 backend `/auth/me` 로 확인하는 바로 그 토큰(ainteams
+ * `web/src/lib/ain-integration/space-caller-auth.ts`)이고, 그 밖의 발급자·audience·키는 401 `{error:'Unauthorized'}`.
+ * 봉인된 세션 증명이 있는 사용자만, 그 사용자가 자기 aindrive 연결로 볼 수 있는 fileKey 만. 플래그 off 면 404.
  */
-async function startTeams(state: { proofs: Set<string>; visible: Map<string, Set<string>>; enabled: boolean }) {
+const TEAMS_BACKEND_ISSUER = 'a2a-backend';
+const TEAMS_BACKEND_AUDIENCE = 'client-access';
+async function startTeams(state: { proofs: Set<string>; visible: Map<string, Set<string>>; enabled: boolean; backendKey?: string }) {
   const calls: TeamsCall[] = [];
   const read = (r: IncomingMessage) => new Promise<string>((ok) => { let s = ''; r.on('data', (c) => { s += c; }); r.on('end', () => ok(s)); });
   const server: Server = createServer(async (rq, rs) => {
@@ -55,12 +59,12 @@ async function startTeams(state: { proofs: Set<string>; visible: Map<string, Set
     if (rq.method !== 'POST' || rq.url !== '/api/ain/delegation') return send(404, { error: 'not found' });
     const raw = await read(rq);
     const bearer = /^Bearer (.+)$/.exec(rq.headers.authorization ?? '')?.[1] ?? '';
-    const session = bearer ? verifyHs256Session(bearer, TEST_SIGNING_KEY) : null;
+    const session = bearer ? verifyHs256Session(bearer, state.backendKey ?? TEST_SIGNING_KEY, { issuer: TEAMS_BACKEND_ISSUER, audience: TEAMS_BACKEND_AUDIENCE }) : null;
     let body: TeamsCall['body'] = {};
     try { body = JSON.parse(raw); } catch { /* bad */ }
     calls.push({ user: session?.userId ?? null, body });
     if (!state.enabled) return send(404, { error: { code: 'temporary_failure', message: 'off', retryable: false } });
-    if (!session) return send(401, { error: { code: 'auth_required', message: 'login', retryable: false } });
+    if (!session) return send(401, { error: 'Unauthorized' });
     if (!state.proofs.has(session.userId)) return send(401, { error: { code: 'auth_required', message: 'connect AIN SSO', retryable: false, actionUrl: TEAMS_ACTION_URL } });
     const can = state.visible.get(session.userId) ?? new Set();
     if (!body.fileKeys?.length || !body.fileKeys.every((k) => can.has(k))) return send(403, { error: { code: 'forbidden', message: 'not listable', retryable: false } });
@@ -111,6 +115,7 @@ async function wire(teamsState: Parameters<typeof startTeams>[0]) {
   invokeDeps.getSessionProof = async () => { proofAsked++; return null; };
   invokeDeps.saveTaskRef = async () => {};
   invokeDeps.observeResolvedAgent = async () => {};
+  invokeDeps.verifyVillageAgentOwner = async () => true;
   invokeDeps.invokeSharedAgent = (o, r) => invokeSharedAgent({ ...o, fetch: up.routed }, r);
   resetNativeSupport();
   await dir.setOwner('alpha', 'owner-1');
@@ -226,5 +231,23 @@ test('B: AIN_TEAMS_DELEGATION_URL 미설정 → 예전대로 auth_required(Teams
       assert.equal((await invoke('owner-1', { villageMaterials: true })).status, 503);
     })();
     assert.equal(w.teams.calls.length, 0);
+  } finally { await w.restore(); }
+}));
+
+test('B: Teams 가 Space 의 Bearer 를 받지 않으면(발급자·키 불일치) 401 teams_session_invalid — AIN SSO 연결 안내로 바꾸지 않는다', withEnv(ENV, async () => {
+  const state = { proofs: new Set(['owner-1']), visible: new Map([['owner-1', new Set([PUB, AGT].map(fileKey))]]), enabled: true, backendKey: 'a-different-teams-backend-signing-key-32+' };
+  const w = await wire(state);
+  try {
+    await withEnv({ AIN_TEAMS_DELEGATION_URL: w.teams.url }, async () => {
+      const res = await invoke('owner-1', { villageMaterials: true });
+      assert.equal(res.status, 401);
+      const e = (await res.json()).error;
+      assert.equal(e.code, 'auth_required');
+      assert.equal(e.detail, 'teams_session_invalid');
+      assert.equal(e.actionUrl, undefined);
+      assert.equal(w.teams.calls.length, 1);
+      assert.equal(w.teams.calls[0].user, null);
+      assert.equal(w.up.messages.length, 0);
+    })();
   } finally { await w.restore(); }
 }));
