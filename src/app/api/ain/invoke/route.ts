@@ -3,14 +3,16 @@ import {
   getAindriveConnectUrl, getAindriveUrl, getAinSsoClientCredentials, getAinSsoConnectUrl, getAinSsoIssuer, getAinizeUrl,
 } from '@/lib/ain-integration/config';
 import { invokeDeps as deps } from '@/lib/ain-integration/deps';
-import { parseInvokeBody } from '@/lib/ain-integration/invoke';
+import { INVOKE_LIMITS, parseInvokeBody } from '@/lib/ain-integration/invoke';
+import { agentMaterialKeys } from '@/lib/ain-integration/village-materials';
 import { errorResponse, failureResponse, guardAinRoute, okResponse } from '@/lib/ain-integration/route';
 import { makeError } from '@/lib/ain-integration/types';
 
 export const runtime = 'nodejs';
 
 /**
- * POST /api/ain/invoke  { agentKey, text, fileKeys: string[], conversation, room?, saveTo? }
+ * POST /api/ain/invoke  { agentKey, text, fileKeys: string[], conversation, room?, saveTo?, villageMaterials? }
+ *   villageMaterials: true 면 room(= 마을 slug)의 마을 자료 중 audience public·agent 만 fileKeys 에 더한다(17.5, members 는 넘기지 않음).
  *   → 200 { task: TaskRef, text }  (adapter-invoke-spec §POST /api/ain/invoke)
  *   saveTo: { folderKey, displayName, onConflict: 'fail'|'overwrite'|'rename' } — 완료된 답변을 사용자 자신의 aindrive
  *   폴더에 쓰고 `task.outputs[0] = { file, overwrote }` 로 보고한다(lib/ain-integration/save.ts). 이름 충돌 + fail 은 409.
@@ -32,13 +34,20 @@ export async function POST(request: NextRequest) {
 
   const { userId } = guard;
   try {
+    // 17.5: 마을 자료 중 에이전트용(public·agent)만 file-refs 에 더한다. members 자료는 넘기지 않는다.
+    if (parsed.req.villageMaterials && parsed.req.room) {
+      const extra = agentMaterialKeys(await deps.listVillageMaterials(parsed.req.room));
+      const fileKeys = [...new Set([...parsed.req.fileKeys, ...extra])];
+      if (fileKeys.length > INVOKE_LIMITS.fileKeys) return errorResponse(makeError('unsupported_input', `넘길 파일이 ${INVOKE_LIMITS.fileKeys}개를 넘습니다.`), 400);
+      parsed.req.fileKeys = fileKeys;
+    }
     const aindriveToken = await deps.getAindriveAccountToken(userId);
     const creds = getAinSsoClientCredentials();
     const result = await deps.invokeSharedAgent({
       aindriveUrl: getAindriveUrl(),
       ainizeUrl: getAinizeUrl(),
       aindriveToken,
-      aindriveConnectUrl: getAindriveConnectUrl(),
+      aindriveConnectUrl: getAindriveConnectUrl(request.nextUrl.origin),
       sso: creds ? { issuer: getAinSsoIssuer(), ...creds, connectUrl: getAinSsoConnectUrl() } : null,
       getSessionProof: () => deps.getSessionProof(userId),
       // 컨텍스트 경계: 이 제품의 사용자 + 대화. Space 에는 조직 개념이 없다(org=null).

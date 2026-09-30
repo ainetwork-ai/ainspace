@@ -43,6 +43,11 @@ export interface InvokeRequest {
   room?: string;
   /** 완료된 답변을 쓸 폴더와 충돌 정책(계약 writeTarget). 없으면 저장하지 않는다. */
   saveTo?: SaveTarget;
+  /**
+   * 17.5: `room`(= 마을 slug)의 마을 자료 중 에이전트에게 넘길 수 있는 것(audience public·agent)을 file-refs 에 더한다.
+   * `members` 자료는 넘기지 않는다. 라우트가 fileKeys 에 합친다(village-materials.ts).
+   */
+  villageMaterials?: boolean;
 }
 
 export interface InvokeOptions {
@@ -73,6 +78,17 @@ export function deriveIdempotencyKey(input: { account: string; agentKey: string;
   const fileKeys = [...new Set(input.fileKeys)].sort();
   const h = createHash('sha256').update(JSON.stringify([input.account, input.agentKey, fileKeys, input.text, input.conversation, input.room ?? null])).digest('hex');
   return `idem_${h.slice(0, 40)}`;
+}
+
+/**
+ * 17.6 마을 대화 식별자 — (마을, 에이전트)마다 결정적이다. 그래서 같은 방문자가 마을을 나갔다 들어오거나 서버가
+ * 재시작돼도 같은 `conversation` → 같은 contextId 로 이어지고(기억해 둘 상태가 없다), 다른 방문자와는 contextId 의
+ * `account` 조각이 달라 섞이지 않는다(`conversationContextId` = ctx:account:org:product:room:conversation).
+ * 새 대화를 시작하고 싶으면 `thread` 에 스레드 id 를 준다.
+ */
+export function villageConversationId(slug: string, agentKeyValue: string, thread?: string): string {
+  const h = createHash('sha256').update(JSON.stringify([slug, agentKeyValue, thread ?? null])).digest('hex').slice(0, 24);
+  return `village-${h}`;
 }
 
 const AGENT_PAGE_LIMIT = 200;
@@ -203,5 +219,8 @@ export function parseInvokeBody(body: unknown): { ok: true; req: InvokeRequest }
     if (!parsed.ok) return parsed;
     saveTo = parsed.saveTo;
   }
-  return { ok: true, req: { agentKey: agentKeyRaw, text, fileKeys: [...new Set(fileKeysRaw as string[])], conversation, ...(room ? { room } : {}), ...(saveTo ? { saveTo } : {}) } };
+  if (b.villageMaterials !== undefined && typeof b.villageMaterials !== 'boolean') return { ok: false, message: 'villageMaterials 는 boolean 이어야 합니다.' };
+  const villageMaterials = b.villageMaterials === true;
+  if (villageMaterials && !room) return { ok: false, message: 'villageMaterials 는 room(마을 slug)과 함께 써야 합니다.' };
+  return { ok: true, req: { agentKey: agentKeyRaw, text, fileKeys: [...new Set(fileKeysRaw as string[])], conversation, ...(room ? { room } : {}), ...(saveTo ? { saveTo } : {}), ...(villageMaterials ? { villageMaterials } : {}) } };
 }

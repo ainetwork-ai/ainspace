@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const token = await deps.getAindriveAccountToken(guard.userId);
-    const res = await deps.listSharedFiles({ aindriveUrl: getAindriveUrl(), token, connectUrl: getAindriveConnectUrl() }, query);
+    const res = await deps.listSharedFiles({ aindriveUrl: getAindriveUrl(), token, connectUrl: getAindriveConnectUrl(request.nextUrl.origin) }, query);
     return okResponse(res);
   } catch (e) {
     return failureResponse(e);
