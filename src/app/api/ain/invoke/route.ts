@@ -2,7 +2,9 @@ import { NextRequest } from 'next/server';
 import {
   getAindriveConnectUrl, getAindriveUrl, getAinSsoClientCredentials, getAinSsoConnectUrl, getAinSsoIssuer, getAinizeUrl,
 } from '@/lib/ain-integration/config';
+import { readBearerHeader } from '@/lib/ain-integration/app-session';
 import { invokeDeps as deps, villageDeps } from '@/lib/ain-integration/deps';
+import { getTeamsDelegationUrl } from '@/lib/ain-integration/teams-delegation';
 import { INVOKE_LIMITS, parseInvokeBody } from '@/lib/ain-integration/invoke';
 import { agentMaterialKeys, isVillageSlug } from '@/lib/ain-integration/village-materials';
 import { errorResponse, failureResponse, guardAinRoute, okResponse } from '@/lib/ain-integration/route';
@@ -27,6 +29,9 @@ export const runtime = 'nodejs';
  * 으로만 발급받는다 — 없으면 `auth_required` + actionUrl. backend JWT 는 원본 어디에도 전달하지 않는다.
  * 호출자는 항상 검증된 사용자다(익명 호출 없음): idempotencyKey·contextId·TaskRef 보관이 모두 그 사용자에 묶인다.
  * 응답에는 토큰이 없다(TaskRef 계약 + stripSecretKeys). 플래그 off 면 404.
+ *
+ * 공통 항목 B(Space): `AIN_TEAMS_DELEGATION_URL` 이 있으면 위임은 Teams `POST /api/ain/delegation` 이 발급한다 —
+ * 호출자의 Teams JWT(이 요청의 bearer, 위에서 검증됨)를 Teams 에만 보낸다. 없으면 예전 경로(세션 증명 없음 → auth_required).
  */
 export async function POST(request: NextRequest) {
   const guard = await guardAinRoute(request);
@@ -58,6 +63,7 @@ export async function POST(request: NextRequest) {
     }
     const aindriveToken = await deps.getAindriveAccountToken(userId);
     const creds = getAinSsoClientCredentials();
+    const teamsUrl = getTeamsDelegationUrl();
     const result = await deps.invokeSharedAgent({
       aindriveUrl: getAindriveUrl(),
       ainizeUrl: getAinizeUrl(),
@@ -65,6 +71,7 @@ export async function POST(request: NextRequest) {
       aindriveConnectUrl: getAindriveConnectUrl(request.nextUrl.origin),
       sso: creds ? { issuer: getAinSsoIssuer(), ...creds, connectUrl: getAinSsoConnectUrl() } : null,
       getSessionProof: () => deps.getSessionProof(userId),
+      teamsDelegation: teamsUrl ? { url: teamsUrl, teamsJwt: readBearerHeader(request), connectUrl: getAinSsoConnectUrl() } : null,
       // 컨텍스트 경계: 이 제품의 사용자 + 대화. Space 에는 조직 개념이 없다(org=null).
       scope: { account: userId, org: null, product: 'ainspace' },
     }, parsed.req);
