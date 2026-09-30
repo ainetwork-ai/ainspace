@@ -45,6 +45,7 @@ function wire(f: ReturnType<typeof fakeFetch>) {
   const saved: { userId: string; conversation: string; task: TaskRef }[] = [];
   invokeDeps.invokeSharedAgent = (o, r) => invokeSharedAgent({ ...o, fetch: f }, r);
   invokeDeps.getAindriveAccountToken = async () => null;
+  invokeDeps.observeResolvedAgent = async () => {};
   invokeDeps.saveTaskRef = async (userId, conversation, task) => { saved.push({ userId, conversation, task }); };
   resetNativeSupport();
   return saved;

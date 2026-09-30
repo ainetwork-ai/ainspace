@@ -362,6 +362,13 @@ export interface StoredAgent {
     // to backendStatus (lib/ain-integration/agent-events.ts). Older events never
     // roll a newer status back. Placement is untouched by those events.
     ainStatusVersion?: number;
+    // AIN integration (plan 17.3): owner of the shared agent that the village
+    // placement was accepted with (`kind:issuer#subject`, observed from the
+    // Ainize registry by the server) and, when the registry now shows a
+    // different owner, the pending change the village owner must re-confirm.
+    // Placement is kept while pending (lib/ain-integration/agent-ownership.ts).
+    ainOwnerKey?: string;
+    ainOwnerChange?: { from: string | null; to: string; detectedAt: string };
 }
 
 const AGENTS_KEY = 'agents:';

@@ -71,6 +71,8 @@ export async function POST(request: NextRequest) {
       aindriveConnectUrl: getAindriveConnectUrl(request.nextUrl.origin),
       sso: creds ? { issuer: getAinSsoIssuer(), ...creds, connectUrl: getAinSsoConnectUrl() } : null,
       getSessionProof: () => deps.getSessionProof(userId),
+      // 17.3: resolve 한 에이전트의 소유자가 배치 때와 다르면 마을 소유자 재확인 대기로 표시(기다리지 않는다).
+      onAgentResolved: (ref) => { void deps.observeResolvedAgent(ref); },
       teamsDelegation: teamsUrl ? { url: teamsUrl, teamsJwt: readBearerHeader(request), connectUrl: getAinSsoConnectUrl() } : null,
       // 컨텍스트 경계: 이 제품의 사용자 + 대화. Space 에는 조직 개념이 없다(org=null).
       scope: { account: userId, org: null, product: 'ainspace' },

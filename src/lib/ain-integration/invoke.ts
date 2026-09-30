@@ -69,6 +69,8 @@ export interface InvokeOptions {
    */
   teamsDelegation?: (Omit<TeamsDelegationOptions, 'teamsJwt' | 'fetch'> & { teamsJwt: string | null; connectUrl?: string }) | null;
   scope: Omit<ConversationScope, 'conversation' | 'room'>;
+  /** 17.3: 레지스트리에서 에이전트를 resolve 할 때마다(소유자 변경 관찰). 기다리지 않는다·실패해도 호출은 계속. */
+  onAgentResolved?: (ref: AgentRef) => void;
   fetch?: FetchLike;
   a2a?: Omit<InvokeAgentOptions, 'fetch'>;
   now?: () => Date;
@@ -178,6 +180,7 @@ async function requireDelegationPrerequisites(opts: InvokeOptions, agent: AgentR
 
 export async function invokeSharedAgent(opts: InvokeOptions, req: InvokeRequest): Promise<InvokeResult> {
   const agent = await resolveAgent(opts, req.agentKey);
+  try { opts.onAgentResolved?.(agent.ref); } catch { /* 관찰 실패는 호출과 무관 */ }
   if (!agent.canInvoke || agent.ref.status !== 'active') throw new AinContractError('agent_stopped', '이 에이전트는 지금 호출할 수 없습니다.');
 
   // 파일이 있으면 popJwk·SSO 설정·세션 증명을 먼저 본다 — 넘길 수 없는 파일을 찾느라 aindrive 를 부르지 않는다.

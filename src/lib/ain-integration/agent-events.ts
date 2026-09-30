@@ -6,7 +6,8 @@
  *     StoredAgent 를 `backendStatus:'inactive'` 로 (AgentTab 이 비활성으로 그린다). **배치(isPlaced·state)는 지우지 않는다** —
  *     에이전트가 다시 게시되면 같은 자리에 돌아온다.
  *   - `agent.published` / `agent.updated` → `backendStatus:'active'` 로 되돌린다.
- *   - `agent.moved`(소유권·위치 변경)는 상태를 바꾸지 않는다.
+ *   - `agent.moved`(소유권·위치 변경)는 상태를 바꾸지 않는다. 소유권 변경은 agent-ownership.ts 가 따로 본다
+ *     (`agent.updated`/`agent.moved` → 레지스트리 재조회 → 배치 유지 + 마을 소유자 재확인 대기).
  * 같은 리소스는 더 큰 version 만 적용한다(중복·역순 안전): 마지막으로 적용한 version 을 `ainStatusVersion` 에 남겨
  * 다음 페이지의 오래된 이벤트가 최신 상태를 되돌리지 못하게 한다.
  *

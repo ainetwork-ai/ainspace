@@ -88,6 +88,7 @@ function wire(opts: { sessionProof: string | null }) {
   invokeDeps.getAindriveAccountToken = async (u) => (u ? `aind_aat_${u}` : null);
   invokeDeps.getSessionProof = async () => opts.sessionProof;
   invokeDeps.saveTaskRef = async () => {};
+  invokeDeps.observeResolvedAgent = async () => {};
   invokeDeps.invokeSharedAgent = (o, r) => invokeSharedAgent({ ...o, fetch: up.f }, r);
   resetNativeSupport();
   return {
