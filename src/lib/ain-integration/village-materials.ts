@@ -27,6 +27,8 @@ export interface VillageMaterial {
   audience: MaterialAudience;
   addedBy: string;
   addedAt: string;
+  /** 17.4: 마을 소유자가 붙인 전시 자료(작품). exhibition.ts. */
+  exhibition?: boolean;
 }
 
 export { materialsKey, membersKey };

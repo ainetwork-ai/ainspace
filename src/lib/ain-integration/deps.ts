@@ -7,6 +7,7 @@ import { observeAgentOwners, observeResolvedAgent, resolveAgentOwners, trackedAg
 import { defaultOAuthDeps, getAindriveAccountToken } from './aindrive-token';
 import { listSharedAgents } from './agents';
 import { fetchEvents } from './events';
+import { checkExhibits } from './exhibition';
 import { listSharedFiles } from './files';
 import { saveChatAttachment } from './chat-attachments';
 import { invokeSharedAgent, resolveFiles } from './invoke';
@@ -32,8 +33,8 @@ export const eventsDeps = {
 };
 /** aindrive 계정 연결(connect/callback) 라우트의 저장소·원본 fetch·시계. */
 export const aindriveConnectDeps = defaultOAuthDeps;
-/** 17.5 마을 자료 라우트: 저장소(KV·멤버 판정)와 파일 해석. */
-export const villageMaterialsDeps = { store: defaultVillageStore, getAindriveAccountToken, resolveFiles };
+/** 17.5 마을 자료 라우트: 저장소(KV·멤버 판정)와 파일 해석. 17.4 전시 자료 가용성 확인(checkExhibits). */
+export const villageMaterialsDeps = { store: defaultVillageStore, getAindriveAccountToken, resolveFiles, checkExhibits };
 /** 17.7 채팅 첨부(새 첨부 → aindrive). */
 export const attachmentsDeps = { getAindriveAccountToken, saveChatAttachment };
 /** 17.5 마을 멤버십·검증된 체류·배치 에이전트(village-membership.ts)와 시계. 마을 생성·삭제 라우트도 이것을 쓴다. */
