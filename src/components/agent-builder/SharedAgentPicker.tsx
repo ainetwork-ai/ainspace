@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { isAinIntegrationEnabledClient } from '@/lib/ain-integration/config';
+import { AGENT_SCOPE_HEADER, isAinIntegrationEnabledClient } from '@/lib/ain-integration/config';
 import { agentKey, type AgentListItem, type AgentListScope, type AgentRef } from '@/lib/ain-integration/types';
 
 /**
@@ -24,6 +24,57 @@ export interface SharedAgentPick {
 export const agentUrlForImport = (ref: Pick<AgentRef, 'endpoint' | 'agentCardUrl'>): string => ref.endpoint || ref.agentCardUrl;
 
 type Fetcher = (input: string) => Promise<Response>;
+
+interface ListError { message: string; actionUrl?: string }
+
+export interface AgentListLoad {
+  items: AgentListItem[];
+  asOf: string | null;
+  /** 서버가 실제로 물은 범위(`x-ain-agent-scope`). 모르면 null. */
+  scope: AgentListScope | null;
+  error: ListError | null;
+}
+
+const SCOPE_TITLE: Record<AgentListScope, string> = {
+  public: '공개 에이전트', shared_with_org: '조직에 공유된 에이전트', shared_with_me: '나에게 공유된 에이전트', mine: '내 에이전트',
+};
+export const agentListTitle = (scope: AgentListScope | null): string => (scope ? SCOPE_TITLE[scope] : '공유 에이전트');
+
+const isScope = (v: string | null): v is AgentListScope => v === 'public' || v === 'shared_with_org' || v === 'shared_with_me' || v === 'mine';
+
+/**
+ * 목록을 불러온다(20.1 결함 B). `scope` 를 주지 않으면 서버가 고른다 — Space 에는 사용자별 Ainize 세션이 없으므로
+ * 서버는 조직 키가 있으면 `shared_with_org`, 없으면 `public` 을 묻는다(Teams·Memory 와 같다). 범위를 명시했는데
+ * 원본이 401 `auth_required`(연결 안내 없음 = "로그인해야 볼 수 있다")를 주면 기본 범위로 한 번 다시 묻는다.
+ */
+export async function loadSharedAgents(fetcher: Fetcher, scope?: AgentListScope): Promise<AgentListLoad> {
+  const once = async (sc?: AgentListScope): Promise<AgentListLoad & { status: number; code?: string }> => {
+    try {
+      const res = await fetcher(sc ? `/api/ain/shared-agents?scope=${encodeURIComponent(sc)}` : '/api/ain/shared-agents');
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        const e = body?.error as { code?: string; message?: string; actionUrl?: string } | undefined;
+        return { status: res.status, code: e?.code, items: [], asOf: null, scope: null, error: { message: e?.message ?? `공유 에이전트 목록을 불러오지 못했습니다 (${res.status})`, ...(e?.actionUrl ? { actionUrl: e.actionUrl } : {}) } };
+      }
+      const used = res.headers?.get?.(AGENT_SCOPE_HEADER) ?? null;
+      return {
+        status: res.status,
+        items: Array.isArray(body?.items) ? (body.items as AgentListItem[]) : [],
+        asOf: typeof body?.asOf === 'string' ? body.asOf : null,
+        scope: isScope(used) ? used : (sc ?? null),
+        error: null,
+      };
+    } catch {
+      return { status: 0, items: [], asOf: null, scope: null, error: { message: '공유 에이전트 목록을 불러오지 못했습니다.' } };
+    }
+  };
+  const first = await once(scope);
+  if (scope && first.status === 401 && first.code === 'auth_required' && !first.error?.actionUrl) {
+    const second = await once(undefined);
+    return { items: second.items, asOf: second.asOf, scope: second.scope, error: second.error };
+  }
+  return { items: first.items, asOf: first.asOf, scope: first.scope, error: first.error };
+}
 const defaultFetcher: Fetcher = (input) => import('@/lib/backend/bff-fetch').then((m) => m.bffAuthFetch(input));
 
 interface SharedAgentPickerProps {
@@ -32,23 +83,26 @@ interface SharedAgentPickerProps {
   isDarkMode?: boolean;
   /** 기본은 `NEXT_PUBLIC_AIN_INTEGRATION_ENABLED`. 테스트용 override. */
   enabled?: boolean;
+  /** 주지 않으면 서버 기본(조직 키가 있으면 shared_with_org, 없으면 public). */
   scope?: AgentListScope;
   fetcher?: Fetcher;
+  /** 진입 버튼 문구. 기본 "공유 에이전트에서 선택". */
+  label?: string;
 }
-
-interface ListError { message: string; actionUrl?: string }
 
 export default function SharedAgentPicker({
   onPick,
   disabled = false,
   isDarkMode = false,
   enabled = isAinIntegrationEnabledClient(),
-  scope = 'shared_with_me',
+  scope,
   fetcher = defaultFetcher,
+  label = '공유 에이전트에서 선택',
 }: SharedAgentPickerProps) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<AgentListItem[] | null>(null);
   const [asOf, setAsOf] = useState<string | null>(null);
+  const [usedScope, setUsedScope] = useState<AgentListScope | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<ListError | null>(null);
 
@@ -56,19 +110,11 @@ export default function SharedAgentPicker({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetcher(`/api/ain/shared-agents?scope=${encodeURIComponent(scope)}`);
-      const body = await res.json().catch(() => null);
-      if (!res.ok) {
-        const e = body?.error as { message?: string; actionUrl?: string } | undefined;
-        setError({ message: e?.message ?? `공유 에이전트 목록을 불러오지 못했습니다 (${res.status})`, actionUrl: e?.actionUrl });
-        setItems([]);
-        return;
-      }
-      setItems(Array.isArray(body?.items) ? (body.items as AgentListItem[]) : []);
-      setAsOf(typeof body?.asOf === 'string' ? body.asOf : null);
-    } catch {
-      setError({ message: '공유 에이전트 목록을 불러오지 못했습니다.' });
-      setItems([]);
+      const r = await loadSharedAgents(fetcher, scope);
+      setItems(r.items);
+      setAsOf(r.asOf);
+      setUsedScope(r.scope);
+      setError(r.error);
     } finally {
       setLoading(false);
     }
@@ -95,13 +141,13 @@ export default function SharedAgentPicker({
           isDarkMode ? 'border-[#4A4E56] text-[#C0A9F1] hover:bg-[#3A3050]' : 'border-[#cdd3de] text-[#7F4FE8] hover:bg-[#EAE0FF]'
         )}
       >
-        공유 에이전트에서 선택 {open ? '▲' : '▼'}
+        {label} {open ? '▲' : '▼'}
       </button>
 
       {open && (
         <div className={cn('flex flex-col gap-1 rounded-sm border p-2', isDarkMode ? 'border-[#4A4E56] bg-[#1A1D22]' : 'border-[#E6EAEF] bg-[#f3f4f5]')}>
           <div className={cn('flex items-center justify-between text-xs', muted)}>
-            <span>{asOf ? `기준 ${new Date(asOf).toLocaleString()}` : '나에게 공유된 에이전트'}</span>
+            <span>{agentListTitle(usedScope)}{asOf ? ` · 기준 ${new Date(asOf).toLocaleString()}` : ''}</span>
             <button type="button" onClick={() => void load()} disabled={loading} className="underline disabled:opacity-60">
               {loading ? '불러오는 중…' : '새로고침'}
             </button>
@@ -117,7 +163,7 @@ export default function SharedAgentPicker({
           )}
 
           {!error && items && items.length === 0 && !loading && (
-            <p className={cn('py-2 text-center text-xs', muted)}>공유된 에이전트가 없습니다.</p>
+            <p className={cn('py-2 text-center text-xs', muted)}>불러올 에이전트가 없습니다.</p>
           )}
 
           <ul className="flex max-h-64 flex-col gap-1 overflow-y-auto">
