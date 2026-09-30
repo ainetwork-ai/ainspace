@@ -22,6 +22,8 @@ export const materialsKey = (slug: string) => `village:${slug}:ain_materials`;
 export const membersKey = (slug: string) => `village:${slug}:members`;
 export const ownerKey = (slug: string) => `village:${slug}:owner`;
 export const presenceKey = (slug: string) => `village:${slug}:ain_presence`;
+/** 17.7 기존 마을 자산(맵·타일셋)의 Aindrive 링크 — field = 자산 id, value = AssetLink JSON(asset-linking.ts). */
+export const assetLinksKey = (slug: string) => `village:${slug}:ain_asset_links`;
 /** 체류 확인이 이만큼 지나면 마을을 떠난 것으로 본다(클라이언트는 이보다 자주 갱신). */
 export const PRESENCE_TTL_MS = 10 * 60_000;
 export const MAX_MEMBERS = 500;
@@ -39,7 +41,7 @@ export interface VillageDirectory {
   clearPresent(slug: string, userId: string): Promise<void>;
   isPresent(slug: string, userId: string, nowMs: number): Promise<boolean>;
   isAgentPlacedIn(slug: string, agentKey: string): Promise<boolean>;
-  /** 마을 삭제 시 AIN 쪽 키(소유자·멤버·자료·체류)를 지운다 — 같은 slug 로 다시 만든 마을이 옛 멤버를 물려받지 않게. */
+  /** 마을 삭제 시 AIN 쪽 키(소유자·멤버·자료·체류·자산 링크)를 지운다 — 같은 slug 로 다시 만든 마을이 옛 멤버를 물려받지 않게. */
   clearVillage(slug: string): Promise<void>;
 }
 
@@ -80,7 +82,7 @@ export const redisVillageDirectory: VillageDirectory = {
     return (await getAgents()).some((a) => isPlacedIn(a, slug, agentKey));
   },
   async clearVillage(slug) {
-    await (await getRedisClient()).del([ownerKey(slug), membersKey(slug), materialsKey(slug), presenceKey(slug)]);
+    await (await getRedisClient()).del([ownerKey(slug), membersKey(slug), materialsKey(slug), presenceKey(slug), assetLinksKey(slug)]);
   },
 };
 
