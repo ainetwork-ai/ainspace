@@ -58,8 +58,8 @@ test('20.1 B: 조직 키 없음 → 기본 scope 는 public(익명); shared_with
     assert.equal(b.status, 200);
     assert.equal(b.headers.get('x-ain-agent-scope'), 'public');
     const c = await GET(makeRequest('/api/ain/shared-agents?scope=mine', signedJwt('u1')));
-    assert.equal(c.headers.get('x-ain-agent-scope'), 'mine');
-    assert.deepEqual(seen, [{ scope: 'public', sessionToken: null }, { scope: 'public', sessionToken: null }, { scope: 'mine', sessionToken: null }]);
+    assert.equal(c.headers.get('x-ain-agent-scope'), 'public');
+    assert.deepEqual(seen, [{ scope: 'public', sessionToken: null }, { scope: 'public', sessionToken: null }, { scope: 'public', sessionToken: null }]);
   } finally { deps.listSharedAgents = orig; }
 }));
 
@@ -79,6 +79,33 @@ test('20.1 B: 조직 키(AINIZE_API_KEY) 있음 → 기본·shared_with_me 는 s
     assert.equal(pub.headers.get('x-ain-agent-scope'), 'public');
     assert.deepEqual(seen.map((s) => s.scope), ['shared_with_org', 'shared_with_org', 'public']);
     assert.ok(seen.every((s) => s.sessionToken === 'ainz_org_key_secret'));
+  } finally { deps.listSharedAgents = orig; }
+}));
+
+test('검증 보완: 조직 키 + scope=mine → 원본에 mine 을 보내지 않는다(키 소유자의 비공개 에이전트 노출 방지)', withEnv({ ...ON, AINIZE_API_KEY: 'ainz_org_key_secret' }, async () => {
+  const orig = deps.listSharedAgents;
+  const seen: { scope: string; sessionToken: string | null | undefined }[] = [];
+  deps.listSharedAgents = async (o, req) => { seen.push({ scope: req.scope, sessionToken: o.sessionToken }); return fixture as never; };
+  try {
+    const res = await GET(makeRequest('/api/ain/shared-agents?scope=mine', signedJwt('u1')));
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('x-ain-agent-scope'), 'shared_with_org');
+    assert.deepEqual(seen, [{ scope: 'shared_with_org', sessionToken: 'ainz_org_key_secret' }]);
+    assert.ok(!seen.some((s) => s.scope === 'mine'));
+  } finally { deps.listSharedAgents = orig; }
+}));
+
+test('검증 보완: 호출자가 준 ?org= 는 조직 키와 함께 원본으로 전달되지 않는다', withEnv({ ...ON, AINIZE_API_KEY: 'ainz_org_key_secret' }, async () => {
+  const orig = deps.listSharedAgents;
+  const seen: Record<string, unknown>[] = [];
+  deps.listSharedAgents = async (_o, req) => { seen.push({ ...req }); return fixture as never; };
+  try {
+    for (const q of ['?scope=shared_with_org&org=other-org', '?org=other-org', '?scope=public&org=other-org']) {
+      const res = await GET(makeRequest(`/api/ain/shared-agents${q}`, signedJwt('u1')));
+      assert.equal(res.status, 200);
+    }
+    assert.equal(seen.length, 3);
+    assert.ok(seen.every((r) => !('org' in r)));
   } finally { deps.listSharedAgents = orig; }
 }));
 
