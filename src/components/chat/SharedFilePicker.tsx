@@ -25,6 +25,8 @@ interface SharedFilePickerProps {
   enabled?: boolean;
   scope?: FileListScope;
   fetcher?: Fetcher;
+  /** 목록을 여는 방향. 채팅 입력(화면 아래)은 위로, 마을 패널(화면 위)은 아래로. */
+  placement?: 'up' | 'down';
 }
 
 interface ListError { message: string; actionUrl?: string }
@@ -35,6 +37,7 @@ export default function SharedFilePicker({
   enabled = isAinIntegrationEnabledClient(),
   scope = 'shared_with_me',
   fetcher = defaultFetcher,
+  placement = 'up',
 }: SharedFilePickerProps) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<FileListItem[] | null>(null);
@@ -103,7 +106,8 @@ export default function SharedFilePicker({
       </button>
 
       {open && (
-        <div className="absolute bottom-full left-0 z-20 mb-2 flex w-72 max-w-[80vw] flex-col gap-1 rounded-lg border border-[#4A4E56] bg-[#222529] p-2 text-white shadow-lg">
+        <div className={cn('absolute z-20 flex', placement === 'up' ? 'bottom-full left-0 mb-2' : 'right-0 top-full mt-2')} data-placement={placement}>
+        <div className="flex w-72 max-w-[80vw] flex-col gap-1 rounded-lg border border-[#4A4E56] bg-[#222529] p-2 text-white shadow-lg">
           <div className="flex items-center justify-between text-xs text-[#CAD0D7]">
             <span>공유 파일</span>
             <button type="button" onClick={() => void load()} disabled={loading} className="underline disabled:opacity-60">
@@ -146,6 +150,7 @@ export default function SharedFilePicker({
               );
             })}
           </ul>
+        </div>
         </div>
       )}
     </div>

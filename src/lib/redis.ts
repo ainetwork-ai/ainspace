@@ -362,6 +362,13 @@ export interface StoredAgent {
     // to backendStatus (lib/ain-integration/agent-events.ts). Older events never
     // roll a newer status back. Placement is untouched by those events.
     ainStatusVersion?: number;
+    // AIN integration (plan 17.3): owner of the shared agent that the village
+    // placement was accepted with (`kind:issuer#subject`, observed from the
+    // Ainize registry by the server) and, when the registry now shows a
+    // different owner, the pending change the village owner must re-confirm.
+    // Placement is kept while pending (lib/ain-integration/agent-ownership.ts).
+    ainOwnerKey?: string;
+    ainOwnerChange?: { from: string | null; to: string; detectedAt: string };
 }
 
 const AGENTS_KEY = 'agents:';
@@ -455,6 +462,12 @@ const agentKeyFor = (url: string) => `${AGENTS_KEY}${Buffer.from(url).toString('
 export interface RosterItemExtras {
     /** AIN common agent id to record on the StoredAgent (see StoredAgent.commonAgentId). */
     commonAgentId?: string;
+    /**
+     * AIN integration (plan 17.3): owner baseline (`kind:issuer#subject`) observed from the
+     * Ainize registry at import time (agent-ownership `registryOwnerKey`). Recorded on a new
+     * agent, when the commonAgentId changes, or on an unplaced agent that has no baseline yet.
+     */
+    ainOwnerKey?: string;
 }
 
 /**
@@ -472,7 +485,7 @@ export interface RosterItemExtras {
 // - no existing      -> create a default (unplaced) StoredAgent, card from agentCardJson
 // Returns null if the item carries no usable a2a url. `changed` is false when an
 // existing agent already matches (no write needed).
-function applyRosterItem(
+export function applyRosterItem(
     wallet: string,
     b: BackendAgentListItem,
     existing?: StoredAgent,
@@ -487,12 +500,22 @@ function applyRosterItem(
 
     if (existing) {
         const commonChanged = !!extras.commonAgentId && existing.commonAgentId !== extras.commonAgentId;
-        if (existing.backendUuid === b.id && existing.backendStatus === backendStatus && !commonChanged) {
+        // 17.3 baseline: a different shared agent gets a fresh baseline (and no stale pending change);
+        // an unplaced agent without one gets it now. A placed agent without a baseline is left for the
+        // village owner to confirm (agent-ownership flags it on first observation).
+        const baselineNow = !!extras.ainOwnerKey && !commonChanged && !existing.ainOwnerKey && !existing.isPlaced;
+        if (existing.backendUuid === b.id && existing.backendStatus === backendStatus && !commonChanged && !baselineNow) {
             return { agent: existing, changed: false };
         }
         existing.backendUuid = b.id;
         existing.backendStatus = backendStatus;
-        if (commonChanged) existing.commonAgentId = extras.commonAgentId;
+        if (commonChanged) {
+            existing.commonAgentId = extras.commonAgentId;
+            delete existing.ainOwnerChange;
+            if (extras.ainOwnerKey) existing.ainOwnerKey = extras.ainOwnerKey; else delete existing.ainOwnerKey;
+        } else if (baselineNow) {
+            existing.ainOwnerKey = extras.ainOwnerKey;
+        }
         return { agent: existing, changed: true };
     }
 
@@ -513,6 +536,7 @@ function applyRosterItem(
         backendUuid: b.id,
         backendStatus,
         ...(extras.commonAgentId ? { commonAgentId: extras.commonAgentId } : {}),
+        ...(extras.commonAgentId && extras.ainOwnerKey ? { ainOwnerKey: extras.ainOwnerKey } : {}),
     };
     return { agent: created, changed: true };
 }

@@ -22,6 +22,8 @@ async function withDeps(patch: Partial<Deps>, fn: () => Promise<void>) {
 }
 
 const page = eventPage as EventPage;
+// 17.3 소유권 확인은 이 파일의 관심사가 아니다(agent-ownership 테스트) — 배치된 에이전트가 없는 것으로.
+deps.trackedAgentKeys = async () => [];
 
 test('플래그 off → 404; 세션 없음·위조 → 401 (원본은 호출되지 않는다)', async () => {
   await withEnv(OFF, async () => { assert.equal((await post({}, signedJwt('u1'))).status, 404); })();

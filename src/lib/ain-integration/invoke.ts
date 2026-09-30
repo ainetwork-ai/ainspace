@@ -10,7 +10,9 @@
  *     `unsupported_input`, SSO 클라이언트 설정이 없으면(배포 문제) `temporary_failure`, `getSessionProof` 가 사용자의
  *     AIN SSO ID 토큰을 못 주면(사용자 문제) `auth_required` + actionUrl(AIN SSO 연결). 어차피 넘길 수 없는 파일을
  *     찾느라 원본을 부르지 않는다.
- *  4. 위임: SSO 에 `ain-rdlg+jwt` 를 요청한다. SSO 가 증명을 거절하면 `auth_required` 에도 AIN SSO 연결 actionUrl 을
+ *     공통 항목 B(Space): `teamsDelegation` 이 설정돼 있으면 SSO 설정·세션 증명 대신 사용자의 Teams JWT 만 본다.
+ *  4. 위임: SSO 에 `ain-rdlg+jwt` 를 요청한다 — 또는 B 에서는 Teams `POST /api/ain/delegation` 이 대신 발급한다
+ *     (teams-delegation.ts; Teams 가 봉인해 둔 사용자의 ID 토큰으로 SSO 에 요청). SSO 가 증명을 거절하면 `auth_required` 에도 AIN SSO 연결 actionUrl 을
  *     싣는다(aindrive 연결 URL 은 계정 토큰이 없을 때만 — 둘을 바꿔 싣지 않는다).
  *  6. 저장(선택, `saveTo`): 폴더는 **에이전트를 부르기 전에** 사용자 자신의 목록(mine)에서 찾는다(계정 토큰이 없으면
  *     `auth_required`, 내 것이 아니면 `forbidden`). task 가 `completed` 면 답변 텍스트를 그 폴더에 쓰고
@@ -30,8 +32,9 @@ import { delegationPartOf, requestDelegation, type SsoDelegationOptions } from '
 import { collectListedFiles, findInFolder, type FilesSourceOptions } from './files';
 import type { FetchLike } from './http';
 import { parseSaveTo, resolveOwnFolder, saveAnswerToFolder, type SaveTarget } from './save';
+import { requestTeamsDelegation, type TeamsDelegationOptions } from './teams-delegation';
 import {
-  AinContractError, agentKey, fileKey, parseAgentKey, parseFileKey,
+  AinContractError, agentKey, conversationContextId, fileKey, parseAgentKey, parseFileKey,
   type AgentListItem, type AgentRef, type ConversationScope, type DelegationPart, type FileRef, type TaskRef,
 } from './types';
 
@@ -60,7 +63,20 @@ export interface InvokeOptions {
   sso: (SsoDelegationOptions & { connectUrl?: string }) | null;
   /** 사용자의 AIN SSO ID 토큰을 돌려주는 주입 함수. null → `auth_required`. */
   getSessionProof: () => Promise<string | null>;
+  /**
+   * 공통 항목 B(Space): 있으면 위임을 Teams 가 발급한다(teams-delegation.ts) — `sso`·`getSessionProof` 는 쓰지 않는다.
+   * 사용자의 Teams JWT 가 없으면 `auth_required`. 없으면(env 미설정) 예전 경로.
+   */
+  teamsDelegation?: (Omit<TeamsDelegationOptions, 'teamsJwt' | 'fetch'> & { teamsJwt: string | null; connectUrl?: string }) | null;
   scope: Omit<ConversationScope, 'conversation' | 'room'>;
+  /** 17.3: 레지스트리에서 에이전트를 resolve 할 때마다(소유자 변경 관찰). 기다리지 않는다·실패해도 호출은 계속. */
+  onAgentResolved?: (ref: AgentRef) => void;
+  /**
+   * 17.3: 마을 자료(`villageMaterials`)를 넘기는 호출에서 **위임 전에 기다리는** 소유자 확인(agent-ownership
+   * `verifyVillageAgentOwner`). false 면 `forbidden`(agent_owner_changed) — 소유자가 바뀐 첫 호출에서도 자료가 새 소유자의
+   * 에이전트에 가지 않는다. 이 확인이 관찰을 겸하므로 그때는 `onAgentResolved` 를 부르지 않는다.
+   */
+  verifyVillageAgentOwner?: (room: string, ref: AgentRef) => Promise<boolean>;
   fetch?: FetchLike;
   a2a?: Omit<InvokeAgentOptions, 'fetch'>;
   now?: () => Date;
@@ -137,9 +153,26 @@ export async function resolveFiles(files: FilesSourceOptions, keys: string[]): P
   return out;
 }
 
-/** 파일을 넘기려면 갖춰야 할 것 — aindrive 를 훑기 전에 확인한다. 통과하면 세션 증명(사용자의 AIN SSO ID 토큰). */
-async function requireDelegationPrerequisites(opts: InvokeOptions, agent: AgentRef): Promise<{ sso: NonNullable<InvokeOptions['sso']>; sessionProof: string }> {
+type DelegationPrereq =
+  | { via: 'sso'; sso: NonNullable<InvokeOptions['sso']>; sessionProof: string }
+  | { via: 'teams'; teams: NonNullable<InvokeOptions['teamsDelegation']> & { teamsJwt: string } };
+
+/**
+ * 파일을 넘기려면 갖춰야 할 것 — aindrive 를 훑기 전에 확인한다.
+ * Teams 위임이 설정돼 있으면 사용자의 Teams JWT 만 있으면 된다(세션 증명은 Teams 가 들고 있다).
+ * 아니면 SSO 클라이언트 설정 + 세션 증명(사용자의 AIN SSO ID 토큰).
+ */
+async function requireDelegationPrerequisites(opts: InvokeOptions, agent: AgentRef): Promise<DelegationPrereq> {
   if (!agent.popJwk) throw new AinContractError('unsupported_input', '이 에이전트는 PoP 키를 광고하지 않아 파일을 넘길 수 없습니다.');
+  if (opts.teamsDelegation) {
+    const t = opts.teamsDelegation;
+    if (!t.teamsJwt) {
+      throw new AinContractError('auth_required', '로그인이 필요합니다. 로그인하면 파일을 에이전트에게 넘길 수 있습니다.', {
+        ...(t.connectUrl ? { actionUrl: t.connectUrl } : {}),
+      });
+    }
+    return { via: 'teams', teams: { ...t, teamsJwt: t.teamsJwt } };
+  }
   // 배포 설정 문제(SSO 클라이언트 없음)를 사용자 인증 문제로 보이게 하지 않는다: 설정을 먼저 본다.
   if (!opts.sso) throw new AinContractError('temporary_failure', 'AIN SSO 클라이언트가 이 배포에 설정되어 있지 않습니다.', { retryable: false, detail: 'ain_sso_client_missing' });
   const sessionProof = await opts.getSessionProof();
@@ -148,11 +181,22 @@ async function requireDelegationPrerequisites(opts: InvokeOptions, agent: AgentR
       ...(opts.sso.connectUrl ? { actionUrl: opts.sso.connectUrl } : {}),
     });
   }
-  return { sso: opts.sso, sessionProof };
+  return { via: 'sso', sso: opts.sso, sessionProof };
 }
 
 export async function invokeSharedAgent(opts: InvokeOptions, req: InvokeRequest): Promise<InvokeResult> {
   const agent = await resolveAgent(opts, req.agentKey);
+  const materials = req.villageMaterials && req.room ? req.room : null;
+  if (materials) {
+    // 마을 자료는 배치 때(또는 재확인 때)의 소유자에게만 — 이 호출에서 resolve 한 소유자로 먼저 확인한다(기다린다).
+    // 확인 수단이 없으면(주입 누락) 넘기지 않는다.
+    const ok = opts.verifyVillageAgentOwner ? await opts.verifyVillageAgentOwner(materials, agent.ref) : false;
+    if (!ok) {
+      throw new AinContractError('forbidden', '이 에이전트의 소유자가 바뀌어 마을 소유자의 재확인 전에는 마을 자료를 넘길 수 없습니다.', { detail: 'agent_owner_changed' });
+    }
+  } else {
+    try { opts.onAgentResolved?.(agent.ref); } catch { /* 관찰 실패는 호출과 무관 */ }
+  }
   if (!agent.canInvoke || agent.ref.status !== 'active') throw new AinContractError('agent_stopped', '이 에이전트는 지금 호출할 수 없습니다.');
 
   // 파일이 있으면 popJwk·SSO 설정·세션 증명을 먼저 본다 — 넘길 수 없는 파일을 찾느라 aindrive 를 부르지 않는다.
@@ -167,7 +211,15 @@ export async function invokeSharedAgent(opts: InvokeOptions, req: InvokeRequest)
   const idempotencyKey = deriveIdempotencyKey({ account: scope.account, agentKey: agentKey(agent.ref), fileKeys: files.map(fileKey), text: req.text, conversation: req.conversation, room: scope.room });
 
   let delegation: DelegationPart | undefined;
-  if (files.length && prereq) {
+  if (files.length && prereq?.via === 'teams') {
+    // B(Space): Teams 가 자기 invoke 경로와 같은 방식으로 AIN SSO 에서 받아 온다. 오류(연결 안내 actionUrl 포함)는
+    // teams-delegation.ts 가 Teams 의 것을 옮긴다 — actionUrl 이 없는 auth_required 는 Teams 가 로그인 세션을 거절한 것
+    // (teams_session_invalid)이라 이 배포의 AIN SSO 연결 안내를 붙이지 않는다.
+    const issued = await requestTeamsDelegation({ url: prereq.teams.url, teamsJwt: prereq.teams.teamsJwt, timeoutMs: prereq.teams.timeoutMs, fetch: opts.fetch }, {
+      agent: agent.ref, files, conversationContextId: conversationContextId(scope),
+    });
+    delegation = delegationPartOf(issued, [...new Set(files.map((f) => f.issuer))]);
+  } else if (files.length && prereq?.via === 'sso') {
     let issued;
     try {
       issued = await requestDelegation({ ...prereq.sso, fetch: opts.fetch }, {

@@ -9,7 +9,8 @@
  *   - 체류(presence): KV hash `village:<slug>:ain_presence` field = 사용자 id, value = 마지막 확인 시각(ms).
  *     기존 위치/SSE presence 는 클라이언트가 보낸 wallet/session id 라 검증된 사용자와 이어지지 않으므로,
  *     검증된 세션으로 `PUT /api/ain/villages/:slug/presence` 를 부른 사람만 "그 마을 안에 있다"고 본다.
- *   - 배치 에이전트: StoredAgent 중 `commonAgentId === agentKey`, `isPlaced`, `state.mapName === slug`, 비활성 아님.
+ *   - 배치 에이전트: StoredAgent 중 `commonAgentId === agentKey`, `isPlaced`, `state.mapName === slug`, 비활성 아님,
+ *     소유권 변경 재확인 대기 아님(17.3, agent-ownership.ts).
  *
  * 마을 자료를 에이전트에 넘기는 invoke 는 (에이전트가 그 마을에 배치됨) AND (호출자가 멤버이거나 체류 중) 일 때만 허용한다.
  */
@@ -42,8 +43,9 @@ export interface VillageDirectory {
   clearVillage(slug: string): Promise<void>;
 }
 
-export const isPlacedIn = (a: Pick<StoredAgent, 'commonAgentId' | 'isPlaced' | 'state' | 'backendStatus'>, slug: string, agentKey: string) =>
-  a.commonAgentId === agentKey && a.isPlaced === true && a.state?.mapName === slug && a.backendStatus !== 'inactive';
+/** 17.3: 소유자가 바뀌어 마을 소유자의 재확인을 기다리는 배치는 배치는 유지하되 마을 자료를 받지 못한다. */
+export const isPlacedIn = (a: Pick<StoredAgent, 'commonAgentId' | 'isPlaced' | 'state' | 'backendStatus' | 'ainOwnerChange'>, slug: string, agentKey: string) =>
+  a.commonAgentId === agentKey && a.isPlaced === true && a.state?.mapName === slug && a.backendStatus !== 'inactive' && !a.ainOwnerChange;
 
 export const redisVillageDirectory: VillageDirectory = {
   async villageExists(slug) {
@@ -83,7 +85,7 @@ export const redisVillageDirectory: VillageDirectory = {
 };
 
 /** 테스트용 메모리 구현. */
-export function memoryVillageDirectory(init: { villages?: string[]; agents?: Pick<StoredAgent, 'commonAgentId' | 'isPlaced' | 'state' | 'backendStatus'>[] } = {}) {
+export function memoryVillageDirectory(init: { villages?: string[]; agents?: Pick<StoredAgent, 'commonAgentId' | 'isPlaced' | 'state' | 'backendStatus' | 'ainOwnerChange'>[] } = {}) {
   const villages = new Set(init.villages ?? []);
   const owners = new Map<string, string>();
   const members = new Map<string, Set<string>>();

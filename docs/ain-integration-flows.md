@@ -30,13 +30,30 @@ refresh 회전). Space 쪽:
 
 env: `AINDRIVE_OAUTH_CLIENT_ID`, `AINDRIVE_TOKEN_KEY`(32자+), `NEXT_PUBLIC_URL`(프록시 뒤 공개 오리진), 선택 `AINDRIVE_CONNECT_URL`.
 
-## B. 세션 증명 — **해당 없음**
+## B. 세션 증명 — Teams 가 대신 위임을 발급
 
-Space 는 AIN SSO 로 로그인하지 않는다(지갑·키오스크 → backend(ainteams) JWT). 봉인해 둘 ID 토큰이 생기지 않으므로
-`getSessionProof` 는 운영에서 항상 **null** 이고, 파일을 넘기는 에이전트 호출은 `auth_required` + AIN SSO 연결 actionUrl 로 끝난다.
-AIN SSO 로그인 전체를 들이는 것은 이 단계 범위 밖이다. 예전의 평문 Redis 키(`ain:sso_id_token:*`, 쓰는 곳 없음)는 읽지 않게 지웠다.
-개발 전용 `AIN_SESSION_PROOF_FILE` 만 남는다(production 무시). 로그인이 생기면: ainmem `sso_sessions.id_token_ciphertext` 처럼
-세션별로 `sealed.ts` 로 봉인 → 만료 전까지만 반환 → 로그아웃·back-channel 로그아웃에서 삭제.
+Space 는 AIN SSO 로 로그인하지 않는다(지갑·키오스크 → backend(ainteams) JWT). 그래서 봉인해 둘 ID 토큰이 Space 에는 없고,
+대신 **같은 사용자의 ID 토큰을 봉인해 둔 Teams** 가 위임을 발급한다(`src/lib/ain-integration/teams-delegation.ts`).
+
+- env `AIN_TEAMS_DELEGATION_URL`(Teams **web** 앱(Next.js)의 `https://<teams web>/api/ain/delegation` — backend 가 아니다; https,
+  http 는 localhost 만). 없으면 예전 경로:
+  `getSessionProof` 는 운영에서 항상 null → 파일을 넘기는 호출은 `auth_required` + AIN SSO 연결 actionUrl.
+- 계약(양쪽이 정확히 맞아야 한다): `POST {url}`, `Authorization: Bearer <Space 클라이언트가 이미 든 Teams backend access JWT>`
+  (= 이 요청의 bearer, iss `a2a-backend` · aud `client-access`, Space 가 먼저 검증). Teams web 은 web 자신의 외부 클라이언트 JWT
+  (`slack-bff`)만 받는 `requireAuth` 가 실패하면 이 토큰을 backend `GET /auth/me` 로 확인한다(ainteams
+  `web/src/lib/ain-integration/space-caller-auth.ts`) — 그래서 Teams web 에 `BACKEND_URL` 이 있어야 한다. 바디 `{ agentRef: AgentRef, fileKeys: string[], conversationContextId, actions: ['read'] }`
+  → 200 `{ delegation: { token, exp, jti } }` → `ai.ain/delegation` part(audience = 파일 issuer).
+  오류: 401 `auth_required` + actionUrl(상대 경로면 Teams origin 기준으로 풀어 전달) — AIN SSO 세션 증명 없음
+  `teams_session_proof_missing` / Teams 쪽 aindrive 미연결 `teams_aindrive_not_connected`(actionUrl 이 `…/aindrive/connect`) ·
+  actionUrl 없는 401(Teams 가 Bearer 를 거절 — 만료·발급자/키 불일치) → `auth_required` `teams_session_invalid`, actionUrl 없음
+  (Space 의 `AIN_SSO_CONNECT_URL` 로 바꾸지 않는다) · 403 `forbidden`(사용자의 aindrive 연결로 볼 수
+  없는 fileKey) · 404 → 503 `teams_delegation_disabled`(Teams 플래그 off) · 429 `rate_limited` · 그 밖 `temporary_failure`.
+- 이 경로에서는 Space 가 SSO 를 직접 부르지 않는다(`AIN_SSO_CLIENT_ID/SECRET` 불필요). Teams JWT·위임 토큰·Teams 의 문장은 로그·응답에
+  싣지 않는다. Space 도 먼저 호출자의 aindrive 로 파일을 해석한다(볼 수 없으면 Teams 를 부르기 전에 `forbidden`).
+- 테스트: `src/app/api/ain/villages/teams-delegation-e2e.test.ts`(진짜 HTTP 가짜 Teams 서버 — Teams 처럼 `a2a-backend`/`client-access`
+  토큰만 받는다; 마을 자료·고른 파일이 에이전트에 도착, 발급자·키 불일치는 `teams_session_invalid`). Teams 쪽:
+  `web/src/lib/ain-integration/__tests__/space-caller-auth.test.ts`(진짜 발급자·audience 로 서명한 backend 토큰).
+- 개발 전용 `AIN_SESSION_PROOF_FILE` 은 그대로(production 무시).
 
 ## 17.5 마을 자료 구분
 
@@ -53,14 +70,37 @@ AIN SSO 로그인 전체를 들이는 것은 이 단계 범위 밖이다. 예전
   `PUT {fileKey, audience}`·`DELETE ?fileKey=` 는 멤버만, 파일은 그 멤버의 aindrive 에서 해석되는 것만.
 - 검증된 체류: `PUT /api/ain/villages/:slug/presence`(검증된 세션, 10분 유효, 갱신 필요)·`DELETE`. 기존 위치/SSE presence 는
   클라이언트가 보낸 wallet/session id 라 검증된 사용자와 이어지지 않아서 따로 둔다. Redis hash `village:<slug>:ain_presence`.
-- `POST /api/ain/invoke` 에 `villageMaterials: true`(+ `room` = 마을 slug) → public·agent 자료만 fileKeys 에 더한다. 조건:
+- `POST /api/ain/invoke` 에 `villageMaterials: true`(+ `room` = 마을 slug) → public·agent 자료만 fileKeys 에 더한다(17.4 전시 자료
+  `exhibition: true` 는 사람용이라 public 이어도 넘기지 않는다). 조건:
   `room` 이 slug 모양 · `agentKey` 가 그 마을에 **배치된** 에이전트(StoredAgent `commonAgentId`·`isPlaced`·`state.mapName`, 비활성 아님)
-  · 호출자가 멤버이거나 검증된 체류 중. 아니면 403(`agent_not_placed_in_village` / `not_in_village`), 원본은 부르지 않는다.
+  · 호출자가 멤버이거나 검증된 체류 중 · 이 호출에서 resolve 한 소유자가 기준 소유자와 같음(17.3). 아니면 403
+  (`agent_not_placed_in_village` / `not_in_village` / `agent_owner_changed`), 원본은 부르지 않는다.
 - 더해진 자료는 **고른 파일과 똑같은 경로**를 탄다: 같은 fileKeys → 호출자의 aindrive 토큰으로 해석(볼 수 없으면 `forbidden`)
-  → 호출자의 세션 증명으로 위임 → 같은 file-refs part·같은 idempotencyKey. 따라서 **B(세션 증명)가 없는 지금의 Space 운영에서는
-  자료가 하나라도 있으면 고른 파일과 마찬가지로 `auth_required`** 로 끝난다(자료를 조용히 빼고 부르지 않는다). 즉 17.5 의 에이전트
-  전달은 B 가 생길 때까지 실제로는 동작하지 않는다 — 목록·가시성(사람 쪽)은 지금도 동작한다. `agent` 자료도 호출자가 aindrive 에서
-  볼 수 있어야 넘어간다(에이전트 전용 공유 계정으로 대신 해석하지 않는다).
+  → 호출자의 위임(B: Teams 발급) → 같은 file-refs part·같은 idempotencyKey. `AIN_TEAMS_DELEGATION_URL` 이 없는 배포에서는
+  자료가 하나라도 있으면 고른 파일과 마찬가지로 `auth_required` 로 끝난다(자료를 조용히 빼고 부르지 않는다). `agent` 자료도 호출자가
+  aindrive 에서 볼 수 있어야 넘어간다(에이전트 전용 공유 계정으로 대신 해석하지 않는다).
+- 클라이언트: `useAinVillagePresence`(MapTab) 가 로그인 상태로 마을에 들어가면 presence `PUT`, 5분마다 갱신, 떠나면(다른 마을·마을 밖·
+  pagehide keepalive) `DELETE`. 마을 소유자는 "전시·마을" 패널(`components/village/VillageAinPanel.tsx`)에서 멤버를 넣고 뺀다.
+
+## 17.3 소유권 변경
+
+- StoredAgent `ainOwnerKey`(배치를 받아들인 소유자 `kind:issuer#subject`) · `ainOwnerChange`(재확인 대기 `{from,to,detectedAt}`).
+- 기준은 **가져올 때** 기록한다: `POST /api/agents` 가 `commonAgentId` 와 함께 오면 레지스트리의 ownerRef 로 `ainOwnerKey`.
+  기준 없이 배치된 에이전트(이전에 가져왔거나 가져올 때 레지스트리를 못 봄)를 처음 관찰하면 조용히 받아들이지 않고 재확인 대기
+  (`from: null`)로 표시한다 — 마을 소유자가 한 번 확인하면 기준이 채워진다. 배치 안 된 것은 기준만 기록.
+- 관찰은 서버가 Ainize 레지스트리에서: `POST /api/ain/events/apply` 의 `agent.updated`/`agent.moved`(이 제품에 배치된 것만 재조회,
+  응답 `ownerChanges`)와 invoke 의 resolve. 원래 소유자로 돌아오면 표시 해제. 마을 자료를 넘기는 invoke 는 관찰을 **기다린 뒤**
+  (`verifyVillageAgentOwner`) 위임한다 — events/apply 보다 먼저 온 첫 호출도 새 소유자에게 자료를 넘기지 않는다(403 `agent_owner_changed`).
+- 대기 중: **배치 유지**, 마을 자료는 넘기지 않는다(`agent_not_placed_in_village`), 일반 대화는 된다.
+- `GET /api/ain/villages/:slug/agents`(마을 소유자) → 배치된 공유 에이전트와 `ownerChange`; `POST {agentKey, decision:'confirm'}` → 재확인.
+  패널에 "소유자가 바뀐 에이전트 — 재확인" 으로 나온다.
+
+## 17.4 작품·전시 자료
+
+- 마을 자료에 `exhibition: true` 를 붙인 것이 전시 자료. `PUT /api/ain/villages/:slug/materials {fileKey, audience: public|members, exhibition: true}`
+  와 전시 자료의 변경·`DELETE` 는 **마을 소유자만**(일반 자료는 멤버). 패널에서 기존 "공유 파일" 선택기로 고른다.
+- `GET /api/ain/villages/:slug/exhibition` → `{viewer, isOwner, items:[{ref, audience, addedAt, availability}], actionUrl?}` —
+  가용성은 **보는 사람의** aindrive 로 다시 확인: available · offline · deleted · forbidden(여는 위치 비노출) · unknown(미연결이면 연결 actionUrl).
 
 ## 17.6 contextId 경계
 

@@ -7,6 +7,10 @@
  * 이 단계의 범위 밖이다(docs/ain-integration-flows.md §B). 로그인이 생기면 ainmem 의 `sso_sessions.id_token_ciphertext`
  * 처럼 세션별로 봉인(`sealed.ts`)해 두고, 만료 전까지만 여기서 돌려주고, 로그아웃·back-channel 로그아웃에서 지운다.
  *
+ * B 의 실제 경로: `AIN_TEAMS_DELEGATION_URL` 이 설정된 배포에서는 이 함수를 쓰지 않고, 위임 자체를 Teams 가 발급한다
+ * (teams-delegation.ts — Teams 가 봉인해 둔 같은 사용자의 ID 토큰으로 SSO 에 요청). 이 함수는 그 env 가 없을 때의
+ * 예전 경로(= auth_required)와 개발용 파일 경로만 남는다.
+ *
  * 예전의 평문 Redis 키(`ain:sso_id_token:<userId>`)는 쓰는 곳이 없었고 평문 저장이라 읽지 않는다.
  * 절대 다른 토큰(backend JWT·Google·Firebase)을 세션 증명으로 대신 보내지 않는다.
  *
