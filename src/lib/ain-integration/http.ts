@@ -124,3 +124,30 @@ export function setNativeSupport(key: string, value: boolean, now = Date.now()):
   nativeSupport.set(key, { value, at: now });
 }
 export function resetNativeSupport(): void { nativeSupport.clear(); }
+
+/**
+ * 요청 본문을 한도까지만 읽는다. Content-Length 가 없는(chunked) 요청도 스트림을 세면서 읽고, 한도를 넘는 순간
+ * 읽기를 멈추고 'too_large' 를 돌려준다(끝까지 버퍼링하지 않는다). 본문이 없으면 빈 배열.
+ */
+export async function readBodyCapped(request: Request, maxBytes: number): Promise<Uint8Array | 'too_large'> {
+  const declared = request.headers.get('content-length');
+  if (declared !== null && /^\d+$/.test(declared) && Number(declared) > maxBytes) return 'too_large';
+  if (!request.body) return new Uint8Array(0);
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => {});
+      return 'too_large';
+    }
+    chunks.push(value);
+  }
+  const out = new Uint8Array(total);
+  let off = 0;
+  for (const c of chunks) { out.set(c, off); off += c.byteLength; }
+  return out;
+}

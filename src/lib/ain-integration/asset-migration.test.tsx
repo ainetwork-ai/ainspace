@@ -170,6 +170,41 @@ test('채팅 첨부 라우트: 세션·플래그 가드, aindrive 연결 없음 
   } finally { Object.assign(attachmentsDeps, prev); }
 });
 
+test('채팅 첨부 라우트: Content-Length 없는 chunked 본문도 한도를 넘는 순간 413(끝까지 버퍼링하지 않는다)', withEnv(ON, async () => {
+  const prev = { ...attachmentsDeps };
+  try {
+    let saved = 0;
+    attachmentsDeps.getAindriveAccountToken = async () => TOKEN;
+    attachmentsDeps.saveChatAttachment = async () => { saved++; throw new Error('should not be called'); };
+    const limit = MAX_ATTACHMENT_BYTES + 64 * 1024;
+    let pulled = 0;
+    const chunk = new Uint8Array(1024 * 1024);
+    // 끝나지 않는 스트림: 라우트가 한도에서 멈추지 않으면 이 테스트는 끝나지 않는다.
+    const body = new ReadableStream<Uint8Array>({ pull(c) { pulled += chunk.byteLength; c.enqueue(chunk); } });
+    const req = new NextRequest('http://localhost/api/ain/attachments', {
+      method: 'POST', headers: { authorization: `Bearer ${signedJwt('u1')}`, 'content-type': 'multipart/form-data; boundary=x' }, body, duplex: 'half',
+    } as ConstructorParameters<typeof NextRequest>[1] & { duplex: 'half' });
+    assert.equal(req.headers.get('content-length'), null);
+    const res = await POST(req);
+    assert.equal(res.status, 413);
+    assert.ok(pulled <= limit + 3 * chunk.byteLength, `읽은 양 ${pulled} 이 한도 근처에서 멈춰야 한다`);
+    assert.equal(saved, 0);
+    // 선언된 길이가 한도를 넘으면 읽지도 않는다
+    const declared = new NextRequest('http://localhost/api/ain/attachments', { method: 'POST', headers: { authorization: `Bearer ${signedJwt('u1')}`, 'content-length': String(limit + 1), 'content-type': 'multipart/form-data; boundary=x' }, body: 'x' });
+    assert.equal((await POST(declared)).status, 413);
+    // 한도 안의 chunked 본문(정상 multipart)은 통과한다
+    const form = new FormData(); form.set('file', new File([PNG], 'a.png'));
+    const encoded = new Response(form);
+    const small = new NextRequest('http://localhost/api/ain/attachments', {
+      method: 'POST', headers: { authorization: `Bearer ${signedJwt('u1')}`, 'content-type': encoded.headers.get('content-type')! }, body: encoded.body, duplex: 'half',
+    } as ConstructorParameters<typeof NextRequest>[1] & { duplex: 'half' });
+    attachmentsDeps.saveChatAttachment = async (_o, i) => { saved++; assert.equal(i.name, 'a.png'); assert.equal(i.bytes.byteLength, PNG.byteLength); return { file: root(DRIVE, 'beta'), markdown: '[a.png](u)', reused: false } as Awaited<ReturnType<typeof saveChatAttachment>>; };
+    const ok = await POST(small);
+    assert.equal(ok.status, 200);
+    assert.equal(saved, 1);
+  } finally { Object.assign(attachmentsDeps, prev); }
+}));
+
 test('옛 첨부는 그대로: backend 파일 id 는 여전히 /api/files/:id 프록시로 열린다', () => {
   assert.equal(chatFileSrc({ id: '0b7c7a3e-1111-4222-8333-944445555666' }, 'tok'), '/api/files/0b7c7a3e-1111-4222-8333-944445555666?token=tok');
 });

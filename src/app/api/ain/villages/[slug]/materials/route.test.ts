@@ -5,7 +5,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { NextRequest } from 'next/server';
 import taskRef from '@/lib/ain-integration/__fixtures__/task-ref.json';
-import { invokeDeps, villageMaterialsDeps as deps } from '@/lib/ain-integration/deps';
+import { invokeDeps, villageDeps, villageMaterialsDeps as deps } from '@/lib/ain-integration/deps';
+import { memoryVillageDirectory } from '@/lib/ain-integration/village-membership';
 import { findSecretKey } from '@/lib/ain-integration/http';
 import { memoryKv } from '@/lib/ain-integration/kv';
 import { AIN_CONTRACT_VERSION, AinContractError, fileKey, type FileRef, type TaskRef } from '@/lib/ain-integration/types';
@@ -111,8 +112,13 @@ test('17.5 PUT/DELETE: 멤버만, 파일은 그 멤버의 aindrive 에서 해석
 test('17.5 invoke: villageMaterials=true 면 public·agent 자료만 file-refs 로, members 자료는 넘기지 않는다', withEnv(ON, async () => {
   const s = setup();
   const prev = { ...invokeDeps };
+  const prevVillage = { ...villageDeps };
   try {
     await seed(s.store);
+    // 에이전트는 alpha 에 배치되어 있고, visitor-9 는 검증된 체류 중
+    const dir = memoryVillageDirectory({ villages: ['alpha'], agents: [{ commonAgentId: 'https://ainize.example#guide', isPlaced: true, state: { x: 1, y: 1, behavior: 'idle', color: '#000', mapName: 'alpha' } }] });
+    await dir.markPresent('alpha', 'visitor-9', Date.now());
+    villageDeps.directory = dir;
     let passed = null as string[] | null;
     invokeDeps.getAindriveAccountToken = async () => null;
     invokeDeps.saveTaskRef = async () => {};
@@ -128,5 +134,5 @@ test('17.5 invoke: villageMaterials=true 면 public·agent 자료만 file-refs �
     assert.deepEqual(passed, []);
     const { room: _room, ...noRoom } = base; void _room;
     assert.equal((await INVOKE(req('POST', '/api/ain/invoke', 'visitor-9', { ...noRoom, villageMaterials: true }))).status, 400);
-  } finally { Object.assign(invokeDeps, prev); s.restore(); }
+  } finally { Object.assign(invokeDeps, prev); Object.assign(villageDeps, prevVillage); s.restore(); }
 }));

@@ -2,10 +2,13 @@ import { NextRequest } from 'next/server';
 import { MAX_ATTACHMENT_BYTES } from '@/lib/ain-integration/chat-attachments';
 import { getAindriveConnectUrl, getAindriveUrl } from '@/lib/ain-integration/config';
 import { attachmentsDeps as deps } from '@/lib/ain-integration/deps';
+import { readBodyCapped } from '@/lib/ain-integration/http';
 import { errorResponse, failureResponse, guardAinRoute, okResponse } from '@/lib/ain-integration/route';
 import { makeError, parseFileKey } from '@/lib/ain-integration/types';
 
 export const runtime = 'nodejs';
+
+const MULTIPART_OVERHEAD_BYTES = 64 * 1024;
 
 /**
  * POST /api/ain/attachments (multipart: file, folderKey?) → 200 { file: FileRef, markdown, reused }
@@ -19,12 +22,16 @@ export async function POST(request: NextRequest) {
   const guard = await guardAinRoute(request);
   if (!('userId' in guard)) return guard;
 
-  // 본문을 읽기 전에 크기를 먼저 본다(선언된 길이가 한도를 크게 넘으면 받지 않는다; multipart 오버헤드 여유 64KB).
-  const declared = Number(request.headers.get('content-length') ?? '0');
-  if (declared > MAX_ATTACHMENT_BYTES + 64 * 1024) return errorResponse(makeError('unsupported_input', `첨부는 ${MAX_ATTACHMENT_BYTES / (1024 * 1024)}MB 이하여야 합니다.`), 413);
+  // 본문은 한도(파일 10MB + multipart 오버헤드 64KB)까지만 읽는다. Content-Length 가 없는 chunked 요청도 스트림을
+  // 세면서 읽다가 넘는 순간 413 — 전부 버퍼링한 뒤에 크기를 보지 않는다.
+  const raw = await readBodyCapped(request, MAX_ATTACHMENT_BYTES + MULTIPART_OVERHEAD_BYTES).catch(() => null);
+  if (raw === 'too_large') return errorResponse(makeError('unsupported_input', `첨부는 ${MAX_ATTACHMENT_BYTES / (1024 * 1024)}MB 이하여야 합니다.`), 413);
 
   let form: FormData;
-  try { form = await request.formData(); } catch { return errorResponse(makeError('unsupported_input', 'multipart/form-data 로 file 을 보내야 합니다.'), 400); }
+  try {
+    if (!raw) throw new Error('body');
+    form = await new Response(raw, { headers: { 'content-type': request.headers.get('content-type') ?? '' } }).formData();
+  } catch { return errorResponse(makeError('unsupported_input', 'multipart/form-data 로 file 을 보내야 합니다.'), 400); }
   const file = form.get('file');
   if (!file || typeof file === 'string') return errorResponse(makeError('unsupported_input', 'file 이 필요합니다.'), 400);
   const folderKeyRaw = form.get('folderKey');

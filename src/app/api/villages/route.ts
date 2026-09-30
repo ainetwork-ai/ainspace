@@ -10,6 +10,8 @@ import { uploadVillageTmj, uploadVillageTileset, uploadVillageTsx, getRootTilese
 import { getFirebaseStorage } from '@/lib/firebase';
 import { rewriteTmjTilesetPaths } from '@/lib/tmj-rewriter';
 import { hasAdminAccess } from '@/lib/auth/permissions';
+import { villageDeps } from '@/lib/ain-integration/deps';
+import { recordVillageCreator } from '@/lib/ain-integration/village-membership';
 
 /**
  * GET /api/villages
@@ -179,7 +181,10 @@ export async function POST(request: NextRequest) {
 
     await saveVillage(village);
 
-    return NextResponse.json({ success: true, village }, { status: 201 });
+    // AIN 통합(플래그 on): 검증된 세션(Authorization: Bearer <backend JWT>)으로 만들면 그 사람을 마을 소유자·멤버로 기록한다.
+    const ainOwner = await recordVillageCreator(request, slug, villageDeps.directory);
+
+    return NextResponse.json({ success: true, village, ...(ainOwner ? { ainOwner } : {}) }, { status: 201 });
   } catch (error) {
     console.error('Error in POST /api/villages:', error);
     const message = error instanceof Error ? error.message : 'Failed to create village';
