@@ -21,6 +21,8 @@ import { worldToGrid } from '@/lib/village-utils';
 import LoadingModal from '@/components/LoadingModal';
 import PlaceAgentModal from '@/components/PlaceAgentModal';
 import { useVillagePresence } from '@/hooks/useVillagePresence';
+import { useAinVillagePresence } from '@/hooks/useAinVillagePresence';
+import VillageAinPanel from '@/components/village/VillageAinPanel';
 
 interface MapTabProps {
     isActive: boolean;
@@ -71,6 +73,10 @@ export default function MapTab({
 
     const villageIsCollisionAt = useVillageStore((s) => s.isCollisionAt);
     const { players: onlinePlayers } = useVillagePresence();
+    // AIN 통합(플래그 on): 검증된 체류 기록(17.5)과 마을 전시·관리 패널(17.4·17.5·17.3).
+    const currentVillageSlug = useVillageStore((s) => s.currentVillageSlug);
+    const currentVillageName = useVillageStore((s) => s.currentVillage?.name);
+    useAinVillagePresence(currentVillageSlug, isLoggedIn);
 
     const [isJoystickVisible, setIsJoystickVisible] = useState(true);
 
@@ -273,6 +279,12 @@ export default function MapTab({
                     <p className="text-sm font-bold text-white">Login</p>
                   </button>
                 ))}
+
+                {!HUDOff && (
+                    <div className="absolute top-4 left-4" style={{ zIndex: Z_INDEX_OFFSETS.UI }}>
+                        <VillageAinPanel slug={currentVillageSlug} villageName={currentVillageName} loggedIn={isLoggedIn} />
+                    </div>
+                )}
 
                 {/* Current Area Display */}
                 {!isDesktop && (
