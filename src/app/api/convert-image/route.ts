@@ -10,6 +10,8 @@ function generateJobId(): string {
 // Async function to process the image conversion
 async function processImageConversion(jobId: string, imageFile: File) {
   try {
+    // Optional image conversion credentials are needed when a job runs,
+    // not while CI imports routes to build the rest of the application.
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     updateJobStatus(jobId, { status: 'processing' });
 
