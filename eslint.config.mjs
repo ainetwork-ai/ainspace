@@ -18,6 +18,9 @@ const eslintConfig = [
       "out/**",
       "build/**",
       "next-env.d.ts",
+      // Tiled tilesets are XML files, despite sharing the TSX extension.
+      "public/map/AINSpace village asset.tsx",
+      "public/map/empty floor.tsx",
     ],
   },
 ];

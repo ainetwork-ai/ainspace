@@ -246,8 +246,21 @@ const hangs = (base: ReturnType<typeof fakeFetch>, pathSuffix: string): FetchLik
   return new Promise<Response>((_resolve, reject) => {
     const sig = init?.signal;
     assert.ok(sig, `${pathSuffix}: 원본 호출에는 항상 AbortSignal 이 있어야 한다`);
-    if (sig.aborted) reject(sig.reason);
-    else sig.addEventListener('abort', () => reject(sig.reason), { once: true });
+    if (sig.aborted) {
+      reject(sig.reason);
+      return;
+    }
+    // A real pending HTTP request keeps Node alive; this mock has no socket.
+    // Keep it alive until abort, and fail explicitly if the timeout never fires.
+    const watchdog = setTimeout(() => {
+      sig.removeEventListener('abort', onAbort);
+      reject(new Error(`${pathSuffix}: request did not abort within 5 seconds`));
+    }, 5_000);
+    function onAbort() {
+      clearTimeout(watchdog);
+      reject(sig?.reason);
+    }
+    sig.addEventListener('abort', onAbort, { once: true });
   });
 };
 
