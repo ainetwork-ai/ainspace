@@ -8,7 +8,7 @@ import { defaultOAuthDeps, getAindriveAccountToken } from './aindrive-token';
 import { listSharedAgents } from './agents';
 import { fetchEvents } from './events';
 import { checkExhibits } from './exhibition';
-import { listSharedFiles } from './files';
+import { listFolderItems, listSharedFiles } from './files';
 import { saveChatAttachment } from './chat-attachments';
 import { invokeSharedAgent, resolveFiles } from './invoke';
 import { getSessionProof } from './session-proof';
@@ -16,7 +16,7 @@ import { saveTaskRef } from './task-store';
 import { defaultVillageStore, listVillageMaterials } from './village-materials';
 import { redisVillageDirectory } from './village-membership';
 
-export const sharedFilesDeps = { getAindriveAccountToken, listSharedFiles };
+export const sharedFilesDeps = { getAindriveAccountToken, listSharedFiles, listFolderItems };
 export const sharedAgentsDeps = { listSharedAgents };
 export const invokeDeps = {
   getAindriveAccountToken, getSessionProof, invokeSharedAgent, saveTaskRef,
