@@ -254,3 +254,54 @@ export async function findInFolder(opts: FilesSourceOptions, root: FileRef, file
   }
   return null;
 }
+
+// ------------------------------------------------------------------------------- picker: open a folder
+/**
+ * 선택기의 "폴더 열기" — 공유 목록이 준 공유 뿌리(내 드라이브 루트 포함) **아래** 폴더 하나의 직계 항목.
+ * 열려는 폴더의 `fileKey` 와 경로를 함께 받는다: 경로는 키의 fileId 와 맞아야 하고(`aindriveFileId`), 목록의 같은 드라이브
+ * 공유 뿌리 아래여야 한다 — 아니면 원본 폴더 목록을 부르지 않는다(`forbidden` 은 존재 여부를 말하지 않는다).
+ * 항목은 그 뿌리의 역할·출처·이용권을 물려받는다. 권한은 원본이 계정 토큰으로 다시 판단한다(MCP list_files).
+ * 갤러리 파일럿 리허설(19.5): 마을 소유자가 자기 드라이브 폴더 안의 전시 자료를 붙일 길이 없었다.
+ */
+export async function listFolderItems(
+  opts: FilesSourceOptions,
+  folderKey: string,
+  path: string,
+  scopes: FileListScope[] = ['shared_with_me', 'mine'],
+): Promise<{ folder: FileRef; items: FileListItem[] }> {
+  const issuer = opts.aindriveUrl.replace(/\/+$/, '');
+  const parts = folderKey.split('#');
+  if (parts.length !== 3 || parts[0] !== issuer || !parts[1] || !parts[2]) throw new AinContractError('unsupported_input', '이 배포의 aindrive 폴더 키가 아닙니다.');
+  const [, driveId, fileId] = parts as [string, string, string];
+  const want = aindriveNormalizePath(path || '/');
+  if (/(^|\/)\.\.(\/|$)/.test(path) || aindriveFileId(driveId, want) !== fileId) throw new AinContractError('unsupported_input', '폴더 경로가 키와 맞지 않습니다.');
+  const roots: FileListItem[] = [];
+  for (const scope of scopes) {
+    let cursor: string | undefined;
+    for (let page = 0; page < 10; page++) {
+      const res = await listSharedFiles(opts, { scope, limit: LIST_PAGE_LIMIT, ...(cursor ? { cursor } : {}) });
+      roots.push(...res.items.filter((i) => i.ref.kind === 'folder' && i.ref.driveId === driveId));
+      if (!res.nextCursor) break;
+      cursor = res.nextCursor;
+    }
+  }
+  const rootPath = (i: FileListItem) => aindriveNormalizePath(i.ref.legacy?.path ?? '/');
+  const under = (r: string) => r === '/' || want === r || want.startsWith(`${r}/`);
+  const root = roots.filter((i) => under(rootPath(i))).sort((a, b) => rootPath(b).length - rootPath(a).length)[0];
+  if (!root) throw new AinContractError('forbidden', '공유받지 않았거나 없는 폴더입니다.');
+  const folder: FileRef = want === rootPath(root) ? root.ref : {
+    ...root.ref,
+    fileId,
+    revision: 'm0-s0',
+    displayName: want.slice(want.lastIndexOf('/') + 1) || root.ref.displayName,
+    sourceUrl: `${root.ref.issuer}/d/${encodeURIComponent(driveId)}${want.split('/').map(encodeURIComponent).join('/')}/`,
+    legacy: { path: want },
+  };
+  const entries = (await listFolderEntries(opts, driveId, want)).filter((e) => !e.name.startsWith('.aindrive'));
+  const inherit = { role: root.role, shareOrigin: root.shareOrigin, ...(root.paid ? { paid: root.paid } : {}) };
+  const items = entries
+    .map((e) => entryToFileRef(folder, e))
+    .sort((a, b) => (a.kind === b.kind ? a.displayName.localeCompare(b.displayName) : a.kind === 'folder' ? -1 : 1))
+    .map((ref) => ({ ref, ...inherit }));
+  return { folder, items };
+}

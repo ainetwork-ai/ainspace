@@ -1,17 +1,19 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import { FolderOpen, FileText, Paperclip } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FolderOpen, FileText, Paperclip } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { isAinIntegrationEnabledClient } from '@/lib/ain-integration/config';
 import { followActionUrl } from '@/lib/ain-integration/connect-client';
 import { fileLinkMarkdown } from '@/lib/ain-integration/link-part';
 import { fileKey, type FileListItem, type FileListScope, type FileRef } from '@/lib/ain-integration/types';
+import { PICKER_SCOPES, back, canOpen, initialNav, openFolder, pickerListUrl, trailLabel, withScope, type PickerNav } from '@/lib/ain-integration/picker-nav';
 
 /**
  * "공유 파일" — 채팅 입력 옆 파일 진입점 (어댑터 사양 §제품에 넣을 것 3).
  * `/api/ain/shared-files` 목록에서 고르면 링크 파트(markdown)를 입력에 넣는다. 업로드 없음.
  * 플래그 off 면 아무것도 렌더링하지 않는다.
+ * 범위 탭(나에게 공유됨 · 내 파일)과 폴더 행의 "열기"(›)로 공유 뿌리 안의 파일까지 고른다(`picker-nav.ts`).
  */
 
 export interface SharedFilePick { markdown: string; ref: FileRef }
@@ -40,15 +42,16 @@ export default function SharedFilePicker({
   placement = 'up',
 }: SharedFilePickerProps) {
   const [open, setOpen] = useState(false);
+  const [nav, setNav] = useState<PickerNav>(() => initialNav(scope));
   const [items, setItems] = useState<FileListItem[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<ListError | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (at: PickerNav = nav) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetcher(`/api/ain/shared-files?scope=${encodeURIComponent(scope)}`);
+      const res = await fetcher(pickerListUrl(at));
       const body = await res.json().catch(() => null);
       if (!res.ok) {
         const e = body?.error as { message?: string; actionUrl?: string } | undefined;
@@ -63,7 +66,9 @@ export default function SharedFilePicker({
     } finally {
       setLoading(false);
     }
-  }, [fetcher, scope]);
+  }, [fetcher, nav]);
+
+  const go = (next: PickerNav) => { setNav(next); setItems(null); void load(next); };
 
   // actionUrl 이 이 제품의 연결 시작 라우트면 bearer 를 실어 불러 aindrive 로 이동하고, 아니면 새 탭으로 연다.
   const connect = useCallback(async (actionUrl: string) => {
@@ -82,6 +87,7 @@ export default function SharedFilePicker({
     const next = !open;
     setOpen(next);
     if (next && items === null) void load();
+    if (!next && nav.trail.length) { setNav(initialNav(nav.scope)); setItems(null); }
   };
 
   const pick = (ref: FileRef) => {
@@ -89,6 +95,7 @@ export default function SharedFilePicker({
     if (!markdown) return;
     onPick({ markdown, ref });
     setOpen(false);
+    if (nav.trail.length) { setNav(initialNav(nav.scope)); setItems(null); }
   };
 
   return (
@@ -115,6 +122,31 @@ export default function SharedFilePicker({
             </button>
           </div>
 
+          <div className="flex gap-1" role="tablist" aria-label="공유 파일 범위">
+            {PICKER_SCOPES.map((s) => (
+              <button
+                key={s.scope}
+                type="button"
+                role="tab"
+                aria-selected={nav.scope === s.scope && nav.trail.length === 0}
+                onClick={() => go(withScope(nav, s.scope))}
+                className={cn('rounded-full px-2 py-0.5 text-[11px]', nav.scope === s.scope ? 'bg-white text-[#222529]' : 'bg-[#2F333B] text-[#CAD0D7]')}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+
+          {nav.trail.length > 0 && (
+            <div className="flex items-center gap-1 text-xs text-[#CAD0D7]" data-testid="shared-file-folder-trail">
+              <button type="button" onClick={() => go(back(nav))} className="flex items-center rounded px-1 hover:bg-[#2F333B]">
+                <ChevronLeft className="h-3.5 w-3.5" />뒤로
+              </button>
+              <FolderOpen className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{trailLabel(nav)}</span>
+            </div>
+          )}
+
           {error && (
             <p className="text-xs text-[#FFB020]">
               {error.message}
@@ -129,23 +161,35 @@ export default function SharedFilePicker({
           )}
 
           <ul className="flex max-h-56 flex-col gap-0.5 overflow-y-auto">
-            {(items ?? []).map(({ ref }) => {
+            {(items ?? []).map((item) => {
+              const { ref } = item;
               const offline = ref.availability.state === 'offline';
               const gone = ref.availability.state === 'deleted';
               const pickable = !!ref.sourceUrl && !gone && !disabled;
               return (
-                <li key={fileKey(ref)}>
+                <li key={fileKey(ref)} className="flex items-center gap-0.5">
                   <button
                     type="button"
                     disabled={!pickable}
                     onClick={() => pick(ref)}
-                    className={cn('flex w-full items-center gap-2 rounded px-2 py-1 text-left text-sm hover:bg-[#2F333B] disabled:cursor-not-allowed disabled:opacity-50', offline && 'opacity-70')}
+                    className={cn('flex min-w-0 flex-1 items-center gap-2 rounded px-2 py-1 text-left text-sm hover:bg-[#2F333B] disabled:cursor-not-allowed disabled:opacity-50', offline && 'opacity-70')}
                     title={ref.legacy?.path ?? ref.displayName}
                   >
                     {ref.kind === 'folder' ? <FolderOpen className="h-4 w-4 shrink-0" /> : <FileText className="h-4 w-4 shrink-0" />}
                     <span className="truncate">{ref.displayName}</span>
                     {(offline || gone) && <span className="ml-auto shrink-0 text-[10px] text-[#FFB020]">{gone ? '삭제됨' : '오프라인'}</span>}
                   </button>
+                  {canOpen(item) && (
+                    <button
+                      type="button"
+                      onClick={() => go(openFolder(nav, ref))}
+                      aria-label={`${ref.displayName} 폴더 열기`}
+                      title={`${ref.displayName} 폴더 열기`}
+                      className="shrink-0 rounded p-1 text-[#CAD0D7] hover:bg-[#2F333B]"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  )}
                 </li>
               );
             })}

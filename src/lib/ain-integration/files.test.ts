@@ -1,7 +1,7 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fileListFixture from './__fixtures__/file-list-response.json';
-import { aindriveFileId, aindriveNormalizePath, driveToFolderItem, listFolderEntries, listSharedFiles } from './files';
+import { aindriveFileId, aindriveNormalizePath, driveToFolderItem, listFolderEntries, listFolderItems, listSharedFiles } from './files';
 import { findSecretKey, resetNativeSupport } from './http';
 import { AinContractError, isFileListResponse } from './types';
 import { fakeFetch, jsonResponse } from './__tests__/helpers';
@@ -114,4 +114,30 @@ test('폴더 탐색(MCP) 오류: 원본의 error.message 는 응답 바디(detai
     const body = JSON.stringify(e.toBody());
     return e.code === 'temporary_failure' && e.detail === 'aindrive_mcp_error' && !body.includes('aind_aat_secret') && !body.includes('rejected');
   });
+});
+
+test('listFolderItems: 공유 뿌리(드라이브 루트) 아래 하위 폴더의 직계 항목을 뿌리의 역할로 (19.5 선택기 폴더 열기)', async () => {
+  const root = { contract: '1.0', issuer: ISSUER, driveId: 'drv_g', fileId: aindriveFileId('drv_g', '/'), revision: 'm0-s0', kind: 'folder', displayName: 'rehearsal-gallery', ownerRef: { kind: 'principal', issuer: ISSUER, subject: 'me' }, availability: { state: 'online' }, sourceUrl: `${ISSUER}/d/drv_g/`, legacy: { path: '/' } };
+  const f = fakeFetch({
+    '/api/oauth/shared': (u) => jsonResponse({ contract: '1.0', asOf: 'x', nextCursor: null, items: u.searchParams.get('scope') === 'mine' ? [{ ref: root, role: 'owner', shareOrigin: 'own' }] : [] }),
+    '/mcp/d/drv_g': () => jsonResponse({ jsonrpc: '2.0', id: 1, result: { structuredContent: { entries: [{ name: '전시 일정.md', path: '전시 일정/전시 일정.md', isDir: false, size: 500, mtimeMs: 1 }, { name: '.aindrive', path: '전시 일정/.aindrive', isDir: true }] } } }),
+  });
+  const key = `${ISSUER}#drv_g#${aindriveFileId('drv_g', '/전시 일정')}`;
+  const out = await listFolderItems(opts(f), key, '/전시 일정');
+  assert.equal(out.folder.legacy?.path, '/전시 일정');
+  assert.deepEqual(out.items.map((i) => [i.ref.displayName, i.ref.legacy?.path, i.role, i.shareOrigin]), [['전시 일정.md', '/전시 일정/전시 일정.md', 'owner', 'own']]);
+  assert.equal(out.items[0].ref.fileId, aindriveFileId('drv_g', '/전시 일정/전시 일정.md'));
+  const mcp = f.calls.find((c) => c.url.includes('/mcp/d/drv_g'))!;
+  assert.equal(JSON.parse(String(mcp.init?.body)).params.arguments.path, '전시 일정');
+  assert.equal(findSecretKey(out), null);
+});
+
+test('listFolderItems: 경로-키 불일치 → unsupported_input, 공유 뿌리 밖 → forbidden (폴더 목록은 부르지 않는다)', async () => {
+  const shared = { contract: '1.0', issuer: ISSUER, driveId: 'drv_g', fileId: aindriveFileId('drv_g', '/작품 설명'), revision: 'm0-s0', kind: 'folder', displayName: '작품 설명', ownerRef: { kind: 'principal', issuer: ISSUER, subject: 'o' }, availability: { state: 'online' }, sourceUrl: `${ISSUER}/d/drv_g/`, legacy: { path: '/작품 설명' } };
+  const f = fakeFetch({ '/api/oauth/shared': () => jsonResponse({ contract: '1.0', asOf: 'x', nextCursor: null, items: [{ ref: shared, role: 'editor', shareOrigin: 'direct' }] }) });
+  const key = `${ISSUER}#drv_g#${aindriveFileId('drv_g', '/전시 일정')}`;
+  await assert.rejects(listFolderItems(opts(f), key, '/다른 곳'), (e: unknown) => e instanceof AinContractError && e.code === 'unsupported_input');
+  await assert.rejects(listFolderItems(opts(f), key, '/전시 일정'), (e: unknown) => e instanceof AinContractError && e.code === 'forbidden');
+  await assert.rejects(listFolderItems(opts(f), `https://other.example#drv_g#${aindriveFileId('drv_g', '/전시 일정')}`, '/전시 일정'), (e: unknown) => e instanceof AinContractError && e.code === 'unsupported_input');
+  assert.equal(f.calls.some((c) => c.url.includes('/mcp/')), false);
 });
