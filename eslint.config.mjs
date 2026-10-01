@@ -18,7 +18,12 @@ const eslintConfig = [
       "out/**",
       "build/**",
       "next-env.d.ts",
+      "public/map/**/*.tsx", // Tiled XML tilesets, not TypeScript
     ],
+  },
+  {
+    files: ["scripts/splitMapIntoTiles.js"],
+    rules: { "@typescript-eslint/no-require-imports": "off" }, // This Node CLI is CommonJS.
   },
 ];
 

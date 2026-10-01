@@ -2,10 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { createJob, updateJobStatus } from '@/lib/jobManager';
 
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 // Generate unique job ID
 function generateJobId(): string {
   return `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -14,6 +10,9 @@ function generateJobId(): string {
 // Async function to process the image conversion
 async function processImageConversion(jobId: string, imageFile: File) {
   try {
+    // Optional image conversion credentials are needed when a job runs,
+    // not while CI imports routes to build the rest of the application.
+    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     updateJobStatus(jobId, { status: 'processing' });
 
     const prompt = `Convert the provided building image into a 2D RPG style.
