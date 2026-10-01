@@ -81,7 +81,7 @@ public/map/
 If you need to regenerate tiles (e.g., after updating map images):
 
 ```bash
-node scripts/splitMapIntoTiles.js
+node scripts/splitMapIntoTiles.mjs
 ```
 
 This script:

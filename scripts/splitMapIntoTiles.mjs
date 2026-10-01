@@ -14,9 +14,12 @@
  * - Image tiles: 5x5 (each containing 21x21 game tiles)
  */
 
-const sharp = require('sharp');
-const fs = require('fs');
-const path = require('path');
+import sharp from 'sharp';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Configuration
 const MAP_DIR = path.join(__dirname, '../public/map');

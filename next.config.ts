@@ -1,9 +1,14 @@
 import type { NextConfig } from 'next';
 import { withSentryConfig } from '@sentry/nextjs';
 
-type MinifierPlugin = {
+type ConfiguredMinimizer = {
     constructor: { name: string };
-    options: { terserOptions?: { compress?: Record<string, unknown> } };
+    options: {
+        terserOptions?: {
+            compress?: Record<string, unknown>;
+            [key: string]: unknown;
+        };
+    };
 };
 
 const nextConfig: NextConfig = {
@@ -28,7 +33,7 @@ const nextConfig: NextConfig = {
         // Production 환경에서만 console.log 제거 (console.error, console.warn은 유지)
         if (!dev && !isServer) {
             // terser 옵션 설정
-            config.optimization.minimizer = config.optimization.minimizer.map((plugin: MinifierPlugin) => {
+            config.optimization.minimizer = config.optimization.minimizer.map((plugin: ConfiguredMinimizer) => {
                 if (plugin.constructor.name === 'TerserPlugin') {
                     plugin.options.terserOptions = {
                         ...plugin.options.terserOptions,

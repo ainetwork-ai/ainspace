@@ -18,12 +18,10 @@ const eslintConfig = [
       "out/**",
       "build/**",
       "next-env.d.ts",
-      "public/map/**/*.tsx", // Tiled XML tilesets, not TypeScript
+      // Tiled tilesets are XML files, despite sharing the TSX extension.
+      "public/map/AINSpace village asset.tsx",
+      "public/map/empty floor.tsx",
     ],
-  },
-  {
-    files: ["scripts/splitMapIntoTiles.js"],
-    rules: { "@typescript-eslint/no-require-imports": "off" }, // This Node CLI is CommonJS.
   },
 ];
 

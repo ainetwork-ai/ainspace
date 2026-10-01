@@ -63,6 +63,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No image provided' }, { status: 400 });
     }
 
+    if (!process.env.OPENAI_API_KEY) {
+      return NextResponse.json({ error: 'Image conversion is unavailable' }, { status: 503 });
+    }
+
     // Generate job ID and create job
     const jobId = generateJobId();
     createJob(jobId);
