@@ -1,4 +1,4 @@
-import { Geist, Geist_Mono, Manrope } from 'next/font/google';
+import localFont from 'next/font/local';
 import './globals.css';
 import { Providers } from '@/providers/Providers';
 import { AuthGuard } from '@/components/AuthGuard';
@@ -6,19 +6,28 @@ import { Analytics } from '@vercel/analytics/next';
 import { GoogleAnalytics } from '@/components/GoogleAnalytics';
 import type { Metadata } from 'next';
 
-const geistSans = Geist({
-    variable: '--font-geist-sans',
-    subsets: ['latin']
+const geistSans = localFont({
+    src: './fonts/Geist-Variable.ttf',
+    weight: '100 900',
+    style: 'normal',
+    display: 'swap',
+    variable: '--font-geist-sans'
 });
 
-const geistMono = Geist_Mono({
-    variable: '--font-geist-mono',
-    subsets: ['latin']
+const geistMono = localFont({
+    src: './fonts/GeistMono-Variable.ttf',
+    weight: '100 900',
+    style: 'normal',
+    display: 'swap',
+    variable: '--font-geist-mono'
 });
 
-const manrope = Manrope({
-    variable: '--font-manrope',
-    subsets: ['latin']
+const manrope = localFont({
+    src: './fonts/Manrope-Variable.ttf',
+    weight: '200 800',
+    style: 'normal',
+    display: 'swap',
+    variable: '--font-manrope'
 });
 
 export function generateMetadata(): Metadata {
