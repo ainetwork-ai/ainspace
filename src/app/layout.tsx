@@ -1,4 +1,3 @@
-import { Geist, Geist_Mono, Manrope } from 'next/font/google';
 import './globals.css';
 import { Providers } from '@/providers/Providers';
 import { AuthGuard } from '@/components/AuthGuard';
@@ -6,20 +5,20 @@ import { Analytics } from '@vercel/analytics/next';
 import { GoogleAnalytics } from '@/components/GoogleAnalytics';
 import type { Metadata } from 'next';
 
-const geistSans = Geist({
-    variable: '--font-geist-sans',
-    subsets: ['latin']
-});
+// Use local font files to avoid network dependency during build
+// Ensure you have the font files in /public/fonts or use a local font package
+// For now, we rely on CSS fallbacks defined in globals.css if fonts are missing
+// To fully fix this, you should download the font files and place them in /public/fonts
+// and update the CSS to use @font-face with local files, or use a package like @fontsource/geist
 
-const geistMono = Geist_Mono({
-    variable: '--font-geist-mono',
-    subsets: ['latin']
-});
+// Placeholder for font variables if using local fonts via CSS
+// If you want to use next/font with local files, you need to import them differently
+// For now, we remove the google font imports to prevent build failure
+// The CSS fallbacks in globals.css will handle the rendering
 
-const manrope = Manrope({
-    variable: '--font-manrope',
-    subsets: ['latin']
-});
+const geistSans = { variable: 'font-sans' }; // Fallback class
+const geistMono = { variable: 'font-mono' }; // Fallback class
+const manrope = { variable: 'font-manrope' }; // Fallback class
 
 export function generateMetadata(): Metadata {
     const baseUrl = process.env.NEXT_PUBLIC_URL || 'https://ainspace-4g3e.vercel.app';
