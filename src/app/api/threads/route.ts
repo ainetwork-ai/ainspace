@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAgents, setAgentBackendUuid } from '@/lib/redis';
+import { getAgentsByUrls, setAgentBackendUuid } from '@/lib/redis';
 import { generateAgentComboId } from '@/lib/hash';
 import { Thread } from '@/stores';
 import { backendFetch, getBearer } from '@/lib/backend/server-client';
@@ -76,7 +76,9 @@ export async function POST(request: NextRequest) {
 
     try {
         const body = await request.json();
-        const agentUrls: string[] = Array.isArray(body?.agentUrls) ? body.agentUrls : [];
+        const agentUrls: string[] = Array.isArray(body?.agentUrls)
+            ? body.agentUrls.filter((url: unknown): url is string => typeof url === 'string' && url.length > 0)
+            : [];
         // EPIC18: kiosk opt-in — bypass backend member-set dedup so each new
         // visitor session gets a fresh conversation. Web UI omits this flag.
         const forceNew: boolean = body?.forceNew === true;
@@ -85,12 +87,9 @@ export async function POST(request: NextRequest) {
         }
 
         // Load the stored agents for these urls (source for names + cached uuids).
-        const allAgents = await getAgents();
-        const agents = allAgents.filter((a) => agentUrls.includes(a.url));
-        // TEMP diagnostic (EPIC15): why does the internal url filter match 0?
-        console.log('[POST /api/threads] agentUrls (from browser):', agentUrls);
-        console.log('[POST /api/threads] redis StoredAgent urls:', allAgents.map((a) => a.url));
-        console.log('[POST /api/threads] matched StoredAgents:', agents.length);
+        const lookupStart = performance.now();
+        const agents = await getAgentsByUrls(agentUrls);
+        const lookupMs = performance.now() - lookupStart;
         const nameByUrl = new Map<string, string>();
         for (const a of agents) nameByUrl.set(a.url, a.card?.name ?? '');
 
@@ -101,6 +100,7 @@ export async function POST(request: NextRequest) {
         const uuids: string[] = cached.map((a) => a.backendUuid as string);
         const resolvedUrls: string[] = cached.map((a) => a.url);
 
+        const resolveStart = performance.now();
         if (uncached.length > 0) {
             const { resolved } = await resolveAgentUuids(
                 token,
@@ -110,15 +110,17 @@ export async function POST(request: NextRequest) {
             for (const { url, uuid } of resolved) {
                 uuids.push(uuid);
                 resolvedUrls.push(url);
-                // Best-effort backfill (progressive migration) — never blocks creation.
-                await setAgentBackendUuid(url, uuid);
             }
+            // Finish backfills before this serverless request ends, concurrently.
+            await Promise.all(resolved.map(({ url, uuid }) => setAgentBackendUuid(url, uuid)));
         }
 
         if (uuids.length === 0) {
             return NextResponse.json({ error: 'no_resolvable_agents' }, { status: 422 });
         }
 
+        const resolveMs = performance.now() - resolveStart;
+        const dmStart = performance.now();
         // Create (or reuse — backend idempotent on member set) the DM.
         const dmRes = await backendFetch(token, '/dm', {
             method: 'POST',
@@ -149,7 +151,11 @@ export async function POST(request: NextRequest) {
             hasUnplacedAgents: false,
         };
 
-        return NextResponse.json({ success: true, thread });
+        return NextResponse.json({ success: true, thread }, {
+            headers: {
+                'Server-Timing': `agents;dur=${lookupMs.toFixed(1)}, resolve;dur=${resolveMs.toFixed(1)}, dm;dur=${(performance.now() - dmStart).toFixed(1)}`,
+            },
+        });
     } catch (error) {
         console.error('Error creating backend DM:', error);
         return NextResponse.json({ error: 'Failed to create thread' }, { status: 500 });

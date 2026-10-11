@@ -88,7 +88,7 @@ export function useSSEConnection({
 
       if (reconnectAttemptsRef.current < maxReconnectAttempts) {
         reconnectAttemptsRef.current += 1;
-        const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
+        const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current - 1), 30000);
         reconnectTimeoutRef.current = setTimeout(() => {
           connect(targetUrl);
         }, delay);
