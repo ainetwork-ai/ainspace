@@ -688,8 +688,11 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
 
                     setCurrentThreadId(threadIdToSend!);
 
-                    // SSE connects on the currentThreadId change above; wait for
-                    // its synthetic 'connected' before sending (max 10s timeout)
+                }
+
+                // Both newly created and reused threads need their stream attached
+                // after switching. Otherwise a fast reply can arrive before the UI listens.
+                if (isNewThread || threadIdToSend !== currentThreadId) {
                     let sseTimeoutId: ReturnType<typeof setTimeout> | null = null;
                     await Promise.race([
                         new Promise<void>((resolve) => { sseConnectedResolverRef.current = resolve; }),
