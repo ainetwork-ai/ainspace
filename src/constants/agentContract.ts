@@ -25,4 +25,7 @@ export const ADD_AGENT_ABI = [
   },
 ]
 
-export const A2A_BUILDER_URL = process.env.NEXT_PUBLIC_A2A_BUILDER_URL || 'https://ainize.ai/agent/new?org=uncommon-gallery';
+const configuredBuilderUrl = process.env.NEXT_PUBLIC_A2A_BUILDER_URL;
+export const A2A_BUILDER_URL = configuredBuilderUrl && !/^https:\/\/a2a-builder(?:-dev)?\.ainetwork\.ai\/?$/.test(configuredBuilderUrl)
+  ? configuredBuilderUrl
+  : 'https://ainize.ai/agent/new?org=uncommon-gallery';
