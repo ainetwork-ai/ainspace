@@ -120,7 +120,7 @@ interface ChatBoxProps {
     onLoadingChange?: (loading: boolean) => void;
 }
 
-export interface ChatBoxRef { 
+export interface ChatBoxRef {
     sendMessage: (message: string, threadId?: string, broadcastRadius?: number) => Promise<void>;
 }
 
@@ -548,7 +548,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 setCustomTiles((prev) => ({
                     ...prev,
                     layer1: {}
-                })); 
+                }));
 
                 setPublishedTiles((prev) => ({
                     ...prev,

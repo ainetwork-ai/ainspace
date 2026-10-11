@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { StoredAgent } from '@/lib/redis';
+import { StoredAgent } from '@/lib/storage';
 
 interface UserAgentStore {
     agents: StoredAgent[];

@@ -1,4 +1,4 @@
-import { createClient } from 'redis';
+import { storageClient } from '../src/lib/storage-client';
 import crypto from 'crypto';
 
 function generateAgentComboId(agentNames: string[]): string {
@@ -12,13 +12,11 @@ function generateAgentComboId(agentNames: string[]): string {
 }
 
 async function migrate() {
-    const redis = createClient({
-        url: process.env.AINSPACE_STORAGE_REDIS_URL || 'redis://localhost:6379'
-    });
+    const storage = storageClient;
 
-    console.log('Connecting to Redis...');
-    await redis.connect();
-    console.log('Connected to Redis');
+    console.log('Connecting to AIN storage...');
+    await storage.connect();
+    console.log('Connected to AIN storage');
 
     let cursor = '0';
     const userThreadKeys: string[] = [];
@@ -26,7 +24,7 @@ async function migrate() {
     // 1. Find all user:*:threads keys
     console.log('\n1. Scanning for user thread keys...');
     do {
-        const result = await redis.scan(cursor, {
+        const result = await storage.scan(cursor, {
             MATCH: 'user:*:threads',
             COUNT: 100
         });
@@ -45,7 +43,7 @@ async function migrate() {
         const userId = key.split(':')[1];
         console.log(`\n--- Processing user: ${userId} ---`);
 
-        const oldThreads = await redis.hGetAll(key);
+        const oldThreads = await storage.hGetAll(key);
         const threadCount = Object.keys(oldThreads).length;
         console.log(`  Found ${threadCount} threads`);
 
@@ -83,18 +81,18 @@ async function migrate() {
                 };
 
                 // Save in new structure
-                await redis.hSet(`user:${userId}:threads`, {
+                await storage.hSet(`user:${userId}:threads`, {
                     [threadId]: JSON.stringify(thread)
                 });
 
                 // Save agent combo mapping
-                await redis.hSet(`user:${userId}:agent_combos`, {
+                await storage.hSet(`user:${userId}:agent_combos`, {
                     [agentComboId]: threadId
                 });
 
                 // Delete old key if different from new key
                 if (oldKey !== threadId) {
-                    await redis.hDel(key, oldKey);
+                    await storage.hDel(key, oldKey);
                     console.log(`  ✓ Migrated: "${oldKey}" → "${threadId}"`);
                 } else {
                     console.log(`  ✓ Updated: "${threadId}" (key unchanged)`);
@@ -108,7 +106,7 @@ async function migrate() {
         }
     }
 
-    await redis.quit();
+    await storage.close();
 
     console.log('\n=== Migration Complete ===');
     console.log(`Total threads found: ${totalThreads}`);

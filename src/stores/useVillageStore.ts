@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { TiledMap, Tileset } from './useMapStore';
-import { VillageMetadata } from '@/lib/village-redis';
+import { VillageMetadata } from '@/lib/village-storage';
 import { worldToGrid, worldToLocalInVillage, gridKey } from '@/lib/village-utils';
 
 export interface LoadedVillage {

@@ -11,9 +11,9 @@
  * 같은 리소스는 더 큰 version 만 적용한다(중복·역순 안전): 마지막으로 적용한 version 을 `ainStatusVersion` 에 남겨
  * 다음 페이지의 오래된 이벤트가 최신 상태를 되돌리지 못하게 한다.
  *
- * 저장소는 주입한다(`AgentStore`) — 테스트는 가짜 Redis 로 돌리고, 라우트는 `redisAgentStore` 를 쓴다.
+ * 저장소는 주입한다(`AgentStore`) — 테스트는 가짜 AIN storage 로 돌리고, 라우트는 `persistentAgentStore` 를 쓴다.
  */
-import { getAgents, saveStoredAgent, type StoredAgent } from '@/lib/redis';
+import { getAgents, saveStoredAgent, type StoredAgent } from '@/lib/storage';
 import { parseAgentKey, type ResourceEvent } from './types';
 
 export interface AgentStore {
@@ -21,7 +21,7 @@ export interface AgentStore {
   saveAgent(agent: StoredAgent): Promise<void>;
 }
 
-export const redisAgentStore: AgentStore = { getAgents, saveAgent: saveStoredAgent };
+export const persistentAgentStore: AgentStore = { getAgents, saveAgent: saveStoredAgent };
 
 export const DEACTIVATING_AGENT_EVENTS: ReadonlySet<string> = new Set(['agent.disabled', 'agent.deleted', 'agent.unpublished', 'agent.revoked']);
 export const ACTIVATING_AGENT_EVENTS: ReadonlySet<string> = new Set(['agent.published', 'agent.updated']);
@@ -58,7 +58,7 @@ export function latestStatusByAgent(events: ResourceEvent[]): { byKey: Map<strin
   return { byKey, ignored };
 }
 
-export async function applyAgentEvents(events: ResourceEvent[], store: AgentStore = redisAgentStore): Promise<ApplyAgentEventsResult> {
+export async function applyAgentEvents(events: ResourceEvent[], store: AgentStore = persistentAgentStore): Promise<ApplyAgentEventsResult> {
   const { byKey, ignored } = latestStatusByAgent(events);
   const result: ApplyAgentEventsResult = { changed: [], matched: 0, ignored };
   if (byKey.size === 0) return result;

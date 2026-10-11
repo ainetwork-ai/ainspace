@@ -1,4 +1,4 @@
-import { createClient } from 'redis';
+import { storageClient, StorageSubscriber } from './storage-client';
 import { readAgentsByUrls } from './backend/agents-by-url';
 import { AgentStateForDB } from './agent';
 import { AgentCard } from '@a2a-js/sdk';
@@ -6,30 +6,8 @@ import { Thread } from '@/types/thread';
 import { generateAgentComboId } from './hash';
 import { BackendAgentListItem, itemA2aUrl, normalizeA2aUrl } from './backend/agent-mapping';
 
-const client = createClient({
-    url: process.env.AINSPACE_STORAGE_REDIS_URL || 'redis://localhost:6379'
-});
-
-client.on('error', (err) => {
-    console.error('Redis Client Error', err);
-});
-
-export async function getRedisClient() {
-    try {
-        if (!client.isOpen) {
-            await client.connect();
-        }
-        return client;
-    } catch (error: unknown) {
-        // If already connected, ignore the error and return client
-        if (
-            error instanceof Error &&
-            (error.message?.includes('Socket already opened') || error.message?.includes('already connected'))
-        ) {
-            return client;
-        }
-        throw error;
-    }
+export async function getStorageClient() {
+    return storageClient;
 }
 
 /**
@@ -40,10 +18,10 @@ export async function getRedisClient() {
  */
 export async function scanKeys(pattern: string, count: number = 100): Promise<string[]> {
     try {
-        const redis = await getRedisClient();
+        const storage = await getStorageClient();
         const keys: string[] = [];
 
-        for await (const batch of redis.scanIterator({
+        for await (const batch of storage.scanIterator({
             MATCH: pattern,
             COUNT: count
         })) {
@@ -51,10 +29,7 @@ export async function scanKeys(pattern: string, count: number = 100): Promise<st
         }
 
         return keys;
-    } catch (error) {
-        console.error('Error scanning keys from Redis:', error);
-        return [];
-    }
+    } catch (error) { throw error; }
 }
 
 // --- Presence types & functions (EPIC23) ---
@@ -70,31 +45,9 @@ export interface PlayerPresence {
     spriteKey: string;
 }
 
-// Subscriber client for Pub/Sub (separate from command client)
-let subscriber: ReturnType<typeof createClient> | null = null;
-
-export async function getRedisSubscriber() {
-    try {
-        if (!subscriber) {
-            const commandClient = await getRedisClient();
-            subscriber = commandClient.duplicate();
-            subscriber.on('error', (err) => {
-                console.error('Redis Subscriber Error', err);
-            });
-        }
-        if (!subscriber.isOpen) {
-            await subscriber.connect();
-        }
-        return subscriber;
-    } catch (error: unknown) {
-        if (
-            error instanceof Error &&
-            (error.message?.includes('Socket already opened') || error.message?.includes('already connected'))
-        ) {
-            return subscriber!;
-        }
-        throw error;
-    }
+const subscriber = new StorageSubscriber();
+export async function getStorageSubscriber() {
+    return subscriber;
 }
 
 export async function savePlayerPresence(
@@ -104,25 +57,21 @@ export async function savePlayerPresence(
 ): Promise<void> {
     if (!villageSlug) return;
     try {
-        const redis = await getRedisClient();
+        const storage = await getStorageClient();
         const presence: PlayerPresence = {
             ...data,
             userId,
         };
-        await redis.hSet(`village:${villageSlug}:players`, userId, JSON.stringify(presence));
-    } catch (error) {
-        console.error('Error saving player presence:', error);
-    }
+        await storage.hSet(`village:${villageSlug}:players`, userId, JSON.stringify(presence));
+    } catch (error) { throw error; }
 }
 
 export async function removePlayerPresence(villageSlug: string, userId: string): Promise<void> {
     try {
-        const redis = await getRedisClient();
-        await redis.hDel(`village:${villageSlug}:players`, userId);
+        const storage = await getStorageClient();
+        await storage.hDel(`village:${villageSlug}:players`, userId);
         await publishVillageEvent(villageSlug, { type: 'PLAYER_LEFT', userId });
-    } catch (error) {
-        console.error('Error removing player presence:', error);
-    }
+    } catch (error) { throw error; }
 }
 
 export async function publishVillageEvent(
@@ -130,11 +79,9 @@ export async function publishVillageEvent(
     event: Record<string, unknown>
 ): Promise<void> {
     try {
-        const redis = await getRedisClient();
-        await redis.publish(`village:${villageSlug}:events`, JSON.stringify(event));
-    } catch (error) {
-        console.error('Error publishing village event:', error);
-    }
+        const storage = await getStorageClient();
+        await storage.publish(`village:${villageSlug}:events`, JSON.stringify(event));
+    } catch (error) { throw error; }
 }
 
 export async function joinVillage(
@@ -146,27 +93,25 @@ export async function joinVillage(
     try {
         // Clean up previous village if different
         if (prevVillageSlug && prevVillageSlug !== villageSlug) {
-            const redis = await getRedisClient();
-            await redis.hDel(`village:${prevVillageSlug}:players`, userId);
+            const storage = await getStorageClient();
+            await storage.hDel(`village:${prevVillageSlug}:players`, userId);
             await publishVillageEvent(prevVillageSlug, { type: 'PLAYER_LEFT', userId });
         }
         await savePlayerPresence(villageSlug, userId, playerData);
-        const redis = await getRedisClient();
-        await redis.expire(`village:${villageSlug}:players`, 3600);
+        const storage = await getStorageClient();
+        await storage.expire(`village:${villageSlug}:players`, 3600);
         await publishVillageEvent(villageSlug, { type: 'PLAYER_JOINED', userId, ...playerData });
-    } catch (error) {
-        console.error('Error joining village:', error);
-    }
+    } catch (error) { throw error; }
 }
 
 export async function getVillagePlayers(villageSlug: string): Promise<PlayerPresence[]> {
     try {
-        const redis = await getRedisClient();
-        const raw = await redis.hGetAll(`village:${villageSlug}:players`);
+        const storage = await getStorageClient();
+        const raw = await storage.hGetAll(`village:${villageSlug}:players`);
         if (!raw || Object.keys(raw).length === 0) return [];
 
         // Stale detection based on heartbeat hash (60s threshold)
-        const heartbeats = await redis.hGetAll(`village:${villageSlug}:heartbeat`);
+        const heartbeats = await storage.hGetAll(`village:${villageSlug}:heartbeat`);
         const now = Date.now();
         const staleThreshold = now - 60000;
         const players: PlayerPresence[] = [];
@@ -188,15 +133,12 @@ export async function getVillagePlayers(villageSlug: string): Promise<PlayerPres
 
         if (staleIds.length > 0) {
             staleIds.forEach(uid => publishVillageEvent(villageSlug, { type: 'PLAYER_LEFT', userId: uid }));
-            redis.hDel(`village:${villageSlug}:players`, staleIds).catch(() => {});
-            redis.hDel(`village:${villageSlug}:heartbeat`, staleIds).catch(() => {});
+            storage.hDel(`village:${villageSlug}:players`, staleIds).catch(() => {});
+            storage.hDel(`village:${villageSlug}:heartbeat`, staleIds).catch(() => {});
         }
 
         return players;
-    } catch (error) {
-        console.error('Error getting village players:', error);
-        return [];
-    }
+    } catch (error) { throw error; }
 }
 
 export async function cleanupStale(villageSlug: string): Promise<void> {
@@ -216,10 +158,10 @@ export interface CustomTilesData {
 
 export async function saveCustomTiles(userId: string, customTiles: TileLayers): Promise<void> {
     try {
-        const redis = await getRedisClient();
+        const storage = await getStorageClient();
 
         // Get existing global tiles directly
-        const globalTilesData = await redis.hGetAll('global-tiles');
+        const globalTilesData = await storage.hGetAll('global-tiles');
         let existingTiles: TileLayers = { layer0: {}, layer1: {}, layer2: {} };
 
         if (globalTilesData && Object.keys(globalTilesData).length > 0) {
@@ -244,22 +186,19 @@ export async function saveCustomTiles(userId: string, customTiles: TileLayers): 
         };
 
         // Save to global key (no userId)
-        await redis.hSet('global-tiles', {
+        await storage.hSet('global-tiles', {
             tiles: JSON.stringify(newGlobalTilesData.tiles),
             lastUpdated: newGlobalTilesData.lastUpdated
         });
         // No expiration for global tiles - they persist forever
-    } catch (error) {
-        console.error('Error saving custom tiles:', error);
-        throw error;
-    }
+    } catch (error) { throw error; }
 }
 
 // Get global tiles (for backward compatibility, still accepts userId but ignores it)
 export async function getCustomTiles(_userId: string): Promise<CustomTilesData | null> {
     try {
-        const redis = await getRedisClient();
-        const globalTilesData = await redis.hGetAll('global-tiles');
+        const storage = await getStorageClient();
+        const globalTilesData = await storage.hGetAll('global-tiles');
 
         if (!globalTilesData || Object.keys(globalTilesData).length === 0) {
             return null;
@@ -289,17 +228,14 @@ export async function getCustomTiles(_userId: string): Promise<CustomTilesData |
             },
             lastUpdated: globalTilesData.lastUpdated || new Date().toISOString()
         };
-    } catch (error) {
-        console.error('Error getting global tiles:', error);
-        return null;
-    }
+    } catch (error) { throw error; }
 }
 
 // New function to get global tiles
 export async function getGlobalTiles(): Promise<TileLayers | null> {
     try {
-        const redis = await getRedisClient();
-        const globalTilesData = await redis.hGetAll('global-tiles');
+        const storage = await getStorageClient();
+        const globalTilesData = await storage.hGetAll('global-tiles');
 
         if (!globalTilesData || Object.keys(globalTilesData).length === 0) {
             return null;
@@ -323,20 +259,14 @@ export async function getGlobalTiles(): Promise<TileLayers | null> {
             layer1: parsedTiles.layer1 || {},
             layer2: parsedTiles.layer2 || {}
         };
-    } catch (error) {
-        console.error('Error getting global tiles:', error);
-        return null;
-    }
+    } catch (error) { throw error; }
 }
 
 export async function deleteCustomTiles(userId: string): Promise<void> {
     try {
-        const redis = await getRedisClient();
-        await redis.del(`custom-tiles:${userId}`);
-    } catch (error) {
-        console.error('Error deleting custom tiles:', error);
-        throw error;
-    }
+        const storage = await getStorageClient();
+        await storage.del(`custom-tiles:${userId}`);
+    } catch (error) { throw error; }
 }
 
 export interface StoredAgent {
@@ -376,16 +306,16 @@ const AGENTS_KEY = 'agents:';
 
 /**
  * AIN integration: persist one StoredAgent under its `agents:<base64(url)>` key
- * (same key form as PUT /api/agents). Throws on Redis failure so the caller can
+ * (same key form as PUT /api/agents). Throws on AIN storage failure so the caller can
  * report it — status changes must not be silently dropped.
  */
 export async function saveStoredAgent(agent: StoredAgent): Promise<void> {
-    const redis = await getRedisClient();
-    await redis.set(`${AGENTS_KEY}${Buffer.from(agent.url).toString('base64')}`, JSON.stringify(agent));
+    const storage = await getStorageClient();
+    await storage.set(`${AGENTS_KEY}${Buffer.from(agent.url).toString('base64')}`, JSON.stringify(agent));
 }
 
 /**
- * Get all registered agents from Redis
+ * Get all registered agents from AIN storage
  */
 export async function getAgents(): Promise<StoredAgent[]> {
     try {
@@ -395,29 +325,23 @@ export async function getAgents(): Promise<StoredAgent[]> {
             return [];
         }
 
-        const redis = await getRedisClient();
-        const values = await redis.mGet(keys);
+        const storage = await getStorageClient();
+        const values = await storage.mGet(keys);
         const agents = values
             .filter(value => value !== null)
             .map(value => JSON.parse(value as string) as StoredAgent)
             .filter(agent => agent && agent.url && agent.card);
 
         return agents.sort((a, b) => b.timestamp - a.timestamp);
-    } catch (error) {
-        console.error('Error getting agents from Redis:', error);
-        return [];
-    }
+    } catch (error) { throw error; }
 }
 
 /** Resolve only the selected chat agents without scanning the entire catalogue. */
 export async function getAgentsByUrls(urls: string[]): Promise<StoredAgent[]> {
     if (urls.length === 0) return [];
     try {
-        return await readAgentsByUrls(await getRedisClient(), urls);
-    } catch (error) {
-        console.error('Error getting selected agents from Redis:', error);
-        return [];
-    }
+        return await readAgentsByUrls(await getStorageClient(), urls);
+    } catch (error) { throw error; }
 }
 
 /**
@@ -428,17 +352,15 @@ export async function getAgentsByUrls(urls: string[]): Promise<StoredAgent[]> {
  */
 export async function setAgentBackendUuid(agentUrl: string, backendUuid: string): Promise<void> {
     try {
-        const redis = await getRedisClient();
+        const storage = await getStorageClient();
         const agentKey = `${AGENTS_KEY}${Buffer.from(agentUrl).toString('base64')}`;
-        const value = await redis.get(agentKey);
+        const value = await storage.get(agentKey);
         if (!value) return;
         const agent = JSON.parse(value) as StoredAgent;
         if (agent.backendUuid === backendUuid) return;
         agent.backendUuid = backendUuid;
-        await redis.set(agentKey, JSON.stringify(agent));
-    } catch (error) {
-        console.error('Error caching agent backendUuid:', error);
-    }
+        await storage.set(agentKey, JSON.stringify(agent));
+    } catch (error) { throw error; }
 }
 
 // EPIC16: per-user roster-sync freshness marker. The key itself expires after
@@ -451,22 +373,17 @@ const AGENTS_SYNC_TTL_SEC = 30 * 60;
 // (i.e. a roster pull is due).
 export async function getAgentsSyncedAt(wallet: string): Promise<number> {
     try {
-        const redis = await getRedisClient();
-        const v = await redis.get(`${AGENTS_SYNC_KEY}${wallet}`);
+        const storage = await getStorageClient();
+        const v = await storage.get(`${AGENTS_SYNC_KEY}${wallet}`);
         return v ? (parseInt(v, 10) || 0) : 0;
-    } catch (error) {
-        console.error('Error reading agents sync timestamp:', error);
-        return 0;
-    }
+    } catch (error) { throw error; }
 }
 
 export async function setAgentsSyncedAt(wallet: string, ts: number): Promise<void> {
     try {
-        const redis = await getRedisClient();
-        await redis.set(`${AGENTS_SYNC_KEY}${wallet}`, String(ts), { EX: AGENTS_SYNC_TTL_SEC });
-    } catch (error) {
-        console.error('Error writing agents sync timestamp:', error);
-    }
+        const storage = await getStorageClient();
+        await storage.set(`${AGENTS_SYNC_KEY}${wallet}`, String(ts), { EX: AGENTS_SYNC_TTL_SEC });
+    } catch (error) { throw error; }
 }
 
 const agentKeyFor = (url: string) => `${AGENTS_KEY}${Buffer.from(url).toString('base64')}`;
@@ -557,14 +474,14 @@ export async function syncAgentsFromRoster(
     wallet: string,
     roster: BackendAgentListItem[],
 ): Promise<StoredAgent[]> {
-    const redis = await getRedisClient();
+    const storage = await getStorageClient();
     const mine = (await getAgents()).filter((a) => a.creator === wallet);
     const byNormUrl = new Map<string, StoredAgent>();
     for (const a of mine) byNormUrl.set(normalizeA2aUrl(a.url), a);
 
     const seen = new Set<string>();
     const writes: Promise<unknown>[] = [];
-    const save = (a: StoredAgent) => writes.push(redis.set(agentKeyFor(a.url), JSON.stringify(a)));
+    const save = (a: StoredAgent) => writes.push(storage.set(agentKeyFor(a.url), JSON.stringify(a)));
 
     for (const b of roster) {
         const key = itemA2aUrl(b);
@@ -614,8 +531,8 @@ export async function upsertAgentFromRosterItem(
     const res = applyRosterItem(wallet, item, existing, extras);
     if (!res) return null;
     if (res.changed) {
-        const redis = await getRedisClient();
-        await redis.set(agentKeyFor(res.agent.url), JSON.stringify(res.agent));
+        const storage = await getStorageClient();
+        await storage.set(agentKeyFor(res.agent.url), JSON.stringify(res.agent));
     }
     return res.agent;
 }
@@ -629,25 +546,22 @@ export async function saveThread(
     thread: Thread
 ): Promise<void> {
     try {
-        const redis = await getRedisClient();
+        const storage = await getStorageClient();
 
         // Save to user-specific thread hash (key: thread id)
-        await redis.hSet(`user:${userId}:threads`, {
+        await storage.hSet(`user:${userId}:threads`, {
             [thread.id]: JSON.stringify(thread),
         });
 
         // Save agent combo mapping
-        await redis.hSet(`user:${userId}:agent_combos`, {
+        await storage.hSet(`user:${userId}:agent_combos`, {
             [thread.agentComboId]: thread.id
         });
 
         // Set expiration to 30 days
-        await redis.expire(`user:${userId}:threads`, 86400 * 30);
-        await redis.expire(`user:${userId}:agent_combos`, 86400 * 30);
-    } catch (error) {
-        console.error('Error saving thread:', error);
-        throw error;
-    }
+        await storage.expire(`user:${userId}:threads`, 86400 * 30);
+        await storage.expire(`user:${userId}:agent_combos`, 86400 * 30);
+    } catch (error) { throw error; }
 }
 
 /**
@@ -655,8 +569,8 @@ export async function saveThread(
  */
 export async function getThreads(userId: string): Promise<{ [id: string]: Thread }> {
     try {
-        const redis = await getRedisClient();
-        const threadsData = await redis.hGetAll(`user:${userId}:threads`);
+        const storage = await getStorageClient();
+        const threadsData = await storage.hGetAll(`user:${userId}:threads`);
 
         if (!threadsData || Object.keys(threadsData).length === 0) {
             return {};
@@ -668,10 +582,7 @@ export async function getThreads(userId: string): Promise<{ [id: string]: Thread
         }
 
         return threads;
-    } catch (error) {
-        console.error('Error getting threads:', error);
-        return {};
-    }
+    } catch (error) { throw error; }
 }
 
 /**
@@ -682,20 +593,17 @@ export async function findThreadByAgentCombo(
     agentNames: string[]
 ): Promise<Thread | null> {
     try {
-        const redis = await getRedisClient();
+        const storage = await getStorageClient();
         const agentComboId = await generateAgentComboId(agentNames);
 
         // Get thread id from agent combo mapping
-        const id = await redis.hGet(`user:${userId}:agent_combos`, agentComboId);
+        const id = await storage.hGet(`user:${userId}:agent_combos`, agentComboId);
         if (!id) return null;
 
         // Get thread data
-        const threadStr = await redis.hGet(`user:${userId}:threads`, id);
+        const threadStr = await storage.hGet(`user:${userId}:threads`, id);
         return threadStr ? JSON.parse(threadStr) : null;
-    } catch (error) {
-        console.error('Error finding thread by agent combo:', error);
-        return null;
-    }
+    } catch (error) { throw error; }
 }
 
 /**
@@ -706,22 +614,19 @@ export async function deleteThread(
     id: string
 ): Promise<void> {
     try {
-        const redis = await getRedisClient();
+        const storage = await getStorageClient();
 
         // Get thread data to retrieve agentComboId
-        const threadStr = await redis.hGet(`user:${userId}:threads`, id);
+        const threadStr = await storage.hGet(`user:${userId}:threads`, id);
         if (threadStr) {
             const thread: Thread = JSON.parse(threadStr);
             // Delete agent combo mapping
-            await redis.hDel(`user:${userId}:agent_combos`, thread.agentComboId);
+            await storage.hDel(`user:${userId}:agent_combos`, thread.agentComboId);
         }
 
         // Delete thread data
-        await redis.hDel(`user:${userId}:threads`, id);
-    } catch (error) {
-        console.error('Error deleting thread:', error);
-        throw error;
-    }
+        await storage.hDel(`user:${userId}:threads`, id);
+    } catch (error) { throw error; }
 }
 
 /**
@@ -729,20 +634,18 @@ export async function deleteThread(
  */
 export async function updateThreadLastMessage(userId: string, id: string): Promise<void> {
     try {
-        const redis = await getRedisClient();
-        const threadDataStr = await redis.hGet(`user:${userId}:threads`, id);
+        const storage = await getStorageClient();
+        const threadDataStr = await storage.hGet(`user:${userId}:threads`, id);
 
         if (threadDataStr) {
             const threadData: Thread = JSON.parse(threadDataStr);
             threadData.lastMessageAt = new Date().toISOString();
 
-            await redis.hSet(`user:${userId}:threads`, {
+            await storage.hSet(`user:${userId}:threads`, {
                 [id]: JSON.stringify(threadData),
             });
         }
-    } catch (error) {
-        console.error('Error updating thread last message:', error);
-    }
+    } catch (error) { throw error; }
 }
 
 /**
@@ -750,19 +653,16 @@ export async function updateThreadLastMessage(userId: string, id: string): Promi
  */
 export async function addPlacedAgent(userId: string, agentUrl: string): Promise<void> {
     try {
-        const redis = await getRedisClient();
+        const storage = await getStorageClient();
         const agentKey = Buffer.from(agentUrl).toString('base64');
 
-        await redis.hSet(`user:${userId}:placed_agents`, {
+        await storage.hSet(`user:${userId}:placed_agents`, {
             [agentKey]: JSON.stringify({
                 url: agentUrl,
                 placedAt: new Date().toISOString()
             })
         });
-    } catch (error) {
-        console.error('Error adding placed agent:', error);
-        throw error;
-    }
+    } catch (error) { throw error; }
 }
 
 /**
@@ -770,14 +670,11 @@ export async function addPlacedAgent(userId: string, agentUrl: string): Promise<
  */
 export async function removePlacedAgent(userId: string, agentUrl: string): Promise<void> {
     try {
-        const redis = await getRedisClient();
+        const storage = await getStorageClient();
         const agentKey = Buffer.from(agentUrl).toString('base64');
 
-        await redis.hDel(`user:${userId}:placed_agents`, agentKey);
-    } catch (error) {
-        console.error('Error removing placed agent:', error);
-        throw error;
-    }
+        await storage.hDel(`user:${userId}:placed_agents`, agentKey);
+    } catch (error) { throw error; }
 }
 
 /**
@@ -785,18 +682,15 @@ export async function removePlacedAgent(userId: string, agentUrl: string): Promi
  */
 export async function getPlacedAgents(userId: string): Promise<{ url: string; placedAt: string }[]> {
     try {
-        const redis = await getRedisClient();
-        const placedAgentsData = await redis.hGetAll(`user:${userId}:placed_agents`);
+        const storage = await getStorageClient();
+        const placedAgentsData = await storage.hGetAll(`user:${userId}:placed_agents`);
 
         if (!placedAgentsData || Object.keys(placedAgentsData).length === 0) {
             return [];
         }
 
         return Object.values(placedAgentsData).map(data => JSON.parse(data));
-    } catch (error) {
-        console.error('Error getting placed agents:', error);
-        return [];
-    }
+    } catch (error) { throw error; }
 }
 
 /**
@@ -804,13 +698,10 @@ export async function getPlacedAgents(userId: string): Promise<{ url: string; pl
  */
 export async function getPlacedAgentCount(userId: string): Promise<number> {
     try {
-        const redis = await getRedisClient();
-        const count = await redis.hLen(`user:${userId}:placed_agents`);
+        const storage = await getStorageClient();
+        const count = await storage.hLen(`user:${userId}:placed_agents`);
         return count;
-    } catch (error) {
-        console.error('Error getting placed agent count:', error);
-        return 0;
-    }
+    } catch (error) { throw error; }
 }
 
 /**
@@ -822,10 +713,10 @@ export async function migrateThreadsToWallet(
     walletAddress: string
 ): Promise<{ migratedCount: number; skippedCount: number }> {
     try {
-        const redis = await getRedisClient();
+        const storage = await getStorageClient();
 
-        const sessionThreads = await redis.hGetAll(`user:${sessionId}:threads`);
-        const walletCombos = await redis.hGetAll(`user:${walletAddress}:agent_combos`);
+        const sessionThreads = await storage.hGetAll(`user:${sessionId}:threads`);
+        const walletCombos = await storage.hGetAll(`user:${walletAddress}:agent_combos`);
 
         let migratedCount = 0;
         let skippedCount = 0;
@@ -840,11 +731,11 @@ export async function migrateThreadsToWallet(
                 continue;
             }
 
-            await redis.hSet(`user:${walletAddress}:threads`, {
+            await storage.hSet(`user:${walletAddress}:threads`, {
                 [threadId]: threadDataStr,
             });
 
-            await redis.hSet(`user:${walletAddress}:agent_combos`, {
+            await storage.hSet(`user:${walletAddress}:agent_combos`, {
                 [thread.agentComboId]: threadId
             });
 
@@ -853,19 +744,16 @@ export async function migrateThreadsToWallet(
 
         // Set expiration for wallet user data
         if (migratedCount > 0) {
-            await redis.expire(`user:${walletAddress}:threads`, 86400 * 30);
-            await redis.expire(`user:${walletAddress}:agent_combos`, 86400 * 30);
+            await storage.expire(`user:${walletAddress}:threads`, 86400 * 30);
+            await storage.expire(`user:${walletAddress}:agent_combos`, 86400 * 30);
         }
 
         // Clean up session data after migration
-        await redis.del(`user:${sessionId}:threads`);
-        await redis.del(`user:${sessionId}:agent_combos`);
+        await storage.del(`user:${sessionId}:threads`);
+        await storage.del(`user:${sessionId}:agent_combos`);
 
         console.log(`Thread migration completed: ${migratedCount} migrated, ${skippedCount} skipped`);
 
         return { migratedCount, skippedCount };
-    } catch (error) {
-        console.error('Error migrating threads:', error);
-        throw error;
-    }
+    } catch (error) { throw error; }
 }

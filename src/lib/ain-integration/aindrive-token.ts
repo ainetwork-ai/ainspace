@@ -29,7 +29,7 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { AINDRIVE_OAUTH_SCOPES, getAindriveOAuthClientId, getAindriveUrl } from './config';
 import { UPSTREAM_TIMEOUT_MS, fetchUpstream, type FetchLike } from './http';
-import { redisKv, type KvStore } from './kv';
+import { storageKv, type KvStore } from './kv';
 import { deriveKey, getTokenKeyMaterial, seal, unseal } from './sealed';
 import { AinContractError } from './types';
 
@@ -58,7 +58,7 @@ export interface AindriveOAuthDeps {
 }
 
 /** 라우트가 쓰는 기본 의존성 — 테스트가 kv·fetch·now 를 바꿔 끼운다(`deps.ts` 의 `aindriveConnectDeps`). */
-export const defaultOAuthDeps: AindriveOAuthDeps = { kv: redisKv };
+export const defaultOAuthDeps: AindriveOAuthDeps = { kv: storageKv };
 
 const nowMs = (d: AindriveOAuthDeps) => (d.now ?? (() => new Date()))().getTime();
 

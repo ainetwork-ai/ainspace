@@ -14,7 +14,7 @@ import {
   applyAssetLinks, assetLinksKey, listRollbackEntries, planAssetLinks, rollbackAssetLinks, rollbackKey, targetPathOf,
   type AssetLink, type AssetLinkApplyDeps, type RollbackEntry, type SourceAsset,
 } from './asset-linking';
-import { classifyRedisKey } from './asset-inventory';
+import { classifyStorageKey } from './asset-inventory';
 import { aindriveFileId } from './files';
 import { findSecretKey, resetNativeSupport } from './http';
 import { memoryKv } from './kv';
@@ -262,15 +262,15 @@ test('rollback: 기본은 복사본을 남긴다, 이전 링크는 복원, 이�
 // ------------------------------------------------------------------------------- inventory · flag
 
 test('인벤토리: 링크 hash 는 reference, 롤백 항목은 stays 로 분류된다', () => {
-  assert.deepEqual([classifyRedisKey('village:alpha:ain_asset_links').kind, classifyRedisKey('village:alpha:ain_asset_links').disposition], ['village-asset-links', 'reference']);
-  assert.equal(classifyRedisKey('ain:asset_link_rollback:run-1').kind, 'asset-link-rollback');
+  assert.deepEqual([classifyStorageKey('village:alpha:ain_asset_links').kind, classifyStorageKey('village:alpha:ain_asset_links').disposition], ['village-asset-links', 'reference']);
+  assert.equal(classifyStorageKey('ain:asset_link_rollback:run-1').kind, 'asset-link-rollback');
   assert.equal(fileKey(root(DRIVE, 'x')).startsWith(AINDRIVE), true);
 });
 
 test('스크립트: AIN_INTEGRATION_ENABLED 가 꺼져 있으면 아무것도 하지 않고 종료 코드 2', () => {
   const cwd = mkdtempSync(join(tmpdir(), 'ain-asset-link-')); // .env 가 없는 곳
   const repo = resolve(__dirname, '../../..');
-  const env = { ...process.env, AIN_INTEGRATION_ENABLED: '', NEXT_PUBLIC_AIN_INTEGRATION_ENABLED: '', AINSPACE_STORAGE_REDIS_URL: 'redis://127.0.0.1:1', TSX_TSCONFIG_PATH: join(repo, 'tsconfig.json') };
+  const env = { ...process.env, AIN_INTEGRATION_ENABLED: '', NEXT_PUBLIC_AIN_INTEGRATION_ENABLED: '', AINSPACE_STORAGE_REDIS_URL: 'storage://127.0.0.1:1', TSX_TSCONFIG_PATH: join(repo, 'tsconfig.json') };
   const loader = pathToFileURL(join(repo, 'node_modules/tsx/dist/loader.mjs')).href;
   const r = spawnSync(process.execPath, ['--import', loader, join(repo, 'scripts/ain-asset-link.ts'), '--apply'], { cwd, env, encoding: 'utf8', timeout: 60_000 });
   assert.equal(r.status, 2, r.stderr);

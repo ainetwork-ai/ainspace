@@ -1,0 +1,16 @@
+{
+  "name": "ainspace-storage-service",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "build": "tsc",
+    "test": "node --test dist/*.test.js *.test.mjs"
+  },
+  "dependencies": {
+    "@ainblockchain/ain-js": "1.15.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "@types/node": "^24.9.1"
+  }
+}

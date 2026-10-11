@@ -3,8 +3,8 @@ import {
   savePlayerPresence,
   removePlayerPresence,
   publishVillageEvent,
-  getRedisClient,
-} from '@/lib/redis';
+  getStorageClient,
+} from '@/lib/storage';
 import { worldToGrid } from '@/lib/village-utils';
 import { DIRECTION } from '@/constants/game';
 
@@ -44,8 +44,8 @@ export async function POST(request: NextRequest) {
     if (!slug) {
       try {
         const { gridX, gridY } = worldToGrid(position.x, position.y);
-        const redis = await getRedisClient();
-        const found = await redis.get(`village:grid:${gridX},${gridY}`);
+        const storage = await getStorageClient();
+        const found = await storage.get(`village:grid:${gridX},${gridY}`);
         slug = found || null;
       } catch {
         // Grid lookup failed — treat as outdoor

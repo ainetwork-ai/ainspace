@@ -11,7 +11,7 @@
 // 환경변수 로딩
 import { config } from 'dotenv';
 import { resolve } from 'path';
-import { createClient } from 'redis';
+import { storageClient } from '../src/lib/storage-client';
 
 const envLocalResult = config({ path: resolve(process.cwd(), '.env.local') });
 const envResult = config({ path: resolve(process.cwd(), '.env') });
@@ -22,10 +22,8 @@ if (envLocalResult.error && envResult.error) {
   console.log('환경변수 파일 로드 완료');
 }
 
-// Redis 클라이언트 생성
-const redis = createClient({
-  url: process.env.AINSPACE_STORAGE_REDIS_URL || 'redis://localhost:6379'
-});
+// AIN storage 클라이언트 생성
+const storage = storageClient;
 
 // Map name → slug 매핑 테이블
 const MAP_NAME_TO_SLUG: Record<string, string> = {
@@ -99,7 +97,7 @@ async function migrateAuthDefinitions(
   // auth:* 패턴으로 모든 키 스캔
   const keys: string[] = [];
 
-  for await (const batch of redis.scanIterator({
+  for await (const batch of storage.scanIterator({
     MATCH: 'auth:*',
     COUNT: 100
   })) {
@@ -116,7 +114,7 @@ async function migrateAuthDefinitions(
   console.log(`Found ${keys.length} auth definitions\n`);
 
   for (const key of keys) {
-    const data = await redis.hGetAll(key);
+    const data = await storage.hGetAll(key);
 
     if (!data || !data.permissions) continue;
 
@@ -163,7 +161,7 @@ async function migrateAuthDefinitions(
       stats.authDefinitions.migrated++;
 
       if (!dryRun) {
-        await redis.hSet(key, 'permissions', JSON.stringify(permissions));
+        await storage.hSet(key, 'permissions', JSON.stringify(permissions));
       }
 
       console.log(`${dryRun ? '📋' : '✅'} ${key}`);
@@ -185,7 +183,7 @@ async function migrateUserPermissions(
   // user:* 패턴으로 모든 키 스캔
   const keys: string[] = [];
 
-  for await (const batch of redis.scanIterator({
+  for await (const batch of storage.scanIterator({
     MATCH: 'user:*',
     COUNT: 100
   })) {
@@ -202,7 +200,7 @@ async function migrateUserPermissions(
   console.log(`Found ${keys.length} user permissions\n`);
 
   for (const key of keys) {
-    const data = await redis.hGetAll(key);
+    const data = await storage.hGetAll(key);
 
     if (!data || !data.permissions) continue;
 
@@ -249,7 +247,7 @@ async function migrateUserPermissions(
       stats.userPermissions.migrated++;
 
       if (!dryRun) {
-        await redis.hSet(key, 'permissions', JSON.stringify(permissions));
+        await storage.hSet(key, 'permissions', JSON.stringify(permissions));
       }
 
       console.log(`${dryRun ? '📋' : '✅'} ${key}`);
@@ -307,9 +305,9 @@ function printSummary(stats: MigrationStats, dryRun: boolean): void {
 async function main() {
   const dryRun = !process.argv.includes('--apply');
 
-  console.log('Connecting to Redis...');
-  await redis.connect();
-  console.log('Connected to Redis\n');
+  console.log('Connecting to AIN storage...');
+  await storage.connect();
+  console.log('Connected to AIN storage\n');
 
   const stats: MigrationStats = {
     authDefinitions: {
@@ -329,7 +327,7 @@ async function main() {
     if (dryRun) {
       console.log('🔍 DRY RUN MODE - No changes will be applied\n');
     } else {
-      console.log('⚠️  APPLY MODE - Changes will be written to Redis\n');
+      console.log('⚠️  APPLY MODE - Changes will be written to AIN storage\n');
     }
 
     // Auth definitions 마이그레이션
@@ -342,8 +340,8 @@ async function main() {
     printSummary(stats, dryRun);
 
   } finally {
-    await redis.quit();
-    console.log('Disconnected from Redis');
+    await storage.close();
+    console.log('Disconnected from AIN storage');
   }
 }
 

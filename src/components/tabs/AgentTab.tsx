@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import BaseTabContent from './BaseTabContent';
 import { useAccount } from 'wagmi';
 import ImportAgentSection, { ImportAgentOptions } from '@/components/agent-builder/ImportAgentSection';
-import { StoredAgent } from '@/lib/redis';
+import { StoredAgent } from '@/lib/storage';
 import { bffAuthFetch } from '@/lib/backend/bff-fetch';
 import Button from '@/components/ui/Button';
 import CreateAgentSection from '@/components/agent-builder/CreateAgentSection';
@@ -48,7 +48,7 @@ export default function AgentTab({
 
     // EPIC16: load via the sync endpoint (read-through; pulls the backend roster
     // when stale). Uses bffAuthFetch — the sync route calls the backend so it
-    // needs the Bearer token (the old `?address=` route was an unauthed Redis read).
+    // needs the Bearer token (the old `?address=` route was an unauthed AIN storage read).
     const loadAgents = useCallback(async (refresh = false) => {
         if (!address) return;
         try {
@@ -107,7 +107,7 @@ export default function AgentTab({
 
             // Step 3: Invite the agent into the backend workspace. The backend
             // fetches the card + dedups by canonical a2aUrl (no /api/agent-proxy),
-            // and the BFF materializes the returned agent into Redis. bffAuthFetch
+            // and the BFF materializes the returned agent into AIN storage. bffAuthFetch
             // attaches the Bearer the invite requires.
             const response = await bffAuthFetch('/api/agents', {
                 method: 'POST',

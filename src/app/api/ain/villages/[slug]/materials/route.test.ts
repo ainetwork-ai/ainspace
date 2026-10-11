@@ -54,7 +54,7 @@ test('순수 규칙: 방문자 public, 멤버 public+members, 에이전트 publi
   assert.deepEqual(agentMaterialKeys([...all, { ref: art, audience: 'public', addedBy: 'owner', addedAt: '4', exhibition: true }]), [fileKey(PUB), fileKey(AGT)]);
 });
 
-test('17.5 GET: 방문자·멤버가 보는 자료가 다르고, 저장은 참조 하나당 Redis 필드 하나(audience 포함)', withEnv(ON, async () => {
+test('17.5 GET: 방문자·멤버가 보는 자료가 다르고, 저장은 참조 하나당 AIN storage 필드 하나(audience 포함)', withEnv(ON, async () => {
   const s = setup();
   try {
     await seed(s.store);

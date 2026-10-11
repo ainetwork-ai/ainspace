@@ -40,9 +40,9 @@ async function processImageConversion(jobId: string, imageFile: File) {
       return;
     }
 
-    updateJobStatus(jobId, { 
-      status: 'completed', 
-      result: `data:image/png;base64,${imageBase64}` 
+    updateJobStatus(jobId, {
+      status: 'completed',
+      result: `data:image/png;base64,${imageBase64}`
     });
 
   } catch (error: unknown) {
@@ -73,8 +73,8 @@ export async function POST(request: NextRequest) {
     });
 
     // Return job ID immediately
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       jobId: jobId,
       message: 'Image conversion started. Use the jobId to check status.'
     });

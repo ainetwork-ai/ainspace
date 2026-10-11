@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { NextRequest } from 'next/server';
-import { applyRosterItem, type StoredAgent } from '@/lib/redis';
+import { applyRosterItem, type StoredAgent } from '@/lib/storage';
 import type { AgentStore } from './agent-events';
 import { confirmOwnerChange, listVillageSharedAgents, observeAgentOwners, ownerCheckKeys, ownerKeyOf, registryOwnerKey, resolveAgentOwners, verifyVillageAgentOwner } from './agent-ownership';
 import { eventsDeps, invokeDeps, villageAgentsDeps, villageDeps, villageMaterialsDeps } from './deps';

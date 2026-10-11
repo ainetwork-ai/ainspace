@@ -1,4 +1,4 @@
-import { getRedisClient, scanKeys } from '@/lib/redis';
+import { getStorageClient, scanKeys } from '@/lib/storage';
 import {
   AuthDefinition,
   AuthDefinitionRaw,
@@ -17,7 +17,7 @@ export const DEFAULT_PERMISSIONS: FeaturePermissions = {
   adminAccess: false,
 };
 
-// Redis Key 관련 상수
+// AIN storage Key 관련 상수
 export const AUTH_KEY_PREFIX = 'auth';
 export const USER_KEY_PREFIX = 'user';
 export const AUTH_FIELD_NAME = 'auth';
@@ -26,10 +26,10 @@ export const PERMISSIONS_FIELD_NAME = 'permissions';
 export const saveAuthDefinition = async (
   auth: AuthDefinition
 ): Promise<void> => {
-  const redis = await getRedisClient();
+  const storage = await getStorageClient();
   const key = `${AUTH_KEY_PREFIX}:${auth.name}`;
 
-  await redis.hSet(key, {
+  await storage.hSet(key, {
     name: auth.name,
     permissions: JSON.stringify(auth.permissions),
     tokenRequirements: JSON.stringify(auth.tokenRequirements ?? []),
@@ -39,10 +39,10 @@ export const saveAuthDefinition = async (
 export const getAuthDefinition = async (
   authName: string
 ): Promise<AuthDefinition | null> => {
-  const redis = await getRedisClient();
+  const storage = await getStorageClient();
   const key = `${AUTH_KEY_PREFIX}:${authName}`;
 
-  const data = await redis.hGetAll(key);
+  const data = await storage.hGetAll(key);
 
   if (!data || Object.keys(data).length === 0) {
     return null;
@@ -76,11 +76,11 @@ export const getAllAuthDefinitions = async (): Promise<AuthDefinition[]> => {
     return [];
   }
 
-  const redis = await getRedisClient();
+  const storage = await getStorageClient();
 
   const definitions = await Promise.all(
     keys.map(async (key) => {
-      const data = await redis.hGetAll(key);
+      const data = await storage.hGetAll(key);
 
       if (!data || Object.keys(data).length === 0) {
         return null;
@@ -104,23 +104,23 @@ export const getAllAuthDefinitions = async (): Promise<AuthDefinition[]> => {
 export const deleteAuthDefinition = async (
   authName: string
 ): Promise<void> => {
-  const redis = await getRedisClient();
+  const storage = await getStorageClient();
   const key = `${AUTH_KEY_PREFIX}:${authName}`;
-  await redis.del(key);
+  await storage.del(key);
 };
 
 export const saveUserAuths = async (
   userId: string,
   auths: string[]
 ): Promise<void> => {
-  const redis = await getRedisClient();
+  const storage = await getStorageClient();
   const key = `${USER_KEY_PREFIX}:${userId}`;
 
   const authDefinitions = await getAuthDefinitions(auths);
 
   const permissions = calculateUserPermissions(auths, authDefinitions);
 
-  await redis.hSet(key, {
+  await storage.hSet(key, {
     userId,
     [AUTH_FIELD_NAME]: JSON.stringify(auths),
     [PERMISSIONS_FIELD_NAME]: JSON.stringify(permissions),
@@ -132,10 +132,10 @@ export const saveUserAuths = async (
 export const getUserPermissions = async (
   userId: string
 ): Promise<UserPermissions | null> => {
-  const redis = await getRedisClient();
+  const storage = await getStorageClient();
   const key = `${USER_KEY_PREFIX}:${userId}`;
 
-  const data = await redis.hGetAll(key);
+  const data = await storage.hGetAll(key);
 
   if (!data || Object.keys(data).length === 0) {
     return null;
@@ -157,10 +157,10 @@ export const getUserPermissions = async (
 };
 
 export const getUserAuths = async (userId: string): Promise<string[]> => {
-  const redis = await getRedisClient();
+  const storage = await getStorageClient();
   const key = `${USER_KEY_PREFIX}:${userId}`;
 
-  const authData = await redis.hGet(key, AUTH_FIELD_NAME);
+  const authData = await storage.hGet(key, AUTH_FIELD_NAME);
 
   if (!authData) {
     return [];
@@ -170,9 +170,9 @@ export const getUserAuths = async (userId: string): Promise<string[]> => {
 };
 
 export const deleteUserPermissions = async (userId: string): Promise<void> => {
-  const redis = await getRedisClient();
+  const storage = await getStorageClient();
   const key = `${USER_KEY_PREFIX}:${userId}`;
 
-  await redis.hDel(key, AUTH_FIELD_NAME);
-  await redis.hDel(key, PERMISSIONS_FIELD_NAME);
+  await storage.hDel(key, AUTH_FIELD_NAME);
+  await storage.hDel(key, PERMISSIONS_FIELD_NAME);
 };

@@ -270,7 +270,7 @@ test('A: 저장소 장애는 temporary_failure — 배포 토큰으로 물러서
   const s = setup();
   try {
     assert.equal(await getAindriveAccountToken('nobody'), 'aind_aat_kiosk', '개발에서 연결이 없으면 키오스크 토큰');
-    aindriveConnectDeps.kv = { ...s.kv, get: async () => { throw new Error('redis down'); } };
+    aindriveConnectDeps.kv = { ...s.kv, get: async () => { throw new Error('storage down'); } };
     const res = await LIST(makeRequest('/api/ain/shared-files?scope=shared_with_me', signedJwt('user-42')));
     assert.equal(res.status, 503);
     assert.equal((await res.json()).error.detail, 'aindrive_connection_store_unavailable');

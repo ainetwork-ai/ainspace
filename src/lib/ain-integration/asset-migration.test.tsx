@@ -6,7 +6,7 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { NextRequest } from 'next/server';
-import { classifyBlobPath, classifyBucketPath, classifyRedisKey, summarize, EXTERNAL_ASSETS } from './asset-inventory';
+import { classifyBlobPath, classifyBucketPath, classifyStorageKey, summarize, EXTERNAL_ASSETS } from './asset-inventory';
 import { attachmentName, saveChatAttachment, MAX_ATTACHMENT_BYTES } from './chat-attachments';
 import { attachmentsDeps } from './deps';
 import { aindriveFileId } from './files';
@@ -21,7 +21,7 @@ beforeEach(() => resetNativeSupport());
 
 // ------------------------------------------------------------------------------- inventory
 
-test('인벤토리: Redis 키·Blob·버킷 이름을 종류와 이관 계획으로 나눈다', () => {
+test('인벤토리: AIN storage 키·Blob·버킷 이름을 종류와 이관 계획으로 나눈다', () => {
   const cases: [string, string, string][] = [
     ['ain:aindrive_account:user-42', 'ain-aindrive-connection', 'secret'],
     ['ain:aindrive_oauth_state:abc', 'ain-oauth-state', 'ephemeral'],
@@ -37,7 +37,7 @@ test('인벤토리: Redis 키·Blob·버킷 이름을 종류와 이관 계획으
     ['something-else', 'unknown', 'unknown'],
   ];
   for (const [key, kind, disp] of cases) {
-    const k = classifyRedisKey(key);
+    const k = classifyStorageKey(key);
     assert.equal(k.kind, kind, key);
     assert.equal(k.disposition, disp, key);
   }
@@ -53,7 +53,7 @@ test('인벤토리: Redis 키·Blob·버킷 이름을 종류와 이관 계획으
 test('인벤토리 요약: 개수·크기, 비밀 종류의 샘플은 사용자 id 까지 가린다', () => {
   const names = ['ain:aindrive_account:user-42', 'ain:aindrive_account:user-7', 'village:alpha', 'village:beta'];
   const rows = summarize([
-    ...names.map((name) => ({ name, kind: classifyRedisKey(name) })),
+    ...names.map((name) => ({ name, kind: classifyStorageKey(name) })),
     { name: 'tiles/a.png', size: 100, kind: classifyBlobPath('tiles/a.png') },
     { name: 'tiles/b.png', size: 50, kind: classifyBlobPath('tiles/b.png') },
   ]);

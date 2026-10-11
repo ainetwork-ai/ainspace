@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { VillageMetadata } from '@/lib/village-redis';
+import { VillageMetadata } from '@/lib/village-storage';
 
 /**
  * Fetch all villages from the API
