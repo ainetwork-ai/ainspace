@@ -1,4 +1,5 @@
 import { createClient } from 'redis';
+import { readAgentsByUrls } from './backend/agents-by-url';
 import { AgentStateForDB } from './agent';
 import { AgentCard } from '@a2a-js/sdk';
 import { Thread } from '@/types/thread';
@@ -404,6 +405,17 @@ export async function getAgents(): Promise<StoredAgent[]> {
         return agents.sort((a, b) => b.timestamp - a.timestamp);
     } catch (error) {
         console.error('Error getting agents from Redis:', error);
+        return [];
+    }
+}
+
+/** Resolve only the selected chat agents without scanning the entire catalogue. */
+export async function getAgentsByUrls(urls: string[]): Promise<StoredAgent[]> {
+    if (urls.length === 0) return [];
+    try {
+        return await readAgentsByUrls(await getRedisClient(), urls);
+    } catch (error) {
+        console.error('Error getting selected agents from Redis:', error);
         return [];
     }
 }

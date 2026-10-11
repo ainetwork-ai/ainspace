@@ -24,6 +24,7 @@ import { insertAtCursor } from '@/lib/ain-integration/link-part';
 import AskSharedAgentPanel from '@/components/chat/AskSharedAgentPanel';
 import { placedAskTargets } from '@/lib/ain-integration/ask-client';
 import { useVillageStore } from '@/stores/useVillageStore';
+import { refreshResponseTimeout } from '@/lib/backend/response-timeout';
 
 // When a thread's history is refetched on open, the backend result is the shared
 // source of truth — but it does NOT yet include a just-sent optimistic user
@@ -148,6 +149,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const responseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const sendGenerationRef = useRef(0);
     const sseConnectedResolverRef = useRef<(() => void) | null>(null);
     // EPIC21 (F5, privacy-critical): the SSE stream also delivers agent replies that
     // OTHER clients (ainteams) triggered against a shared DM. Dual-write only the
@@ -303,11 +305,6 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             }
 
             if (event.type === 'message') {
-                // Clear response timeout on first AI message
-                if (responseTimeoutRef.current) {
-                    clearTimeout(responseTimeoutRef.current);
-                    responseTimeoutRef.current = null;
-                }
                 // Backend SSE message event (EPIC14): payload is
                 //   { type:'message', data:{ id, conversationId, speaker, userId, content, parentId?, createdAt } }
                 // so speaker/content/id live directly on event.data.
@@ -325,6 +322,17 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     // Nothing renderable (malformed/empty payload) — skip rather than
                     // dumping the raw event object into a chat bubble.
                     return;
+                }
+                // A reply is activity, not a completion signal. Keep a bounded
+                // wait even if the final block never arrives from the stream.
+                if (conductedSendRef.current.inProgress) {
+                    responseTimeoutRef.current = refreshResponseTimeout(
+                        responseTimeoutRef.current,
+                        () => {
+                            responseTimeoutRef.current = null;
+                            setIsMessageLoading(false);
+                        },
+                    );
                 }
                 const agentName = messageData.speaker || 'agent';
 
@@ -428,7 +436,12 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     sender: 'system',
                     threadId: currentThreadId || undefined
                 };
-                setMessages([errorMessage], currentThreadId);
+                if (responseTimeoutRef.current) {
+                    clearTimeout(responseTimeoutRef.current);
+                    responseTimeoutRef.current = null;
+                }
+                setIsMessageLoading(false);
+                setMessages((prev) => [...(prev || []), errorMessage], currentThreadId);
             }
         },
         [currentThreadId, setMessages]
@@ -572,6 +585,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
 
             const userMessageText = inputValue.trim();
             setInputValue('');
+            const sendGeneration = ++sendGenerationRef.current;
             setIsMessageLoading(true);
 
             const agentNames: string[] = [];
@@ -606,9 +620,10 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
 
                 if (existingThread) {
                     console.log('Agent combination changed - switching to thread:', existingThread.threadName);
-                    const existingThreadMessages = await fetchThreadMessages(existingThread.id);
-                    setMessages(existingThreadMessages, existingThread.id);
-                    setDisplayedMessages(existingThreadMessages);
+                    // The currentThreadId effect loads fresh history in the background.
+                    // Reuse local history here so an extra fetch does not delay sending.
+                    const cachedMessages = getMessagesByThreadId(existingThread.id) || [];
+                    setDisplayedMessages([...cachedMessages, newMessage]);
                     setCurrentThreadId(existingThread.id);
                     threadIdToSend = existingThread.id;
                 }
@@ -650,11 +665,13 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ agentUrls, ...(useForceNew ? { forceNew: true } : {}) }),
+                        signal: AbortSignal.timeout(30000),
                     });
                     if (createResponse.status === 422) {
                         throw new Error('NO_RESOLVABLE_AGENTS');
                     }
                     const createResult = await createResponse.json();
+                    if (sendGeneration !== sendGenerationRef.current) return;
                     if (!createResponse.ok) {
                         throw new Error(createResult.details || createResult.error || createResponse.statusText);
                     }
@@ -671,19 +688,23 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
 
                     setCurrentThreadId(threadIdToSend!);
 
-                    // SSE connects on the currentThreadId change above; wait for
-                    // its synthetic 'connected' before sending (max 10s timeout)
+                }
+
+                // Both newly created and reused threads need their stream attached
+                // after switching. Otherwise a fast reply can arrive before the UI listens.
+                if (isNewThread || threadIdToSend !== currentThreadId) {
                     let sseTimeoutId: ReturnType<typeof setTimeout> | null = null;
                     await Promise.race([
                         new Promise<void>((resolve) => { sseConnectedResolverRef.current = resolve; }),
                         new Promise<void>((_, reject) => {
                             sseTimeoutId = setTimeout(() => {
-                                sseConnectedResolverRef.current = null;
+                                if (sendGeneration === sendGenerationRef.current) sseConnectedResolverRef.current = null;
                                 reject(new Error('SSE connection timeout'));
                             }, 10000);
                         }),
                     ]);
                     if (sseTimeoutId) clearTimeout(sseTimeoutId);
+                    if (sendGeneration !== sendGenerationRef.current) return;
                     sseConnectedResolverRef.current = null;
                 }
 
@@ -709,6 +730,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 clearTimeout(timeoutId);
 
                 const result = await response.json();
+                if (sendGeneration !== sendGenerationRef.current) return;
                 if (!response.ok) {
                     throw new Error(result.details || result.error || response.statusText);
                 }
@@ -769,9 +791,10 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     responseTimeoutRef.current = null;
                 }, 60000);
             } catch (error) {
+                if (sendGeneration !== sendGenerationRef.current) return;
                 console.error('Failed to send thread message:', error);
 
-                const isTimeout = error instanceof Error && error.name === 'AbortError';
+                const isTimeout = error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError');
                 // EPIC15: none of the nearby agents are registered in the backend
                 // workspace, so a DM can't be created — expected, not an error.
                 const isNoAgents = error instanceof Error && error.message === 'NO_RESOLVABLE_AGENTS';
@@ -938,7 +961,6 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
             // Escape: end conversation (same as End Conversation button)
             if (e.key === 'Escape') {
                 if (!currentThreadId || currentThreadId === '0') return;
-                if (isMessageLoading) return;
                 e.preventDefault();
                 handleEndConversation();
                 inputRef.current?.blur();
@@ -965,6 +987,13 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
     }, [isMessageLoading, showUnplacedNotice, currentThreadId, showSuggestions]);
 
     const handleEndConversation = () => {
+        sendGenerationRef.current++;
+        if (responseTimeoutRef.current) {
+            clearTimeout(responseTimeoutRef.current);
+            responseTimeoutRef.current = null;
+        }
+        conductedSendRef.current.inProgress = false;
+        setIsMessageLoading(false);
         setMessages([], '0');
         setDisplayedMessages([]);
         setCurrentThreadId('0');
@@ -998,7 +1027,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     <ChatMessageCard key={message.id} message={message} />
                 ))}
                 {
-                  isDesktop && currentThreadId !== '0' && !isMessageLoading && (
+                  currentThreadId && currentThreadId !== '0' && (isDesktop || isMessageLoading) && (
                     <div className="flex items-start justify-start">
                         <button
                           onClick={handleEndConversation}
@@ -1006,7 +1035,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                         >
                             <div className="flex flex-row items-center gap-1 ">
                                 <X className="size-4" />
-                                <span>End Conversation</span>
+                                <span>{isMessageLoading ? 'Stop waiting' : 'End Conversation'}</span>
                             </div>
                         </button>
                     </div>
