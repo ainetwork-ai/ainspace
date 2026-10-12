@@ -4,5 +4,32 @@
   "port": 3000,
   "healthcheck": "/",
   "build": { "dockerfile": "Dockerfile.ainize", "context": "." },
-  "resources": { "memory": "1g", "cpus": 1 }
+  "resources": { "memory": "1g", "cpus": 1 },
+  "env": {
+    "AINSPACE_STORAGE_URL": "https://a2a-orchestration.ainetwork.ai/api/storage",
+    "AINDRIVE_URL": "https://aindrive.ainetwork.ai",
+    "AINIZE_URL": "https://ainize.ai",
+    "AIN_SSO_ISSUER": "https://auth.comcom.ai"
+  },
+  "secrets": [
+    "AINSPACE_STORAGE_TOKEN",
+    "OPENAI_API_KEY",
+    "GEMINI_API_KEY",
+    "AINSPACE_BLOB_READ_WRITE_TOKEN",
+    "ADMIN_API_SECRET",
+    "BACKEND_JWT_SIGNING_KEY",
+    "INGEST_TOKEN",
+    "AINDRIVE_TOKEN_KEY",
+    "AIN_SSO_CLIENT_SECRET"
+  ],
+  "allowedHosts": [
+    "a2a-orchestration.ainetwork.ai",
+    "api.openai.com",
+    "generativelanguage.googleapis.com",
+    "aindrive.ainetwork.ai",
+    "auth.comcom.ai",
+    "ainize.ai",
+    "blob.vercel-storage.com",
+    "*.public.blob.vercel-storage.com"
+  ]
 }
