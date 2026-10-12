@@ -3,13 +3,26 @@
   "kind": "service",
   "port": 3000,
   "healthcheck": "/",
-  "build": { "dockerfile": "Dockerfile.ainize", "context": "." },
-  "resources": { "memory": "1g", "cpus": 1 },
+  "build": {
+    "dockerfile": "Dockerfile.ainize",
+    "context": ".",
+    "args": {
+      "NEXT_PUBLIC_A2A_ORCHESTRATION_BASE_URL": "https://a2a-orchestration.ainetwork.ai/api",
+      "NEXT_PUBLIC_URL": "https://ainspace.ainetwork.xyz",
+      "NEXT_PUBLIC_SPAWN_RADIUS": "3",
+      "NEXT_PUBLIC_BACKEND_CLIENT_ID": "ainspace"
+    }
+  },
+  "resources": {
+    "memory": "1g",
+    "cpus": 1
+  },
   "env": {
     "AINSPACE_STORAGE_URL": "https://a2a-orchestration.ainetwork.ai/api/storage",
     "AINDRIVE_URL": "https://aindrive.ainetwork.ai",
     "AINIZE_URL": "https://ainize.ai",
-    "AIN_SSO_ISSUER": "https://auth.comcom.ai"
+    "AIN_SSO_ISSUER": "https://auth.comcom.ai",
+    "ORCHESTRATOR_URL": "https://a2a-orchestration.ainetwork.ai"
   },
   "secrets": [
     "AINSPACE_STORAGE_TOKEN",

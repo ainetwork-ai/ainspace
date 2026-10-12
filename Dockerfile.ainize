@@ -5,6 +5,13 @@ ENV NEXT_TELEMETRY_DISABLED=1
 COPY package.json yarn.lock ./
 RUN yarn install --frozen-lockfile --production=false --network-timeout 600000
 COPY . .
+# Public (browser) settings are inlined at build time; ainize passes them from ainize.json build.args.
+ARG NEXT_PUBLIC_A2A_ORCHESTRATION_BASE_URL
+ARG NEXT_PUBLIC_URL
+ARG NEXT_PUBLIC_SPAWN_RADIUS
+ARG NEXT_PUBLIC_BACKEND_CLIENT_ID
+ARG NEXT_PUBLIC_BACKEND_BASE_URL
+ARG NEXT_PUBLIC_AIN_INTEGRATION_ENABLED
 RUN yarn build
 ENV NODE_ENV=production PORT=3000
 EXPOSE 3000
