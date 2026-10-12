@@ -1,0 +1,7 @@
+{
+  "name": "ainspace",
+  "kind": "service",
+  "port": 3000,
+  "healthcheck": "/",
+  "build": { "dockerfile": "Dockerfile.ainize", "context": "." }
+}

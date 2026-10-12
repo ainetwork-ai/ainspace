@@ -1,0 +1,11 @@
+# ainize build: yarn-based Next.js app (kind "service" because the generated nextjs Dockerfile is npm-only)
+FROM node:24-alpine
+WORKDIR /app
+ENV NEXT_TELEMETRY_DISABLED=1
+COPY package.json yarn.lock ./
+RUN yarn install --frozen-lockfile --production=false --network-timeout 600000
+COPY . .
+RUN yarn build
+ENV NODE_ENV=production PORT=3000
+EXPOSE 3000
+CMD ["sh", "-c", "exec node_modules/.bin/next start -H 0.0.0.0 -p ${PORT:-3000}"]
