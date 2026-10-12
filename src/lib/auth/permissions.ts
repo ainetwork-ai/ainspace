@@ -1,5 +1,5 @@
 import { headers } from 'next/headers';
-import { getUserPermissions } from './redis';
+import { getUserPermissions } from './storage';
 import { FeaturePermissions } from '@/types/auth';
 
 async function isAdminVerifiedRequest(): Promise<boolean> {

@@ -8,7 +8,7 @@ import { useUIStore, useThreadStore, useBuildStore, useAgentStore, useUserStore,
 import { useAccount, useSignMessage } from 'wagmi';
 import { ensureBackendAuth, ensureKioskSession } from '@/lib/backend/auth';
 import { getAccessToken, getEmailFlag, getKioskFlag, isAccessExpired } from '@/lib/backend/token-store';
-import { StoredAgent } from '@/lib/redis';
+import { StoredAgent } from '@/lib/storage';
 import { useVillageLoader } from '@/hooks/useVillageLoader';
 import { useVillageStore } from '@/stores/useVillageStore';
 import { findNearestValidPosition } from '@/lib/village-utils';
@@ -222,7 +222,7 @@ export default function Home() {
                     if (getData.success && getData.data) {
                         setPermissions(getData.data);
 
-                        // Parse authCheckedAt from Redis and set as lastVerifiedAt
+                        // Parse authCheckedAt from AIN storage and set as lastVerifiedAt
                         if (getData.data.authCheckedAt) {
                             const authCheckedTimestamp = new Date(getData.data.authCheckedAt).getTime();
                             setLastVerifiedAt(authCheckedTimestamp);
@@ -371,7 +371,7 @@ export default function Home() {
         const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8'];
         const randomColor = colors[Math.floor(Math.random() * colors.length)];
 
-        // Register agent with backend Redis
+        // Register agent with backend AIN storage
         const registerResponse = await fetch('/api/agents', {
             method: 'PUT',
             headers: {
@@ -402,7 +402,7 @@ export default function Home() {
             throw new Error(errorData.error || 'Failed to place agent');
         }
 
-        console.log(`✓ Agent registered with backend Redis at (${x}, ${y}): spawn=(${x}, ${y}), map=${mapName}, mode=${movementMode}`);
+        console.log(`✓ Agent registered with backend AIN storage at (${x}, ${y}): spawn=(${x}, ${y}), map=${mapName}, mode=${movementMode}`);
 
         updateUserAgent(agent.url, {
             isPlaced: true,

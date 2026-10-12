@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { deleteThread } from "@/lib/redis";
+import { deleteThread } from "@/lib/storage";
 import { backendFetch, getBearer } from "@/lib/backend/server-client";
 import { BackendDmMessage, mapBackendMessageToAinspace } from "@/lib/backend/dm-mapping";
 

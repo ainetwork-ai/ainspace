@@ -112,7 +112,7 @@ export default function ChatBoxOverlay({
         if (nearbyAgents.length === 0) {
             return `Talk to: No agents nearby`;
         }
-        
+
         const agentNames = nearbyAgents.map((a) => a.name).join(', ');
         return `Talk to: ${agentNames}`;
     }, [nearbyAgents]);

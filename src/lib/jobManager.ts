@@ -1,4 +1,4 @@
-// In-memory job storage (in production, use Redis or database)
+// In-memory job storage (in production, use AIN storage or database)
 const jobs = new Map<
     string,
     {

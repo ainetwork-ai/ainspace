@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { migrateThreadsToWallet } from '@/lib/redis';
+import { migrateThreadsToWallet } from '@/lib/storage';
 import { isValidUUID, isValidEthAddress } from '@/lib/utils';
 
 /**

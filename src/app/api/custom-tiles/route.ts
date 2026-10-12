@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { saveCustomTiles, getCustomTiles, TileLayers } from '@/lib/redis';
+import { saveCustomTiles, getCustomTiles, TileLayers } from '@/lib/storage';
 import { canBuildOnMap } from '@/lib/auth/permissions';
 
 export async function GET(request: NextRequest) {
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     }
 
     const customTilesData = await getCustomTiles(userId);
-    
+
     if (!customTilesData) {
       // Return empty tiles if no saved data
       return NextResponse.json({
@@ -78,8 +78,8 @@ export async function POST(request: NextRequest) {
     await saveCustomTiles(userId, tileLayers);
 
     // Count total tiles across all layers
-    const tileCount = Object.keys(tileLayers.layer0 || {}).length + 
-                     Object.keys(tileLayers.layer1 || {}).length + 
+    const tileCount = Object.keys(tileLayers.layer0 || {}).length +
+                     Object.keys(tileLayers.layer1 || {}).length +
                      Object.keys(tileLayers.layer2 || {}).length;
 
     return NextResponse.json({

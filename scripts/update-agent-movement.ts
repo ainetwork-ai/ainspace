@@ -1,7 +1,7 @@
 // 환경변수 로딩 (가장 먼저 실행되어야 함)
 import { config } from 'dotenv';
 import { resolve } from 'path';
-import { createClient, RedisClientType } from 'redis';
+import { storageClient, type StorageClient } from '../src/lib/storage-client';
 import * as readline from 'readline';
 import { MOVEMENT_MODE } from '@/constants/game';
 
@@ -176,13 +176,13 @@ function setAgentMovementMode(agent: StoredAgent, mode: MOVEMENT_MODE): StoredAg
 }
 
 /**
- * Redis에서 에이전트 데이터 로드
+ * AIN storage에서 에이전트 데이터 로드
  */
-async function loadAgents(redis: RedisClientType): Promise<{ key: string; agent: StoredAgent }[]> {
+async function loadAgents(storage: StorageClient): Promise<{ key: string; agent: StoredAgent }[]> {
   const keys: string[] = [];
   let cursor = '0';
   do {
-    const result = await redis.scan(cursor, { MATCH: `${AGENTS_KEY}*`, COUNT: 100 });
+    const result = await storage.scan(cursor, { MATCH: `${AGENTS_KEY}*`, COUNT: 100 });
     cursor = String(result.cursor);
     keys.push(...result.keys);
   } while (cursor !== '0');
@@ -191,7 +191,7 @@ async function loadAgents(redis: RedisClientType): Promise<{ key: string; agent:
     return [];
   }
 
-  const values = await redis.mGet(keys);
+  const values = await storage.mGet(keys);
   const agents: { key: string; agent: StoredAgent }[] = [];
 
   for (let i = 0; i < keys.length; i++) {
@@ -220,7 +220,7 @@ async function loadAgents(redis: RedisClientType): Promise<{ key: string; agent:
  * 선택한 에이전트들의 movement mode 업데이트
  */
 async function updateSelectedAgents(
-  redis: RedisClientType,
+  storage: StorageClient,
   agentData: { key: string; agent: StoredAgent }[],
   selectedAgents: StoredAgent[],
   targetMode: MOVEMENT_MODE
@@ -235,7 +235,7 @@ async function updateSelectedAgents(
 
     try {
       const updatedAgent = setAgentMovementMode(agent, targetMode);
-      await redis.set(key, JSON.stringify(updatedAgent));
+      await storage.set(key, JSON.stringify(updatedAgent));
 
       // 원본 데이터도 업데이트 (다음 루프에서 최신 상태 반영)
       agent.state.movementMode = targetMode;
@@ -267,27 +267,25 @@ async function interactiveLoop() {
   console.log('에이전트 Movement Mode 업데이트 스크립트');
   console.log('=====================================');
 
-  // Redis 연결
-  const redisUrl = process.env.AINSPACE_STORAGE_REDIS_URL || 'redis://localhost:6379';
-  const maskedUrl = redisUrl.replace(/:[^:@]+@/, ':****@');
-  console.log(`Redis URL: ${maskedUrl}`);
+  // AIN storage 연결
+  const storageUrl = process.env.AINSPACE_STORAGE_URL || 'http://127.0.0.1:13006';
+  const maskedUrl = storageUrl.replace(/:[^:@]+@/, ':****@');
+  console.log(`AIN storage URL: ${maskedUrl}`);
 
-  if (!process.env.AINSPACE_STORAGE_REDIS_URL) {
-    console.error('⚠️  경고: AINSPACE_STORAGE_REDIS_URL 환경변수가 설정되지 않았습니다. localhost를 사용합니다.');
+  if (!process.env.AINSPACE_STORAGE_URL) {
+    console.error('⚠️  경고: AINSPACE_STORAGE_URL 환경변수가 설정되지 않았습니다. localhost를 사용합니다.');
   }
 
-  const redis = createClient({ url: redisUrl });
+  const storage = storageClient;
 
-  redis.on('error', (err) => {
-    console.error('Redis Client Error', err);
-  });
 
-  await redis.connect();
-  console.log('Redis 연결 성공');
+
+  await storage.connect();
+  console.log('AIN storage 연결 성공');
 
   try {
     // 에이전트 데이터 로드
-    const agentData = await loadAgents(redis as RedisClientType);
+    const agentData = await loadAgents(storage as StorageClient);
     console.log(`총 ${agentData.length}개의 에이전트를 찾았습니다.`);
 
     if (agentData.length === 0) {
@@ -317,7 +315,7 @@ async function interactiveLoop() {
       }
 
       const { updatedCount, errorCount } = await updateSelectedAgents(
-        redis as RedisClientType,
+        storage as StorageClient,
         agentData,
         selectedAgents,
         selectedMode
@@ -337,8 +335,8 @@ async function interactiveLoop() {
     console.log(`총 오류: ${totalErrors}개`);
 
   } finally {
-    await redis.quit();
-    console.log('Redis 연결 종료');
+    await storage.close();
+    console.log('AIN storage 연결 종료');
     closeReadlineInterface();
   }
 }

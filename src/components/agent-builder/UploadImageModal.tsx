@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import Button from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
 import { AgentProfile } from '../AgentProfile';
-import { StoredAgent } from '@/lib/redis';
+import { StoredAgent } from '@/lib/storage';
 
 type TabType = 'default' | 'custom';
 type SpriteType = 'sprite_default_male' | 'sprite_default_female' | 'sprite_cat';

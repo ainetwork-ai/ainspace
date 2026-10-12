@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useVillageStore, LoadedVillage } from '@/stores/useVillageStore';
-import { VillageMetadata } from '@/lib/village-redis';
+import { VillageMetadata } from '@/lib/village-storage';
 import { loadVillageMap, loadDefaultVillageMap } from '@/lib/village-map-loader';
 import { getVillageCanvas, removeVillageCanvas } from '@/lib/village-canvas-cache';
 import { worldToGrid, gridToWorldRange, worldToLocalInVillage, findNearestValidPosition } from '@/lib/village-utils';

@@ -23,9 +23,9 @@
  * 마을 자료를 넘기는 invoke 는 관찰을 **기다린 뒤**(`verifyVillageAgentOwner`) 넘긴다 — 소유자가 바뀐 첫 호출에서
  * 자료가 새 소유자의 에이전트에 가지 않게.
  */
-import type { StoredAgent } from '@/lib/redis';
+import type { StoredAgent } from '@/lib/storage';
 import { listSharedAgents } from './agents';
-import { redisAgentStore, type AgentStore } from './agent-events';
+import { persistentAgentStore, type AgentStore } from './agent-events';
 import type { FetchLike } from './http';
 import { agentKey, parseAgentKey, type AgentRef, type OwnerRef, type ResourceEvent } from './types';
 
@@ -67,7 +67,7 @@ export interface OwnerObservationResult {
 }
 
 /** 관찰한 소유자(agentKey → OwnerRef)를 StoredAgent 에 반영한다. 저장은 바뀐 것만. */
-export async function observeAgentOwners(observed: Map<string, OwnerRef>, store: AgentStore = redisAgentStore, now: () => Date = () => new Date()): Promise<OwnerObservationResult> {
+export async function observeAgentOwners(observed: Map<string, OwnerRef>, store: AgentStore = persistentAgentStore, now: () => Date = () => new Date()): Promise<OwnerObservationResult> {
   const result: OwnerObservationResult = { flagged: [], baselined: 0, cleared: 0 };
   if (!observed.size) return result;
   const want = new Map<string, string>();
@@ -112,7 +112,7 @@ const isVillagePlaced = (a: Pick<StoredAgent, 'isPlaced' | 'state'>): boolean =>
  * agentKey 의 StoredAgent 가 모두 재확인 대기가 아니고 기준 소유자가 지금 소유자와 같을 때만 true.
  * 저장소 오류 등으로 확인할 수 없으면 false(자료를 넘기지 않는다).
  */
-export async function verifyVillageAgentOwner(slug: string, ref: AgentRef, store: AgentStore = redisAgentStore): Promise<boolean> {
+export async function verifyVillageAgentOwner(slug: string, ref: AgentRef, store: AgentStore = persistentAgentStore): Promise<boolean> {
   try {
     const key = agentKey(ref);
     const owner = ownerKeyOf(ref.ownerRef);
@@ -141,7 +141,7 @@ export async function registryOwnerKey(opts: { ainizeUrl: string; fetch?: FetchL
 }
 
 /** 배치된 StoredAgent 가 하나라도 있는 agentKey 만 — 상관없는 에이전트 때문에 레지스트리를 훑지 않는다. */
-export async function trackedAgentKeys(keys: string[], store: AgentStore = redisAgentStore): Promise<string[]> {
+export async function trackedAgentKeys(keys: string[], store: AgentStore = persistentAgentStore): Promise<string[]> {
   if (!keys.length) return [];
   const have = new Set((await store.getAgents()).map((a) => normalizeKey(a.commonAgentId)).filter((k): k is string => !!k));
   return keys.filter((k) => have.has(k));
@@ -166,7 +166,7 @@ export async function resolveAgentOwners(opts: { ainizeUrl: string; fetch?: Fetc
 }
 
 /** invoke 경로의 관찰 한 건(실패해도 호출을 막지 않는다 — 로그에 이유만). */
-export async function observeResolvedAgent(ref: AgentRef, store: AgentStore = redisAgentStore): Promise<void> {
+export async function observeResolvedAgent(ref: AgentRef, store: AgentStore = persistentAgentStore): Promise<void> {
   try {
     await observeAgentOwners(new Map([[agentKey(ref), ref.ownerRef]]), store);
   } catch (e) {
@@ -178,7 +178,7 @@ export async function observeResolvedAgent(ref: AgentRef, store: AgentStore = re
  * 마을 소유자의 재확인: 그 마을에 배치된 같은 agentKey 의 StoredAgent 에서 대기 표시를 지우고 새 소유자를 기준으로 삼는다.
  * 돌려주는 수 = 확인한 배치 수(0 이면 대기 중인 것이 없었다).
  */
-export async function confirmOwnerChange(slug: string, key: string, store: AgentStore = redisAgentStore): Promise<number> {
+export async function confirmOwnerChange(slug: string, key: string, store: AgentStore = persistentAgentStore): Promise<number> {
   const nk = normalizeKey(key);
   if (!nk) return 0;
   let n = 0;
@@ -200,7 +200,7 @@ export interface VillageAgentView {
 }
 
 /** 그 마을에 배치된 공유 에이전트(commonAgentId 가 있는 것)의 관리 보기. */
-export async function listVillageSharedAgents(slug: string, store: AgentStore = redisAgentStore): Promise<VillageAgentView[]> {
+export async function listVillageSharedAgents(slug: string, store: AgentStore = persistentAgentStore): Promise<VillageAgentView[]> {
   return (await store.getAgents())
     .filter((a) => a.isPlaced && a.state?.mapName === slug && normalizeKey(a.commonAgentId))
     .map((a) => ({

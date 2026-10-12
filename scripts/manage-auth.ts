@@ -28,7 +28,7 @@
 
 import { config } from 'dotenv';
 import { resolve } from 'path';
-import { createClient } from 'redis';
+import { storageClient } from '../src/lib/storage-client';
 
 // 환경변수 로딩
 const envLocalResult = config({ path: resolve(process.cwd(), '.env.local') });
@@ -38,12 +38,10 @@ if (envLocalResult.error && envResult.error) {
   console.warn('Warning: No .env file found. Using system environment variables.');
 }
 
-// Redis 클라이언트
-const redis = createClient({
-  url: process.env.AINSPACE_STORAGE_REDIS_URL || 'redis://localhost:6379',
-});
+// AIN storage 클라이언트
+const storage = storageClient;
 
-// Constants (from src/lib/auth/redis.ts)
+// Constants (from src/lib/auth/storage.ts)
 const AUTH_KEY_PREFIX = 'auth';
 const USER_KEY_PREFIX = 'user';
 const AUTH_FIELD = 'auth';
@@ -121,18 +119,18 @@ function mergePermissions(permissionsList: FeaturePermissions[]): FeaturePermiss
   return merged;
 }
 
-// ─── Redis Helpers ───
+// ─── AIN storage Helpers ───
 
 async function scanKeys(pattern: string): Promise<string[]> {
   const keys: string[] = [];
-  for await (const batch of redis.scanIterator({ MATCH: pattern, COUNT: 100 })) {
+  for await (const batch of storage.scanIterator({ MATCH: pattern, COUNT: 100 })) {
     keys.push(...batch);
   }
   return keys;
 }
 
 async function getAuthDefinition(name: string): Promise<AuthDefinition | null> {
-  const data = await redis.hGetAll(`${AUTH_KEY_PREFIX}:${name}`);
+  const data = await storage.hGetAll(`${AUTH_KEY_PREFIX}:${name}`);
   if (!data || Object.keys(data).length === 0) return null;
   return {
     name: data.name,
@@ -147,7 +145,7 @@ async function getAllAuthDefinitions(): Promise<AuthDefinition[]> {
 
   const definitions = await Promise.all(
     keys.map(async (key) => {
-      const data = await redis.hGetAll(key);
+      const data = await storage.hGetAll(key);
       if (!data || Object.keys(data).length === 0) return null;
       return {
         name: data.name,
@@ -166,7 +164,7 @@ async function saveUserAuths(userId: string, auths: string[]): Promise<void> {
   const relevantAuths = authDefs.filter((a) => auths.includes(a.name));
   const permissions = mergePermissions(relevantAuths.map((a) => a.permissions));
 
-  await redis.hSet(key, {
+  await storage.hSet(key, {
     userId,
     [AUTH_FIELD]: JSON.stringify(auths),
     [PERMISSIONS_FIELD]: JSON.stringify(permissions),
@@ -193,7 +191,7 @@ function formatPermissions(perms: FeaturePermissions): string {
 
 async function cmdUserGet(userId: string) {
   const key = `${USER_KEY_PREFIX}:${userId}`;
-  const data = await redis.hGetAll(key);
+  const data = await storage.hGetAll(key);
 
   if (!data || Object.keys(data).length === 0) {
     console.log(`No permissions found for user: ${userId}`);
@@ -227,7 +225,7 @@ async function cmdUserGrant(userId: string, authsToAdd: string[]) {
 
   // 기존 auths 가져오기
   const key = `${USER_KEY_PREFIX}:${userId}`;
-  const data = await redis.hGetAll(key);
+  const data = await storage.hGetAll(key);
   const existingAuths: string[] =
     data && data[AUTH_FIELD] ? JSON.parse(data[AUTH_FIELD]) : [];
 
@@ -245,7 +243,7 @@ async function cmdUserGrant(userId: string, authsToAdd: string[]) {
   console.log(`  Result:  [${newAuths.join(', ')}]`);
 
   // 최종 권한 표시
-  const finalData = await redis.hGetAll(key);
+  const finalData = await storage.hGetAll(key);
   const finalPerms = finalData[PERMISSIONS_FIELD]
     ? JSON.parse(finalData[PERMISSIONS_FIELD])
     : {};
@@ -256,7 +254,7 @@ async function cmdUserGrant(userId: string, authsToAdd: string[]) {
 
 async function cmdUserRevoke(userId: string, authsToRemove: string[]) {
   const key = `${USER_KEY_PREFIX}:${userId}`;
-  const data = await redis.hGetAll(key);
+  const data = await storage.hGetAll(key);
 
   if (!data || !data[AUTH_FIELD]) {
     console.log(`No permissions found for user: ${userId}`);
@@ -277,7 +275,7 @@ async function cmdUserRevoke(userId: string, authsToRemove: string[]) {
   console.log(`  Result:    [${newAuths.join(', ')}]`);
 
   // 최종 권한 표시
-  const finalData = await redis.hGetAll(key);
+  const finalData = await storage.hGetAll(key);
   const finalPerms = finalData[PERMISSIONS_FIELD]
     ? JSON.parse(finalData[PERMISSIONS_FIELD])
     : {};
@@ -304,7 +302,7 @@ async function cmdUserSet(userId: string, auths: string[]) {
   console.log(`  Set auths: [${auths.join(', ')}]`);
 
   const key = `${USER_KEY_PREFIX}:${userId}`;
-  const finalData = await redis.hGetAll(key);
+  const finalData = await storage.hGetAll(key);
   const finalPerms = finalData[PERMISSIONS_FIELD]
     ? JSON.parse(finalData[PERMISSIONS_FIELD])
     : {};
@@ -315,15 +313,15 @@ async function cmdUserSet(userId: string, auths: string[]) {
 
 async function cmdUserDelete(userId: string) {
   const key = `${USER_KEY_PREFIX}:${userId}`;
-  const data = await redis.hGetAll(key);
+  const data = await storage.hGetAll(key);
 
   if (!data || Object.keys(data).length === 0) {
     console.log(`No permissions found for user: ${userId}`);
     return;
   }
 
-  await redis.hDel(key, AUTH_FIELD);
-  await redis.hDel(key, PERMISSIONS_FIELD);
+  await storage.hDel(key, AUTH_FIELD);
+  await storage.hDel(key, PERMISSIONS_FIELD);
 
   console.log(`Deleted permissions for user: ${userId}`);
 }
@@ -338,7 +336,7 @@ async function cmdUserList() {
     // user:xxx:threads 같은 하위 키는 제외
     if (key.split(':').length > 2) continue;
 
-    const data = await redis.hGetAll(key);
+    const data = await storage.hGetAll(key);
     if (!data || !data[AUTH_FIELD]) continue;
 
     users.push({
@@ -405,7 +403,7 @@ async function cmdAuthDelete(name: string) {
     return;
   }
 
-  await redis.del(`${AUTH_KEY_PREFIX}:${name}`);
+  await storage.del(`${AUTH_KEY_PREFIX}:${name}`);
   console.log(`Deleted auth definition: ${name}`);
 }
 
@@ -456,7 +454,7 @@ async function cmdAuthInit() {
   ];
 
   for (const auth of defaults) {
-    await redis.hSet(`${AUTH_KEY_PREFIX}:${auth.name}`, {
+    await storage.hSet(`${AUTH_KEY_PREFIX}:${auth.name}`, {
       name: auth.name,
       permissions: JSON.stringify(auth.permissions),
       tokenRequirements: JSON.stringify(auth.tokenRequirements),
@@ -484,7 +482,7 @@ async function cmdAuthCreate(name: string, permissionsJson: string) {
     return;
   }
 
-  await redis.hSet(`${AUTH_KEY_PREFIX}:${name}`, {
+  await storage.hSet(`${AUTH_KEY_PREFIX}:${name}`, {
     name,
     permissions: JSON.stringify(permissions),
     tokenRequirements: JSON.stringify([]),
@@ -542,8 +540,8 @@ async function main() {
     return;
   }
 
-  console.log('Connecting to Redis...');
-  await redis.connect();
+  console.log('Connecting to AIN storage...');
+  await storage.connect();
   console.log('Connected.');
 
   try {
@@ -638,7 +636,7 @@ async function main() {
         printUsage();
     }
   } finally {
-    await redis.quit();
+    await storage.close();
   }
 }
 

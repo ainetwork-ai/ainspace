@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getVillage, updateVillage, deleteVillage } from '@/lib/village-redis';
+import { getVillage, updateVillage, deleteVillage } from '@/lib/village-storage';
 import {
   deleteVillageFiles,
   uploadVillageTmj,
@@ -152,7 +152,7 @@ export async function PUT(
 
 /**
  * DELETE /api/villages/[slug]
- * 마을 삭제 (Redis 메타데이터 + GCS 파일)
+ * 마을 삭제 (AIN storage 메타데이터 + GCS 파일)
  */
 export async function DELETE(
   request: NextRequest,
@@ -177,7 +177,7 @@ export async function DELETE(
       console.warn(`Failed to delete GCS files for village ${slug}:`, gcsError);
     }
 
-    // Redis 메타데이터 삭제
+    // AIN storage 메타데이터 삭제
     const deleted = await deleteVillage(slug);
     if (!deleted) {
       return NextResponse.json(

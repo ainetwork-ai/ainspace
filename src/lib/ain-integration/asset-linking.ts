@@ -60,7 +60,7 @@ export interface AssetLinkPlanItem {
   action: 'link' | 'skip' | 'refuse';
   reason?: RefuseReason | SkipReason;
   ownerUserId?: string;
-  /** 링크를 적을 Redis hash(자산 레코드 옆). */
+  /** 링크를 적을 AIN storage hash(자산 레코드 옆). */
   recordKey?: string;
   /** 소유자 드라이브 안의 대상 경로(`/Space assets/...`). */
   targetPath?: string;

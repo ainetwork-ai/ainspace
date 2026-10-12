@@ -1,13 +1,13 @@
 import { NextRequest } from 'next/server';
 import {
-  getRedisClient,
-  getRedisSubscriber,
+  getStorageClient,
+  getStorageSubscriber,
   joinVillage,
   getVillagePlayers,
   removePlayerPresence,
   cleanupStale,
   PlayerPresence,
-} from '@/lib/redis';
+} from '@/lib/storage';
 import { DIRECTION } from '@/constants/game';
 
 export const runtime = 'nodejs';
@@ -69,14 +69,14 @@ export async function GET(request: NextRequest) {
         if (cleanupInterval) clearInterval(cleanupInterval);
         if (reconnectTimeout) clearTimeout(reconnectTimeout);
         if (listenerFn) {
-          getRedisSubscriber()
+          getStorageSubscriber()
             .then(sub => sub.unsubscribe(`village:${village}:events`, listenerFn!))
             .catch(() => {});
         }
         // Explicitly remove presence + heartbeat on disconnect
         removePlayerPresence(village, userId).catch(() => {});
-        getRedisClient()
-          .then(redis => redis.hDel(`village:${village}:heartbeat`, userId))
+        getStorageClient()
+          .then(storage => storage.hDel(`village:${village}:heartbeat`, userId))
           .catch(() => {});
         try {
           controller.close();
@@ -92,6 +92,11 @@ export async function GET(request: NextRequest) {
         if (closed) return;
         try {
           const parsed = JSON.parse(message);
+          if (parsed.type === 'STORAGE_CONNECTION_LOST') {
+            send('reconnect', '{}');
+            cleanup();
+            return;
+          }
           // Filter out own events
           if (parsed.userId === userId) return;
 
@@ -107,14 +112,14 @@ export async function GET(request: NextRequest) {
 
       try {
         // 1. Subscribe first (before snapshot) to avoid missing events
-        const sub = await getRedisSubscriber();
+        const sub = await getStorageSubscriber();
         await sub.subscribe(`village:${village}:events`, listenerFn);
 
         // 2. Join village (saves presence + publishes PLAYER_JOINED) + set initial heartbeat
         await joinVillage(userId, village, playerData, prevVillage);
-        const redis = await getRedisClient();
-        await redis.hSet(`village:${village}:heartbeat`, userId, String(Date.now()));
-        await redis.expire(`village:${village}:heartbeat`, 3600);
+        const storage = await getStorageClient();
+        await storage.hSet(`village:${village}:heartbeat`, userId, String(Date.now()));
+        await storage.expire(`village:${village}:heartbeat`, 3600);
 
         // 3. Send initial snapshot
         let players: PlayerPresence[] = [];
@@ -139,9 +144,9 @@ export async function GET(request: NextRequest) {
           if (closed) return;
           send('ping', '{}');
           try {
-            const redis = await getRedisClient();
-            await redis.hSet(`village:${village}:heartbeat`, userId, String(Date.now()));
-            await redis.expire(`village:${village}:heartbeat`, 3600);
+            const storage = await getStorageClient();
+            await storage.hSet(`village:${village}:heartbeat`, userId, String(Date.now()));
+            await storage.expire(`village:${village}:heartbeat`, 3600);
           } catch {
             // Non-critical
           }

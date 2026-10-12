@@ -1,7 +1,7 @@
 /**
- * 기본 마을 데이터를 Redis에 등록하는 스크립트
+ * 기본 마을 데이터를 AIN storage에 등록하는 스크립트
  *
- * 실행 방법: 
+ * 실행 방법:
  *   npx tsx scripts/seed-villages.ts           # 기존 데이터 유지하고 추가
  *   npx tsx scripts/seed-villages.ts --clear   # 기존 데이터 삭제 후 재등록
  */
@@ -9,7 +9,7 @@
 // 환경변수 로딩 (가장 먼저 실행되어야 함)
 import { config } from 'dotenv';
 import { resolve } from 'path';
-import { createClient } from 'redis';
+import { storageClient } from '../src/lib/storage-client';
 
 // .env.local 파일 우선, 없으면 .env 파일 로드
 const envLocalResult = config({ path: resolve(process.cwd(), '.env.local') });
@@ -42,10 +42,8 @@ function gridKey(gridX: number, gridY: number): string {
   return `${gridX},${gridY}`;
 }
 
-// Redis 클라이언트 생성
-const redis = createClient({
-  url: process.env.AINSPACE_STORAGE_REDIS_URL || 'redis://localhost:6379'
-});
+// AIN storage 클라이언트 생성
+const storage = storageClient;
 
 // Firebase Storage bucket name
 const STORAGE_BUCKET = process.env.FIREBASE_STORAGE_BUCKET;
@@ -62,13 +60,13 @@ function getVillageTilesetBaseUrl(): string {
   return `https://storage.googleapis.com/${STORAGE_BUCKET}/villages`;
 }
 
-// Redis 작업 함수들
+// AIN storage 작업 함수들
 async function saveVillage(village: VillageMetadata): Promise<void> {
   const gw = village.gridWidth || 1;
   const gh = village.gridHeight || 1;
 
   // 마을 메타데이터 저장 (Hash)
-  await redis.hSet(`${VILLAGE_KEY_PREFIX}${village.slug}`, {
+  await storage.hSet(`${VILLAGE_KEY_PREFIX}${village.slug}`, {
     slug: village.slug,
     name: village.name,
     gridX: village.gridX.toString(),
@@ -84,7 +82,7 @@ async function saveVillage(village: VillageMetadata): Promise<void> {
   // 점유하는 모든 격자 셀에 역방향 인덱스 등록
   for (let dy = 0; dy < gh; dy++) {
     for (let dx = 0; dx < gw; dx++) {
-      await redis.set(
+      await storage.set(
         `${VILLAGE_GRID_PREFIX}${gridKey(village.gridX + dx, village.gridY + dy)}`,
         village.slug,
       );
@@ -92,11 +90,11 @@ async function saveVillage(village: VillageMetadata): Promise<void> {
   }
 
   // 전체 목록에 추가
-  await redis.sAdd(VILLAGES_ALL_KEY, village.slug);
+  await storage.sAdd(VILLAGES_ALL_KEY, village.slug);
 }
 
 async function deleteVillage(slug: string): Promise<void> {
-  const data = await redis.hGetAll(`${VILLAGE_KEY_PREFIX}${slug}`);
+  const data = await storage.hGetAll(`${VILLAGE_KEY_PREFIX}${slug}`);
   if (!data || Object.keys(data).length === 0) return;
 
   const gridX = parseInt(data.gridX) || 0;
@@ -104,25 +102,25 @@ async function deleteVillage(slug: string): Promise<void> {
   const gw = parseInt(data.gridWidth) || 1;
   const gh = parseInt(data.gridHeight) || 1;
 
-  await redis.del(`${VILLAGE_KEY_PREFIX}${slug}`);
+  await storage.del(`${VILLAGE_KEY_PREFIX}${slug}`);
 
   // 점유하는 모든 격자 셀의 역방향 인덱스 제거
   for (let dy = 0; dy < gh; dy++) {
     for (let dx = 0; dx < gw; dx++) {
-      await redis.del(`${VILLAGE_GRID_PREFIX}${gridKey(gridX + dx, gridY + dy)}`);
+      await storage.del(`${VILLAGE_GRID_PREFIX}${gridKey(gridX + dx, gridY + dy)}`);
     }
   }
 
-  await redis.sRem(VILLAGES_ALL_KEY, slug);
+  await storage.sRem(VILLAGES_ALL_KEY, slug);
 }
 
 async function getAllVillages(): Promise<VillageMetadata[]> {
-  const slugs = await redis.sMembers(VILLAGES_ALL_KEY);
+  const slugs = await storage.sMembers(VILLAGES_ALL_KEY);
   if (slugs.length === 0) return [];
 
   const villages: VillageMetadata[] = [];
   for (const slug of slugs) {
-    const data = await redis.hGetAll(`${VILLAGE_KEY_PREFIX}${slug}`);
+    const data = await storage.hGetAll(`${VILLAGE_KEY_PREFIX}${slug}`);
     if (data && Object.keys(data).length > 0) {
       villages.push({
         slug: data.slug,
@@ -225,7 +223,7 @@ async function clearAllVillages() {
   }
 
   // villages:all SET 완전히 초기화 (orphan entries 방지)
-  await redis.del(VILLAGES_ALL_KEY);
+  await storage.del(VILLAGES_ALL_KEY);
   console.log('✓ Cleared villages:all SET\n');
 
   console.log(`📊 Cleared ${deleteCount} villages\n`);
@@ -260,9 +258,9 @@ async function seedVillages() {
 
 // 실행
 async function main() {
-  console.log('Connecting to Redis...');
-  await redis.connect();
-  console.log('Connected to Redis\n');
+  console.log('Connecting to AIN storage...');
+  await storage.connect();
+  console.log('Connected to AIN storage\n');
 
   try {
     const shouldClear = process.argv.includes('--clear');
@@ -273,8 +271,8 @@ async function main() {
 
     await seedVillages();
   } finally {
-    await redis.quit();
-    console.log('\nDisconnected from Redis');
+    await storage.close();
+    console.log('\nDisconnected from AIN storage');
   }
 }
 

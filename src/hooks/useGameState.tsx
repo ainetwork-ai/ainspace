@@ -92,7 +92,7 @@ export function useGameState() {
         }
     }, [userId]);
 
-    const savePositionToRedis = useCallback(
+    const savePositionToStorage = useCallback(
         (position: Position) => {
             if (!userId) return;
             pendingPositionRef.current = position;
@@ -166,8 +166,8 @@ export function useGameState() {
                 return;
             }
 
-            // Save new position to Redis
-            savePositionToRedis(newWorldPosition);
+            // Save new position to AIN storage
+            savePositionToStorage(newWorldPosition);
 
             // Position changed - apply all move state in single set()
             applyMove({
@@ -177,7 +177,7 @@ export function useGameState() {
                 recentMovements: [direction, ...currentMovements.slice(0, 4)],
             });
         },
-        [isPositionBlocked, savePositionToRedis, setPlayerDirection, applyMove]
+        [isPositionBlocked, savePositionToStorage, setPlayerDirection, applyMove]
     );
 
     const toggleAutonomous = useCallback(() => {

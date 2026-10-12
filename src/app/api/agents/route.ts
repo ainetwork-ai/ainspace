@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getRedisClient, StoredAgent, addPlacedAgent, removePlacedAgent, getPlacedAgentCount, scanKeys, upsertAgentFromRosterItem } from '@/lib/redis';
+import { getStorageClient, StoredAgent, addPlacedAgent, removePlacedAgent, getPlacedAgentCount, scanKeys, upsertAgentFromRosterItem } from '@/lib/storage';
 import { canImportAgent, canPlaceAgent, canPlaceAgentOnMap, hasAdminAccess } from '@/lib/auth/permissions';
 import { MOVEMENT_MODE } from '@/constants/game';
 import { worldToGrid } from '@/lib/village-utils';
-import { getVillageByGrid } from '@/lib/village-redis';
+import { getVillageByGrid } from '@/lib/village-storage';
 import { getBearer, backendFetch } from '@/lib/backend/server-client';
 import { BACKEND_WORKSPACE_ID, isBackendWorkspaceConfigured } from '@/lib/backend/config';
 import { BackendAgentListItem } from '@/lib/backend/agent-mapping';
@@ -13,8 +13,6 @@ import { getAinizeUrl, isAinIntegrationEnabled } from '@/lib/ain-integration/con
 
 const AGENTS_KEY = 'agents:';
 
-// Fallback in-memory store if Redis is not available
-const agentStore = new Map<string, StoredAgent>();
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -26,12 +24,12 @@ export async function GET(request: NextRequest) {
     let agents: StoredAgent[] = [];
 
     try {
-      // Try Redis first
+      // Try AIN storage first
       const keys = await scanKeys(`${AGENTS_KEY}*`);
 
       if (keys.length > 0) {
-        const redis = await getRedisClient();
-        const values = await redis.mGet(keys);
+        const storage = await getStorageClient();
+        const values = await storage.mGet(keys);
         agents = values
           .filter(value => value !== null)
           .map(value => JSON.parse(value!))
@@ -46,15 +44,11 @@ export async function GET(request: NextRequest) {
             return true;
           });
 
-        console.log(`Loaded ${agents.length} agents from Redis${villageFilter ? ` (villages: ${villagesParam})` : ''}`);
+        console.log(`Loaded ${agents.length} agents from AIN storage${villageFilter ? ` (villages: ${villagesParam})` : ''}`);
       }
-    } catch (redisError) {
-      console.warn('Redis unavailable, using fallback storage:', redisError);
-      // Use fallback in-memory storage
-      agents = Array.from(agentStore.values());
-    }
+    } catch (error) { throw error; }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
       agents: agents.sort((a, b) => b.timestamp - a.timestamp) // Sort by newest first
     }, {
@@ -74,7 +68,7 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/agents  (EPIC17)
  * Import = invite the agent into the backend workspace, then materialize the
- * returned agent into Redis. Body: { agentUrl, creator, commonAgentId? }. The
+ * returned agent into AIN storage. Body: { agentUrl, creator, commonAgentId? }. The
  * backend fetches the card, dedups by canonical a2aUrl, and records ownership;
  * ainspace no longer fetches the card (no /api/agent-proxy) nor builds the
  * StoredAgent client-side.
@@ -164,11 +158,11 @@ export async function PUT(request: NextRequest) {
     let agentData: StoredAgent;
 
     try {
-      // Try Redis first
-      const redis = await getRedisClient();
+      // Try AIN storage first
+      const storage = await getStorageClient();
 
       // Check if agent exists
-      const existing = await redis.get(agentKey);
+      const existing = await storage.get(agentKey);
       if (!existing) {
         return NextResponse.json(
           { error: 'Agent not found' },
@@ -268,9 +262,9 @@ export async function PUT(request: NextRequest) {
         spriteHeight: spriteHeight !== undefined ? spriteHeight : existingData.spriteHeight
       };
 
-      // Update agent in Redis (partial update - only provided fields are updated)
-      await redis.set(agentKey, JSON.stringify(agentData));
-      console.log(`Updated agent in Redis: ${agentData.card?.name || url} (${url})`);
+      // Update agent in AIN storage (partial update - only provided fields are updated)
+      await storage.set(agentKey, JSON.stringify(agentData));
+      console.log(`Updated agent in AIN storage: ${agentData.card?.name || url} (${url})`);
 
       // Update user's placed agents list
       if (agentData.creator) {
@@ -284,31 +278,7 @@ export async function PUT(request: NextRequest) {
           console.log(`Removed agent from placed agents list for user ${agentData.creator}: ${url}`);
         }
       }
-    } catch (redisError) {
-      console.warn('Redis unavailable, using fallback storage:', redisError);
-      
-      // Check if agent exists in fallback storage
-      if (!agentStore.has(url)) {
-        return NextResponse.json(
-          { error: 'Agent not found' },
-          { status: 404 }
-        );
-      }
-
-      // Update agent in fallback storage (partial update)
-      const existingData = agentStore.get(url)!;
-      agentData = {
-        ...existingData, // Preserve untouched fields (backendUuid/backendStatus, url, timestamp)
-        card: card !== undefined ? card : existingData.card,
-        state: state !== undefined ? state : existingData.state,
-        creator: creator !== undefined ? creator : existingData.creator,
-        isPlaced: isPlaced !== undefined ? isPlaced : existingData.isPlaced,
-        spriteUrl: spriteUrl !== undefined ? spriteUrl : existingData.spriteUrl,
-        spriteHeight: spriteHeight !== undefined ? spriteHeight : existingData.spriteHeight
-      };
-      agentStore.set(url, agentData);
-      console.log(`Updated agent in memory: ${agentData.card?.name || url} (${url})`);
-    }
+    } catch (error) { throw error; }
 
     return NextResponse.json({
       success: true,
@@ -352,8 +322,8 @@ export async function DELETE(request: NextRequest) {
     // Fetch agent data to check ownership
     let existingData: StoredAgent | null = null;
     try {
-      const redis = await getRedisClient();
-      const existing = await redis.get(agentKey);
+      const storage = await getStorageClient();
+      const existing = await storage.get(agentKey);
       if (!existing) {
         return NextResponse.json(
           { error: 'Agent not found' },
@@ -361,17 +331,7 @@ export async function DELETE(request: NextRequest) {
         );
       }
       existingData = JSON.parse(existing);
-    } catch (redisError) {
-      console.warn('Redis unavailable, using fallback storage:', redisError);
-      const fallback = agentStore.get(agentUrl);
-      if (!fallback) {
-        return NextResponse.json(
-          { error: 'Agent not found' },
-          { status: 404 }
-        );
-      }
-      existingData = fallback;
-    }
+    } catch (error) { throw error; }
 
     // Check permission: admin (bypass) or owner
     const isAdmin = await hasAdminAccess(userId ?? '');
@@ -385,19 +345,13 @@ export async function DELETE(request: NextRequest) {
     // Delete agent
     let deleted = false;
     try {
-      const redis = await getRedisClient();
-      const result = await redis.del(agentKey);
+      const storage = await getStorageClient();
+      const result = await storage.del(agentKey);
       deleted = result > 0;
       if (deleted) {
-        console.log(`Deleted agent from Redis: ${agentUrl}`);
+        console.log(`Deleted agent from AIN storage: ${agentUrl}`);
       }
-    } catch (redisError) {
-      console.warn('Redis unavailable, using fallback storage:', redisError);
-      deleted = agentStore.delete(agentUrl);
-      if (deleted) {
-        console.log(`Deleted agent from memory: ${agentUrl}`);
-      }
-    }
+    } catch (error) { throw error; }
 
     if (!deleted) {
       return NextResponse.json(
@@ -419,5 +373,3 @@ export async function DELETE(request: NextRequest) {
     );
   }
 }
-
-

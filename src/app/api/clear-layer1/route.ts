@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getRedisClient } from '@/lib/redis';
+import { getStorageClient } from '@/lib/storage';
 
 /**
  * API endpoint to clear all layer1 items (TempBuildTab items) from the database
@@ -9,10 +9,10 @@ import { getRedisClient } from '@/lib/redis';
  */
 export async function GET() {
     try {
-        const redis = await getRedisClient();
+        const storage = await getStorageClient();
 
         // Get current global tiles
-        const globalTilesData = await redis.hGetAll('global-tiles');
+        const globalTilesData = await storage.hGetAll('global-tiles');
 
         if (!globalTilesData || Object.keys(globalTilesData).length === 0) {
             return NextResponse.json({
@@ -47,7 +47,7 @@ export async function GET() {
         };
 
         // Save back to database
-        await redis.hSet('global-tiles', {
+        await storage.hSet('global-tiles', {
             tiles: JSON.stringify(clearedTiles),
             lastUpdated: new Date().toISOString()
         });

@@ -1,5 +1,5 @@
 import { FeaturePermissions, AuthDefinition } from '@/types/auth';
-import { DEFAULT_PERMISSIONS } from './redis';
+import { DEFAULT_PERMISSIONS } from './storage';
 
 export const mergePermissions = (
   permissionsList: FeaturePermissions[]

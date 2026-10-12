@@ -1,4 +1,4 @@
-import { getRedisClient } from './redis';
+import { getStorageClient } from './storage';
 import { gridKey } from './village-utils';
 
 export interface VillageMetadata {
@@ -19,11 +19,11 @@ const VILLAGE_GRID_PREFIX = 'village:grid:';
 const VILLAGES_ALL_KEY = 'villages:all';
 
 /**
- * 마을 메타데이터를 Redis에 저장한다.
+ * 마을 메타데이터를 AIN storage에 저장한다.
  * 점유하는 격자 위치가 이미 다른 마을에 사용 중이면 에러를 던진다.
  */
 export async function saveVillage(village: VillageMetadata): Promise<void> {
-  const redis = await getRedisClient();
+  const storage = await getStorageClient();
   const gw = village.gridWidth || 1;
   const gh = village.gridHeight || 1;
 
@@ -31,7 +31,7 @@ export async function saveVillage(village: VillageMetadata): Promise<void> {
   for (let dy = 0; dy < gh; dy++) {
     for (let dx = 0; dx < gw; dx++) {
       const key = gridKey(village.gridX + dx, village.gridY + dy);
-      const existingSlug = await redis.get(`${VILLAGE_GRID_PREFIX}${key}`);
+      const existingSlug = await storage.get(`${VILLAGE_GRID_PREFIX}${key}`);
       if (existingSlug && existingSlug !== village.slug) {
         throw new Error(`Grid position (${village.gridX + dx}, ${village.gridY + dy}) is already occupied by village "${existingSlug}"`);
       }
@@ -40,16 +40,16 @@ export async function saveVillage(village: VillageMetadata): Promise<void> {
 
   // slug 중복 체크 (새로 생성 시)
   const originKey = gridKey(village.gridX, village.gridY);
-  const originSlug = await redis.get(`${VILLAGE_GRID_PREFIX}${originKey}`);
+  const originSlug = await storage.get(`${VILLAGE_GRID_PREFIX}${originKey}`);
   if (!originSlug) {
-    const existingVillage = await redis.hGetAll(`${VILLAGE_KEY_PREFIX}${village.slug}`);
+    const existingVillage = await storage.hGetAll(`${VILLAGE_KEY_PREFIX}${village.slug}`);
     if (existingVillage && Object.keys(existingVillage).length > 0) {
       throw new Error(`Village slug "${village.slug}" already exists`);
     }
   }
 
   // 마을 메타데이터 저장 (Hash)
-  await redis.hSet(`${VILLAGE_KEY_PREFIX}${village.slug}`, {
+  await storage.hSet(`${VILLAGE_KEY_PREFIX}${village.slug}`, {
     slug: village.slug,
     name: village.name,
     gridX: village.gridX.toString(),
@@ -65,7 +65,7 @@ export async function saveVillage(village: VillageMetadata): Promise<void> {
   // 점유하는 모든 격자 셀에 역방향 인덱스 등록
   for (let dy = 0; dy < gh; dy++) {
     for (let dx = 0; dx < gw; dx++) {
-      await redis.set(
+      await storage.set(
         `${VILLAGE_GRID_PREFIX}${gridKey(village.gridX + dx, village.gridY + dy)}`,
         village.slug,
       );
@@ -73,15 +73,15 @@ export async function saveVillage(village: VillageMetadata): Promise<void> {
   }
 
   // 전체 목록에 추가
-  await redis.sAdd(VILLAGES_ALL_KEY, village.slug);
+  await storage.sAdd(VILLAGES_ALL_KEY, village.slug);
 }
 
 /**
  * slug로 마을 메타데이터를 조회한다.
  */
 export async function getVillage(slug: string): Promise<VillageMetadata | null> {
-  const redis = await getRedisClient();
-  const data = await redis.hGetAll(`${VILLAGE_KEY_PREFIX}${slug}`);
+  const storage = await getStorageClient();
+  const data = await storage.hGetAll(`${VILLAGE_KEY_PREFIX}${slug}`);
 
   if (!data || Object.keys(data).length === 0) {
     return null;
@@ -94,8 +94,8 @@ export async function getVillage(slug: string): Promise<VillageMetadata | null> 
  * 격자 좌표로 마을을 조회한다.
  */
 export async function getVillageByGrid(gridX: number, gridY: number): Promise<VillageMetadata | null> {
-  const redis = await getRedisClient();
-  const slug = await redis.get(`${VILLAGE_GRID_PREFIX}${gridKey(gridX, gridY)}`);
+  const storage = await getStorageClient();
+  const slug = await storage.get(`${VILLAGE_GRID_PREFIX}${gridKey(gridX, gridY)}`);
 
   if (!slug) return null;
   return getVillage(slug);
@@ -108,7 +108,7 @@ export async function getNearbyVillages(
   gridX: number,
   gridY: number,
 ): Promise<VillageMetadata[]> {
-  const redis = await getRedisClient();
+  const storage = await getStorageClient();
   const offsets = [
     [0, 0], [0, -1], [0, 1], [-1, 0], [1, 0],
     [-1, -1], [1, -1], [-1, 1], [1, 1],
@@ -119,7 +119,7 @@ export async function getNearbyVillages(
   );
 
   // 한번에 모든 격자 키 조회
-  const slugs = await redis.mGet(gridKeys);
+  const slugs = await storage.mGet(gridKeys);
 
   // null이 아닌 slug들의 메타데이터를 병렬로 조회 (NxM 마을 중복 제거)
   const uniqueSlugs = [...new Set(slugs.filter((s): s is string => s !== null))];
@@ -127,7 +127,7 @@ export async function getNearbyVillages(
 
   const villages: VillageMetadata[] = [];
   for (const slug of uniqueSlugs) {
-    const data = await redis.hGetAll(`${VILLAGE_KEY_PREFIX}${slug}`);
+    const data = await storage.hGetAll(`${VILLAGE_KEY_PREFIX}${slug}`);
     if (data && Object.keys(data).length > 0) {
       villages.push(parseVillageData(data));
     }
@@ -140,14 +140,14 @@ export async function getNearbyVillages(
  * 전체 마을 목록을 반환한다.
  */
 export async function getAllVillages(): Promise<VillageMetadata[]> {
-  const redis = await getRedisClient();
-  const slugs = await redis.sMembers(VILLAGES_ALL_KEY);
+  const storage = await getStorageClient();
+  const slugs = await storage.sMembers(VILLAGES_ALL_KEY);
 
   if (slugs.length === 0) return [];
 
   const villages: VillageMetadata[] = [];
   for (const slug of slugs) {
-    const data = await redis.hGetAll(`${VILLAGE_KEY_PREFIX}${slug}`);
+    const data = await storage.hGetAll(`${VILLAGE_KEY_PREFIX}${slug}`);
     if (data && Object.keys(data).length > 0) {
       villages.push(parseVillageData(data));
     }
@@ -163,7 +163,7 @@ export async function updateVillage(
   slug: string,
   updates: Partial<Pick<VillageMetadata, 'name' | 'tmjUrl' | 'tilesetBaseUrl'>>,
 ): Promise<VillageMetadata | null> {
-  const redis = await getRedisClient();
+  const storage = await getStorageClient();
   const existing = await getVillage(slug);
   if (!existing) return null;
 
@@ -174,7 +174,7 @@ export async function updateVillage(
   if (updates.tmjUrl !== undefined) fields.tmjUrl = updates.tmjUrl;
   if (updates.tilesetBaseUrl !== undefined) fields.tilesetBaseUrl = updates.tilesetBaseUrl;
 
-  await redis.hSet(`${VILLAGE_KEY_PREFIX}${slug}`, fields);
+  await storage.hSet(`${VILLAGE_KEY_PREFIX}${slug}`, fields);
 
   return getVillage(slug);
 }
@@ -183,22 +183,22 @@ export async function updateVillage(
  * 마을을 삭제한다.
  */
 export async function deleteVillage(slug: string): Promise<boolean> {
-  const redis = await getRedisClient();
+  const storage = await getStorageClient();
   const existing = await getVillage(slug);
   if (!existing) return false;
 
-  await redis.del(`${VILLAGE_KEY_PREFIX}${slug}`);
+  await storage.del(`${VILLAGE_KEY_PREFIX}${slug}`);
 
   // 점유하는 모든 격자 셀의 역방향 인덱스 제거
   const gw = existing.gridWidth || 1;
   const gh = existing.gridHeight || 1;
   for (let dy = 0; dy < gh; dy++) {
     for (let dx = 0; dx < gw; dx++) {
-      await redis.del(`${VILLAGE_GRID_PREFIX}${gridKey(existing.gridX + dx, existing.gridY + dy)}`);
+      await storage.del(`${VILLAGE_GRID_PREFIX}${gridKey(existing.gridX + dx, existing.gridY + dy)}`);
     }
   }
 
-  await redis.sRem(VILLAGES_ALL_KEY, slug);
+  await storage.sRem(VILLAGES_ALL_KEY, slug);
 
   return true;
 }

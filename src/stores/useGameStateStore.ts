@@ -61,7 +61,7 @@ export const useGameStateStore = create<GameState>((set, get) => ({
     setRecentMovements: (movements: string[]) => {
         set({ recentMovements: movements });
     },
-    
+
     setLastCommentary: (commentary: string) => {
         set({ lastCommentary: commentary });
     },
