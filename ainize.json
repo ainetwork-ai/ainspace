@@ -3,5 +3,6 @@
   "kind": "service",
   "port": 3000,
   "healthcheck": "/",
-  "build": { "dockerfile": "Dockerfile.ainize", "context": "." }
+  "build": { "dockerfile": "Dockerfile.ainize", "context": "." },
+  "resources": { "memory": "1g", "cpus": 1 }
 }
