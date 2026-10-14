@@ -27,11 +27,8 @@ export default function LoginPage() {
         return () => clearTimeout(timer);
     }, []);
 
-    // Redirect home if already logged in — wallet (wagmi) OR a stored backend
-    // session (email/kiosk, EPIC20/EPIC18). The login page doesn't hydrate the
-    // user store, so a wallet-less session can only be seen via token-store here;
-    // without this an email user returning to /login is stuck on the login screen
-    // despite holding a valid session.
+    // Stored sessions can return home immediately. A connected wallet enters
+    // only after the user explicitly chooses Base / Wallet below.
     useEffect(() => {
         if (isConnecting) return;
         if (hasSession()) {
@@ -59,7 +56,7 @@ export default function LoginPage() {
                 )}
             >
                 <button
-                    onClick={() => setShowWalletModal(true)}
+                    onClick={() => isConnected ? router.push('/') : setShowWalletModal(true)}
                     className="z-10 inline-flex h-14 w-[180px] cursor-pointer items-center justify-center self-center rounded border border-[#7f4fe8] bg-white/70 text-[#7f4fe8] font-medium"
                 >
                     Base / Wallet로 로그인
@@ -83,7 +80,7 @@ export default function LoginPage() {
             <div className="fixed bottom-0 flex w-full justify-center">
                 <Image src="/login/login_background.png" alt="Login Background" width={600} height={1000} />
             </div>
-            <ConnectWalletModal open={showWalletModal} onOpenChange={setShowWalletModal} />
+            <ConnectWalletModal open={showWalletModal} onOpenChange={setShowWalletModal} onWalletConnected={() => router.push('/')} />
             <EmailLoginModal
                 open={showEmailModal}
                 onOpenChange={setShowEmailModal}

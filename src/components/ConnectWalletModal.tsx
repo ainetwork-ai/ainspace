@@ -18,6 +18,7 @@ interface ConnectWalletModalProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     isDarkMode?: boolean;
+    onWalletConnected?: () => void;
 }
 
 const CONNECTOR_LABELS: Record<string, string> = {
@@ -32,6 +33,7 @@ export default function ConnectWalletModal({
     open,
     onOpenChange,
     isDarkMode = false,
+    onWalletConnected,
 }: ConnectWalletModalProps) {
     const { connect, connectors } = useConnect();
     const setBackendAuth = useUserStore((s) => s.setBackendAuth);
@@ -76,7 +78,7 @@ export default function ConnectWalletModal({
                                 key={connector.id}
                                 onClick={() => {
                                     onOpenChange(false);
-                                    connect({ connector });
+                                    connect({ connector }, { onSuccess: () => onWalletConnected?.() });
                                 }}
                                 className={`w-full py-3 px-4 font-bold rounded-lg transition-colors text-left ${isDarkMode ? 'bg-[#3A3050] text-[#C0A9F1] hover:bg-[#4A3E60]' : 'bg-[#F3F0FF] text-[#7C3AED] hover:bg-[#E8E0FF]'}`}
                             >
