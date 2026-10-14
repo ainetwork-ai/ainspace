@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useConnect } from 'wagmi';
 import {
     Dialog,
@@ -12,6 +12,7 @@ import {
 import { Wallet } from 'lucide-react';
 import EmailLoginModal from '@/components/EmailLoginModal';
 import { useUserStore } from '@/stores';
+import { beginSsoLogin } from '@/lib/backend/sso';
 
 interface ConnectWalletModalProps {
     open: boolean;
@@ -38,20 +39,9 @@ export default function ConnectWalletModal({
     // point (Footer, layout HUD, MapTab, ...) offers email too.
     const [showEmailModal, setShowEmailModal] = useState(false);
 
-    // Base App injects its own connector (name: "Base") — auto-connect when detected
-    const baseAppConnector = connectors.find(
-        (c) => c.name === 'Base' && c.type === 'injected'
-    );
+    const [ssoPending, setSsoPending] = useState(false);
+    const [ssoError, setSsoError] = useState<string | null>(null);
 
-    useEffect(() => {
-        if (open && baseAppConnector) {
-            onOpenChange(false);
-            connect({ connector: baseAppConnector });
-        }
-    }, [open, baseAppConnector, connect, onOpenChange]);
-
-    // If Base App connector exists, modal won't show (auto-connect above)
-    // Otherwise show configured connectors for user to pick
     return (
         <>
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -61,16 +51,26 @@ export default function ConnectWalletModal({
                         <Wallet className={`w-8 h-8 ${isDarkMode ? 'text-[#C0A9F1]' : 'text-[#7C3AED]'}`} />
                     </div>
                     <DialogTitle className={`text-xl font-bold text-center ${isDarkMode ? 'text-white' : 'text-black'}`}>
-                        Connect Wallet
+                        로그인
                     </DialogTitle>
                     <DialogDescription className={`text-base text-center ${isDarkMode ? 'text-[#CAD0D7]' : 'text-[#2F333B]'}`}>
-                        Choose a wallet to connect.
+                        AIN SSO 또는 기존 지갑으로 로그인하세요.
                     </DialogDescription>
                 </DialogHeader>
 
+                <button
+                    disabled={ssoPending}
+                    onClick={async () => {
+                        setSsoError(null); setSsoPending(true);
+                        try { await beginSsoLogin(); }
+                        catch { setSsoError('로그인을 시작하지 못했습니다. 다시 시도해 주세요.'); setSsoPending(false); }
+                    }}
+                    className="w-full rounded-lg bg-[#7C3AED] px-4 py-3 text-left font-bold text-white disabled:opacity-60"
+                >{ssoPending ? '로그인 연결 중…' : 'AIN SSO로 로그인'}</button>
+                {ssoError && <p role="alert" className="text-sm text-red-600">{ssoError}</p>}
                 <div className="flex flex-col gap-2">
                     {connectors
-                        .filter((c) => CONFIGURED_CONNECTOR_IDS.has(c.id))
+                        .filter((c) => CONFIGURED_CONNECTOR_IDS.has(c.id) || (c.name === 'Base' && c.type === 'injected'))
                         .map((connector) => (
                             <button
                                 key={connector.id}

@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { UserPermissions } from '@/types/auth';
 import { BackendUser } from '@/types/backend';
-import { getUser as getBackendUser, getKioskFlag, hasSession } from '@/lib/backend/token-store';
+import { getUser as getBackendUser, getKioskFlag, getSsoFlag, hasSession } from '@/lib/backend/token-store';
 import { logoutBackend } from '@/lib/backend/auth';
 
 const SESSION_STORAGE_KEY = 'ainspace-session-id';
@@ -52,6 +52,7 @@ export const useUserStore = create<UserStore>((set, get) => ({
 
   getUserId: () => {
     const state = get();
+    if (getSsoFlag() && state.backendUser) return state.backendUser.id;
     return state.address || state.sessionId;
   },
 
