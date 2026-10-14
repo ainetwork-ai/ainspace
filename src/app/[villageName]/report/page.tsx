@@ -13,7 +13,7 @@ async function getReports(
   try {
     const res = await fetch(
       `${REPORT_API_BASE_URL}/reports?tags=village:${villageName}&sortBy=createdAt&sortOrder=desc`,
-      { cache: "no-store" }
+      { cache: "no-store", signal: AbortSignal.timeout(8000) }
     );
     if (!res.ok) {
       console.error("Failed to fetch reports:", res.status);
@@ -57,7 +57,7 @@ export default async function ReportListPage({
 
       {items.length === 0 ? (
         <div className="flex min-h-[30vh] items-center justify-center">
-          <p className="text-muted-foreground">아직 리포트가 없습니다.</p>
+          <p className="text-muted-foreground">{data ? '아직 리포트가 없습니다.' : '리포트를 불러오지 못했습니다. 새로고침하여 다시 시도해 주세요.'}</p>
         </div>
       ) : (
         <div className="space-y-3">

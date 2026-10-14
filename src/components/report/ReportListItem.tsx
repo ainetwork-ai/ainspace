@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { Pencil, Trash2, Check, X, Loader2 } from "lucide-react";
 import { useUserStore } from "@/stores/useUserStore";
 import { useToast } from "./Toast";
@@ -39,6 +38,7 @@ export function ReportListItem({
   const checkPermission = useUserStore((s) => s.checkPermission);
   const isAdmin = checkPermission("adminAccess");
 
+  const [isOpening, setIsOpening] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState(item.title || "");
   const [isSaving, setIsSaving] = useState(false);
@@ -242,7 +242,12 @@ export function ReportListItem({
   return (
     <>
       {canNavigate ? (
-        <Link href={`/${villageName}/report/${item.jobId}`}>{card}</Link>
+        <a href={`/${villageName}/report/${item.jobId}`} onClick={event => {
+          if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey && !event.defaultPrevented) setIsOpening(true);
+        }} aria-busy={isOpening}>
+          {card}
+          {isOpening && <p role="status" className="mt-2 flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />리포트를 여는 중…</p>}
+        </a>
       ) : (
         card
       )}

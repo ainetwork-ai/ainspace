@@ -5,6 +5,7 @@ import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import type { ReportApiResponse } from "@/types/report";
 import { getTopicClaims } from "@/types/report";
+import { reportTopicPreview } from '@/lib/report-view';
 import { REPORT_API_BASE_URL } from "@/lib/report";
 import { isValidUUID } from "@/lib/utils";
 import { T3CSynthesisSection } from "@/components/report/t3c/T3CSynthesisSection";
@@ -24,6 +25,7 @@ async function getReport(jobId: string): Promise<ReportApiResponse> {
 
   const res = await fetch(`${REPORT_API_BASE_URL}/reports/${jobId}?format=full`, {
     cache: "no-store",
+    signal: AbortSignal.timeout(8000),
   });
 
   if (!res.ok) {
@@ -58,8 +60,9 @@ export default async function ReportPage({
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
         <p className="text-muted-foreground">
-          리포트를 찾을 수 없습니다.
+          리포트를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.
         </p>
+        <a href={`/${villageName}/report/${jobId}`} className="ml-3 underline">다시 시도</a>
       </div>
     );
   }
@@ -150,7 +153,7 @@ export default async function ReportPage({
       )}
 
       {sortedTopics && sortedTopics.length > 0 && (
-        <TopicList topics={sortedTopics} />
+        <TopicList topics={sortedTopics.map(reportTopicPreview)} jobId={jobId} claimCounts={Object.fromEntries(claimCounts)} />
       )}
 
       {/* Markdown Report */}
@@ -172,7 +175,7 @@ export default async function ReportPage({
 
       <section className="mt-12">
         <h2 className="mb-2 text-lg font-semibold text-foreground">Appendix</h2>
-        <DownloadReportJson data={data} />
+        <DownloadReportJson jobId={jobId} />
       </section>
     </ReportExpandedProvider>
   );
