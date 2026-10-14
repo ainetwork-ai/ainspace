@@ -8,6 +8,7 @@ import { config } from '@/lib/wagmi-config';
 import { shortAddress } from '@/lib/utils';
 import { useCopyAddress } from '@/hooks/useCopyAddress';
 import { useThreadStore, useUserStore } from '@/stores';
+import { getSsoFlag } from '@/lib/backend/token-store';
 import { logoutBackendSession } from '@/lib/backend/auth';
 
 export default function WalletInfo() {
@@ -20,8 +21,9 @@ export default function WalletInfo() {
     const isBackendAuthed = useUserStore((s) => s.isBackendAuthed);
     const isKioskSession = useUserStore((s) => s.isKioskSession);
     const clearBackendAuth = useUserStore((s) => s.clearBackendAuth);
-    const displayAddress = address ?? backendUser?.ainAddress ?? null;
-    const label = displayAddress ? shortAddress(displayAddress) : (backendUser?.displayName || 'Account');
+    const isSso = getSsoFlag();
+    const displayAddress = (isSso ? backendUser?.ainAddress : address ?? backendUser?.ainAddress) ?? null;
+    const label = isSso ? (backendUser?.displayName || 'AIN SSO Account') : displayAddress ? shortAddress(displayAddress) : (backendUser?.displayName || 'Account');
     const { isCopied, handleCopy } = useCopyAddress(displayAddress ?? undefined);
     const clearThreads = useThreadStore((s) => s.clearThreads);
 
@@ -70,7 +72,7 @@ export default function WalletInfo() {
                 <button
                     onClick={handleDisconnect}
                     className="group cursor-pointer rounded p-0.5"
-                    aria-label="Disconnect wallet"
+                    aria-label="로그아웃"
                 >
                     <LogOut
                         size={14}

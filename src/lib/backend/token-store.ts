@@ -15,6 +15,7 @@ const KIOSK_KEY = 'ainspace-backend-kiosk';
 // Read to keep the session alive when no wagmi address is connected (page.tsx),
 // the same way the kiosk flag does.
 const EMAIL_KEY = 'ainspace-backend-email';
+const SSO_KEY = 'ainspace-backend-sso';
 
 const isBrowser = (): boolean => typeof window !== 'undefined';
 
@@ -55,6 +56,7 @@ export function setSession(user: BackendUser, tokens: BackendTokens): void {
   if (tokens.refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
   localStorage.setItem(EXPIRES_AT_KEY, String(Date.now() + tokens.expiresIn * 1000));
   localStorage.setItem(USER_KEY, JSON.stringify(user));
+  localStorage.removeItem(SSO_KEY);
 }
 
 export function setTokens(accessToken: string, refreshToken: string | undefined, expiresIn: number): void {
@@ -75,6 +77,7 @@ export function clearSession(): void {
   localStorage.removeItem(USER_KEY);
   localStorage.removeItem(KIOSK_KEY);
   localStorage.removeItem(EMAIL_KEY);
+  localStorage.removeItem(SSO_KEY);
 }
 
 export function setKioskFlag(on: boolean): void {
@@ -125,4 +128,13 @@ export function isAccessExpired(skewMs = 30000): boolean {
   const expiresAt = getExpiresAt();
   if (expiresAt === null) return true;
   return Date.now() >= expiresAt - skewMs;
+}
+
+export function setSsoFlag(on: boolean): void {
+    if (!isBrowser()) return;
+    if (on) localStorage.setItem(SSO_KEY, '1');
+    else localStorage.removeItem(SSO_KEY);
+}
+export function getSsoFlag(): boolean {
+    return isBrowser() && localStorage.getItem(SSO_KEY) === '1';
 }
