@@ -47,6 +47,9 @@ interface T3CTopicCardProps {
   topic: Topic;
   topicIndex: number;
   isExpanded: boolean;
+  claimCount?: number;
+  detailsLoading?: boolean;
+  detailsError?: boolean;
   onToggleExpanded: (expanded: boolean) => void;
 }
 
@@ -54,6 +57,9 @@ export function T3CTopicCard({
   topic,
   topicIndex,
   isExpanded,
+  claimCount,
+  detailsLoading = false,
+  detailsError = false,
   onToggleExpanded,
 }: T3CTopicCardProps) {
   const [highlightedMessageIds, setHighlightedMessageIds] = useState<
@@ -91,7 +97,7 @@ export function T3CTopicCard({
         <div className="mb-1 flex items-start justify-between gap-4">
           <h3 className="text-xl font-bold text-foreground">{topic.title}</h3>
           <span className="shrink-0 text-xs text-muted-foreground">
-            {allClaims.length} claims by {dotMessages.length} people
+            {claimCount ?? allClaims.length} claims by {dotMessages.length} people
           </span>
         </div>
       </div>
@@ -138,7 +144,7 @@ export function T3CTopicCard({
           </p>
         ) : (
           <span className="text-xs text-muted-foreground/70">
-            {allClaims.length} claims
+            {claimCount ?? allClaims.length} claims
           </span>
         )}
         <Button
@@ -151,7 +157,8 @@ export function T3CTopicCard({
         </Button>
       </div>
 
-      {isExpanded && (
+      {isExpanded && detailsLoading && <p role="status" className="border-t border-border px-6 py-4 text-sm text-muted-foreground">{detailsError ? "상세 내용을 불러오지 못했습니다. 상단의 다시 시도를 눌러 주세요." : "상세 내용을 불러오는 중…"}</p>}
+      {isExpanded && !detailsLoading && (
         <div className="border-t border-border px-6 py-4">
           {hasSubtopics ? (
             <SubtopicSections

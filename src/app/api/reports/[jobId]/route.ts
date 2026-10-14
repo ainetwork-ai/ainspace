@@ -25,7 +25,7 @@ export async function GET(
   try {
     const res = await fetch(
       `${REPORT_API_BASE_URL}/reports/${jobId}?format=full`,
-      { cache: "no-store" }
+      { cache: "no-store", signal: AbortSignal.timeout(8000) }
     );
 
     if (!res.headers.get("content-type")?.includes("application/json")) {

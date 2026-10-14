@@ -2,10 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { useAccount } from 'wagmi';
+import { usePathname } from 'next/navigation';
 import * as Sentry from '@sentry/nextjs';
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
     const { isConnecting } = useAccount();
+    const pathname = usePathname();
+    const publicReport = /^\/[^/]+\/report(?:\/|$)/.test(pathname ?? '');
     const [isMounted, setIsMounted] = useState(false);
     const [isHydrated, setIsHydrated] = useState(false);
 
@@ -13,9 +16,9 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         setIsMounted(true);
     }, []);
 
-    // Track hydration: wait for wagmi to finish initial connection check
+    // Public reports can render while wallet reconnect runs in the background.
     useEffect(() => {
-        if (!isConnecting && isMounted) {
+        if (isMounted && (publicReport || !isConnecting)) {
             const timer = setTimeout(() => {
                 setIsHydrated(true);
                 Sentry.addBreadcrumb({
@@ -26,7 +29,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
             }, 100);
             return () => clearTimeout(timer);
         }
-    }, [isConnecting, isMounted]);
+    }, [isConnecting, isMounted, publicReport]);
 
     if (!isMounted || !isHydrated) {
         return (
