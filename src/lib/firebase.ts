@@ -34,8 +34,8 @@ function initializeFirebaseAdmin(): App {
     let serviceAccountKey;
     try {
         // JSON 문자열로 저장된 경우 파싱
-        serviceAccountKey = typeof serviceAccount === 'string' 
-            ? JSON.parse(serviceAccount) 
+        serviceAccountKey = typeof serviceAccount === 'string'
+            ? JSON.parse(serviceAccount)
             : serviceAccount;
     } catch {
         throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY is not a valid JSON format.');
@@ -149,4 +149,3 @@ export async function deleteFileFromBucket(fileName: string): Promise<void> {
         );
     }
 }
-

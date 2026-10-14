@@ -15,7 +15,7 @@ import { ChatBoxRef } from '@/components/chat/ChatBox';
 import { useAgentStore, useUIStore, useUserStore } from '@/stores';
 import TileMap from '@/components/TileMap';
 import { Z_INDEX_OFFSETS } from '@/constants/common';
-import { StoredAgent } from '@/lib/redis';
+import { StoredAgent } from '@/lib/storage';
 import { useVillageStore } from '@/stores/useVillageStore';
 import { worldToGrid } from '@/lib/village-utils';
 import LoadingModal from '@/components/LoadingModal';

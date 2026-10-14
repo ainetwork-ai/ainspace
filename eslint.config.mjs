@@ -17,6 +17,7 @@ const eslintConfig = [
       ".next/**",
       "out/**",
       "build/**",
+      "**/dist/**", // Generated storage service output. Source is linted normally.
       "next-env.d.ts",
       "public/map/**/*.tsx", // Tiled XML tilesets, not TypeScript
     ],

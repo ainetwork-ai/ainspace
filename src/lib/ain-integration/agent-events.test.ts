@@ -1,12 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { StoredAgent } from '@/lib/redis';
+import type { StoredAgent } from '@/lib/storage';
 import { applyAgentEvents, latestStatusByAgent, type AgentStore } from './agent-events';
 import type { ResourceEvent } from './types';
 
 const AINIZE = 'https://ainize.example';
 
-/** 가짜 Redis: StoredAgent 를 url 로 든 맵 + 저장 호출 기록. */
+/** 가짜 AIN storage: StoredAgent 를 url 로 든 맵 + 저장 호출 기록. */
 function fakeStore(agents: StoredAgent[]): AgentStore & { saved: StoredAgent[]; byUrl: Map<string, StoredAgent> } {
   const byUrl = new Map(agents.map((a) => [a.url, a]));
   const saved: StoredAgent[] = [];

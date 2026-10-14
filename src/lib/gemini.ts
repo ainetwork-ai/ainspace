@@ -24,7 +24,7 @@ export async function generateAgentResponse(agentData: {
             ? 'You were directly mentioned with @ in this message, so respond directly and personally.'
             : 'You overheard this message and are responding because it seems relevant to you. Be more casual and contextual.';
 
-        const prompt = `You are ${agentData.name}, an AI agent in a tile-based adventure game. 
+        const prompt = `You are ${agentData.name}, an AI agent in a tile-based adventure game.
 
 Your characteristics:
 - Behavior: ${agentData.behavior} - ${behaviorDescriptions[agentData.behavior as keyof typeof behaviorDescriptions] || 'You have a unique personality.'}
@@ -49,7 +49,7 @@ Response style guidelines:
 
 Stay in character based on your behavior type:
 - Random agents are curious and spontaneous
-- Patrol agents are formal and duty-focused  
+- Patrol agents are formal and duty-focused
 - Explorer agents are adventurous and independent
 
 Generate your response now:`;
@@ -84,7 +84,7 @@ export async function generateCommentary(gameState: {
     try {
         const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
-        const prompt = `You are an AI explorer playing a tile-based adventure game. You're currently moving autonomously through an infinite procedural world. 
+        const prompt = `You are an AI explorer playing a tile-based adventure game. You're currently moving autonomously through an infinite procedural world.
 
 Current situation:
 - World position: (${gameState.worldPosition.x}, ${gameState.worldPosition.y})
@@ -99,7 +99,7 @@ Examples of good responses:
 - "Interesting, I've wandered into a water biome - the reflections on these blue tiles remind me of ancient maps marked 'here be dragons'."
 - "Just spotted the Explorer Bot ahead! I wonder if it's found anything interesting in this stone-filled terrain."
 - "These endless grass plains make me ponder the infinite nature of procedural worlds - each step reveals something new yet familiar."
-- "Moving through this desert biome, leaving a trail of footprints that exist only in memory and Redis."
+- "Moving through this desert biome, leaving a trail of footprints that exist only in memory and AIN storage."
 
 Generate your commentary now:`;
 

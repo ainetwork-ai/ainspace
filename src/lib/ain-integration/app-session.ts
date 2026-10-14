@@ -3,7 +3,7 @@
  *
  * 다른 BFF 라우트는 브라우저의 backend JWT 를 backend 로 그대로 전달하므로 backend 가 서명을 검사한다.
  * `/api/ain/*` 는 토큰을 backend 로 보내지 않고 `sub` 만 쓰기 때문에, 여기서 **직접** 검증해야 한다.
- * 검증하지 않으면 `h.e30.s` 같은 위조 JWT 로 아무 사용자의 aindrive 토큰·AIN SSO ID 토큰(Redis)을 골라
+ * 검증하지 않으면 `h.e30.s` 같은 위조 JWT 로 아무 사용자의 aindrive 토큰·AIN SSO ID 토큰(AIN storage)을 골라
  * 위임을 발급받을 수 있다. 두 방식 중 설정된 것을 쓰고, 둘 다 없으면 **거절**한다(열어 두지 않는다).
  *
  *   1) `BACKEND_JWT_SIGNING_KEY` — backend(ainteams/backend `JWT_SIGNING_KEY`)와 같은 HS256 키. 로컬에서

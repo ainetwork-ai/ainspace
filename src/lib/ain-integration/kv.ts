@@ -1,7 +1,7 @@
 /**
- * 작은 키-값 저장소 인터페이스 — 기본은 Space 의 Redis. 테스트는 메모리 구현을 끼운다(Redis 없이).
+ * 작은 키-값 저장소 인터페이스 — 기본은 Space 의 AIN storage. 테스트는 메모리 구현을 끼운다(AIN storage 없이).
  */
-import { getRedisClient } from '@/lib/redis';
+import { getStorageClient } from '@/lib/storage';
 
 export interface KvStore {
   get(key: string): Promise<string | null>;
@@ -14,18 +14,18 @@ export interface KvStore {
   hDel(key: string, field: string): Promise<void>;
 }
 
-export const redisKv: KvStore = {
-  async get(key) { return (await getRedisClient()).get(key); },
+export const storageKv: KvStore = {
+  async get(key) { return (await getStorageClient()).get(key); },
   async set(key, value, opts) {
-    const r = await getRedisClient();
+    const r = await getStorageClient();
     if (opts?.ttlSec) await r.set(key, value, { EX: opts.ttlSec });
     else await r.set(key, value);
   },
-  async del(key) { await (await getRedisClient()).del(key); },
-  async getDel(key) { return (await getRedisClient()).getDel(key); },
-  async hGetAll(key) { return (await getRedisClient()).hGetAll(key) as Promise<Record<string, string>>; },
-  async hSet(key, field, value) { await (await getRedisClient()).hSet(key, field, value); },
-  async hDel(key, field) { await (await getRedisClient()).hDel(key, field); },
+  async del(key) { await (await getStorageClient()).del(key); },
+  async getDel(key) { return (await getStorageClient()).getDel(key); },
+  async hGetAll(key) { return (await getStorageClient()).hGetAll(key) as Promise<Record<string, string>>; },
+  async hSet(key, field, value) { await (await getStorageClient()).hSet(key, field, value); },
+  async hDel(key, field) { await (await getStorageClient()).hDel(key, field); },
 };
 
 /** 테스트용 메모리 저장소. TTL 은 기록만 한다(검증용). */

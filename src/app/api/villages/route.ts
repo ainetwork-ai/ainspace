@@ -5,7 +5,7 @@ import {
   getVillageByGrid,
   getNearbyVillages,
   VillageMetadata,
-} from '@/lib/village-redis';
+} from '@/lib/village-storage';
 import { uploadVillageTmj, uploadVillageTileset, uploadVillageTsx, getRootTilesetBaseUrl } from '@/lib/gcs';
 import { getFirebaseStorage } from '@/lib/firebase';
 import { rewriteTmjTilesetPaths } from '@/lib/tmj-rewriter';

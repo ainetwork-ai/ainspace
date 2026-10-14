@@ -3,7 +3,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useAgentStore } from '@/stores';
 import { useVillageStore } from '@/stores/useVillageStore';
-import { StoredAgent } from '@/lib/redis';
+import { StoredAgent } from '@/lib/storage';
 import { worldToGrid } from '@/lib/village-utils';
 import { DEFAULT_MOVEMENT_MODE } from '@/constants/game';
 

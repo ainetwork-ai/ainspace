@@ -227,4 +227,3 @@ export async function removeAgentFromThread(threadId: string, agentName: string)
     throw new Error(`Failed to remove agent from thread: ${response.statusText}`);
   }
 }
-

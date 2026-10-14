@@ -78,7 +78,7 @@ export const DEFAULT_AUTH_DEFINITIONS: AuthDefinition[] = [
 ];
 
 export const initializeDefaultAuths = async (): Promise<void> => {
-  const { saveAuthDefinition } = await import('./redis');
+  const { saveAuthDefinition } = await import('./storage');
 
   for (const auth of DEFAULT_AUTH_DEFINITIONS) {
     await saveAuthDefinition(auth);

@@ -1,4 +1,4 @@
-import { StoredAgent } from '@/lib/redis';
+import { StoredAgent } from '@/lib/storage';
 import { cn } from '@/lib/utils';
 import ImportedAgentCard from './ImportedAgentCard';
 

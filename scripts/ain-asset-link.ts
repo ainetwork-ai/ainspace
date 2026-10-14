@@ -1,3 +1,4 @@
+import { storageClient } from '../src/lib/storage-client';
 /**
  * 17.7 기존 자산 → 소유자 Aindrive 연결 도구(배포 운영자가 돌린다). **기본은 dry-run** — 아무것도 쓰지 않는다.
  *
@@ -10,7 +11,7 @@
  *   그 소유자의 aindrive 연결이 있는 자산만 `link` 로, 대상 경로 `/Space assets/<객체 경로>` 를 보여준다.
  *   소유자가 없거나 불분명한 자산(타일 업로드·공용 타일셋·스프라이트·채팅 첨부)은 `refuse`.
  * - --apply: 소유자의 연결로 소유자의 첫 드라이브에 복사하고, `village:<slug>:ain_asset_links` 에 fileKey 를 적는다.
- *   원래 URL·객체·레코드는 그대로다. 자산마다 롤백 항목을 Redis(`ain:asset_link_rollback:<runId>`)와 로컬 JSONL 에 남긴다.
+ *   원래 URL·객체·레코드는 그대로다. 자산마다 롤백 항목을 AIN storage(`ain:asset_link_rollback:<runId>`)와 로컬 JSONL 에 남긴다.
  * - --rollback <runId>: 롤백 항목을 보여준다. --apply 를 함께 주면 링크를 되돌린다. 복사본은 남긴다 —
  *   --delete-copies 면 이 실행이 새로 만든, 그 뒤로 바뀌지 않은 복사본만 지운다.
  *
@@ -76,14 +77,12 @@ async function main(): Promise<number> {
   const { ownerKey } = await import('../src/lib/ain-integration/village-membership');
   type KvStore = import('../src/lib/ain-integration/kv').KvStore;
 
-  // 앱의 Redis 클라이언트(lib/redis.ts)는 끊기면 계속 다시 붙는다 — 도구는 자기 클라이언트를 쓰고, 한 번 실패하면 멈춘다.
-  // 연결은 처음 쓸 때 연다(플래그 off·자산 없음이면 Redis 를 건드리지 않는다). 오류 문장에 URL 이 실릴 수 있어 찍지 않는다.
-  const { createClient } = await import('redis');
-  const client = createClient({ url: process.env.AINSPACE_STORAGE_REDIS_URL || 'redis://localhost:6379', socket: { connectTimeout: 5000, reconnectStrategy: false } });
-  client.on('error', () => { /* 위와 같은 이유로 찍지 않는다 */ });
-  let opening: Promise<unknown> | null = null;
-  const r = async () => { if (!client.isOpen) { opening ??= client.connect(); await opening; } return client; };
-  const redisKv: KvStore = {
+  // 앱의 AIN storage 클라이언트(lib/storage.ts)는 끊기면 계속 다시 붙는다 — 도구는 자기 클라이언트를 쓰고, 한 번 실패하면 멈춘다.
+  // 연결은 처음 쓸 때 연다(플래그 off·자산 없음이면 AIN storage 를 건드리지 않는다). 오류 문장에 URL 이 실릴 수 있어 찍지 않는다.
+  const client = storageClient;
+
+  const r = async () => client;
+  const storageKv: KvStore = {
     async get(k) { return (await r()).get(k); },
     async set(k, v, o) { if (o?.ttlSec) await (await r()).set(k, v, { EX: o.ttlSec }); else await (await r()).set(k, v); },
     async del(k) { await (await r()).del(k); },
@@ -92,23 +91,23 @@ async function main(): Promise<number> {
     async hSet(k, f, v) { await (await r()).hSet(k, f, v); },
     async hDel(k, f) { await (await r()).hDel(k, f); },
   };
-  const redisVillageDirectory = {
+  const storageVillageDirectory = {
     async villageExists(slug: string) { const c = await r(); return Boolean(await c.sIsMember('villages:all', slug)) || (await c.exists(`village:${slug}`)) > 0; },
     async getOwner(slug: string) { return (await r()).get(ownerKey(slug)); },
   };
 
   const aindriveUrl = getAindriveUrl();
-  const hasConnection = async (userId: string) => (await readConnection(userId, { kv: redisKv })) !== null;
+  const hasConnection = async (userId: string) => (await readConnection(userId, { kv: storageKv })) !== null;
   // 연결 레코드가 있을 때만 토큰을 구한다 — 개발용 배포 공용 토큰으로 물러서지 않게.
   const getToken = async (userId: string) => ((await hasConnection(userId))
-    ? getAindriveAccountTokenFrom(userId, { kv: redisKv, aindriveUrl, clientId: getAindriveOAuthClientId() })
+    ? getAindriveAccountTokenFrom(userId, { kv: storageKv, aindriveUrl, clientId: getAindriveOAuthClientId() })
     : null);
 
   try {
     const rollbackRun = val('--rollback');
     if (has('--rollback')) {
       if (!rollbackRun) { console.error('--rollback <runId> 가 필요합니다.'); return 2; }
-      const entries = await linking.listRollbackEntries(redisKv, rollbackRun);
+      const entries = await linking.listRollbackEntries(storageKv, rollbackRun);
       if (!APPLY) {
         const view = entries.map((e) => ({ assetId: e.assetId, recordKey: e.recordKey, fileKey: e.fileKey, path: e.path, createdCopy: e.createdCopy, hadPrevious: e.previous !== null, at: e.at }));
         if (JSON_OUT) console.log(JSON.stringify({ runId: rollbackRun, dryRun: true, entries: view }, null, 2));
@@ -118,7 +117,7 @@ async function main(): Promise<number> {
         }
         return 0;
       }
-      const results = await linking.rollbackAssetLinks(rollbackRun, { kv: redisKv, aindriveUrl, getToken, deleteCopies: has('--delete-copies') });
+      const results = await linking.rollbackAssetLinks(rollbackRun, { kv: storageKv, aindriveUrl, getToken, deleteCopies: has('--delete-copies') });
       if (JSON_OUT) console.log(JSON.stringify({ runId: rollbackRun, results }, null, 2));
       else for (const r of results) console.log(`  ${r.assetId}  link=${r.link}  copy=${r.copy}`);
       return results.some((r) => r.copy === 'kept_error') ? 1 : 0;
@@ -129,7 +128,7 @@ async function main(): Promise<number> {
       if (!want(flag)) continue;
       try { assets.push(...(await fn())); } catch (e) { status[flag.slice(2)] = `failed (${e instanceof Error ? e.name : 'error'})`; }
     }
-    const plan = await linking.planAssetLinks(assets, { kv: redisKv, villages: redisVillageDirectory, hasConnection }, { ownerUserId: val('--owner'), village: val('--village') });
+    const plan = await linking.planAssetLinks(assets, { kv: storageKv, villages: storageVillageDirectory, hasConnection }, { ownerUserId: val('--owner'), village: val('--village') });
 
     if (!APPLY) {
       const count = (a: string, r?: string) => plan.filter((p) => p.action === a && (!r || p.reason === r)).length;
@@ -150,7 +149,7 @@ async function main(): Promise<number> {
     const runId = val('--run-id') ?? `link-${new Date().toISOString().replace(/[-:.]/g, '').slice(0, 15)}`;
     const logPath = resolve(process.cwd(), val('--rollback-file') ?? `ain-asset-link-rollback-${runId}.jsonl`);
     const results = await linking.applyAssetLinks(plan, {
-      kv: redisKv, villages: redisVillageDirectory, hasConnection, getToken, aindriveUrl, runId,
+      kv: storageKv, villages: storageVillageDirectory, hasConnection, getToken, aindriveUrl, runId,
       readSource: (a) => { const r = readers.get(a.store); if (!r) throw new Error('no_reader'); return r(a); },
       onRollbackEntry: (e) => appendFileSync(logPath, JSON.stringify(e) + '\n', { mode: 0o600 }),
     });
@@ -164,7 +163,7 @@ async function main(): Promise<number> {
     }
     return results.some((r) => r.outcome === 'failed') ? 1 : 0;
   } finally {
-    if (client.isOpen) await client.quit().catch(() => undefined);
+    await client.close();
   }
 }
 

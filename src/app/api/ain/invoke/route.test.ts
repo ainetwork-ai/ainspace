@@ -114,7 +114,7 @@ test('SSO 클라이언트 자격 없음 → sso:null 로 전달(어댑터가 판
   });
 }));
 
-test('위조(서명 없는)·sub 없는 bearer 와 ?token= 쿼리 → 401 auth_required; 원본·Redis 조회는 일어나지 않는다', withEnv({ ...ON, ...SSO_ENV }, async () => {
+test('위조(서명 없는)·sub 없는 bearer 와 ?token= 쿼리 → 401 auth_required; 원본·AIN storage 조회는 일어나지 않는다', withEnv({ ...ON, ...SSO_ENV }, async () => {
   let touched = 0;
   await withDeps({
     getAindriveAccountToken: async () => { touched++; return 't'; },

@@ -1,7 +1,7 @@
 /**
  * 17.5 마을 자료 구분 — 서버 전용.
  *
- * 마을에 붙인 aindrive 파일 참조마다 **누구에게 보이는지(audience)** 를 Redis 필드 하나로 둔다.
+ * 마을에 붙인 aindrive 파일 참조마다 **누구에게 보이는지(audience)** 를 AIN storage 필드 하나로 둔다.
  *   KV hash `village:<slug>:ain_materials` — field = fileKey(`issuer#driveId#fileId`),
  *   value = JSON `{ ref: FileRef, audience: 'public'|'members'|'agent', addedBy, addedAt }`.
  *
@@ -14,8 +14,8 @@
  * 참조에는 토큰·서명 URL 이 없다(계약). 바이트는 aindrive 에 남고 여는 사람의 권한을 aindrive 가 다시 판단한다 —
  * 여기의 audience 는 **제품 안에서 누구에게 목록을 보여 주고 무엇을 에이전트에 넘길지**만 정한다.
  */
-import { redisKv, type KvStore } from './kv';
-import { materialsKey, membersKey, redisVillageDirectory } from './village-membership';
+import { storageKv, type KvStore } from './kv';
+import { materialsKey, membersKey, storageVillageDirectory } from './village-membership';
 import { fileKey, isFileRef, type FileRef } from './types';
 
 export const MATERIAL_AUDIENCES = ['public', 'members', 'agent'] as const;
@@ -71,7 +71,7 @@ export interface VillageMaterialsStore {
 }
 
 /** 멤버 판정은 village-membership.ts(소유자 + 멤버 set). */
-export const defaultVillageStore: VillageMaterialsStore = { kv: redisKv, isMember: (slug, userId) => redisVillageDirectory.isMember(slug, userId) };
+export const defaultVillageStore: VillageMaterialsStore = { kv: storageKv, isMember: (slug, userId) => storageVillageDirectory.isMember(slug, userId) };
 
 export async function listVillageMaterials(slug: string, s: VillageMaterialsStore = defaultVillageStore): Promise<VillageMaterial[]> {
   const h = await s.kv.hGetAll(materialsKey(slug));

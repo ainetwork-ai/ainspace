@@ -75,4 +75,3 @@ export default function DeleteConfirmModal({ onConfirm, onCancel, children, isDa
         </Dialog>
     );
 }
-

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { cn } from '@/lib/utils';
-import { StoredAgent } from '@/lib/redis';
+import { StoredAgent } from '@/lib/storage';
 import { MOVEMENT_MODE } from '@/constants/game';
 import { TileLayers } from '@/stores/useBuildStore';
 import { TabType, useUIStore } from '@/stores/useUIStore';

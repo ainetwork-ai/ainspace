@@ -222,4 +222,3 @@ export const TOPIC_COLORS = [
   "#a855f7",
   "#d946ef",
 ];
-

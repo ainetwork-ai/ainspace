@@ -1,7 +1,7 @@
 // 환경변수 로딩 (가장 먼저 실행되어야 함)
 import { config } from 'dotenv';
 import { resolve } from 'path';
-import { createClient } from 'redis';
+import { storageClient } from '../src/lib/storage-client';
 
 // .env.local 파일 우선, 없으면 .env 파일 로드
 const envLocalResult = config({ path: resolve(process.cwd(), '.env.local') });
@@ -13,7 +13,7 @@ if (envLocalResult.error && envResult.error) {
   console.log('환경변수 파일 로드 완료');
 }
 
-import { StoredAgent } from "@/lib/redis";
+import { StoredAgent } from "@/lib/storage";
 
 const AGENTS_KEY = 'agents:';
 
@@ -24,29 +24,25 @@ async function migratePlacedAgents() {
   try {
     console.log('Placed Agents 마이그레이션 시작...');
 
-    // 환경변수 확인 및 Redis 클라이언트 직접 생성
-    const redisUrl = process.env.AINSPACE_STORAGE_REDIS_URL || 'redis://localhost:6379';
-    const maskedUrl = redisUrl.replace(/:[^:@]+@/, ':****@');
-    console.log(`Redis URL: ${maskedUrl}`);
+    // 환경변수 확인 및 AIN storage 클라이언트 직접 생성
+    const storageUrl = process.env.AINSPACE_STORAGE_URL || 'http://127.0.0.1:13006';
+    const maskedUrl = storageUrl.replace(/:[^:@]+@/, ':****@');
+    console.log(`AIN storage URL: ${maskedUrl}`);
 
-    if (!process.env.AINSPACE_STORAGE_REDIS_URL) {
-      console.error('⚠️  경고: AINSPACE_STORAGE_REDIS_URL 환경변수가 설정되지 않았습니다. localhost를 사용합니다.');
+    if (!process.env.AINSPACE_STORAGE_URL) {
+      console.error('⚠️  경고: AINSPACE_STORAGE_URL 환경변수가 설정되지 않았습니다. localhost를 사용합니다.');
     }
 
-    // Redis 클라이언트 직접 생성 (환경변수가 로드된 후)
-    const redis = createClient({
-      url: redisUrl
-    });
+    // AIN storage 클라이언트 직접 생성 (환경변수가 로드된 후)
+    const storage = storageClient;
 
-    redis.on('error', (err) => {
-      console.error('Redis Client Error', err);
-    });
 
-    await redis.connect();
-    console.log('Redis 연결 성공');
+
+    await storage.connect();
+    console.log('AIN storage 연결 성공');
 
     // 모든 에이전트 키 가져오기
-    const keys = await redis.keys(`${AGENTS_KEY}*`);
+    const keys = await storage.keys(`${AGENTS_KEY}*`);
     console.log(`총 ${keys.length}개의 에이전트 키를 찾았습니다.`);
 
     if (keys.length === 0) {
@@ -55,7 +51,7 @@ async function migratePlacedAgents() {
     }
 
     // 모든 에이전트 데이터 가져오기
-    const values = await redis.mGet(keys);
+    const values = await storage.mGet(keys);
 
     // user별 placed agents 그룹핑
     const userPlacedAgents: Map<string, { url: string; timestamp: number }[]> = new Map();
@@ -109,7 +105,7 @@ async function migratePlacedAgents() {
       }
     }
 
-    console.log('\n=== Redis에 저장 시작 ===');
+    console.log('\n=== AIN storage에 저장 시작 ===');
 
     // user별로 placed_agents hash에 저장
     let userCount = 0;
@@ -118,7 +114,7 @@ async function migratePlacedAgents() {
         const hashKey = `user:${userId}:placed_agents`;
 
         // 기존 데이터 확인
-        const existingCount = await redis.hLen(hashKey);
+        const existingCount = await storage.hLen(hashKey);
         if (existingCount > 0) {
           console.log(`⚠️  사용자 ${userId}의 placed_agents가 이미 존재합니다 (${existingCount}개). 덮어씁니다.`);
         }
@@ -133,7 +129,7 @@ async function migratePlacedAgents() {
           });
         }
 
-        await redis.hSet(hashKey, hashData);
+        await storage.hSet(hashKey, hashData);
         console.log(`✅ 사용자 ${userId}: ${agents.length}개의 placed agents 저장 완료`);
         userCount++;
 
@@ -150,9 +146,9 @@ async function migratePlacedAgents() {
     console.log(`오류: ${errorCount}개`);
     console.log(`처리된 사용자: ${userCount}명`);
 
-    // Redis 연결 종료
-    await redis.quit();
-    console.log('Redis 연결 종료');
+    // AIN storage 연결 종료
+    await storage.close();
+    console.log('AIN storage 연결 종료');
 
   } catch (error) {
     console.error('마이그레이션 중 치명적 오류 발생:', error);

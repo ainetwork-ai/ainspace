@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { uploadImageToBucket, deleteFileFromBucket } from '@/lib/firebase';
-import { getRedisClient, StoredAgent } from '@/lib/redis';
+import { getStorageClient, StoredAgent } from '@/lib/storage';
 import sharp from 'sharp';
 
 const AGENTS_KEY = 'agents:';
@@ -8,11 +8,11 @@ const AGENTS_KEY = 'agents:';
 /**
  * POST /api/agents/upload-image
  * Upload sprite image to Firebase Storage
- * 
+ *
  * FormData:
  * - image: File (required) - Image file to upload
  * - agentUrl: string (required) - Agent URL used for filename generation and agent update
- * 
+ *
  * Returns:
  * - spriteUrl: string - URL of the uploaded image
  * - agentUpdated: boolean - Whether the agent was updated
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     // Upload image to Firebase Storage
     const arrayBuffer = await imageFile.arrayBuffer();
     const fileBuffer = Buffer.from(arrayBuffer);
-    
+
     // Extract image dimensions using sharp
     let height: number | undefined;
     try {
@@ -56,17 +56,17 @@ export async function POST(request: NextRequest) {
       console.warn('Failed to extract image dimensions:', error);
       // Continue even if dimension extraction fails
     }
-    
+
     // Generate agentKey
     const agentKey = `${AGENTS_KEY}${Buffer.from(agentUrl).toString('base64')}`;
-    
+
     // Generate filename: agentUrl base64 encoded + timestamp
     const timestamp = Date.now();
     const agentUrlBase64 = agentKey.replace(/[/+=]/g, '');
     const originalFilename = imageFile.name || 'sprite.png';
     const fileExtension = originalFilename.split('.').pop() || 'png';
     const fileName = `${repository}/sprites/${agentUrlBase64}-${timestamp}.${fileExtension}`;
-    
+
     // Upload to Firebase Storage
     const spriteUrl = await uploadImageToBucket(
       fileBuffer,
@@ -77,13 +77,13 @@ export async function POST(request: NextRequest) {
     // Update the agent's spriteUrl
     let agentUpdated = false;
     try {
-        // Try Redis first
-        const redis = await getRedisClient();
-        const existing = await redis.get(agentKey);
-        
+        // Try AIN storage first
+        const storage = await getStorageClient();
+        const existing = await storage.get(agentKey);
+
         if (existing) {
           const existingData: StoredAgent = JSON.parse(existing);
-          
+
           // Delete old sprite file if exists
           if (existingData.spriteUrl) {
             try {
@@ -99,17 +99,17 @@ export async function POST(request: NextRequest) {
               // Continue even if deletion fails
             }
           }
-          
+
           // Update agent with new spriteUrl
           const updatedData: StoredAgent = {
             ...existingData,
             spriteUrl: spriteUrl,
             spriteHeight: height
           };
-          
-          await redis.set(agentKey, JSON.stringify(updatedData));
+
+          await storage.set(agentKey, JSON.stringify(updatedData));
           agentUpdated = true;
-          console.log(`Updated agent sprite in Redis: ${agentUrl}`);
+          console.log(`Updated agent sprite in AIN storage: ${agentUrl}`);
         } else {
           return NextResponse.json(
             { error: 'Agent not found' },
@@ -126,15 +126,15 @@ export async function POST(request: NextRequest) {
       spriteUrl: spriteUrl,
       agentUpdated: agentUpdated,
       spriteHeight: height,
-      message: agentUpdated 
-        ? 'Image uploaded and agent updated successfully' 
+      message: agentUpdated
+        ? 'Image uploaded and agent updated successfully'
         : 'Image uploaded successfully'
     });
 
   } catch (error) {
     console.error('Error uploading image:', error);
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to upload image',
         details: error instanceof Error ? error.message : 'Unknown error'
       },
@@ -142,4 +142,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

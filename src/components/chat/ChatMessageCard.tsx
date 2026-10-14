@@ -58,7 +58,7 @@ export default function ChatMessageCard({ message }: { message: ChatMessage }) {
     }, [agent, playerPosition, message.senderId]);
 
     const renderSenderName = message.sender === 'user' ? 'Me' : getAgentNameAndPosition;
-    
+
     return (
         <div className='flex w-full min-w-0 flex-col items-start gap-1'>
             <div className='flex flex-row items-center gap-2'>

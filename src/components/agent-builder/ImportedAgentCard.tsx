@@ -1,6 +1,6 @@
 'use client';
 
-import { StoredAgent } from '@/lib/redis';
+import { StoredAgent } from '@/lib/storage';
 import { AgentProfile } from '@/components/AgentProfile';
 import Button from '@/components/ui/Button';
 import { cn } from '@/lib/utils';

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAllVillages, updateVillage, VillageMetadata } from '@/lib/village-redis';
+import { getAllVillages, updateVillage, VillageMetadata } from '@/lib/village-storage';
 import {
   uploadSharedTileset,
   uploadVillageTmj,
@@ -37,7 +37,7 @@ function isAlreadyMigrated(village: VillageMetadata, rootBaseUrl: string): boole
  * 기존 마을별 타일셋을 공유 타일셋(common/tilesets/)으로 마이그레이션한다.
  * - TMJ의 tileset 경로를 공유 경로로 리라이트
  * - 타일셋 파일을 common/tilesets/에 복사
- * - Redis의 tilesetBaseUrl을 루트 경로로 업데이트
+ * - AIN storage의 tilesetBaseUrl을 루트 경로로 업데이트
  *
  * Body (JSON):
  *   - slugs?: string[]   — 미지정 시 전체 마을
@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
           const tmjBuffer = Buffer.from(rewrittenTmj);
           const newTmjUrl = await uploadVillageTmj(village.slug, tmjBuffer);
 
-          // 3g. Redis의 tilesetBaseUrl을 루트 경로로 업데이트
+          // 3g. AIN storage의 tilesetBaseUrl을 루트 경로로 업데이트
           await updateVillage(village.slug, {
             tmjUrl: newTmjUrl,
             tilesetBaseUrl: rootBaseUrl,

@@ -33,7 +33,7 @@ test('card aliases retain exact identity; missing records do not become new part
     assert.equal(result[0]!.url, urls[0]);
 });
 
-test('no selected agents requires no Redis connection or read', async () => {
+test('no selected agents requires no AIN storage connection or read', async () => {
     const result = await readAgentsByUrls({ async mGet() { throw new Error('must not read'); } }, []);
     assert.deepEqual(result, []);
 });

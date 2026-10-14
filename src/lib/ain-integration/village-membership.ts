@@ -14,7 +14,7 @@
  *
  * 마을 자료를 에이전트에 넘기는 invoke 는 (에이전트가 그 마을에 배치됨) AND (호출자가 멤버이거나 체류 중) 일 때만 허용한다.
  */
-import { getAgents, getRedisClient, type StoredAgent } from '@/lib/redis';
+import { getAgents, getStorageClient, type StoredAgent } from '@/lib/storage';
 import { readBearerHeader, verifyAppSession } from './app-session';
 import { isAinIntegrationEnabled } from './config';
 
@@ -49,40 +49,40 @@ export interface VillageDirectory {
 export const isPlacedIn = (a: Pick<StoredAgent, 'commonAgentId' | 'isPlaced' | 'state' | 'backendStatus' | 'ainOwnerChange'>, slug: string, agentKey: string) =>
   a.commonAgentId === agentKey && a.isPlaced === true && a.state?.mapName === slug && a.backendStatus !== 'inactive' && !a.ainOwnerChange;
 
-export const redisVillageDirectory: VillageDirectory = {
+export const storageVillageDirectory: VillageDirectory = {
   async villageExists(slug) {
-    const r = await getRedisClient();
+    const r = await getStorageClient();
     return Boolean(await r.sIsMember('villages:all', slug)) || (await r.exists(`village:${slug}`)) > 0;
   },
-  async getOwner(slug) { return (await getRedisClient()).get(ownerKey(slug)); },
+  async getOwner(slug) { return (await getStorageClient()).get(ownerKey(slug)); },
   async setOwner(slug, userId) {
-    const r = await getRedisClient();
+    const r = await getStorageClient();
     await r.set(ownerKey(slug), userId);
     await r.sAdd(membersKey(slug), userId);
   },
   async isMember(slug, userId) {
-    const r = await getRedisClient();
+    const r = await getStorageClient();
     if (await r.sIsMember(membersKey(slug), userId)) return true;
     return (await r.get(ownerKey(slug))) === userId;
   },
-  async addMember(slug, userId) { await (await getRedisClient()).sAdd(membersKey(slug), userId); },
-  async removeMember(slug, userId) { await (await getRedisClient()).sRem(membersKey(slug), userId); },
-  async listMembers(slug) { return ((await (await getRedisClient()).sMembers(membersKey(slug))) as string[]).sort(); },
+  async addMember(slug, userId) { await (await getStorageClient()).sAdd(membersKey(slug), userId); },
+  async removeMember(slug, userId) { await (await getStorageClient()).sRem(membersKey(slug), userId); },
+  async listMembers(slug) { return ((await (await getStorageClient()).sMembers(membersKey(slug))) as string[]).sort(); },
   async markPresent(slug, userId, nowMs) {
-    const r = await getRedisClient();
+    const r = await getStorageClient();
     await r.hSet(presenceKey(slug), userId, String(nowMs));
     await r.expire(presenceKey(slug), 3600);
   },
-  async clearPresent(slug, userId) { await (await getRedisClient()).hDel(presenceKey(slug), userId); },
+  async clearPresent(slug, userId) { await (await getStorageClient()).hDel(presenceKey(slug), userId); },
   async isPresent(slug, userId, nowMs) {
-    const at = Number((await (await getRedisClient()).hGet(presenceKey(slug), userId)) ?? 0);
+    const at = Number((await (await getStorageClient()).hGet(presenceKey(slug), userId)) ?? 0);
     return at > 0 && nowMs - at <= PRESENCE_TTL_MS;
   },
   async isAgentPlacedIn(slug, agentKey) {
     return (await getAgents()).some((a) => isPlacedIn(a, slug, agentKey));
   },
   async clearVillage(slug) {
-    await (await getRedisClient()).del([ownerKey(slug), membersKey(slug), materialsKey(slug), presenceKey(slug), assetLinksKey(slug)]);
+    await (await getStorageClient()).del([ownerKey(slug), membersKey(slug), materialsKey(slug), presenceKey(slug), assetLinksKey(slug)]);
   },
 };
 

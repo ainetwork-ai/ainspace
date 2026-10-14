@@ -99,7 +99,7 @@ export function localToWorld(
 }
 
 /**
- * 격자 좌표를 Redis 키 형식 문자열로 변환한다.
+ * 격자 좌표를 AIN storage 키 형식 문자열로 변환한다.
  */
 export function gridKey(gridX: number, gridY: number): string {
   return `${gridX},${gridY}`;

@@ -1,9 +1,9 @@
 // 환경변수 로딩 (가장 먼저 실행되어야 함)
 import { config } from 'dotenv';
 import { resolve } from 'path';
-import { createClient } from 'redis';
+import { storageClient } from '../src/lib/storage-client';
 import * as readline from 'readline';
-import { StoredAgent } from "@/lib/redis";
+import { StoredAgent } from "@/lib/storage";
 import { MOVEMENT_MODE } from "@/constants/game";
 
 // .env.local 파일 우선, 없으면 .env 파일 로드
@@ -141,20 +141,19 @@ async function getMovementMode(current: string | undefined): Promise<MOVEMENT_MO
  * 에이전트를 절대 좌표로 이동 + movement mode 변경
  */
 async function moveAgent() {
-  const redisUrl = process.env.AINSPACE_STORAGE_REDIS_URL || 'redis://localhost:6379';
 
-  if (!process.env.AINSPACE_STORAGE_REDIS_URL) {
-    console.warn('⚠️  경고: AINSPACE_STORAGE_REDIS_URL 환경변수가 설정되지 않았습니다. localhost를 사용합니다.');
+  if (!process.env.AINSPACE_STORAGE_URL) {
+    console.warn('⚠️  경고: AINSPACE_STORAGE_URL 환경변수가 설정되지 않았습니다. localhost를 사용합니다.');
   }
 
-  const redis = createClient({ url: redisUrl });
-  redis.on('error', (err) => console.error('Redis Client Error', err));
-  await redis.connect();
-  console.log('Redis 연결 성공');
+  const storage = storageClient;
+
+  await storage.connect();
+  console.log('AIN storage 연결 성공');
 
   try {
     // 에이전트 목록 로드
-    const keys = await redis.keys(`${AGENTS_KEY}*`);
+    const keys = await storage.keys(`${AGENTS_KEY}*`);
     console.log(`총 ${keys.length}개의 에이전트 키를 찾았습니다.`);
 
     if (keys.length === 0) {
@@ -162,7 +161,7 @@ async function moveAgent() {
       return;
     }
 
-    const values = await redis.mGet(keys);
+    const values = await storage.mGet(keys);
     const agents: StoredAgent[] = [];
     const agentKeys: string[] = [];
 
@@ -244,7 +243,7 @@ async function moveAgent() {
         }
       };
 
-      await redis.set(key, JSON.stringify(updatedAgent));
+      await storage.set(key, JSON.stringify(updatedAgent));
       const name = agent.card?.name || agent.url;
       console.log(`  ✓ ${name} 업데이트 완료`);
       updated++;
@@ -252,8 +251,8 @@ async function moveAgent() {
 
     console.log(`\n=== 완료: ${updated}개 에이전트 업데이트됨 ===`);
   } finally {
-    await redis.quit();
-    console.log('Redis 연결 종료');
+    await storage.close();
+    console.log('AIN storage 연결 종료');
   }
 }
 

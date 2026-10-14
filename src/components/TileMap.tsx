@@ -69,19 +69,19 @@ function TileMap({
     const isCurrentVillageLoaded = useVillageStore((s) => s.isCurrentVillageLoaded);
     const loadedVillagesMap = useVillageStore((s) => s.loadedVillages);
     const loadedVillagesArr = useMemo(() => Array.from(loadedVillagesMap.values()).map((v) => v.metadata), [loadedVillagesMap]);
-    
+
     const [zoomLevel, setZoomLevel] = useState(fixedZoom !== undefined ? fixedZoom : 1.0);
     const MIN_ZOOM = 0.5;
     const MAX_ZOOM = 2.0;
     const ZOOM_STEP = 0.25;
 
     const tileSize = baseTileSize * (fixedZoom !== undefined ? fixedZoom : zoomLevel);
-    
+
     const { canvasRef, cameraTilePosition } = useTiledMap(
         canvasSize,
         tileSize
     );
-  
+
     const [hoveredWorldCoords, setHoveredWorldCoords] = useState<{ worldX: number; worldY: number } | null>(null);
     const [isTouchDevice, setIsTouchDevice] = useState(false);
 

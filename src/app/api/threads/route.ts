@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAgentsByUrls, setAgentBackendUuid } from '@/lib/redis';
+import { getAgentsByUrls, setAgentBackendUuid } from '@/lib/storage';
 import { generateAgentComboId } from '@/lib/hash';
 import { Thread } from '@/stores';
 import { backendFetch, getBearer } from '@/lib/backend/server-client';

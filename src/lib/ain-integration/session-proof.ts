@@ -11,7 +11,7 @@
  * (teams-delegation.ts — Teams 가 봉인해 둔 같은 사용자의 ID 토큰으로 SSO 에 요청). 이 함수는 그 env 가 없을 때의
  * 예전 경로(= auth_required)와 개발용 파일 경로만 남는다.
  *
- * 예전의 평문 Redis 키(`ain:sso_id_token:<userId>`)는 쓰는 곳이 없었고 평문 저장이라 읽지 않는다.
+ * 예전의 평문 AIN storage 키(`ain:sso_id_token:<userId>`)는 쓰는 곳이 없었고 평문 저장이라 읽지 않는다.
  * 절대 다른 토큰(backend JWT·Google·Firebase)을 세션 증명으로 대신 보내지 않는다.
  *
  * 개발 전용: env `AIN_SESSION_PROOF_FILE` — ID 토큰이 든 파일(NODE_ENV=production 이면 무시). 라이브 체크용.

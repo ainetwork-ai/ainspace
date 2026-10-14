@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { StoredAgent } from '@/lib/redis';
+import { StoredAgent } from '@/lib/storage';
 import { MOVEMENT_MODE } from '@/constants/game';
 
 export const FOOTER_HEIGHT = 73; // 72px + 1px border

@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    
+
     const { agentUrl, message, contextId, metadata } = body;
 
     if (!agentUrl || !message) {
@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
 
     // Create A2A client from card URL
     const client = await A2AClient.fromCardUrl(agentUrl);
-    
+
     // Prepare message payload using A2A SDK format
     const userMessage: Message = {
       kind: 'message',
@@ -43,16 +43,16 @@ export async function POST(request: NextRequest) {
 
     // A2A 클라이언트로 메시지 전송 (SDK가 폴링 및 응답 처리 자동화)
     const response = await client.sendMessage(sendParams);
-    
+
     console.log('Raw A2A response:', JSON.stringify(response, null, 2));
-    
+
     let responseText = 'Agent received your message but did not respond.';
     let finalContextId = contextId;
     let finalTaskId;
-    
+
     // Check different possible response structures
     let responseMessage = null;
-    
+
     // Try different ways to access the response message
     if (response && typeof response === 'object') {
       // JSON-RPC format: response.result IS the message
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
         console.log('Response structure not recognized, available keys:', Object.keys(response));
       }
     }
-    
+
     // Extract response data if found
     if (responseMessage && typeof responseMessage === 'object') {
       // Extract contextId and taskId
@@ -88,15 +88,15 @@ export async function POST(request: NextRequest) {
       if ('taskId' in responseMessage) {
         finalTaskId = responseMessage.taskId || finalTaskId;
       }
-      
+
       // Extract text from message parts
       if ('parts' in responseMessage && Array.isArray(responseMessage.parts)) {
         const textParts = responseMessage.parts.filter((part: unknown) => {
-          return part && 
-                 typeof part === 'object' && 
-                 'kind' in part && 
-                 part.kind === 'text' && 
-                 'text' in part && 
+          return part &&
+                 typeof part === 'object' &&
+                 'kind' in part &&
+                 part.kind === 'text' &&
+                 'text' in part &&
                  typeof (part as { text: unknown }).text === 'string';
         });
         if (textParts.length > 0) {
@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
       response: responseText,
       contextId: finalContextId,
