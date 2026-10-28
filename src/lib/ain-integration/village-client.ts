@@ -78,6 +78,7 @@ export interface PresenceSyncOptions {
 export class VillagePresenceSync {
   private current: string | null = null;
   private timer: unknown = null;
+  private connectionId: string | null = null;
   private readonly o: Required<PresenceSyncOptions>;
 
   constructor(o: PresenceSyncOptions) {
@@ -92,13 +93,14 @@ export class VillagePresenceSync {
   get slug(): string | null { return this.current; }
 
   private put(slug: string) {
-    void this.o.fetcher(`/api/ain/villages/${enc(slug)}/presence`, { method: 'PUT' }).catch(() => {});
+    void this.o.fetcher(`/api/ain/villages/${enc(slug)}/presence`, { method: 'PUT', headers: { 'X-Ain-Presence-Connection': this.connectionId! } }).catch(() => {});
   }
 
   enter(slug: string): void {
     if (this.current === slug) return;
     this.leave();
     this.current = slug;
+    this.connectionId = globalThis.crypto.randomUUID();
     this.put(slug);
     this.timer = this.o.setInterval(() => { if (this.current) this.put(this.current); }, this.o.intervalMs);
   }
@@ -109,6 +111,7 @@ export class VillagePresenceSync {
     const slug = this.current;
     if (!slug) return;
     this.current = null;
-    void this.o.fetcher(`/api/ain/villages/${enc(slug)}/presence`, { method: 'DELETE', ...(opts.keepalive ? { keepalive: true } : {}) }).catch(() => {});
+    const connectionId = this.connectionId!; this.connectionId = null;
+    void this.o.fetcher(`/api/ain/villages/${enc(slug)}/presence`, { method: 'DELETE', headers: { 'X-Ain-Presence-Connection': connectionId }, ...(opts.keepalive ? { keepalive: true } : {}) }).catch(() => {});
   }
 }

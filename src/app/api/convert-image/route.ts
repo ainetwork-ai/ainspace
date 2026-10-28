@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import { ainizeInferenceConfig, editAinizeImage } from '@/lib/ainize-inference';
 import { createJob, updateJobStatus } from '@/lib/jobManager';
 
 // Generate unique job ID
@@ -10,9 +10,6 @@ function generateJobId(): string {
 // Async function to process the image conversion
 async function processImageConversion(jobId: string, imageFile: File) {
   try {
-    // Optional image conversion credentials are needed when a job runs,
-    // not while CI imports routes to build the rest of the application.
-    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     updateJobStatus(jobId, { status: 'processing' });
 
     const prompt = `Convert the provided building image into a 2D RPG style.
@@ -21,46 +18,35 @@ async function processImageConversion(jobId: string, imageFile: File) {
 -Background: transparent; spacing/margins = 0.
 -Output: one PNG.`;
 
-    const result = await client.images.edit({
-      model: "dall-e-2",
-      image: imageFile,
-      prompt: prompt,
-      n: 1,
-      size: "512x512",
-      response_format: "b64_json"
-    });
-
-    const imageBase64 = result.data?.[0]?.b64_json;
-
-    if (!imageBase64) {
-      updateJobStatus(jobId, {
-        status: 'failed',
-        error: 'Failed to generate image'
-      });
-      return;
-    }
+    const image = await editAinizeImage(imageFile, prompt);
 
     updateJobStatus(jobId, { 
       status: 'completed', 
-      result: `data:image/png;base64,${imageBase64}` 
+      result: image
     });
 
-  } catch (error: unknown) {
-    console.error('Image conversion error:', error);
+  } catch {
+    console.error('Ainize image conversion unavailable');
     updateJobStatus(jobId, {
       status: 'failed',
-      error: error instanceof Error ? error.message : 'Failed to convert image'
+      error: 'Image conversion is temporarily unavailable. Please try again.'
     });
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
+    if (!ainizeInferenceConfig()?.imageEditModel) {
+      return NextResponse.json({ error: 'Image conversion is temporarily unavailable.' }, { status: 503 });
+    }
     const formData = await request.formData();
-    const file = formData.get('image') as File;
+    const file = formData.get('image');
 
-    if (!file) {
+    if (!(file instanceof File)) {
       return NextResponse.json({ error: 'No image provided' }, { status: 400 });
+    }
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || !file.size || file.size > 10 * 1024 * 1024) {
+      return NextResponse.json({ error: 'Use a PNG, JPEG or WebP image up to 10 MB.' }, { status: 400 });
     }
 
     // Generate job ID and create job
@@ -79,10 +65,10 @@ export async function POST(request: NextRequest) {
       message: 'Image conversion started. Use the jobId to check status.'
     });
 
-  } catch (error: unknown) {
-    console.error('Image conversion error:', error);
+  } catch {
+    console.error('Ainize image conversion request failed');
     return NextResponse.json({
-      error: error instanceof Error ? error.message : 'Failed to start image conversion'
+      error: 'Failed to start image conversion'
     }, { status: 500 });
   }
 }

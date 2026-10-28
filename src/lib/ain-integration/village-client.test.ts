@@ -83,3 +83,20 @@ test('멤버·전시·재확인 호출: 경로·메서드·바디, 오류는 계
   const down = await getMembers(async () => { throw new Error('x'); }, 'alpha');
   assert.equal(down.ok, false);
 });
+
+test('each visit and tab has its own connection id; departure retains the old id', () => {
+  const ids: { method: string; id: string | null }[] = [];
+  const fetcher = async (_path: string, init?: RequestInit) => {
+    ids.push({ method: init?.method ?? 'GET', id: new Headers(init?.headers).get('X-Ain-Presence-Connection') });
+    return jsonResponse({});
+  };
+  const timers = fakeTimers();
+  const first = new VillagePresenceSync({ fetcher, setInterval: timers.setInterval, clearInterval: timers.clearInterval });
+  const second = new VillagePresenceSync({ fetcher, setInterval: timers.setInterval, clearInterval: timers.clearInterval });
+  first.enter('alpha'); first.leave(); first.enter('alpha'); second.enter('alpha');
+  assert.match(ids[0].id!, /^[0-9a-f-]{36}$/i);
+  assert.equal(ids[1].id, ids[0].id);
+  assert.notEqual(ids[2].id, ids[0].id);
+  assert.notEqual(ids[3].id, ids[2].id);
+  first.leave(); second.leave();
+});

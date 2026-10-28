@@ -23,7 +23,9 @@ async function prelude(request: NextRequest, ctx: Ctx) {
   if (!('userId' in guard)) return guard;
   const { slug } = await ctx.params;
   if (!isVillageSlug(slug)) return errorResponse(makeError('unsupported_input', '마을 slug 가 올바르지 않습니다.'), 400);
-  return { userId: guard.userId, slug };
+  const connectionId = request.headers.get('X-Ain-Presence-Connection') ?? 'legacy';
+  if (connectionId !== 'legacy' && !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(connectionId)) return errorResponse(makeError('unsupported_input', '접속 식별자가 올바르지 않습니다.'), 400);
+  return { userId: guard.userId, slug, connectionId };
 }
 
 export async function PUT(request: NextRequest, ctx: Ctx) {
@@ -32,7 +34,8 @@ export async function PUT(request: NextRequest, ctx: Ctx) {
   try {
     if (!(await deps.directory.villageExists(p.slug))) return errorResponse(makeError('unsupported_input', '마을을 찾을 수 없습니다.', { detail: 'village_not_found' }), 404);
     const now = deps.now();
-    await deps.directory.markPresent(p.slug, p.userId, now);
+    const present = await deps.directory.markPresent(p.slug, p.userId, now, p.connectionId);
+    if (present === false) return errorResponse(makeError('unsupported_input', '이미 종료된 접속입니다.'), 409);
     return okResponse({ present: true, presentUntil: new Date(now + PRESENCE_TTL_MS).toISOString() });
   } catch (e) {
     return failureResponse(e);
@@ -43,7 +46,7 @@ export async function DELETE(request: NextRequest, ctx: Ctx) {
   const p = await prelude(request, ctx);
   if (!('slug' in p)) return p;
   try {
-    await deps.directory.clearPresent(p.slug, p.userId);
+    await deps.directory.clearPresent(p.slug, p.userId, p.connectionId);
     return okResponse({ present: false });
   } catch (e) {
     return failureResponse(e);

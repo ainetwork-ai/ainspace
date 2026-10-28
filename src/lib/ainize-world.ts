@@ -1,6 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+import { generateAinizeText } from './ainize-inference';
 
 export async function generateAgentResponse(agentData: {
     name: string;
@@ -12,8 +10,6 @@ export async function generateAgentResponse(agentData: {
     isMentioned?: boolean;
 }): Promise<string> {
     try {
-        const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-
         const behaviorDescriptions = {
             random: 'You move randomly and unpredictably, always curious about new discoveries.',
             patrol: 'You are systematic and methodical, following patrol routes and maintaining order.',
@@ -54,14 +50,10 @@ Stay in character based on your behavior type:
 
 Generate your response now:`;
 
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const text = response.text();
-
-        return text.trim();
-    } catch (error) {
-        console.error('Error generating agent response:', error);
-        // Fallback to original responses if Gemini fails
+        return await generateAinizeText(prompt);
+    } catch {
+        console.error('Ainize agent response unavailable');
+        // Fallback to original responses if Ainize fails
         const fallbacks = {
             'Explorer Bot': `Message received at (${agentData.position.x}, ${agentData.position.y})! I'm exploring new territories.`,
             'Patrol Bot': `Patrol Bot reporting from (${agentData.position.x}, ${agentData.position.y}). Message acknowledged.`,
@@ -82,8 +74,6 @@ export async function generateCommentary(gameState: {
     biome: string;
 }): Promise<string> {
     try {
-        const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-
         const prompt = `You are an AI explorer playing a tile-based adventure game. You're currently moving autonomously through an infinite procedural world. 
 
 Current situation:
@@ -103,14 +93,10 @@ Examples of good responses:
 
 Generate your commentary now:`;
 
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const text = response.text();
-
-        return text.trim();
-    } catch (error) {
-        console.error('Error generating Gemini commentary:', error);
-        // Fallback commentary if Gemini fails
+        return await generateAinizeText(prompt);
+    } catch {
+        console.error('Ainize commentary unavailable');
+        // Fallback commentary if Ainize fails
         const fallbacks = [
             'Continuing my autonomous exploration through this mysterious world...',
             'The journey continues, one tile at a time.',

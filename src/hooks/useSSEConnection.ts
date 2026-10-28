@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useCallback, useState } from 'react';
+import { readEventStream } from '@/lib/read-event-stream';
 
 export interface UseSSEConnectionOptions {
   url: string | null;
@@ -10,6 +11,8 @@ export interface UseSSEConnectionOptions {
   onConnected?: () => void;
   onDisconnected?: () => void;
   onMaxRetriesReached?: () => void;
+  /** Fetch transport allows credentials in headers instead of URL query strings. */
+  fetcher?: (url: string, init: RequestInit) => Promise<Response>;
 }
 
 export interface UseSSEConnectionReturn {
@@ -27,8 +30,10 @@ export function useSSEConnection({
   onConnected,
   onDisconnected,
   onMaxRetriesReached,
+  fetcher,
 }: UseSSEConnectionOptions): UseSSEConnectionReturn {
   const eventSourceRef = useRef<EventSource | null>(null);
+  const fetchAbortRef = useRef<AbortController | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const [isConnected, setIsConnected] = useState(false);
@@ -47,6 +52,8 @@ export function useSSEConnection({
   onMaxRetriesReachedRef.current = onMaxRetriesReached;
 
   const cleanup = useCallback(() => {
+    fetchAbortRef.current?.abort();
+    fetchAbortRef.current = null;
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
       eventSourceRef.current = null;
@@ -60,6 +67,44 @@ export function useSSEConnection({
 
   const connect = useCallback((targetUrl: string) => {
     cleanup();
+
+    if (fetcher) {
+      const controller = new AbortController();
+      fetchAbortRef.current = controller;
+      void (async () => {
+        try {
+          const response = await fetcher(targetUrl, {
+            headers: { accept: 'text/event-stream' },
+            cache: 'no-store', signal: controller.signal,
+          });
+          if (controller.signal.aborted) { await response.body?.cancel(); return; }
+          if (!response.ok || !response.body || !response.headers.get('content-type')?.startsWith('text/event-stream')) {
+            await response.body?.cancel();
+            throw new Error('Event stream unavailable');
+          }
+          setIsConnected(true);
+          reconnectAttemptsRef.current = 0;
+          onConnectedRef.current?.();
+          await readEventStream(response.body, (name, data) => {
+            if (fetchAbortRef.current !== controller || controller.signal.aborted) return;
+            const event = new MessageEvent(name, { data });
+            if (name === 'message') onMessageRef.current?.(event);
+            else listenersRef.current?.[name]?.(event);
+          }, controller.signal);
+        } catch {
+          // Reconnection below handles network and authentication failures.
+        }
+        if (controller.signal.aborted || fetchAbortRef.current !== controller) return;
+        cleanup();
+        onDisconnectedRef.current?.();
+        if (reconnectAttemptsRef.current < maxReconnectAttempts) {
+          reconnectAttemptsRef.current += 1;
+          const delay = Math.min(1000 * 2 ** reconnectAttemptsRef.current, 30000);
+          reconnectTimeoutRef.current = setTimeout(() => connect(targetUrl), delay);
+        } else onMaxRetriesReachedRef.current?.();
+      })();
+      return;
+    }
 
     const es = new EventSource(targetUrl);
     eventSourceRef.current = es;
@@ -96,7 +141,7 @@ export function useSSEConnection({
         onMaxRetriesReachedRef.current?.();
       }
     };
-  }, [cleanup, maxReconnectAttempts]);
+  }, [cleanup, maxReconnectAttempts, fetcher]);
 
   useEffect(() => {
     if (url) {

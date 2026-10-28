@@ -17,6 +17,7 @@
 import { getAgents, getRedisClient, type StoredAgent } from '@/lib/redis';
 import { readBearerHeader, verifyAppSession } from './app-session';
 import { isAinIntegrationEnabled } from './config';
+import { MARK_VERIFIED_VILLAGE_PRESENCE, CLEAR_VERIFIED_VILLAGE_PRESENCE, verifiedPresenceKeys } from './verified-village-presence';
 
 export const materialsKey = (slug: string) => `village:${slug}:ain_materials`;
 export const membersKey = (slug: string) => `village:${slug}:members`;
@@ -37,8 +38,8 @@ export interface VillageDirectory {
   addMember(slug: string, userId: string): Promise<void>;
   removeMember(slug: string, userId: string): Promise<void>;
   listMembers(slug: string): Promise<string[]>;
-  markPresent(slug: string, userId: string, nowMs: number): Promise<void>;
-  clearPresent(slug: string, userId: string): Promise<void>;
+  markPresent(slug: string, userId: string, nowMs: number, connectionId?: string): Promise<boolean | void>;
+  clearPresent(slug: string, userId: string, connectionId?: string): Promise<void>;
   isPresent(slug: string, userId: string, nowMs: number): Promise<boolean>;
   isAgentPlacedIn(slug: string, agentKey: string): Promise<boolean>;
   /** 마을 삭제 시 AIN 쪽 키(소유자·멤버·자료·체류·자산 링크)를 지운다 — 같은 slug 로 다시 만든 마을이 옛 멤버를 물려받지 않게. */
@@ -68,12 +69,14 @@ export const redisVillageDirectory: VillageDirectory = {
   async addMember(slug, userId) { await (await getRedisClient()).sAdd(membersKey(slug), userId); },
   async removeMember(slug, userId) { await (await getRedisClient()).sRem(membersKey(slug), userId); },
   async listMembers(slug) { return ((await (await getRedisClient()).sMembers(membersKey(slug))) as string[]).sort(); },
-  async markPresent(slug, userId, nowMs) {
+  async markPresent(slug, userId, nowMs, connectionId = 'legacy') {
     const r = await getRedisClient();
-    await r.hSet(presenceKey(slug), userId, String(nowMs));
-    await r.expire(presenceKey(slug), 3600);
+    return Number(await r.eval(MARK_VERIFIED_VILLAGE_PRESENCE, { keys: verifiedPresenceKeys(slug, userId), arguments: [connectionId, String(nowMs), String(nowMs + PRESENCE_TTL_MS), userId] })) === 1;
   },
-  async clearPresent(slug, userId) { await (await getRedisClient()).hDel(presenceKey(slug), userId); },
+  async clearPresent(slug, userId, connectionId = 'legacy') {
+    const now = Date.now();
+    await (await getRedisClient()).eval(CLEAR_VERIFIED_VILLAGE_PRESENCE, { keys: verifiedPresenceKeys(slug, userId), arguments: [connectionId, String(now), String(now + PRESENCE_TTL_MS), userId] });
+  },
   async isPresent(slug, userId, nowMs) {
     const at = Number((await (await getRedisClient()).hGet(presenceKey(slug), userId)) ?? 0);
     return at > 0 && nowMs - at <= PRESENCE_TTL_MS;
@@ -93,6 +96,9 @@ export function memoryVillageDirectory(init: { villages?: string[]; agents?: Pic
   const members = new Map<string, Set<string>>();
   const presence = new Map<string, Map<string, number>>();
   const agents = [...(init.agents ?? [])];
+  const connections = new Map<string, Map<string, number>>();
+  const closed = new Map<string, Set<string>>();
+  const scope = (slug: string, userId: string) => JSON.stringify([slug, userId]);
   const set = (slug: string) => { if (!members.has(slug)) members.set(slug, new Set()); return members.get(slug)!; };
   const dir: VillageDirectory & { villages: Set<string>; owners: Map<string, string>; members: Map<string, Set<string>>; agents: typeof agents; cleared: string[] } = {
     villages, owners, members, agents, cleared: [],
@@ -103,11 +109,26 @@ export function memoryVillageDirectory(init: { villages?: string[]; agents?: Pic
     async addMember(slug, userId) { set(slug).add(userId); },
     async removeMember(slug, userId) { set(slug).delete(userId); },
     async listMembers(slug) { return [...set(slug)].sort(); },
-    async markPresent(slug, userId, nowMs) { if (!presence.has(slug)) presence.set(slug, new Map()); presence.get(slug)!.set(userId, nowMs); },
-    async clearPresent(slug, userId) { presence.get(slug)?.delete(userId); },
+    async markPresent(slug, userId, nowMs, connectionId = 'legacy') {
+      const key = scope(slug, userId);
+      if (connectionId !== 'legacy' && closed.get(key)?.has(connectionId)) return false;
+      if (!connections.has(key)) connections.set(key, new Map());
+      connections.get(key)!.set(connectionId, nowMs);
+      if (!presence.has(slug)) presence.set(slug, new Map());
+      presence.get(slug)!.set(userId, nowMs); return true;
+    },
+    async clearPresent(slug, userId, connectionId = 'legacy') {
+      const key = scope(slug, userId);
+      if (!closed.has(key)) closed.set(key, new Set());
+      if (connectionId !== 'legacy') closed.get(key)!.add(connectionId);
+      connections.get(key)?.delete(connectionId);
+      const remaining = [...(connections.get(key)?.values() ?? [])];
+      if (remaining.length) presence.get(slug)?.set(userId, Math.max(...remaining));
+      else presence.get(slug)?.delete(userId);
+    },
     async isPresent(slug, userId, nowMs) { const at = presence.get(slug)?.get(userId) ?? 0; return at > 0 && nowMs - at <= PRESENCE_TTL_MS; },
     async isAgentPlacedIn(slug, agentKey) { return agents.some((a) => isPlacedIn(a, slug, agentKey)); },
-    async clearVillage(slug) { owners.delete(slug); members.delete(slug); presence.delete(slug); dir.cleared.push(slug); },
+    async clearVillage(slug) { owners.delete(slug); members.delete(slug); presence.delete(slug); for (const key of connections.keys()) if (JSON.parse(key)[0] === slug) { connections.delete(key); closed.delete(key); } dir.cleared.push(slug); },
   };
   return dir;
 }

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { FileText, Image as ImageIcon, Landmark, RefreshCw, ShieldAlert, Trash2, UserMinus, UserPlus, X } from 'lucide-react';
 import SharedFilePicker, { type SharedFilePick } from '@/components/chat/SharedFilePicker';
+import { SpaceHuddleButton } from './SpaceHuddleButton';
 import { isAinIntegrationEnabledClient } from '@/lib/ain-integration/config';
 import { followActionUrl } from '@/lib/ain-integration/connect-client';
 import { fileKey } from '@/lib/ain-integration/types';
@@ -177,6 +178,7 @@ export default function VillageAinPanel({
             </div>
           </div>
 
+          <SpaceHuddleButton slug={slug} fetcher={fetcher} />
           {error && (
             <p className="text-xs text-[#FFB020]">
               {error.message}

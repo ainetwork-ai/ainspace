@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   savePlayerPresence,
-  removePlayerPresence,
   publishVillageEvent,
   getRedisClient,
 } from '@/lib/redis';
 import { worldToGrid } from '@/lib/village-utils';
+import { removeIdleVillagePresence } from '@/lib/village-connection-presence';
 import { DIRECTION } from '@/constants/game';
+import { authorizeVillagePresence, VillagePresenceAuthError } from '@/lib/village-presence-auth';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -30,13 +31,22 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { userId, position, direction, village, displayName, spriteKey, action } = body;
+    const { userId: claimedUserId, position, direction, village, displayName, spriteKey, action } = body;
 
-    if (!userId || !position || typeof position.x !== 'number' || typeof position.y !== 'number') {
+    if (!claimedUserId || !position || !Number.isFinite(position.x) || !Number.isFinite(position.y)) {
       return NextResponse.json(
         { error: 'Invalid request data. userId and position {x, y} are required' },
         { status: 400 }
       );
+    }
+
+    let userId: string;
+    try { userId = await authorizeVillagePresence(request, claimedUserId); }
+    catch (error) {
+      return NextResponse.json({ error: 'Presence session unavailable' }, {
+        status: error instanceof VillagePresenceAuthError ? error.status : 503,
+        headers: { 'Cache-Control': 'no-store' },
+      });
     }
 
     // Determine village slug
@@ -56,7 +66,7 @@ export async function POST(request: NextRequest) {
     if (action === 'disconnect') {
       if (slug) {
         try {
-          await removePlayerPresence(slug, userId);
+          await removeIdleVillagePresence(slug, userId);
         } catch {
           console.error('Error removing presence on disconnect');
         }

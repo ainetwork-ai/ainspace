@@ -6,6 +6,8 @@ import { useUserStore, useGameStateStore } from '@/stores';
 import { useVillageStore } from '@/stores/useVillageStore';
 import { getDisplayName } from '@/lib/utils';
 import { useSSEConnection } from './useSSEConnection';
+import { villagePresenceIdentity } from '@/lib/village-presence-identity';
+import { bffAuthFetch } from '@/lib/backend/bff-fetch';
 
 export interface OnlinePlayer {
   userId: string;
@@ -22,10 +24,9 @@ export function useVillagePresence(): { players: OnlinePlayer[] } {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const leavingTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const prevVillageRef = useRef<string | null>(null);
-  const prevUserIdRef = useRef<string | null>(null);
   const [sseUrl, setSseUrl] = useState<string | null>(null);
 
-  const userId = useUserStore((s) => s.getUserId());
+  const userId = useUserStore(villagePresenceIdentity);
   const villageSlug = useVillageStore((s) => s.currentVillageSlug);
 
   // Domain cleanup (leaving timers, debounce) — separate from SSE cleanup
@@ -43,7 +44,7 @@ export function useVillagePresence(): { players: OnlinePlayer[] } {
   const handleSnapshot = useCallback((e: MessageEvent) => {
     try {
       const { players: serverPlayers } = JSON.parse(e.data);
-      const uid = useUserStore.getState().getUserId();
+      const uid = villagePresenceIdentity(useUserStore.getState());
       const mapped: OnlinePlayer[] = (serverPlayers || [])
         .filter((p: { userId: string }) => p.userId !== uid)
         .map((p: { userId: string; x: number; y: number; direction: string; spriteKey: string; displayName: string }) => ({
@@ -64,7 +65,7 @@ export function useVillagePresence(): { players: OnlinePlayer[] } {
   const handlePresence = useCallback((e: MessageEvent) => {
     try {
       const event = JSON.parse(e.data);
-      const uid = useUserStore.getState().getUserId();
+      const uid = villagePresenceIdentity(useUserStore.getState());
       if (event.userId === uid) return;
 
       switch (event.type) {
@@ -178,6 +179,7 @@ export function useVillagePresence(): { players: OnlinePlayer[] } {
 
   useSSEConnection({
     url: sseUrl,
+    fetcher: bffAuthFetch,
     listeners,
     onMaxRetriesReached: handleMaxRetries,
   });
@@ -191,21 +193,7 @@ export function useVillagePresence(): { players: OnlinePlayer[] } {
       return;
     }
 
-    // userId changed (e.g., wallet connected) — remove previous presence
-    if (prevUserIdRef.current && prevUserIdRef.current !== userId && prevVillageRef.current) {
-      fetch('/api/position', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: prevUserIdRef.current,
-          position: { x: 0, y: 0 },
-          action: 'disconnect',
-          village: prevVillageRef.current,
-        }),
-      }).catch(() => {});
-    }
-    prevUserIdRef.current = userId;
-
+    // Closing the previous SSE releases only that browser connection's lease.
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
     }

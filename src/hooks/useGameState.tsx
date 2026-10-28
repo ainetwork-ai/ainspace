@@ -1,4 +1,6 @@
 'use client';
+import { villagePresenceIdentity } from '@/lib/village-presence-identity';
+import { bffAuthFetch } from '@/lib/backend/bff-fetch';
 
 import { useEffect, useCallback, useRef } from 'react';
 import { useMapData } from '@/providers/MapDataProvider';
@@ -23,6 +25,7 @@ interface Position {
 export function useGameState() {
     const { getMapData, generateTileAt } = useMapData();
     const userId = useUserStore((state) => state.getUserId());
+    const presenceUserId = useUserStore(villagePresenceIdentity);
     const { isBlocked: isLayer1Blocked, collisionMap } = useBuildStore();
     const isCollisionAt = useVillageStore((s) => s.isCollisionAt);
     const {
@@ -69,17 +72,17 @@ export function useGameState() {
             debounceTimerRef.current = null;
         }
         const position = pendingPositionRef.current;
-        if (position && userId) {
+        if (position && presenceUserId) {
             pendingPositionRef.current = null;
             const direction = useGameStateStore.getState().playerDirection;
             const village = useVillageStore.getState().currentVillageSlug;
             const { address, sessionId } = useUserStore.getState();
-            const displayName = getDisplayName(address, sessionId, userId);
-            fetch('/api/position', {
+            const displayName = getDisplayName(address, sessionId, presenceUserId);
+            bffAuthFetch('/api/position', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    userId,
+                    userId: presenceUserId,
                     position,
                     direction,
                     village,
@@ -90,18 +93,18 @@ export function useGameState() {
                 console.error('Failed to save position:', error);
             });
         }
-    }, [userId]);
+    }, [presenceUserId]);
 
     const savePositionToRedis = useCallback(
         (position: Position) => {
-            if (!userId) return;
+            if (!presenceUserId) return;
             pendingPositionRef.current = position;
             if (debounceTimerRef.current) {
                 clearTimeout(debounceTimerRef.current);
             }
             debounceTimerRef.current = setTimeout(flushPositionSave, 300);
         },
-        [userId, flushPositionSave]
+        [presenceUserId, flushPositionSave]
     );
 
     /**
@@ -339,13 +342,13 @@ export function useGameState() {
     useEffect(() => {
         const handleBeforeUnload = () => {
             const position = pendingPositionRef.current || useGameStateStore.getState().worldPosition;
-            if (userId) {
+            if (presenceUserId) {
                 const village = useVillageStore.getState().currentVillageSlug;
-                const blob = new Blob(
-                    [JSON.stringify({ userId, position, action: 'disconnect', village })],
-                    { type: 'application/json' }
-                );
-                navigator.sendBeacon('/api/position', blob);
+                void bffAuthFetch('/api/position', {
+                    method: 'POST', keepalive: true,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: presenceUserId, position, action: 'disconnect', village }),
+                }).catch(() => {});
                 pendingPositionRef.current = null;
             }
         };
@@ -356,7 +359,7 @@ export function useGameState() {
             window.removeEventListener('beforeunload', handleBeforeUnload);
             flushPositionSave();
         };
-    }, [userId, flushPositionSave]);
+    }, [presenceUserId, flushPositionSave]);
 
     // Autonomous movement interval
     useEffect(() => {

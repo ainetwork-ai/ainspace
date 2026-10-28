@@ -1,14 +1,15 @@
 import { NextRequest } from 'next/server';
+import { villageHuddleInstance } from '@/lib/village-huddle-instance';
+import { randomUUID } from 'node:crypto';
+import { joinVillageConnection, renewVillageConnection, releaseVillageConnection, removeIdleVillagePresence } from '@/lib/village-connection-presence';
 import {
-  getRedisClient,
   getRedisSubscriber,
-  joinVillage,
   getVillagePlayers,
-  removePlayerPresence,
   cleanupStale,
   PlayerPresence,
 } from '@/lib/redis';
 import { DIRECTION } from '@/constants/game';
+import { authorizeVillagePresence, VillagePresenceAuthError } from '@/lib/village-presence-auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -17,11 +18,24 @@ export const maxDuration = 300;
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const village = searchParams.get('village');
-  const userId = searchParams.get('userId');
+  const claimedUserId = searchParams.get('userId');
 
-  if (!village || !userId) {
+  if (!village || !claimedUserId) {
     return new Response('village and userId are required', { status: 400 });
   }
+
+  let userId: string;
+  try { userId = await authorizeVillagePresence(request, claimedUserId); }
+  catch (error) {
+    return new Response('Presence session unavailable', {
+      status: error instanceof VillagePresenceAuthError ? error.status : 503,
+      headers: { 'Cache-Control': 'no-store' },
+    });
+  }
+
+  const sourceInstance = await villageHuddleInstance(village);
+  if (!sourceInstance) return new Response('Village unavailable', { status: 404 });
+  const instanceId = sourceInstance.instanceId;
 
   const prevVillage = searchParams.get('prevVillage') || null;
 
@@ -34,6 +48,7 @@ export async function GET(request: NextRequest) {
     displayName: searchParams.get('displayName') || userId.slice(0, 8),
   };
 
+  const connectionId = randomUUID();
   const encoder = new TextEncoder();
   const connectionStart = Date.now();
   // Random jitter 0-10s for thundering herd mitigation (kept small to stay within maxDuration)
@@ -50,7 +65,6 @@ export async function GET(request: NextRequest) {
       const eventBuffer: string[] = [];
       let snapshotSent = false;
 
-      // eslint-disable-next-line prefer-const
       let listenerFn: ((message: string) => void) | null = null;
 
       const send = (event: string, data: string) => {
@@ -74,10 +88,7 @@ export async function GET(request: NextRequest) {
             .catch(() => {});
         }
         // Explicitly remove presence + heartbeat on disconnect
-        removePlayerPresence(village, userId).catch(() => {});
-        getRedisClient()
-          .then(redis => redis.hDel(`village:${village}:heartbeat`, userId))
-          .catch(() => {});
+        releaseVillageConnection(village, userId, connectionId, instanceId).catch(() => {});
         try {
           controller.close();
         } catch {
@@ -88,9 +99,13 @@ export async function GET(request: NextRequest) {
       // Listen for client disconnect
       request.signal.addEventListener('abort', cleanup);
 
+      let eventDelivery = Promise.resolve();
       listenerFn = (message: string) => {
+        eventDelivery = eventDelivery.then(async () => {
         if (closed) return;
         try {
+          if ((await villageHuddleInstance(village))?.instanceId !== instanceId) { cleanup(); return; }
+          if (closed) return;
           const parsed = JSON.parse(message);
           // Filter out own events
           if (parsed.userId === userId) return;
@@ -101,8 +116,10 @@ export async function GET(request: NextRequest) {
             send('presence', message);
           }
         } catch {
-          // Invalid message, skip
+          // Invalid or unavailable source: close rather than forward another instance.
+          cleanup();
         }
+        });
       };
 
       try {
@@ -111,10 +128,17 @@ export async function GET(request: NextRequest) {
         await sub.subscribe(`village:${village}:events`, listenerFn);
 
         // 2. Join village (saves presence + publishes PLAYER_JOINED) + set initial heartbeat
-        await joinVillage(userId, village, playerData, prevVillage);
-        const redis = await getRedisClient();
-        await redis.hSet(`village:${village}:heartbeat`, userId, String(Date.now()));
-        await redis.expire(`village:${village}:heartbeat`, 3600);
+        if (closed) return;
+        // A different tab may still occupy the previous village.
+        if (prevVillage && prevVillage !== village) {
+          await removeIdleVillagePresence(prevVillage, userId);
+        }
+        if (closed) return;
+        await joinVillageConnection(village, userId, connectionId, instanceId, playerData);
+        if (closed) {
+          await releaseVillageConnection(village, userId, connectionId, instanceId);
+          return;
+        }
 
         // 3. Send initial snapshot
         let players: PlayerPresence[] = [];
@@ -123,6 +147,7 @@ export async function GET(request: NextRequest) {
         } catch {
           // Degraded mode — empty snapshot
         }
+        if ((await villageHuddleInstance(village))?.instanceId !== instanceId) { cleanup(); return; }
         // Exclude self from snapshot
         const otherPlayers = players.filter(p => p.userId !== userId);
         send('snapshot', JSON.stringify({ players: otherPlayers }));
@@ -139,11 +164,13 @@ export async function GET(request: NextRequest) {
           if (closed) return;
           send('ping', '{}');
           try {
-            const redis = await getRedisClient();
-            await redis.hSet(`village:${village}:heartbeat`, userId, String(Date.now()));
-            await redis.expire(`village:${village}:heartbeat`, 3600);
+            // A stream must stop after its account session is revoked.
+            await authorizeVillagePresence(request, userId);
+            if (closed) return;
+            await renewVillageConnection(village, userId, connectionId, instanceId);
+            if (closed) { await releaseVillageConnection(village, userId, connectionId, instanceId); return; }
           } catch {
-            // Non-critical
+            cleanup();
           }
         }, 15000);
 
@@ -151,6 +178,7 @@ export async function GET(request: NextRequest) {
         cleanupInterval = setInterval(async () => {
           if (closed) return;
           try {
+            if ((await villageHuddleInstance(village))?.instanceId !== instanceId) { cleanup(); return; }
             await cleanupStale(village);
           } catch {
             // Non-critical
@@ -184,7 +212,8 @@ export async function GET(request: NextRequest) {
   return new Response(stream, {
     headers: {
       'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache, no-transform',
+      'Cache-Control': 'private, no-store, no-transform',
+      'Vary': 'Authorization',
       'Connection': 'keep-alive',
       'X-Accel-Buffering': 'no',
     },
