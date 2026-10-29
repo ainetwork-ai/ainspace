@@ -17,6 +17,19 @@ test("transient layer failures retry reads but never replay writes",async t=>{
   await assert.rejects(transport().rpc("ain_sendSignedTransaction"),/code -32050/);
   assert.equal(calls,1);
 });
+test("a layer that is not ready yet (-32052 or HTTP 503) is retried for reads only",async t=>{
+  let calls=0;
+  t.mock.method(globalThis,"fetch",async()=>{
+    calls++;
+    if(calls===1) return new Response("not ready",{status:503});
+    return Response.json(calls===2?{error:{code:-32052,message:"Selected layer is not ready"}}:{result:{result:"value"}});
+  });
+  assert.equal(await transport().rpc("ain_get",{ref:"/apps/example"}),"value");
+  assert.equal(calls,3);
+  calls=0;
+  await assert.rejects(transport().rpc("ain_sendSignedTransaction"),/HTTP 503/);
+  assert.equal(calls,1);
+});
 test("RPC requests are bounded to eight in flight",async t=>{
   let active=0,maximum=0;
   t.mock.method(globalThis,"fetch",async()=>{

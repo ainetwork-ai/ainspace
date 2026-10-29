@@ -156,12 +156,26 @@ export function storageServer(store:AinStateStore,secret:string) {
   server.on("close",()=>{clearInterval(sweep);for(const group of listeners.values()) for(const response of group) response.destroy();});
   return server;
 }
+/**
+ * Initialization reads the chain through the layer router, which is briefly not ready after it
+ * restarts. Exiting left the gateway down for good (nothing restarts it; 2026-10-29, twice), so
+ * retry with a capped backoff and keep logging why.
+ */
+export async function initializeWithRetry<T>(create:()=>Promise<T>,wait:(ms:number)=>Promise<void>=ms=>new Promise(r=>setTimeout(r,ms))):Promise<T> {
+  for(let attempt=0;;attempt++) {
+    try { return await create(); }
+    catch(error) {
+      console.error("Storage gateway initialization failed; retrying:",error instanceof Error?error.message:"unknown");
+      await wait(Math.min(60000,2000*2**attempt));
+    }
+  }
+}
 if(require.main===module) {
   const token=privateFile(process.env.AINSPACE_STORAGE_TOKEN_FILE ?? "");
-  createAinStateStore(process.env.AIN_STATE_CONFIG ?? "").then(store=>{
+  initializeWithRetry(()=>createAinStateStore(process.env.AIN_STATE_CONFIG ?? "")).then(store=>{
     const server=storageServer(store,token);
     server.requestTimeout=30000;
-    server.listen(Number(process.env.PORT ?? 13006),"127.0.0.1");
+    server.listen(Number(process.env.PORT ?? 13006),process.env.LISTEN_HOST ?? "127.0.0.1");
     process.on("SIGTERM",()=>{server.close();server.closeAllConnections();store.quit().then(()=>process.exit(0));});
   }).catch(()=>{console.error("Storage gateway initialization failed");process.exit(1);});
 }
