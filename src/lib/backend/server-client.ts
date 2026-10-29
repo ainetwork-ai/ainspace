@@ -35,15 +35,42 @@ export function decodeUserId(token: string): string | null {
   }
 }
 
-export function backendFetch(
+/** The backend could not be reached at all — the request never left (see backendFetch). */
+export class BackendUnreachableError extends Error {
+  constructor(cause: unknown) {
+    super('backend unreachable', { cause });
+    this.name = 'BackendUnreachableError';
+  }
+}
+
+// Failures before a connection exists: nothing was sent, so even a POST can be tried again.
+const CONNECT_FAILURES = new Set(['ECONNREFUSED', 'UND_ERR_CONNECT_TIMEOUT', 'ENOTFOUND', 'EAI_AGAIN', 'EHOSTUNREACH', 'ENETUNREACH']);
+const connectFailure = (error: unknown) =>
+  error instanceof TypeError && CONNECT_FAILURES.has(String((error.cause as { code?: unknown } | undefined)?.code));
+
+/**
+ * Forwards to the backend. A connection that could not be made is retried briefly: on 2026-10-29 a short
+ * on-prem network blip dropped a chat send before it reached the backend ("fetch failed"). Failures after
+ * the request may have left (reset, timeout) are never replayed.
+ */
+export async function backendFetch(
   token: string,
   path: string,
   init: RequestInit = {},
+  { delays = [400, 1200] }: { delays?: number[] } = {},
 ): Promise<Response> {
   const headers = new Headers(init.headers);
   headers.set('Authorization', `Bearer ${token}`);
   if (init.body && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
-  return fetch(`${BACKEND_BASE_URL}${path}`, { ...init, headers });
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fetch(`${BACKEND_BASE_URL}${path}`, { ...init, headers });
+    } catch (error) {
+      if (!connectFailure(error) || init.signal?.aborted) throw error;
+      if (attempt >= delays.length) throw new BackendUnreachableError(error);
+      await new Promise(resolve => setTimeout(resolve, delays[attempt]));
+    }
+  }
 }

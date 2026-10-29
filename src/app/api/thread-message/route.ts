@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { backendFetch, getBearer } from '@/lib/backend/server-client';
+import { BackendUnreachableError, backendFetch, getBearer } from '@/lib/backend/server-client';
 
 interface RequestBody {
     message: string;
@@ -49,6 +49,12 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: true, threadId });
     } catch (error: unknown) {
         console.error('Thread message error:', error);
+        if (error instanceof BackendUnreachableError) {
+            return NextResponse.json(
+                { error: 'backend_unreachable', details: '일시적인 네트워크 문제로 메시지를 보내지 못했어요. 잠시 후 다시 보내 주세요.' },
+                { status: 503 }
+            );
+        }
         return NextResponse.json(
             { error: error instanceof Error ? error.message : 'Failed to send thread message' },
             { status: 500 }
