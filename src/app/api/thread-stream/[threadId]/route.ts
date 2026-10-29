@@ -1,18 +1,15 @@
 import { NextRequest } from 'next/server';
-import { Agent } from 'undici';
 import { BACKEND_BASE_URL } from '@/lib/backend/config';
 import { getBearer } from '@/lib/backend/server-client';
+import { createStreamDispatcher } from '@/lib/backend/stream-dispatcher';
 
 // Configure route to handle long-lived streaming connections
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 800; // Vercel Pro streaming limit
 
-// Long-lived SSE: disable undici's default header/body read timeouts so an idle
-// orchestration stream (gaps between agent events) isn't killed with
-// UND_ERR_BODY_TIMEOUT. (The inline `bodyTimeout` RequestInit option is ignored
-// by fetch — it must be set on the dispatcher.)
-const streamDispatcher = new Agent({ headersTimeout: 0, bodyTimeout: 0 });
+// Long-lived SSE without read timeouts, through the egress proxy when one is configured (see stream-dispatcher).
+const streamDispatcher = createStreamDispatcher();
 
 /**
  * GET /api/thread-stream/{conversationId}?token=<accessToken>
