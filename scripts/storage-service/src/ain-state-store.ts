@@ -15,6 +15,8 @@ export function stateChunksWriteRule(address: string): string {
   return `auth.addr === '${address}' && data === null && util.isString(newData) && util.checkValuePathLen(parsedValuePath, 7) === true`;
 }
 
+/** Below the validators' GET_RESP_MAX_SIBLINGS (1000), with room for growth between scans. */
+const BULK_HEADS_LIMIT = 900;
 export class AinStateStore {
   private queue: Promise<unknown> = Promise.resolve();
   private readonly cache = new Map<string, { revision: string; state: StateValue }>();
@@ -255,14 +257,22 @@ export class AinStateStore {
     const heads: Record<string, StoredHead> = {};
     if (this.chain.childLabels) {
       const ids = await this.chain.childLabels(`${this.root}/heads`);
-      let cursor = 0;
-      await Promise.all(Array.from({ length: Math.min(16, ids.length) }, async () => {
-        while (cursor < ids.length) {
-          const id = ids[cursor++];
-          const head = await this.chain.get<StoredHead>(this.headPath(id));
-          if (head) heads[id] = head;
-        }
-      }));
+      // One read returns every head while they fit the node's sibling limit (GET_RESP_MAX_SIBLINGS
+      // 1000). Reading them one by one cost an RPC per record per scan and exhausted the validators'
+      // per-IP rate limit (2026-10-29). The walk below remains for larger sets or a failed bulk read.
+      const all = ids.length <= BULK_HEADS_LIMIT
+        ? await this.chain.get<Record<string, StoredHead>>(`${this.root}/heads`).catch(() => null) : null;
+      if (all && ids.every(id => Object.hasOwn(all, id))) for (const id of ids) heads[id] = all[id];
+      else {
+        let cursor = 0;
+        await Promise.all(Array.from({ length: Math.min(16, ids.length) }, async () => {
+          while (cursor < ids.length) {
+            const id = ids[cursor++];
+            const head = await this.chain.get<StoredHead>(this.headPath(id));
+            if (head) heads[id] = head;
+          }
+        }));
+      }
     } else Object.assign(heads, await this.chain.get<Record<string, StoredHead>>(`${this.root}/heads`) ?? {});
     const result: string[] = [];
     const ids = Object.keys(heads).filter(id => !heads[id].deleted && (!this.namespace || heads[id].namespace === this.namespace));

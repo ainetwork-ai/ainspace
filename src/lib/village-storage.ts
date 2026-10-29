@@ -125,15 +125,28 @@ export async function getNearbyVillages(
   const uniqueSlugs = [...new Set(slugs.filter((s): s is string => s !== null))];
   if (uniqueSlugs.length === 0) return [];
 
-  const villages: VillageMetadata[] = [];
-  for (const slug of uniqueSlugs) {
-    const data = await storage.hGetAll(`${VILLAGE_KEY_PREFIX}${slug}`);
-    if (data && Object.keys(data).length > 0) {
-      villages.push(parseVillageData(data));
-    }
-  }
+  return readVillages(uniqueSlugs);
+}
 
-  return villages;
+/** 한 번에 겹쳐 읽는 마을 수 — 저장 게이트웨이와 체인 노드의 요청 한도를 넘지 않게 묶는다. */
+const VILLAGE_READ_CONCURRENCY = 8;
+
+/**
+ * 마을 메타데이터를 겹쳐 읽되 순서는 slug 순서 그대로 둔다. 하나씩 읽으면 Vercel 에서 온프레미스
+ * 게이트웨이까지 마을 수만큼 왕복해 지도 로딩이 2–16초 걸렸다(2026-10-29).
+ */
+async function readVillages(slugs: string[]): Promise<VillageMetadata[]> {
+  const storage = await getStorageClient();
+  const found: (VillageMetadata | null)[] = new Array(slugs.length).fill(null);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(VILLAGE_READ_CONCURRENCY, slugs.length) }, async () => {
+    while (next < slugs.length) {
+      const index = next++;
+      const data = await storage.hGetAll(`${VILLAGE_KEY_PREFIX}${slugs[index]}`);
+      if (data && Object.keys(data).length > 0) found[index] = parseVillageData(data);
+    }
+  }));
+  return found.filter((v): v is VillageMetadata => v !== null);
 }
 
 /**
@@ -145,15 +158,7 @@ export async function getAllVillages(): Promise<VillageMetadata[]> {
 
   if (slugs.length === 0) return [];
 
-  const villages: VillageMetadata[] = [];
-  for (const slug of slugs) {
-    const data = await storage.hGetAll(`${VILLAGE_KEY_PREFIX}${slug}`);
-    if (data && Object.keys(data).length > 0) {
-      villages.push(parseVillageData(data));
-    }
-  }
-
-  return villages;
+  return readVillages(slugs);
 }
 
 /**

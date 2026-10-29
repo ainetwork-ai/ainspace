@@ -49,12 +49,19 @@ export class AinTransport implements StateChainTransport {
           body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params: { ...params, protoVer: "1.6.1" } }),
           signal: AbortSignal.timeout(15000),
         });
+        // The layer router can briefly lose its upstream (-32050) or report its selected layer as not ready
+        // (-32052, HTTP 503) for a few seconds. Retry reads only;
+        // a submitted write may already exist and must never be replayed blindly.
+        const backoff = [200, 800, 1800, 3000];
+        if (readonly && response.status === 503 && attempt < backoff.length) {
+          await response.body?.cancel();
+          await new Promise(resolve => setTimeout(resolve, backoff[attempt]));
+          continue;
+        }
         if (!response.ok) throw Error(`AIN RPC HTTP ${response.status}`);
         const envelope = await response.json() as { error?: { code: number; message?: string }; result?: { code?: number; result?: T } };
-        // The layer router can briefly lose its upstream. Retry reads only;
-        // a submitted write may already exist and must never be replayed blindly.
-        if (readonly && envelope.error?.code === -32050 && attempt < 3) {
-          await new Promise(resolve => setTimeout(resolve, [200, 800, 1800][attempt]));
+        if (readonly && (envelope.error?.code === -32050 || envelope.error?.code === -32052) && attempt < backoff.length) {
+          await new Promise(resolve => setTimeout(resolve, backoff[attempt]));
           continue;
         }
         if (envelope.error || !envelope.result || (envelope.result.code !== undefined && envelope.result.code !== 0)

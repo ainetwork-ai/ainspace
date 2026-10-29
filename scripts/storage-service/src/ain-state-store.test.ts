@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { randomBytes } from "node:crypto";
 import { AinStateStore } from "./ain-state-store";
+import { initializeWithRetry } from "./server";
 import { EncryptedStateCodec } from "./encrypted-state";
 import { AinWriteRejected, ChainOperation, StateChainTransport } from "./ain-transport";
 
@@ -195,4 +196,41 @@ test("an oversized multi-record import fails before publishing any value", async
   const records:import("./encrypted-state").StateValue[]=Array.from({length:30},(_,index)=>({key:"record:"+index,type:"string",value:"value",expiresAt:null}));
   await assert.rejects(store.putBatch(records),/batch exceeds/);
   assert.equal(chain.values.size,0);
+});
+
+// 2026-10-29: keys() read every head with its own RPC (514 heads → 514 reads per scan). The
+// validators rate-limit reads per source IP, so a few page loads exhausted the budget and every
+// AINspace map/agent request failed. Heads now come back in one read while they fit the node's
+// sibling limit; the per-head walk remains for larger sets or when the bulk read fails.
+class LabelledChain extends TestChain {
+  reads: string[] = [];
+  failBulk = false;
+  async get<T>(ref: string): Promise<T | null> {
+    this.reads.push(ref);
+    if (ref.endsWith("/heads") && this.failBulk) throw Error("GET_RESP_MAX_SIBLINGS exceeded");
+    return super.get<T>(ref);
+  }
+  async childLabels(ref: string): Promise<string[]> {
+    this.reads.push(ref + "#labels");
+    return [...this.values.keys()].filter(key => key.startsWith(ref + "/")).map(key => key.slice(ref.length + 1)).filter(key => !key.includes("/"));
+  }
+}
+test("keys reads every head in one request while they fit, and falls back to one per head", async () => {
+  const chain = new LabelledChain(), codec = new EncryptedStateCodec("org-uncommon", randomBytes(32));
+  const store = new AinStateStore(chain, codec, root, () => 1000);
+  for (let i = 0; i < 30; i++) await store.set(`agents:${i}`, "x");
+  await store.set("other:1", "y");
+  chain.reads = [];
+  assert.equal((await store.keys("agents:*")).length, 30);
+  const headReads = chain.reads.filter(ref => ref.includes("/heads"));
+  assert.ok(headReads.length <= 2, "one label read and one bulk head read, got " + headReads.length);
+  chain.failBulk = true; chain.reads = [];
+  assert.equal((await store.keys("agents:*")).length, 30);
+  assert.ok(chain.reads.filter(ref => /\/heads\/[^/]+$/.test(ref)).length >= 31, "per-head walk when the bulk read fails");
+});
+
+test("gateway initialization retries a transient failure instead of exiting", async () => {
+  let calls = 0; const waits: number[] = [];
+  const value = await initializeWithRetry(async () => { if (++calls < 3) throw Error("router not ready"); return "store"; }, async ms => { waits.push(ms); });
+  assert.equal(value, "store"); assert.equal(calls, 3); assert.deepEqual(waits, [2000, 4000]);
 });
