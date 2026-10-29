@@ -7,6 +7,7 @@ import { ChatMessage, Thread, useAgentStore, useBuildStore, useChatStore, useGam
 import * as Sentry from '@sentry/nextjs';
 import { useThreadStream } from '@/hooks/useThreadStream';
 import { StreamEvent } from '@/lib/a2aOrchestration';
+import { applyDelta, applyFinalMessage, type DeltaEventData } from '@/lib/stream-turn';
 import { AlertTriangle, Triangle, X } from 'lucide-react';
 import ChatMessageCard from '@/components/chat/ChatMessageCard';
 import { AgentState } from '@/lib/agent';
@@ -304,12 +305,31 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                 return;
             }
 
+            if (event.type === 'delta') {
+                // A streaming agent's answer as it is written: the accumulated text of
+                // one turn. Draw/update the provisional bubble; the final `message` of
+                // the same turnId replaces it (lib/stream-turn.ts).
+                const delta = event.data as DeltaEventData;
+                if (conductedSendRef.current.inProgress) {
+                    responseTimeoutRef.current = refreshResponseTimeout(
+                        responseTimeoutRef.current,
+                        () => {
+                            responseTimeoutRef.current = null;
+                            setIsMessageLoading(false);
+                        },
+                    );
+                }
+                setMessages((prev) => applyDelta(prev || [], delta, currentThreadId || undefined), currentThreadId);
+                return;
+            }
+
             if (event.type === 'message') {
                 // Backend SSE message event (EPIC14): payload is
-                //   { type:'message', data:{ id, conversationId, speaker, userId, content, parentId?, createdAt } }
+                //   { type:'message', data:{ id, turnId?, conversationId, speaker, userId, content, parentId?, createdAt } }
                 // so speaker/content/id live directly on event.data.
                 const messageData = event.data as {
                     id?: string;
+                    turnId?: string;
                     speaker?: string;
                     content?: string;
                     userId?: string;
@@ -347,10 +367,7 @@ const ChatBox = forwardRef<ChatBoxRef, ChatBoxProps>(function ChatBox(
                     threadId: currentThreadId || undefined,
                     ...(files ? { files } : {}),
                 };
-                setMessages((prev) => {
-                    if (!prev) return [agentMessage];
-                    return [...prev, agentMessage];
-                }, currentThreadId);
+                setMessages((prev) => applyFinalMessage(prev || [], agentMessage, messageData.turnId), currentThreadId);
 
                 // EPIC21: best-effort dual-write of THIS agent turn — gated (F5) to a
                 // send ainspace itself conducted in this same thread, so ainteams-
