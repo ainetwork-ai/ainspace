@@ -1,6 +1,8 @@
+export interface ConnectionPlayer { x: number; y: number; direction: string; displayName: string; spriteKey: string }
 interface StorageCommand {
+  village?: string; instanceId?: string; userId?: string; connectionId?: string; player?: ConnectionPlayer;
   operation: string; key?: string; keys?: string[]; value?: string;
-  field?: string; fields?: string[] | Record<string,string>; members?: string | string[]; seconds?: number;
+  field?: string; fields?: string[] | Record<string,string>; members?: string | string[]; seconds?: number; onlyIfAbsent?: boolean;
 }
 function configuration(): {base:string; token:string} {
   const endpoint=process.env.AINSPACE_STORAGE_URL;
@@ -22,6 +24,13 @@ async function command<T>(payload:StorageCommand):Promise<T> {
   return value.result as T;
 }
 export const storageClient={
+  villageInstance:(village:string)=>command<{instanceId:string;title:string}|null>({operation:'village.instance',village}),
+  presenceJoin:(village:string,instanceId:string,userId:string,connectionId:string,player:ConnectionPlayer)=>command<boolean>({operation:'presence.join',village,instanceId,userId,connectionId,player}),
+  presenceRenew:(village:string,instanceId:string,userId:string,connectionId:string,player?:ConnectionPlayer)=>command<boolean>({operation:'presence.renew',village,instanceId,userId,connectionId,player}),
+  presenceRelease:(village:string,instanceId:string,userId:string,connectionId:string)=>command<boolean>({operation:'presence.release',village,instanceId,userId,connectionId}),
+  presenceList:(village:string,instanceId:string)=>command<Array<ConnectionPlayer & {userId:string}>>({operation:'presence.list',village,instanceId}),
+  presenceHas:(village:string,instanceId:string,userId:string)=>command<boolean>({operation:'presence.has',village,instanceId,userId}),
+
   async connect():Promise<void> {
     const {base,token}=configuration();
     const response=await fetch(base+'/health',{headers:{Authorization:'Bearer '+token},cache:'no-store',redirect:'error',signal:AbortSignal.timeout(10000)});
@@ -36,6 +45,7 @@ export const storageClient={
   get:(key:string)=>command<string|null>({operation:'get',key}),
   mGet:(keys:string[])=>command<(string|null)[]>({operation:'mGet',keys}),
   set:(key:string,value:string,options?:{EX?:number})=>command<string>({operation:'set',key,value,seconds:options?.EX}),
+  claimOnce:(key:string,seconds:number)=>command<'OK'|null>({operation:'set',key,value:'1',seconds,onlyIfAbsent:true}),
   getDel:(key:string)=>command<string|null>({operation:'getDel',key}),
   del:(keys:string|string[])=>command<number>(typeof keys==='string'?{operation:'del',key:keys}:{operation:'del',keys}),
   expire:(key:string,seconds:number)=>command<number>({operation:'expire',key,seconds}),

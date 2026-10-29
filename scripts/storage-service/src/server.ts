@@ -3,8 +3,9 @@ import { readFileSync, statSync } from "node:fs";
 import { timingSafeEqual } from "node:crypto";
 import { createAinStateStore } from "./config";
 import { AinStateStore } from "./ain-state-store";
+import { VillageConnections, VillageConnectionCommand } from "./village-connections";
 
-export interface Command { operation: string; key?: string; keys?: string[]; value?: string; field?: string; fields?: string[] | Record<string,string>; members?: string | string[]; seconds?: number }
+export interface Command extends VillageConnectionCommand { operation: string; key?: string; keys?: string[]; value?: string; field?: string; fields?: string[] | Record<string,string>; members?: string | string[]; seconds?: number; onlyIfAbsent?: boolean }
 const PREFIX="ainspace:";
 const MAX_BODY=8*1024*1024;
 function privateFile(path:string) {
@@ -31,6 +32,7 @@ export async function execute(store:AinStateStore,command:Command):Promise<unkno
     case "mGet": return store.mGet(list(command.keys).map(key));
     case "set":
       if(typeof command.value!=="string") throw Error("Invalid storage value");
+      if (command.onlyIfAbsent === true) return store.setNxEx(k, command.seconds!, command.value);
       return command.seconds===undefined ? store.set(k,command.value) : store.setEx(k,command.seconds,command.value);
     case "type": return store.type(k);
     case "exists": return store.exists(k);
@@ -105,7 +107,14 @@ export function storageServer(store:AinStateStore,secret:string) {
   let pending=0;
   const presence=new PresenceStore();
   const listeners=new Map<string,Set<ServerResponse>>();
-  const sweep=setInterval(()=>{for(const [k,v] of presence.values) if(v.expiresAt<=Date.now()) presence.values.delete(k);},60000);
+  const connections = new VillageConnections(store, (village, event) => {
+    for (const response of listeners.get(`village:${village}:events`) ?? []) {
+      if (response.writableLength > 262144) response.destroy();
+      else response.write('data: ' + JSON.stringify(JSON.stringify(event)) + '\n\n');
+    }
+  });
+
+  const sweep=setInterval(()=>{connections.leases.sweep();for(const [k,v] of presence.values) if(v.expiresAt<=Date.now()) presence.values.delete(k);},60000);
   sweep.unref();
   const server=createServer(async(request,response)=>{
     if(!sameSecret(request.headers.authorization ?? "","Bearer "+secret)) return respond(response,401,{error:"unauthorized"});
@@ -129,7 +138,9 @@ export function storageServer(store:AinStateStore,secret:string) {
     try {
       const command=await body(request);
       let result:unknown;
-      if(command.operation==="publish") {
+      if(command.operation === "village.instance" || command.operation.startsWith("presence.")) {
+        result = await connections.execute(command);
+      } else if(command.operation==="publish") {
         if(typeof command.key!=="string" || !/^village:.{1,512}:events$/.test(command.key) || typeof command.value!=="string" || command.value.length>65536) throw Error("Invalid event");
         const group=listeners.get(command.key);
         for(const target of group ?? []) {

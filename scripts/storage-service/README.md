@@ -26,3 +26,11 @@ No deprecated Redis variable, SDK, or fallback is supported. Missing storage fai
 ## Rollout verification
 
 Verify the complete source snapshot, current source drift, authenticated health, unauthenticated denial, login/permissions, map/catalog state, current conversation flow, and cross-client presence. Remove frontend Redis credentials and disable legacy Redis consumers only after production verification. Keep protected offline backups for recovery.
+
+## Connection-scoped presence (Huddle port)
+
+The private command endpoint also accepts `village.instance` and `presence.join` / `presence.renew` / `presence.release` / `presence.list` / `presence.has`. These are called by the frontend server after account-session authorization, never directly by browsers with the storage token. The gateway rechecks durable village metadata and instance IDs before touching the central connection ledger. Instance initialization and one-use proof claims use native revision CAS.
+
+A connection has a 45-second lease. Only a live connection may renew; a close releases its own ID and preserves other tabs. Village deletion/recreation invalidates the old instance. The ledger intentionally starts empty on gateway restart, requiring fresh client connections. Snapshot/player objects are copied, and per-account/per-village bounds limit memory use.
+
+The current Space frontend still needs its authenticated SSE/position port before these operations are enabled in the product. Do not describe the pure lease tests or the private HTTP tests as real browser/media load verification. See [integration status](../../docs/huddles-main-integration.md).

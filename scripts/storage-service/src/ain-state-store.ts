@@ -104,6 +104,13 @@ export class AinStateStore {
     if (state.type !== "string") throw Error("WRONGTYPE state value is not a string");
     return state.value as string;
   }
+  /** One-use proof claims share the same native CAS as auth-state consumption. */
+  setNxEx(key: string, seconds: number, value: string): Promise<'OK' | null> {
+    if (!Number.isSafeInteger(seconds) || seconds <= 0 || seconds > 86400) return Promise.reject(Error('Invalid claim expiry'));
+    return this.serialize(() => this.change<'OK' | null>(key, current => current
+      ? { result: null, unchanged: true, state: current }
+      : { result: 'OK', state: { key, type: 'string', value, expiresAt: this.clock() + seconds * 1000 } }));
+  }
   mGet(keys: string[]): Promise<(string | null)[]> { return Promise.all(keys.map(key => this.get(key))); }
   set(key: string, value: string): Promise<string> {
     return this.serialize(() => this.change(key, () => ({ state: { key, type: "string", value, expiresAt: null }, result: "OK" })));
@@ -145,6 +152,22 @@ export class AinStateStore {
       const added = Object.keys(fields).filter(f => !Object.hasOwn(previous ?? {}, f)).length;
       const unchanged = !!current && Object.entries(fields).every(([f, v]) => previous?.[f] === v);
       return { result: added, unchanged, state: { key, type: "hash", value: next, expiresAt: current?.expiresAt ?? null } };
+    }));
+  }
+  /** Initialize a field only in an existing matching hash under native revision CAS.
+   * Delayed initialization cannot recreate deleted metadata or replace an instance. */
+  hInitializeExisting(key: string, field: string, value: string, expected: Record<string, string>): Promise<string | null> {
+    if (!field || typeof value !== 'string' || Object.values(expected).some(v => typeof v !== 'string')) {
+      return Promise.reject(Error('Invalid hash initialization'));
+    }
+    return this.serialize(() => this.change<string | null>(key, current => {
+      if (!current || current.type !== 'hash') return { result: null, unchanged: true, state: current };
+      const previous = current.value as Record<string, string>;
+      if (!Object.entries(expected).every(([f, v]) => Object.hasOwn(previous, f) && previous[f] === v)) {
+        return { result: null, unchanged: true, state: current };
+      }
+      if (Object.hasOwn(previous, field)) return { result: previous[field], unchanged: true, state: current };
+      return { result: value, state: { ...current, value: Object.assign(Object.create(null), previous, { [field]: value }) } };
     }));
   }
   async hGetAll(key: string): Promise<Record<string, string>> {
