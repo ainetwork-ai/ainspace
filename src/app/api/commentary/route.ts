@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateCommentary } from '@/lib/gemini';
+import { generateCommentary } from '@/lib/ainize-world';
 
 export async function POST(request: NextRequest) {
   try {

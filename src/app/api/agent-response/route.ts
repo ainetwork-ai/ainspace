@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateAgentResponse } from '@/lib/gemini';
+import { generateAgentResponse } from '@/lib/ainize-world';
 
 export async function POST(request: NextRequest) {
   try {
