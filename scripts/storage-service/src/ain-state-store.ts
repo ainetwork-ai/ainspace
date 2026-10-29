@@ -20,6 +20,8 @@ const BULK_HEADS_LIMIT = 900;
 export class AinStateStore {
   private queue: Promise<unknown> = Promise.resolve();
   private readonly cache = new Map<string, { revision: string; state: StateValue }>();
+  /** Heads by record id with the listing hash they were read at (see keys()). */
+  private readonly headCache = new Map<string, { hash: string; head: StoredHead }>();
   constructor(private readonly chain: StateChainTransport, private readonly codec: EncryptedStateCodec,
     private readonly root: string, private readonly clock = Date.now, private readonly namespace?: string) {
     if (!/^\/apps\/[a-zA-Z0-9_]+\/state$/.test(root)) throw Error("State root must be an organization app's state path");
@@ -255,11 +257,31 @@ export class AinStateStore {
     if (pattern.includes("?") || pattern.includes("[") || pattern.includes("\\")) throw Error("Unsupported state key pattern");
     const regex = new RegExp("^" + pattern.split("*").map(part => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(".*") + "$");
     const heads: Record<string, StoredHead> = {};
-    if (this.chain.childLabels) {
+    if (this.chain.childEntries) {
+      // The listing carries each head's state hash: re-read only heads whose hash changed, so a
+      // steady scan costs the paged listing alone at any number of records. Reading every head per
+      // scan exhausted the validators' per-IP rate limit (2026-10-29).
+      const entries = await this.chain.childEntries(`${this.root}/heads`);
+      const listed = new Set(entries.map(entry => entry.label));
+      for (const id of this.headCache.keys()) if (!listed.has(id)) this.headCache.delete(id);
+      const changed = entries.filter(entry => !entry.hash || this.headCache.get(entry.label)?.hash !== entry.hash);
+      const all = changed.length > 16 && entries.length <= BULK_HEADS_LIMIT
+        ? await this.chain.get<Record<string, StoredHead>>(`${this.root}/heads`).catch(() => null) : null;
+      if (all && changed.every(entry => Object.hasOwn(all, entry.label))) {
+        for (const entry of changed) this.headCache.set(entry.label, { hash: entry.hash, head: all[entry.label] });
+      } else {
+        let cursor = 0;
+        await Promise.all(Array.from({ length: Math.min(16, changed.length) }, async () => {
+          while (cursor < changed.length) {
+            const entry = changed[cursor++];
+            const head = await this.chain.get<StoredHead>(this.headPath(entry.label));
+            if (head) this.headCache.set(entry.label, { hash: entry.hash, head }); else this.headCache.delete(entry.label);
+          }
+        }));
+      }
+      for (const entry of entries) { const cached = this.headCache.get(entry.label); if (cached) heads[entry.label] = cached.head; }
+    } else if (this.chain.childLabels) {
       const ids = await this.chain.childLabels(`${this.root}/heads`);
-      // One read returns every head while they fit the node's sibling limit (GET_RESP_MAX_SIBLINGS
-      // 1000). Reading them one by one cost an RPC per record per scan and exhausted the validators'
-      // per-IP rate limit (2026-10-29). The walk below remains for larger sets or a failed bulk read.
       const all = ids.length <= BULK_HEADS_LIMIT
         ? await this.chain.get<Record<string, StoredHead>>(`${this.root}/heads`).catch(() => null) : null;
       if (all && ids.every(id => Object.hasOwn(all, id))) for (const id of ids) heads[id] = all[id];

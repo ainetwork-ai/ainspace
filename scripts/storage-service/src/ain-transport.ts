@@ -1,10 +1,13 @@
 import Ain from "@ainblockchain/ain-js";
+import { clientGone } from "./request-context";
 
 export interface ChainOperation { type: "SET_VALUE"; ref: string; value: unknown }
 export interface StateChainTransport {
   readonly operationJsonBytesLimit?: number;
   readonly operationCountLimit?: number;
   childLabels?(ref: string): Promise<string[]>;
+  /** Child labels with each child's state proof hash, which changes whenever that child changes. */
+  childEntries?(ref: string): Promise<{ label: string; hash: string }[]>;
   get<T>(ref: string): Promise<T | null>;
   write(operations: ChainOperation[]): Promise<void>;
 }
@@ -39,11 +42,15 @@ export class AinTransport implements StateChainTransport {
     this.operationJsonBytesLimit = Math.floor((config.transactionBytesLimit - 1024) / 2) - 256;
   }
   async rpc<T>(method: string, params: Record<string, unknown> = {}): Promise<T> {
+    const readonly = method.startsWith("ain_get") || method.startsWith("net_get");
+    // Reads for a client that already gave up only take slots from live requests. Writes always go out.
+    const abandoned = () => { if (readonly && clientGone()) throw Error("AIN read skipped: client disconnected"); };
+    abandoned();
     if (this.activeRpc < 8) this.activeRpc++;
     else await new Promise<void>(resolve => this.waitingRpc.push(resolve));
     try {
-      const readonly = method.startsWith("ain_get") || method.startsWith("net_get");
       for (let attempt = 0; ; attempt++) {
+        abandoned();
         const response = await fetch(this.config.rpcUrl, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params: { ...params, protoVer: "1.6.1" } }),
@@ -86,22 +93,26 @@ export class AinTransport implements StateChainTransport {
     return this.rpc("ain_get", { type: "GET_VALUE", ref, is_final: true });
   }
   async childLabels(ref: string): Promise<string[]> {
-    const labels: string[] = [], seen = new Set<string>(), cursors = new Set<string>();
+    return (await this.childEntries(ref)).map(entry => entry.label);
+  }
+  async childEntries(ref: string): Promise<{ label: string; hash: string }[]> {
+    const entries: { label: string; hash: string }[] = [], seen = new Set<string>(), cursors = new Set<string>();
     let cursor: string | undefined;
     for (let pageNumber = 0; pageNumber < 100000; pageNumber++) {
       const page = await this.rpc<Record<string, unknown> | null>("ain_get", {
         type: "GET_VALUE", ref, is_final: true, is_partial: true, is_shallow: true,
         ...(cursor === undefined ? {} : { last_end_label: cursor }),
       });
-      if (page === null) return labels;
+      if (page === null) return entries;
       if (typeof page !== "object" || Array.isArray(page)) throw Error("Invalid AIN child listing");
       const children = Object.keys(page).filter(label => !label.startsWith("#"));
       for (const label of children) {
         if (seen.has(label)) throw Error("AIN child listing repeated a record");
-        seen.add(label); labels.push(label);
+        const hash = (page[label] as Record<string, unknown> | null)?.["#state_ph"];
+        seen.add(label); entries.push({ label, hash: typeof hash === "string" ? hash : "" });
       }
       const next = page["#end_label"];
-      if (!children.length || next === undefined) return labels;
+      if (!children.length || next === undefined) return entries;
       if (typeof next !== "string" || !next || cursors.has(next)) throw Error("AIN child listing cursor did not advance");
       cursors.add(next); cursor = next;
     }

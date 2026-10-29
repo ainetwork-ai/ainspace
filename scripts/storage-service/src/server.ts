@@ -3,6 +3,7 @@ import { readFileSync, statSync } from "node:fs";
 import { timingSafeEqual } from "node:crypto";
 import { createAinStateStore } from "./config";
 import { AinStateStore } from "./ain-state-store";
+import { requestContext } from "./request-context";
 
 export interface Command { operation: string; key?: string; keys?: string[]; value?: string; field?: string; fields?: string[] | Record<string,string>; members?: string | string[]; seconds?: number }
 const PREFIX="ainspace:";
@@ -126,6 +127,10 @@ export function storageServer(store:AinStateStore,secret:string) {
     if(url.pathname!=="/command" || request.method!=="POST") return respond(response,404,{error:"not_found"});
     if(pending>=256) return respond(response,503,{error:"busy"});
     pending++;
+    // A client that disconnects before its answer abandons the command's remaining reads.
+    const client=new AbortController();
+    response.on("close",()=>{if(!response.writableFinished) client.abort();});
+    await requestContext.run({signal:client.signal},async()=>{
     try {
       const command=await body(request);
       let result:unknown;
@@ -150,8 +155,9 @@ export function storageServer(store:AinStateStore,secret:string) {
       } else if(command.key && /^village:.*:(players|heartbeat|ain_presence)$/.test(command.key)) result=await presence.command(command);
       else result=await execute(store,command);
       respond(response,200,{result});
-    } catch { respond(response,503,{error:"storage_operation_failed"}); }
+    } catch { if(!client.signal.aborted) respond(response,503,{error:"storage_operation_failed"}); }
     finally { pending--; }
+    });
   });
   server.on("close",()=>{clearInterval(sweep);for(const group of listeners.values()) for(const response of group) response.destroy();});
   return server;
