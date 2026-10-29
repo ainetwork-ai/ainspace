@@ -121,7 +121,8 @@ export default function RootLayout({
                     <AuthGuard>{children}</AuthGuard>
                 </Providers>
                 <GoogleAnalytics />
-                <Analytics />
+                {/* Vercel Analytics only where Vercel serves its script; elsewhere (Ainize) it is a 404 on every page. */}
+                {process.env.VERCEL === '1' && <Analytics />}
             </body>
         </html>
     );
