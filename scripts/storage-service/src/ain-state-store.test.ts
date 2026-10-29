@@ -234,3 +234,43 @@ test("gateway initialization retries a transient failure instead of exiting", as
   const value = await initializeWithRetry(async () => { if (++calls < 3) throw Error("router not ready"); return "store"; }, async ms => { waits.push(ms); });
   assert.equal(value, "store"); assert.equal(calls, 3); assert.deepEqual(waits, [2000, 4000]);
 });
+
+// Heads past the bulk-read limit: the listing carries each head's state hash, so a scan re-reads
+// only heads whose hash changed — steady scans cost the listing alone at any number of records.
+class HashedChain extends LabelledChain {
+  async childEntries(ref: string): Promise<{ label: string; hash: string }[]> {
+    this.reads.push(ref + "#entries");
+    const labels = [...this.values.keys()].filter(key => key.startsWith(ref + "/")).map(key => key.slice(ref.length + 1)).filter(key => !key.includes("/"));
+    return labels.map(label => ({ label, hash: JSON.stringify(this.values.get(`${ref}/${label}`)) }));
+  }
+}
+test("keys re-reads only changed heads, whatever the number of records", async () => {
+  const chain = new HashedChain(), codec = new EncryptedStateCodec("org-uncommon", randomBytes(32));
+  const store = new AinStateStore(chain, codec, root, () => 1000);
+  for (let i = 0; i < 950; i++) await store.set(`agents:${i}`, "x");
+  await store.keys("agents:*");
+  chain.reads = [];
+  assert.equal((await store.keys("agents:*")).length, 950);
+  assert.deepEqual(chain.reads.filter(ref => ref.includes("/heads")), [`${root}/heads#entries`], "an unchanged scan reads only the listing");
+  await store.set("agents:7", "y");
+  chain.reads = [];
+  assert.equal((await store.keys("agents:*")).length, 950);
+  assert.equal(chain.reads.filter(ref => /\/heads\/[^/#]+$/.test(ref)).length, 1, "one changed head, one head read");
+  await store.del("agents:8");
+  assert.equal((await store.keys("agents:*")).length, 949, "a deleted record leaves the scan");
+});
+test("a command whose client disconnected sees its request as gone", async () => {
+  const { storageServer } = await import("./server");
+  const { clientGone } = await import("./request-context");
+  let seen: boolean | null = null;
+  const store = { get: async () => { await new Promise(r => setTimeout(r, 150)); seen = clientGone(); return null; } };
+  const server = storageServer(store as never, "a".repeat(64));
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const base = `http://127.0.0.1:${(server.address() as import("node:net").AddressInfo).port}`;
+  const abort = new AbortController();
+  const pending = fetch(base + "/command", { method: "POST", headers: { Authorization: "Bearer " + "a".repeat(64) }, body: JSON.stringify({ operation: "get", key: "x" }), signal: abort.signal }).catch(() => null);
+  await new Promise(r => setTimeout(r, 40)); abort.abort(); await pending;
+  await new Promise(r => setTimeout(r, 250));
+  server.close();
+  assert.equal(seen, true);
+});

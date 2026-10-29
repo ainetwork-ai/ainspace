@@ -56,3 +56,15 @@ test("finalized pagination retains all labels and rejects a repeated page",async
   t.mock.method(globalThis,"fetch",async()=>Response.json({result:{result:{a:{},"#end_label":"same"}}}));
   await assert.rejects(transport().childLabels("/apps/example/state/heads"),/repeated a record/);
 });
+test("reads stop once the client that asked for them has gone; writes still go out",async t=>{
+  const { requestContext } = await import("./request-context");
+  let calls=0;
+  t.mock.method(globalThis,"fetch",async()=>{ calls++; return Response.json({result:{result:"value"}}); });
+  const gone=new AbortController(); gone.abort();
+  await requestContext.run({signal:gone.signal},async()=>{
+    await assert.rejects(transport().rpc("ain_get",{ref:"/apps/example"}),/client disconnected/);
+    assert.equal(calls,0);
+    assert.equal(await transport().rpc("ain_sendSignedTransaction",{}),"value");
+    assert.equal(calls,1);
+  });
+});

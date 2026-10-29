@@ -10,7 +10,12 @@ function configuration(): {base:string; token:string} {
   if((url.protocol!=='https:' && !(url.protocol==='http:' && ['127.0.0.1','localhost'].includes(url.hostname))) || url.username || url.password || url.search || url.hash) throw Error('Invalid storage gateway URL');
   return {base:endpoint.replace(/\/$/,''),token};
 }
+/** Operations that change stored data; readers caching gateway results drop them when one runs here. */
+const MUTATIONS=new Set(['set','getDel','del','expire','hSet','hDel','sAdd','sRem']);
+const writeListeners=new Set<()=>void>();
+export function onStorageWrite(listener:()=>void):void { writeListeners.add(listener); }
 async function command<T>(payload:StorageCommand):Promise<T> {
+  if(MUTATIONS.has(payload.operation)) for(const listener of writeListeners) listener();
   const {base,token}=configuration();
   const response=await fetch(base+'/command',{
     method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},

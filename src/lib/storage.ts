@@ -1,4 +1,4 @@
-import { storageClient, StorageSubscriber } from './storage-client';
+import { storageClient, StorageSubscriber, onStorageWrite } from './storage-client';
 import { readAgentsByUrls } from './backend/agents-by-url';
 import { AgentStateForDB } from './agent';
 import { AgentCard } from '@a2a-js/sdk';
@@ -16,7 +16,26 @@ export async function getStorageClient() {
  * @param count - Hint for number of keys to return per iteration (default: 100)
  * @returns Array of all matching keys
  */
+const SCAN_TTL_MS = 10_000;
+const scanCache = new Map<string, { at: number; keys: Promise<string[]> }>();
+// A write here drops every cached scan, so this instance always sees its own changes.
+onStorageWrite(() => scanCache.clear());
+
+/**
+ * Scans read every record head on the chain. Page loads scan agents:* and auth:* each time, so a few
+ * visitors exhausted the AIN validators' rate limit (2026-10-29). Concurrent and repeated scans of a
+ * pattern within SCAN_TTL_MS share one result; another instance sees new keys within that window.
+ */
 export async function scanKeys(pattern: string, count: number = 100): Promise<string[]> {
+    const cached = scanCache.get(pattern);
+    if (cached && Date.now() - cached.at < SCAN_TTL_MS) return [...await cached.keys];
+    const keys = scanUncached(pattern, count);
+    scanCache.set(pattern, { at: Date.now(), keys });
+    keys.catch(() => { if (scanCache.get(pattern)?.keys === keys) scanCache.delete(pattern); });
+    return [...await keys];
+}
+
+async function scanUncached(pattern: string, count: number): Promise<string[]> {
     try {
         const storage = await getStorageClient();
         const keys: string[] = [];
