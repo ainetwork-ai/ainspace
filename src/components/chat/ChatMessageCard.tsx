@@ -85,6 +85,9 @@ export default function ChatMessageCard({ message }: { message: ChatMessage }) {
                 >
                     {message.text}
                 </ReactMarkdown>
+                {message.streaming && (
+                    <span aria-hidden className='ml-0.5 inline-block w-[2px] h-[1em] translate-y-[2px] bg-white/80 animate-pulse' />
+                )}
             </div>
             {/* EPIC22: agent-sent images — laid out in a row, wrapping to a new
                 line when horizontal space runs out. Kept OUTSIDE the `prose`

@@ -34,6 +34,9 @@ export interface ChatMessage {
     threadId?: string;
     // EPIC22: files attached to the message (agent-sent images).
     files?: ChatMessageFile[];
+    // A provisional bubble that is still being written (orchestration `delta`
+    // events, lib/stream-turn.ts). Replaced by the final message of its turn.
+    streaming?: boolean;
 }
 
 export interface ThreadMessages {

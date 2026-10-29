@@ -29,11 +29,14 @@ export interface Message {
 }
 
 export interface StreamEvent {
-  type: 'connected' | 'message' | 'block' | 'error';
+  type: 'connected' | 'message' | 'delta' | 'block' | 'error';
   data: {
     // Nested message data structure from A2A Orchestration
     data?: {
       id?: string;
+      // The agent turn this event belongs to: `delta` events draw a provisional
+      // bubble, the `message` with the same turnId replaces it (lib/stream-turn.ts).
+      turnId?: string;
       speaker?: string;
       content?: string;
       timestamp?: number;
