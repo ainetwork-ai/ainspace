@@ -1,27 +1,27 @@
 import { storageClient } from '../src/lib/storage-client';
 /**
- * 17.7 자산 인벤토리 — AIN storage 키·Vercel Blob·Firebase Storage(GCS) 객체를 **종류별로 센다**. 읽기 전용.
+ * 17.7 자산 인벤토리 — AIN storage 키·Firebase Storage(GCS) 객체를 **종류별로 센다**. 읽기 전용.
  *
- *   npx tsx scripts/ain-asset-inventory.ts [--storage] [--blob] [--bucket] [--json] [--max N]
- *   (아무 것도 안 주면 셋 다. 설정이 없는 저장소는 "skipped" 로 보고한다.)
+ *   npx tsx scripts/ain-asset-inventory.ts [--storage] [--bucket] [--json] [--max N]
+ *   (아무 것도 안 주면 둘 다. 설정이 없는 저장소는 "skipped" 로 보고한다.)
  *
  * 비밀을 읽지 않는다:
  *   - AIN storage: SCAN 으로 **키 이름만**. GET/HGET 등 값을 읽는 명령은 쓰지 않는다. 비밀 종류(봉인된 aindrive 토큰 등)는
  *     샘플 이름도 접두어까지만 찍는다.
- *   - Blob/Bucket: 목록 API 의 이름·크기만. 바이트는 받지 않는다.
+ *   - Bucket: 목록 API 의 이름·크기만. 바이트는 받지 않는다.
  *   - env 의 URL·토큰·서비스 계정은 출력하지 않는다(설정 여부만).
  * 분류 규칙과 이관 계획은 src/lib/ain-integration/asset-inventory.ts, 설명은 docs/ain-asset-migration.md.
  */
 import { config } from 'dotenv';
 import { resolve } from 'path';
-import { EXTERNAL_ASSETS, classifyBlobPath, classifyBucketPath, classifyStorageKey, summarize, type AssetKind, type InventoryRow } from '../src/lib/ain-integration/asset-inventory';
+import { EXTERNAL_ASSETS, classifyBucketPath, classifyStorageKey, summarize, type AssetKind, type InventoryRow } from '../src/lib/ain-integration/asset-inventory';
 
 config({ path: resolve(process.cwd(), '.env.local') });
 config({ path: resolve(process.cwd(), '.env') });
 
 const args = process.argv.slice(2);
 const has = (f: string) => args.includes(f);
-const pick = ['--storage', '--blob', '--bucket'].filter(has);
+const pick = ['--storage', '--bucket'].filter(has);
 const want = (f: string) => pick.length === 0 || pick.includes(f);
 const maxIdx = args.indexOf('--max');
 const MAX = maxIdx >= 0 ? Number(args[maxIdx + 1]) || 100_000 : 100_000;
@@ -48,21 +48,6 @@ async function storageItems(): Promise<Item[]> {
   return out;
 }
 
-async function blobItems(): Promise<Item[]> {
-  const token = process.env.AINSPACE_BLOB_READ_WRITE_TOKEN;
-  if (!token) { status.blob = 'skipped (AINSPACE_BLOB_READ_WRITE_TOKEN not set)'; return []; }
-  const { list } = await import('@vercel/blob');
-  const out: Item[] = [];
-  let cursor: string | undefined;
-  do {
-    const page = await list({ token, cursor, limit: 1000 });
-    for (const b of page.blobs) out.push({ name: b.pathname, size: b.size, kind: classifyBlobPath(b.pathname) });
-    cursor = page.hasMore ? page.cursor : undefined;
-  } while (cursor && out.length < MAX);
-  status.blob = `ok (${out.length} blobs)`;
-  return out;
-}
-
 async function bucketItems(): Promise<Item[]> {
   if (!process.env.FIREBASE_SERVICE_ACCOUNT_KEY || !process.env.FIREBASE_STORAGE_BUCKET) { status.bucket = 'skipped (FIREBASE_* not set)'; return []; }
   const { getFirebaseStorage } = await import('../src/lib/firebase');
@@ -86,7 +71,7 @@ function print(rows: InventoryRow[]) {
 
 async function main() {
   const items: Item[] = [];
-  for (const [flag, fn] of [['--storage', storageItems], ['--blob', blobItems], ['--bucket', bucketItems]] as const) {
+  for (const [flag, fn] of [['--storage', storageItems], ['--bucket', bucketItems]] as const) {
     if (!want(flag)) continue;
     try { items.push(...(await fn())); } catch (e) {
       status[flag.slice(2)] = `failed (${e instanceof Error ? e.name : 'error'})`;
