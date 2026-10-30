@@ -6,7 +6,7 @@ import { createStreamDispatcher } from '@/lib/backend/stream-dispatcher';
 // Configure route to handle long-lived streaming connections
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-export const maxDuration = 800; // Vercel Pro streaming limit
+export const maxDuration = 800; // long-lived SSE stream: keep the route handler alive well past the default
 
 // Long-lived SSE without read timeouts, through the egress proxy when one is configured (see stream-dispatcher).
 const streamDispatcher = createStreamDispatcher();

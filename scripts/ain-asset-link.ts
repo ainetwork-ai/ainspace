@@ -2,12 +2,12 @@ import { storageClient } from '../src/lib/storage-client';
 /**
  * 17.7 기존 자산 → 소유자 Aindrive 연결 도구(배포 운영자가 돌린다). **기본은 dry-run** — 아무것도 쓰지 않는다.
  *
- *   npx tsx scripts/ain-asset-link.ts [--blob] [--bucket] [--owner <userId>] [--village <slug>] [--json] [--max N]
+ *   npx tsx scripts/ain-asset-link.ts [--bucket] [--owner <userId>] [--village <slug>] [--json] [--max N]
  *   npx tsx scripts/ain-asset-link.ts --apply [--run-id <id>] [--rollback-file <path>] [...위 필터]
  *   npx tsx scripts/ain-asset-link.ts --rollback <runId> [--apply] [--delete-copies]
  *
  * - AIN_INTEGRATION_ENABLED(또는 NEXT_PUBLIC_…)가 켜져 있어야 돈다.
- * - dry-run: Blob·버킷 객체를 나열하고(이름·크기만), 분명한 소유자(마을 맵·타일셋 = `village:<slug>:owner`)가 있고
+ * - dry-run: 버킷 객체를 나열하고(이름·크기만), 분명한 소유자(마을 맵·타일셋 = `village:<slug>:owner`)가 있고
  *   그 소유자의 aindrive 연결이 있는 자산만 `link` 로, 대상 경로 `/Space assets/<객체 경로>` 를 보여준다.
  *   소유자가 없거나 불분명한 자산(타일 업로드·공용 타일셋·스프라이트·채팅 첨부)은 `refuse`.
  * - --apply: 소유자의 연결로 소유자의 첫 드라이브에 복사하고, `village:<slug>:ain_asset_links` 에 fileKey 를 적는다.
@@ -27,7 +27,7 @@ config({ path: resolve(process.cwd(), '.env') });
 const args = process.argv.slice(2);
 const has = (f: string) => args.includes(f);
 const val = (f: string) => { const i = args.indexOf(f); return i >= 0 && args[i + 1] && !args[i + 1].startsWith('--') ? args[i + 1] : undefined; };
-const pick = ['--blob', '--bucket'].filter(has);
+const pick = ['--bucket'].filter(has);
 const want = (f: string) => pick.length === 0 || pick.includes(f);
 const MAX = Number(val('--max')) || 100_000;
 const APPLY = has('--apply');
@@ -36,26 +36,6 @@ const JSON_OUT = has('--json');
 type Asset = import('../src/lib/ain-integration/asset-linking').SourceAsset;
 const status: Record<string, string> = {};
 const readers = new Map<string, (a: Asset) => Promise<Uint8Array>>();
-
-async function blobAssets(): Promise<Asset[]> {
-  const token = process.env.AINSPACE_BLOB_READ_WRITE_TOKEN;
-  if (!token) { status.blob = 'skipped (AINSPACE_BLOB_READ_WRITE_TOKEN not set)'; return []; }
-  const { list } = await import('@vercel/blob');
-  const out: Asset[] = [];
-  let cursor: string | undefined;
-  do {
-    const page = await list({ token, cursor, limit: 1000 });
-    for (const b of page.blobs) out.push({ store: 'blob', path: b.pathname, url: b.url, size: b.size });
-    cursor = page.hasMore ? page.cursor : undefined;
-  } while (cursor && out.length < MAX);
-  readers.set('blob', async (a) => {
-    const res = await fetch(a.url, { cache: 'no-store' });
-    if (!res.ok) throw new Error(`blob_read_${res.status}`);
-    return new Uint8Array(await res.arrayBuffer());
-  });
-  status.blob = `ok (${out.length} blobs)`;
-  return out;
-}
 
 async function bucketAssets(): Promise<Asset[]> {
   if (!process.env.FIREBASE_SERVICE_ACCOUNT_KEY || !process.env.FIREBASE_STORAGE_BUCKET) { status.bucket = 'skipped (FIREBASE_* not set)'; return []; }
@@ -124,7 +104,7 @@ async function main(): Promise<number> {
     }
 
     const assets: Asset[] = [];
-    for (const [flag, fn] of [['--blob', blobAssets], ['--bucket', bucketAssets]] as const) {
+    for (const [flag, fn] of [['--bucket', bucketAssets]] as const) {
       if (!want(flag)) continue;
       try { assets.push(...(await fn())); } catch (e) { status[flag.slice(2)] = `failed (${e instanceof Error ? e.name : 'error'})`; }
     }

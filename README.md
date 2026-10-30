@@ -87,7 +87,6 @@ This is problematic because **real economic activity is inherently "stateful"**.
 ### 3. Storage & Blockchain
 
 - **Storage**: Encrypted AIN Blockchain map, catalog, and permission records; AIN Teams conversations; central gateway presence
-- **Vercel Blob**: Agent-generated tiles & assets ✅
 - **Smart Contract**: AgentRegistry record agent informations  ✅
 - **L1 Blockchain (Base)**: Web3 ownership & x402 payments *(Roadmap)*
 - **L2 DAG**: Agent collaboration records & verification *(Merkle Proof in Roadmap)*
@@ -102,13 +101,13 @@ This is problematic because **real economic activity is inherently "stateful"**.
 
 **Web3**: Coinbase OnchainKit, Wagmi, Viem, Base Network, Smart contract
 
-**Infrastructure**: AIN Blockchain storage gateway, AIN Teams, AIN Drive, Vercel Blob, x402 Protocol *(Roadmap)*
+**Infrastructure**: AIN Blockchain storage gateway, AIN Teams, AIN Drive, x402 Protocol *(Roadmap)*
 
 ---
 
 ### 🌐 Deployment
 
-**Live Demo**: [AINSpace](https://ainspace-4g3e.vercel.app) or search `AINSpace` in base app.
+**Live Demo**: [AINSpace](https://ainspace.ainetwork.ai) or search `AINSpace` in base app.
 
 **A2A Builder**: [https://github.com/ainetwork-ai/a2a-agent-builder](https://github.com/ainetwork-ai/a2a-agent-builder)
 

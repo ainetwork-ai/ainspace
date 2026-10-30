@@ -1,7 +1,6 @@
 import './globals.css';
 import { Providers } from '@/providers/Providers';
 import { AuthGuard } from '@/components/AuthGuard';
-import { Analytics } from '@vercel/analytics/next';
 import { GoogleAnalytics } from '@/components/GoogleAnalytics';
 import type { Metadata } from 'next';
 
@@ -21,7 +20,7 @@ const geistMono = { variable: 'font-mono' }; // Fallback class
 const manrope = { variable: 'font-manrope' }; // Fallback class
 
 export function generateMetadata(): Metadata {
-    const baseUrl = process.env.NEXT_PUBLIC_URL || 'https://ainspace-4g3e.vercel.app';
+    const baseUrl = process.env.NEXT_PUBLIC_URL || 'https://ainspace.ainetwork.ai';
     const projectName = process.env.NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME || 'AINSPACE';
     const description =
         process.env.NEXT_PUBLIC_ONCHAINKIT_PROJECT_DESCRIPTION ||
@@ -121,8 +120,6 @@ export default function RootLayout({
                     <AuthGuard>{children}</AuthGuard>
                 </Providers>
                 <GoogleAnalytics />
-                {/* Vercel Analytics only where Vercel serves its script; elsewhere (Ainize) it is a 404 on every page. */}
-                {process.env.VERCEL === '1' && <Analytics />}
             </body>
         </html>
     );

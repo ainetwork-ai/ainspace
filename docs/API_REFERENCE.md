@@ -8,7 +8,6 @@ This document summarizes the Next.js Route Handler APIs located under `src/app/a
   - `AINSPACE_STORAGE_REDIS_URL` – Redis connection string (optional, defaults to local Redis)
   - `OPENAI_API_KEY` – required for the `/convert-image` endpoint that calls DALL·E image editing
   - `GEMINI_API_KEY` – required for `/agent-response` and `/commentary` (Google Gemini)
-  - `AINSPACE_BLOB_READ_WRITE_TOKEN` – required for `/upload-tile` uploads to Vercel Blob Storage
 - Some endpoints fall back to an in-memory store when Redis is unavailable (for example, `/agents`).
 
 ## Endpoint Overview
@@ -34,7 +33,6 @@ This document summarizes the Next.js Route Handler APIs located under `src/app/a
 | GET | `/threads` | Fetch user thread mappings (query `userId`) |
 | POST | `/threads` | Save a thread mapping |
 | DELETE | `/threads` | Delete a thread mapping (query `userId`, `threadName`) |
-| POST | `/upload-tile` | Upload tile PNG via multipart/form-data |
 | GET | `/test-agent` | Test-fetch an external agent card |
 | GET | `/sentry-example-api` | Throw a Sentry test error |
 
@@ -354,19 +352,6 @@ Detailed descriptions follow.
 
 ### DELETE `/threads?userId=<id>&threadName=<name>`
 - **Description**: Deletes the specified thread mapping for the user.
-
----
-
-## POST `/upload-tile`
-- **Description**: Stores an uploaded PNG in Vercel Blob Storage at `tiles/{tileId}.png` and returns the public URL.
-- **Content Type**: `multipart/form-data`
-  - `file`: file (required)
-  - `tileId`: string (required)
-- **Response**
-  ```json
-  { "success": true, "url": "https://blob.vercel-storage.com/...", "tileId": "sample-tile" }
-  ```
-- **Errors**: Missing fields return `400`; upload failures return `500`.
 
 ---
 

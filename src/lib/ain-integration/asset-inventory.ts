@@ -1,5 +1,5 @@
 /**
- * 17.7 자산 인벤토리 — 순수 분류 규칙. `scripts/ain-asset-inventory.ts` 가 AIN storage 키·Vercel Blob·Firebase/GCS 객체의
+ * 17.7 자산 인벤토리 — 순수 분류 규칙. `scripts/ain-asset-inventory.ts` 가 AIN storage 키·Firebase/GCS 객체의
  * **이름만** 모아 여기서 종류(kind)로 나누고, 종류마다 이관 계획(disposition)을 붙인다. 값(AIN storage value·객체 바이트)은
  * 읽지 않는다. 비밀을 담는 종류(`secret: true`)는 샘플 이름도 접두어까지만 보인다.
  *
@@ -50,7 +50,7 @@ export function classifyStorageKey(key: string): AssetKind {
   return K('unknown', 'storage', 'unknown', '규칙 없음 — 확인 필요');
 }
 
-/** Vercel Blob pathname. */
+/** 옛 blob 저장소(이미 제거된 외부 호스팅)의 pathname — 남은 목록 파일을 분류할 때만 쓴다. */
 export function classifyBlobPath(pathname: string): AssetKind {
   if (/^tiles\//.test(pathname)) return K('tile-upload', 'blob', 'stays', 'Build 탭 타일 이미지(public)');
   if (/^(chat|attachments)\//.test(pathname)) return K('chat-attachment', 'blob', 'moves', '채팅 첨부 — Aindrive 로');
