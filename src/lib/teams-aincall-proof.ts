@@ -1,13 +1,13 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
-export class TeamsHuddleProofDenied extends Error {}
-export type TeamsHuddlePrincipal = { userId: string; issuer: string; subject: string; slug: string; instanceId?: string };
+export class TeamsAinCallProofDenied extends Error {}
+export type TeamsAinCallPrincipal = { userId: string; issuer: string; subject: string; slug: string; instanceId?: string };
 /** Only the configured Teams server may attest its linked backend/SSO identity. */
-export async function verifyTeamsHuddleProof(request: Request, options: {
+export async function verifyTeamsAinCallProof(request: Request, options: {
   secret: string; issuer: string; now?: number; allowDiscovery?: boolean;
   claimNonce(nonce: string): Promise<boolean>;
-}): Promise<TeamsHuddlePrincipal> {
-  const deny = () => { throw new TeamsHuddleProofDenied('Huddle authority unavailable'); };
+}): Promise<TeamsAinCallPrincipal> {
+  const deny = () => { throw new TeamsAinCallProofDenied('AinCall authority unavailable'); };
   const timestamp = request.headers.get('X-Ain-Timestamp') ?? '';
   const nonce = request.headers.get('X-Ain-Nonce') ?? '';
   const signature = request.headers.get('X-Ain-Signature') ?? '';
@@ -23,7 +23,7 @@ export async function verifyTeamsHuddleProof(request: Request, options: {
     }
   } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
   const body = Buffer.concat(chunks).toString('utf8');
-  const expected = createHmac('sha256', options.secret).update(`ain-space.huddle-authority.v1\n${timestamp}\n${nonce}\n${body}`).digest();
+  const expected = createHmac('sha256', options.secret).update(`ain-space.aincall-authority.v1\n${timestamp}\n${nonce}\n${body}`).digest();
   if (!timingSafeEqual(expected, Buffer.from(signature, 'hex'))) return deny();
   let value: unknown; try { value = JSON.parse(body); } catch { return deny(); }
   if (!value || typeof value !== 'object' || Array.isArray(value)) return deny();
@@ -37,5 +37,5 @@ export async function verifyTeamsHuddleProof(request: Request, options: {
       !discovery && (typeof principal.instanceId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(principal.instanceId))) return deny();
   // Atomic one-use storage must succeed; an unavailable replay store must not authorize.
   if (!await options.claimNonce(nonce)) return deny();
-  return principal as TeamsHuddlePrincipal;
+  return principal as TeamsAinCallPrincipal;
 }

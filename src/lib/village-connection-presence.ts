@@ -1,5 +1,5 @@
 import { type PlayerPresence, getRedisClient } from './redis';
-import { villageHuddleInstance } from './village-huddle-instance';
+import { villageAinCallInstance } from './village-aincall-instance';
 // Each browser connection owns a lease; closing an older stream cannot remove
 // a player whose replacement stream (or another tab) is still connected.
 export const RELEASE_VILLAGE_CONNECTION = `
@@ -7,14 +7,14 @@ if redis.call('ZREM', KEYS[1], ARGV[1]) == 0 then return 0 end
 redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', ARGV[2])
 if redis.call('ZCARD', KEYS[1]) > 0 then return 0 end
 redis.call('DEL', KEYS[1])
-if redis.call('HGET', KEYS[5], 'huddleInstance') ~= ARGV[5] then return 0 end
+if redis.call('HGET', KEYS[5], 'aincallInstance') ~= ARGV[5] then return 0 end
 redis.call('HDEL', KEYS[2], ARGV[3])
 redis.call('HDEL', KEYS[3], ARGV[3])
 redis.call('PUBLISH', KEYS[4], ARGV[4])
 return 1`;
 const connectionKey = (village: string, userId: string, instanceId: string) => `village:${village}:connections:${instanceId}:${encodeURIComponent(userId)}`;
 export const RENEW_VILLAGE_CONNECTION = `
-if redis.call('HGET', KEYS[2], 'huddleInstance') ~= ARGV[1] then return 0 end
+if redis.call('HGET', KEYS[2], 'aincallInstance') ~= ARGV[1] then return 0 end
 if not redis.call('ZSCORE', KEYS[1], ARGV[3]) then return 0 end
 redis.call('ZADD', KEYS[1], ARGV[2], ARGV[3])
 redis.call('EXPIRE', KEYS[1], 60)
@@ -22,7 +22,7 @@ redis.call('HSET', KEYS[3], ARGV[4], ARGV[5])
 redis.call('EXPIRE', KEYS[3], 3600)
 return 1`;
 export const JOIN_VILLAGE_CONNECTION = `
-if redis.call('HGET', KEYS[2], 'huddleInstance') ~= ARGV[1] then return 0 end
+if redis.call('HGET', KEYS[2], 'aincallInstance') ~= ARGV[1] then return 0 end
 redis.call('ZADD', KEYS[1], ARGV[2], ARGV[3])
 redis.call('EXPIRE', KEYS[1], 60)
 redis.call('HSET', KEYS[3], ARGV[4], ARGV[5])
@@ -40,11 +40,11 @@ export async function joinVillageConnection(village: string, userId: string, con
   if (Number(joined) !== 1) throw new Error('Village instance changed');
 }
 export const HAS_VILLAGE_CONNECTION = `
-if redis.call('HGET', KEYS[2], 'huddleInstance') ~= ARGV[1] then return 0 end
+if redis.call('HGET', KEYS[2], 'aincallInstance') ~= ARGV[1] then return 0 end
 return redis.call('ZCOUNT', KEYS[1], ARGV[2], '+inf')`;
 /** Only authenticated account IDs may be supplied by room authorization callers. */
 export async function hasVillageConnection(village: string, userId: string, now = Date.now()) {
-  const instance = await villageHuddleInstance(village);
+  const instance = await villageAinCallInstance(village);
   if (!instance) return false;
   return Number(await (await getRedisClient()).eval(HAS_VILLAGE_CONNECTION, {
     keys: [connectionKey(village, userId, instance.instanceId), `village:${village}`],
@@ -82,13 +82,13 @@ export const REMOVE_IDLE_VILLAGE_PRESENCE = `
 redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', ARGV[1])
 if redis.call('ZCARD', KEYS[1]) > 0 then return 0 end
 redis.call('DEL', KEYS[1])
-if redis.call('HGET', KEYS[5], 'huddleInstance') ~= ARGV[4] then return 0 end
+if redis.call('HGET', KEYS[5], 'aincallInstance') ~= ARGV[4] then return 0 end
 local removed = redis.call('HDEL', KEYS[2], ARGV[2])
 redis.call('HDEL', KEYS[3], ARGV[2])
 if removed > 0 then redis.call('PUBLISH', KEYS[4], ARGV[3]) end
 return removed`;
 export async function removeIdleVillagePresence(village: string, userId: string) {
-  const instance = await villageHuddleInstance(village);
+  const instance = await villageAinCallInstance(village);
   if (!instance) return 0;
   const instanceId = instance.instanceId;
   const redis = await getRedisClient();

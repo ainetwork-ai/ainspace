@@ -1,0 +1,29 @@
+import { NextResponse } from 'next/server';
+import { verifyTeamsAinCallProof, TeamsAinCallProofDenied } from '@/lib/teams-aincall-proof';
+import { getRedisClient } from '@/lib/redis';
+import { villageDeps } from '@/lib/ain-integration/deps';
+import { authorizeVillageAinCall, VillageAinCallDenied } from '@/lib/village-aincall-access';
+import { villageAinCallInstance } from '@/lib/village-aincall-instance';
+import { hasVillageConnection } from '@/lib/village-connection-presence';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+const headers = { 'Cache-Control': 'private, no-store' };
+/** Internal caller supplies a server-verified linked identity, never a browser account claim. */
+export async function POST(request: Request) {
+  const secret = process.env.AIN_TEAMS_AINCALL_SECRET ?? '';
+  const issuer = process.env.AIN_TEAMS_AINCALL_SSO_ISSUER ?? '';
+  if (Buffer.byteLength(secret) < 32 || !issuer) return NextResponse.json({ error: 'AinCall authority unavailable' }, { status: 503, headers });
+  try {
+    const principal = await verifyTeamsAinCallProof(request, { secret, issuer, allowDiscovery: true, claimNonce: async nonce => {
+      const redis = await getRedisClient();
+      return await redis.set(`ain:teams-aincall-nonce:${nonce}`, '1', { NX: true, EX: 90 }) === 'OK';
+    } });
+    const access = await authorizeVillageAinCall(principal.slug, principal.userId, villageDeps.directory, hasVillageConnection);
+    const instance = await villageAinCallInstance(principal.slug);
+    if (!instance || principal.instanceId !== undefined && instance.instanceId !== principal.instanceId) throw new VillageAinCallDenied();
+    return NextResponse.json({ ...access, ...instance }, { headers });
+  } catch (error) {
+    return NextResponse.json({ error: 'AinCall authority unavailable' }, { status: error instanceof TeamsAinCallProofDenied ? 401 : error instanceof VillageAinCallDenied ? 404 : 503, headers });
+  }
+}

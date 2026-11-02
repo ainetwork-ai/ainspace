@@ -24,7 +24,7 @@ cmd("SELECT",15);p="owned-ainspace-presence-"+uuid.uuid4().hex;ks=[p+":connectio
 def release(c):return cmd("EVAL",v["RELEASE_VILLAGE_CONNECTION"],5,*ks,c,now,"user","{}","original")
 def idle():return cmd("EVAL",v["REMOVE_IDLE_VILLAGE_PRESENCE"],5,*ks,now,"user","{}","original")
 try:
- cmd("HSET",ks[4],"huddleInstance","original")
+ cmd("HSET",ks[4],"aincallInstance","original")
  cmd("HSET",ks[1],"user","player","other","unaffected");cmd("HSET",ks[2],"user",now)
  cmd("ZADD",ks[0],now+45000,"old",now+45000,"replacement")
  assert idle()==0 and cmd("HGET",ks[1],"user")=="player"
@@ -37,7 +37,7 @@ try:
  assert idle()==1 and idle()==0
  assert cmd("HGET",ks[1],"other")=="unaffected"
  # Deletion/recreation must invalidate old leases, renewal and departure.
- cmd("HSET",ks[4],"huddleInstance","replacement")
+ cmd("HSET",ks[4],"aincallInstance","replacement")
  cmd("HSET",ks[1],"user","new-player")
  cmd("ZADD",ks[0],now+45000,"old-generation")
  assert cmd("EVAL",v["HAS_VILLAGE_CONNECTION"],2,ks[0],ks[4],"original","("+str(now))==0

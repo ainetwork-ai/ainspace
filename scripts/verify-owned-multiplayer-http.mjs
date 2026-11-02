@@ -56,8 +56,8 @@ const position = (userId, authorization, action) => fetch(`${base}/api/position`
 try {
   await redis.connect();
   await redis.hSet(`village:${village}`, { slug: village, name: 'Owned verification village', createdAt: String(Date.now()) });
-  const access = userId => fetch(`${base}/api/ain/villages/${village}/huddle`, { headers: { authorization: `Bearer ${token(userId)}` } });
-  assert.equal((await fetch(`${base}/api/ain/villages/${village}/huddle`)).status, 401);
+  const access = userId => fetch(`${base}/api/ain/villages/${village}/aincall`, { headers: { authorization: `Bearer ${token(userId)}` } });
+  assert.equal((await fetch(`${base}/api/ain/villages/${village}/aincall`)).status, 401);
   assert.equal((await access(users[0])).status, 404);
   await redis.sAdd(`village:${village}:members`, users[1]);
   const memberAccess = await access(users[1]);
@@ -76,7 +76,7 @@ try {
   assert.equal(presentDescriptor.title, 'Owned verification village');
   if (accounts) {
     for (const account of accounts) {
-      const source = await fetch(`http://localhost:17890/api/huddles/space/access?slug=${village}`, {
+      const source = await fetch(`http://localhost:17890/api/aincalls/space/access?slug=${village}`, {
         headers: { cookie: account.cookieHeader }, signal: AbortSignal.timeout(30_000),
       });
       assert.equal(source.status, 200);
@@ -95,7 +95,7 @@ try {
   assert.equal((await position(users[0], `Bearer ${token(users[0])}`)).status, 200);
   await waitFor(() => otherAccount.events.some(event => event.body.type === 'PLAYER_MOVED' && event.body.userId === users[0] && event.body.x === 7));
   firstTab.controller.abort();
-  const instanceId = await redis.hGet(`village:${village}`, 'huddleInstance');
+  const instanceId = await redis.hGet(`village:${village}`, 'aincallInstance');
   assert.ok(instanceId);
   const connectionKey = `village:${village}:connections:${instanceId}:${users[0]}`;
   await waitFor(async () => await redis.zCard(connectionKey) === 1);
@@ -107,7 +107,7 @@ try {
   assert.equal(await redis.hGet(`village:${village}:players`, users[0]), null);
   assert.equal((await access(users[0])).status, 404);
   if (accounts) {
-    const denied = await fetch(`http://localhost:17890/api/huddles/space/access?slug=${village}`, {
+    const denied = await fetch(`http://localhost:17890/api/aincalls/space/access?slug=${village}`, {
       headers: { cookie: accounts[0].cookieHeader }, signal: AbortSignal.timeout(30_000),
     });
     assert.equal(denied.status, 404); await denied.body?.cancel();
@@ -124,7 +124,7 @@ try {
   await redis.hSet(`village:${village}`, { slug: village, name: 'Recreated owned village', createdAt: String(Date.now()) });
   assert.equal((await access(users[0])).status, 404);
   const recreatedTab = await connect(users[0]);
-  const recreatedInstance = await redis.hGet(`village:${village}`, 'huddleInstance');
+  const recreatedInstance = await redis.hGet(`village:${village}`, 'aincallInstance');
   assert.notEqual(recreatedInstance, instanceId);
   assert.equal((await access(users[0])).status, 200);
   oldGenerationTab.controller.abort();
@@ -134,7 +134,7 @@ try {
   recreatedTab.controller.abort();
   await waitFor(async () => await redis.hGet(`village:${village}:players`, users[0]) === null);
   assert.equal((await access(users[0])).status, 404);
-  console.log(JSON.stringify({ sourceRecreationRejectsPriorPresence: true, oldGenerationDeparturePreservesNewConnection: true, actualOwnedHttp: true, actualSsoAccounts: accounts?.length ?? 0, teamsSourceBridgeVerified: !!accounts, accountSessionVerified: true, spoofedAccountRejected: true, simultaneousAccountSnapshot: true, movementDelivered: true, oldTabDeparturePreservesOtherTab: true, legacyDisconnectPreservesLiveStream: true, finalDepartureDelivered: true, expiredSessionStopsExistingStream: true, huddleAccessRequiresLiveVillagePresence: true, huddleAccessRevokedAfterDeparture: true, otherAccountPreserved: true }));
+  console.log(JSON.stringify({ sourceRecreationRejectsPriorPresence: true, oldGenerationDeparturePreservesNewConnection: true, actualOwnedHttp: true, actualSsoAccounts: accounts?.length ?? 0, teamsSourceBridgeVerified: !!accounts, accountSessionVerified: true, spoofedAccountRejected: true, simultaneousAccountSnapshot: true, movementDelivered: true, oldTabDeparturePreservesOtherTab: true, legacyDisconnectPreservesLiveStream: true, finalDepartureDelivered: true, expiredSessionStopsExistingStream: true, aincallAccessRequiresLiveVillagePresence: true, aincallAccessRevokedAfterDeparture: true, otherAccountPreserved: true }));
 } finally {
   for (const stream of streams) stream.controller.abort();
   await Promise.allSettled(streams.map(stream => stream.reading).filter(Boolean));

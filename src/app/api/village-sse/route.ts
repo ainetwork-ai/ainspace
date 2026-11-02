@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { villageHuddleInstance } from '@/lib/village-huddle-instance';
+import { villageAinCallInstance } from '@/lib/village-aincall-instance';
 import { randomUUID } from 'node:crypto';
 import { joinVillageConnection, renewVillageConnection, releaseVillageConnection, removeIdleVillagePresence } from '@/lib/village-connection-presence';
 import {
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  const sourceInstance = await villageHuddleInstance(village);
+  const sourceInstance = await villageAinCallInstance(village);
   if (!sourceInstance) return new Response('Village unavailable', { status: 404 });
   const instanceId = sourceInstance.instanceId;
 
@@ -104,7 +104,7 @@ export async function GET(request: NextRequest) {
         eventDelivery = eventDelivery.then(async () => {
         if (closed) return;
         try {
-          if ((await villageHuddleInstance(village))?.instanceId !== instanceId) { cleanup(); return; }
+          if ((await villageAinCallInstance(village))?.instanceId !== instanceId) { cleanup(); return; }
           if (closed) return;
           const parsed = JSON.parse(message);
           // Filter out own events
@@ -147,7 +147,7 @@ export async function GET(request: NextRequest) {
         } catch {
           // Degraded mode — empty snapshot
         }
-        if ((await villageHuddleInstance(village))?.instanceId !== instanceId) { cleanup(); return; }
+        if ((await villageAinCallInstance(village))?.instanceId !== instanceId) { cleanup(); return; }
         // Exclude self from snapshot
         const otherPlayers = players.filter(p => p.userId !== userId);
         send('snapshot', JSON.stringify({ players: otherPlayers }));
@@ -178,7 +178,7 @@ export async function GET(request: NextRequest) {
         cleanupInterval = setInterval(async () => {
           if (closed) return;
           try {
-            if ((await villageHuddleInstance(village))?.instanceId !== instanceId) { cleanup(); return; }
+            if ((await villageAinCallInstance(village))?.instanceId !== instanceId) { cleanup(); return; }
             await cleanupStale(village);
           } catch {
             // Non-critical
