@@ -1,5 +1,6 @@
 // Types for the new NestJS backend JWT auth (consumed via the ainspace BFF).
-// Source of truth: docs/ainspace-integration-guide.md
+// Source of truth: ainteams `docs/integration/ainspace-integration-guide.md` (private repo). Which paths ainspace calls, and
+// where: docs/ainspace-integration-guide.md.
 
 export interface BackendUser {
   id: string;
