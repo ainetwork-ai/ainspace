@@ -201,22 +201,22 @@ test('village instance initialization preserves fields, resolves competing gatew
   const { store, chain, codec } = setup();
   const peer = new AinStateStore(chain, codec, root);
   const key = 'ainspace:village:owned';
-  assert.equal(await store.hInitializeExisting(key, 'huddleInstance', 'one', { slug: 'owned' }), null);
+  assert.equal(await store.hInitializeExisting(key, 'aincallInstance', 'one', { slug: 'owned' }), null);
   await store.hSet(key, { slug: 'owned', name: 'Owned room', createdAt: '1000' });
   const values = await Promise.all([
-    store.hInitializeExisting(key, 'huddleInstance', 'one', { slug: 'owned', createdAt: '1000' }),
-    peer.hInitializeExisting(key, 'huddleInstance', 'two', { slug: 'owned', createdAt: '1000' }),
+    store.hInitializeExisting(key, 'aincallInstance', 'one', { slug: 'owned', createdAt: '1000' }),
+    peer.hInitializeExisting(key, 'aincallInstance', 'two', { slug: 'owned', createdAt: '1000' }),
   ]);
   assert.equal(values[0], values[1]);
   assert.equal((await store.hGetAll(key)).name, 'Owned room');
   assert.equal(await store.hInitializeExisting(key, 'other', 'bad', { slug: 'foreign' }), null);
   assert.equal(await store.hGet(key, 'other'), null);
   await store.del(key);
-  assert.equal(await peer.hInitializeExisting(key, 'huddleInstance', 'late', { slug: 'owned' }), null);
+  assert.equal(await peer.hInitializeExisting(key, 'aincallInstance', 'late', { slug: 'owned' }), null);
   assert.equal(await store.exists(key), 0);
 });
 
-test('one-use Huddle proofs have exactly one claim across competing gateways and expire', async () => {
+test('one-use AinCall proofs have exactly one claim across competing gateways and expire', async () => {
   const { store, chain, codec, advance } = setup();
   const peer = new AinStateStore(chain, codec, root, () => 1000);
   const claims = await Promise.all(Array.from({ length: 12 }, (_, index) => (index % 2 ? peer : store).setNxEx('ainspace:proof:owned', 90, 'used')));

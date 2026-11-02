@@ -36,12 +36,12 @@ export class VillageConnections {
     }
     if (command.operation === 'village.instance') {
       const expected = { slug: village, name: metadata.name, ...(metadata.createdAt ? { createdAt: metadata.createdAt } : {}) };
-      const instanceId = await this.store.hInitializeExisting(key, 'huddleInstance', randomUUID(), expected);
+      const instanceId = await this.store.hInitializeExisting(key, 'aincallInstance', randomUUID(), expected);
       if (!instanceId || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(instanceId)) throw Error('Village unavailable');
       return { instanceId, title: metadata.name };
     }
     const instance = command.instanceId;
-    if (!instance || metadata.huddleInstance !== instance) throw Error('Village instance changed');
+    if (!instance || metadata.aincallInstance !== instance) throw Error('Village instance changed');
     if (command.operation === 'presence.list') return this.leases.snapshot(village, instance);
     const user = this.identity(command.userId);
     if (command.operation === 'presence.has') return this.leases.has(village, instance, user);

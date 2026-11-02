@@ -1,5 +1,5 @@
 /** Server-configured destination; no access token or SSO credential travels in the URL. */
-export function huddleLaunchUrl(base: string | undefined, slug: string): string | null {
+export function aincallLaunchUrl(base: string | undefined, slug: string): string | null {
   if (!base || !/^[a-z0-9-]{1,64}$/.test(slug)) return null;
   try {
     const url = new URL(base);

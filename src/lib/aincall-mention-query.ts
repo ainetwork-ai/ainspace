@@ -1,5 +1,5 @@
 /** Reject duplicate/unknown query parameters before any private membership lookup. */
-export function parseHuddleMentionQuery(params: URLSearchParams, requireInstance: boolean): { instanceId?: string; after?: string } | null {
+export function parseAinCallMentionQuery(params: URLSearchParams, requireInstance: boolean): { instanceId?: string; after?: string } | null {
   const allowed = requireInstance ? ['instanceId', 'after'] : ['after'];
   const result: { instanceId?: string; after?: string } = {};
   for (const [key, value] of params) {
